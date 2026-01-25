@@ -60,6 +60,10 @@ function CooldownIcons:Initialize()
     
     -- Register for spell cast events (for cast feedback animation)
     self.Events:RegisterEvent(self, "UNIT_SPELLCAST_SUCCEEDED", self.OnSpellCastSucceeded)
+    
+    -- Register for target changes (for target lockout debuff tracking like PWS/Weakened Soul)
+    self.Events:RegisterEvent(self, "PLAYER_TARGET_CHANGED", self.OnSpellUpdate)
+    self.Events:RegisterEvent(self, "UNIT_TARGET", self.OnUnitTarget)
 
     self.Utils:LogInfo("CooldownIcons initialized")
 end
@@ -129,6 +133,13 @@ function CooldownIcons:OnPowerUpdate(event, unit)
     end
 end
 
+function CooldownIcons:OnUnitTarget(event, unit)
+    -- Update when target's target changes (for targettarget lockout tracking)
+    if unit == "target" then
+        self:UpdateAllIcons()
+    end
+end
+
 function CooldownIcons:OnOverlayShow(event, spellID)
     if spellID then
         self.activeOverlays[spellID] = true
@@ -151,6 +162,110 @@ function CooldownIcons:OnSpellCastSucceeded(event, unit, castGUID, spellID)
     if frame then
         self:PlayCastFeedback(frame)
     end
+    
+    -- Check if this spell is part of a shared cooldown group
+    -- If so, and it's not the displayed spell, set an override to show this spell's buff
+    self:HandleSharedCooldownCast(spellID)
+end
+
+-- Handle when a shared cooldown spell is cast that isn't the displayed one
+-- Simply swap the icon to show the actually-used ability (buff + cooldown)
+function CooldownIcons:HandleSharedCooldownCast(castSpellID)
+    local LibSpellDB = addon.LibSpellDB
+    if not LibSpellDB then return end
+    
+    -- Get the shared cooldown group for the cast spell
+    local groupName, groupInfo = LibSpellDB:GetSharedCooldownGroup(castSpellID)
+    if not groupName or not groupInfo then return end
+    
+    -- Find if we have an icon tracking any spell from this group
+    for _, rowFrame in ipairs(self.rows or {}) do
+        if rowFrame.icons then
+            for _, iconFrame in ipairs(rowFrame.icons) do
+                if iconFrame:IsShown() and iconFrame.spellID then
+                    -- Check if this icon's spell is in the same shared CD group
+                    local iconGroup = LibSpellDB:GetSharedCooldownGroup(iconFrame.spellID)
+                    if iconGroup == groupName and iconFrame.spellID ~= castSpellID then
+                        -- Different spell from same group was cast!
+                        -- Swap the icon to show the used ability instead
+                        local castSpellData = LibSpellDB:GetSpellInfo(castSpellID)
+                        if castSpellData then
+                            -- Update icon to the cast spell (permanent swap)
+                            local texture = castSpellData.icon or self.Utils:GetSpellTexture(castSpellID)
+                            iconFrame.icon:SetTexture(texture)
+                            iconFrame.spellID = castSpellID
+                            iconFrame.spellData = castSpellData
+                            self.Utils:Debug("SharedCD swap: now showing", castSpellID, "instead of original")
+                        end
+                    end
+                end
+            end
+        end
+    end
+end
+
+-- Check if a buff is active on the player (for shared CD abilities like Reck/Retal/SWall)
+-- Returns: isActive, remaining, duration, stacks
+function CooldownIcons:GetPlayerBuff(spellID)
+    local spellName = GetSpellInfo(spellID)
+    
+    for i = 1, 40 do
+        local name, icon, count, debuffType, duration, expirationTime, source, 
+              isStealable, nameplateShowPersonal, buffSpellId = UnitBuff("player", i)
+        
+        if not name then break end
+        
+        if buffSpellId == spellID or name == spellName then
+            local remaining = 0
+            if expirationTime and expirationTime > 0 then
+                remaining = expirationTime - GetTime()
+                if remaining < 0 then remaining = 0 end
+            end
+            return true, remaining, duration or 0, count or 0
+        end
+    end
+    
+    return false, 0, 0, 0
+end
+
+-- Check for target lockout debuff (e.g., Weakened Soul for PWS)
+-- Priority: friendly target -> friendly targettarget -> self
+-- Returns: isActive, remaining, duration, expirationTime
+function CooldownIcons:GetTargetLockoutDebuff(debuffSpellID)
+    if not debuffSpellID then return false, 0, 0, 0 end
+    
+    local debuffName = GetSpellInfo(debuffSpellID)
+    if not debuffName then return false, 0, 0, 0 end
+    
+    -- Determine which unit to check (priority order)
+    local unit = "player"
+    if UnitExists("target") and UnitIsFriend("player", "target") then
+        -- Friendly target - check them
+        unit = "target"
+    elseif UnitExists("targettarget") and UnitIsFriend("player", "targettarget") then
+        -- Enemy target but their target is friendly (e.g., tank) - check them
+        unit = "targettarget"
+    end
+    -- else: fallback to self
+    
+    -- Scan debuffs on the unit
+    for i = 1, 40 do
+        local name, icon, count, debuffType, duration, expirationTime, source, 
+              isStealable, nameplateShowPersonal, debuffSpellId = UnitDebuff(unit, i)
+        
+        if not name then break end
+        
+        if debuffSpellId == debuffSpellID or name == debuffName then
+            local remaining = 0
+            if expirationTime and expirationTime > 0 then
+                remaining = expirationTime - GetTime()
+                if remaining < 0 then remaining = 0 end
+            end
+            return true, remaining, duration or 0, expirationTime or 0
+        end
+    end
+    
+    return false, 0, 0, 0
 end
 
 -- Find icon frame by spell ID (checks ranks too)
@@ -702,9 +817,40 @@ function CooldownIcons:UpdateIconState(frame, db)
         auraRemaining, auraDuration, auraStacks = auraTracker:GetAuraRemaining(spellID)
     end
     local auraTargetCount = auraTracker and auraTracker:GetAuraTargetCount(spellID) or 0
+    
+    -- For shared CD abilities (Reck/Retal/SWall), also check player buffs directly
+    -- since AuraTracker may not track non-displayed spells
+    if not auraActive then
+        local isBuffActive, buffRemaining, buffDuration, buffStacks = self:GetPlayerBuff(spellID)
+        if isBuffActive then
+            auraActive = true
+            auraRemaining = buffRemaining
+            auraDuration = buffDuration
+            auraStacks = buffStacks or 0
+        end
+    end
 
     -- Get cooldown info (including actual start time for accurate spiral)
     local remaining, duration, cdEnabled, cdStartTime = self.Utils:GetSpellCooldown(spellID)
+    
+    -- Check for target lockout debuff (e.g., Weakened Soul for PWS)
+    -- This acts as a per-target cooldown, overriding actual spell cooldown
+    local spellData = frame.spellData
+    local targetLockoutActive = false
+    local targetLockoutRemaining, targetLockoutDuration, targetLockoutExpiration = 0, 0, 0
+    
+    if spellData and spellData.targetLockoutDebuff then
+        targetLockoutActive, targetLockoutRemaining, targetLockoutDuration, targetLockoutExpiration = 
+            self:GetTargetLockoutDebuff(spellData.targetLockoutDebuff)
+        
+        if targetLockoutActive and targetLockoutRemaining > 0 then
+            -- Use lockout debuff as the effective cooldown
+            remaining = targetLockoutRemaining
+            duration = targetLockoutDuration
+            -- Calculate start time from expiration for accurate spiral
+            cdStartTime = targetLockoutExpiration - targetLockoutDuration
+        end
+    end
     
     -- Determine if this is GCD vs actual cooldown
     local GCD_THRESHOLD = 1.5

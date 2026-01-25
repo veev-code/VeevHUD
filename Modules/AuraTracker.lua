@@ -144,14 +144,32 @@ function AuraTracker:OnAuraEvent(subEvent, data)
         
         if baseSpellID then
             -- This spell (or its base) is tracked and applies an aura
-            -- Dynamically determine if it's a buff on self or debuff on target
+            -- Determine aura type based on spell tags and target
             sourceSpellID = baseSpellID
             local isSelfBuff = (destGUID == self.playerGUID)
+            
+            -- Check if this is a healing/buff spell (applies buff) or damage spell (applies debuff)
+            -- Look up spell data to determine type
+            local spellData = self.LibSpellDB and self.LibSpellDB:GetSpellInfo(baseSpellID)
+            local isBuff = isSelfBuff  -- Default: self = buff
+            
+            if spellData and spellData.tags then
+                -- Check tags to determine if this is a buff-type spell
+                for _, tag in ipairs(spellData.tags) do
+                    if tag == "HOT" or tag == "HAS_HOT" or tag == "HEAL_SINGLE" or tag == "HEAL_AOE" 
+                       or tag == "BUFF" or tag == "HAS_BUFF" or tag == "EXTERNAL_DEFENSIVE" then
+                        isBuff = true
+                        break
+                    end
+                end
+            end
+            
             auraInfo = {
                 spellID = spellID,  -- Use actual aura ID (rank ID) for tracking
-                type = isSelfBuff and "BUFF" or "DEBUFF",
+                type = isBuff and "BUFF" or "DEBUFF",
                 onTarget = not isSelfBuff,
-                duration = nil,  -- Will be detected from game API
+                isBuff = isBuff,  -- Explicit buff flag for scanning
+                duration = spellData and spellData.duration or nil,
                 baseSpellID = baseSpellID,  -- Store base ID for lookup
             }
         end
@@ -159,17 +177,14 @@ function AuraTracker:OnAuraEvent(subEvent, data)
     
     if not sourceSpellID or not auraInfo then return end
     
-    -- For debuffs on targets: must be from us (already checked above)
-    -- For buffs on self: destGUID must be us
-    local isSelfBuff = not auraInfo.onTarget
-    
-    if isSelfBuff then
-        -- Self buff: only track if dest is player
-        if destGUID ~= self.playerGUID then return end
-    else
-        -- Target debuff: only track if source is player
-        if sourceGUID ~= self.playerGUID then return end
+    -- Determine if this is a buff (on self or ally) or debuff (on enemy)
+    -- Use explicit isBuff flag if available, otherwise infer from onTarget
+    local isBuff = auraInfo.isBuff
+    if isBuff == nil then
+        isBuff = not auraInfo.onTarget
     end
+    
+    -- All auras we track must be from us (already checked above via sourceGUID)
     
     -- Use the base spell ID for storage so icon lookups work correctly
     -- (e.g., Hamstring rank 3 is stored under base ID 1715, not rank ID 7373)
@@ -185,7 +200,7 @@ function AuraTracker:OnAuraEvent(subEvent, data)
         -- Try to get actual duration and stacks from the unit
         local unit = self:GetUnitFromGUID(destGUID)
         if unit then
-            local actualDuration, actualExpiration, actualStacks = self:GetAuraDurationOnUnit(unit, spellID, spellName, isSelfBuff)
+            local actualDuration, actualExpiration, actualStacks = self:GetAuraDurationOnUnit(unit, spellID, spellName, isBuff)
             if actualExpiration and actualExpiration > 0 then
                 expiration = actualExpiration
                 duration = actualDuration or 0
@@ -195,7 +210,19 @@ function AuraTracker:OnAuraEvent(subEvent, data)
         
         -- Fallback to estimated duration if we couldn't get actual
         if not expiration or expiration <= GetTime() then
-            duration = auraInfo.duration or 10
+            -- Try to get duration from LibSpellDB first
+            duration = auraInfo.duration
+            if not duration and self.LibSpellDB then
+                local spellData = self.LibSpellDB:GetSpellInfo(sourceSpellID)
+                if spellData and spellData.duration then
+                    duration = spellData.duration
+                end
+            end
+            -- Final fallback: try GetSpellInfo for spell description parsing isn't reliable,
+            -- so use a reasonable default based on spell type
+            if not duration then
+                duration = 15  -- More reasonable default than 10
+            end
             expiration = GetTime() + duration
         end
         
@@ -251,12 +278,24 @@ function AuraTracker:OnAuraStackEvent(subEvent, data)
     if not sourceSpellID then return end
     
     local storageID = sourceSpellID
-    local isSelfBuff = (destGUID == self.playerGUID)
+    
+    -- Determine if this is a buff based on spell data
+    local isBuff = (destGUID == self.playerGUID)  -- Default: self = buff
+    local spellData = self.LibSpellDB and self.LibSpellDB:GetSpellInfo(sourceSpellID)
+    if spellData and spellData.tags then
+        for _, tag in ipairs(spellData.tags) do
+            if tag == "HOT" or tag == "HAS_HOT" or tag == "HEAL_SINGLE" or tag == "HEAL_AOE" 
+               or tag == "BUFF" or tag == "HAS_BUFF" or tag == "EXTERNAL_DEFENSIVE" then
+                isBuff = true
+                break
+            end
+        end
+    end
     
     -- Update stack count from the unit
     local unit = self:GetUnitFromGUID(destGUID)
     if unit and self.activeAuras[storageID] and self.activeAuras[storageID][destGUID] then
-        local _, _, stacks = self:GetAuraDurationOnUnit(unit, spellID, spellName, isSelfBuff)
+        local _, _, stacks = self:GetAuraDurationOnUnit(unit, spellID, spellName, isBuff)
         self.activeAuras[storageID][destGUID].stacks = stacks or 0
         
         self.Utils:LogInfo("AuraTracker: Stacks changed", spellName, "->", stacks or 0)

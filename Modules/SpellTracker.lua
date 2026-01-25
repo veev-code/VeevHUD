@@ -232,7 +232,7 @@ function SpellTracker:ShouldExcludeSpell(spellData)
             isOutOfCombat = true
         elseif tag == "LONG_BUFF" then
             isLongBuff = true
-        elseif tag == "DEBUFF" or tag == "HOT" or tag == "BUFF" or tag == "TRACK_BUFF" then
+        elseif tag == "DEBUFF" or tag == "HOT" or tag == "BUFF" or tag == "HAS_BUFF" or tag == "HAS_DEBUFF" then
             hasTrackableDuration = true
         end
     end
