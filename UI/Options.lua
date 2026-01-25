@@ -222,12 +222,10 @@ function Options:CreatePanelContent(container)
         tooltip = "Displays the remaining cooldown time as numbers on top of each icon (e.g., '5s', '1.2'). Very helpful for tracking when abilities will be ready. Works alongside addons like OmniCC.",
     })
     
-    yOffset = self:CreateSlider(container, yOffset, {
-        path = "icons.cooldownSpiralAlpha",
-        label = "Cooldown Spiral Opacity",
-        tooltip = "Controls how dark the cooldown spiral 'clock sweep' appears. Higher values make it more visible. Set to 0% to disable the spiral entirely and only use text.",
-        min = 0, max = 1.0, step = 0.1,
-        isPercent = true,
+    yOffset = self:CreateCheckbox(container, yOffset, {
+        path = "icons.showCooldownSpiral",
+        label = "Show Cooldown Spiral",
+        tooltip = "Shows the dark 'clock sweep' overlay on abilities that are on cooldown. This visual helps you see at a glance how much time remains. Disable if you prefer text-only cooldowns.",
     })
     
     yOffset = self:CreateCheckbox(container, yOffset, {

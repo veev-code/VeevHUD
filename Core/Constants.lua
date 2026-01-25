@@ -147,7 +147,7 @@ C.DEFAULTS = {
             
             -- Cooldown display
             showCooldownText = true,
-            cooldownSpiralAlpha = 0.8,  -- Alpha of the cooldown spiral (0 = disabled, 0.8 = default)
+            showCooldownSpiral = true,  -- Show the cooldown spiral overlay
             
             -- Resource cost display (for rage/energy classes)
             -- "none" = disabled, "bar" = horizontal bar at bottom, "fill" = vertical fill from bottom

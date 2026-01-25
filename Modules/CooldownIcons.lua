@@ -1019,13 +1019,15 @@ function CooldownIcons:UpdateIconState(frame, db)
         end
     end
 
-    -- Show/hide cooldown spiral (alpha of 0 = disabled)
-    local spiralAlpha = db.cooldownSpiralAlpha or 0.8
-    if showSpinner and spiralAlpha > 0 then
+    -- Show/hide cooldown spiral
+    local showSpiral = db.showCooldownSpiral ~= false
+    if showSpinner and showSpiral then
+        frame.cooldown:SetAlpha(1)
+        frame.cooldown:SetSwipeColor(0, 0, 0, 0.8)
+        
         if showAuraActive and auraDisplayDuration > 0 then
             -- Show aura duration spiral (remaining = bright, elapsed = dark)
             frame.cooldown:SetReverse(true)  -- Swipe fills as time passes (elapsed = dark)
-            frame.cooldown:SetSwipeColor(0, 0, 0, spiralAlpha)
             local start = GetTime() - (auraDisplayDuration - auraDisplayRemaining)
             -- Only update if cooldown changed to avoid visual glitches
             if frame.lastCdStart ~= start or frame.lastCdDuration ~= auraDisplayDuration then
@@ -1038,7 +1040,6 @@ function CooldownIcons:UpdateIconState(frame, db)
             -- Normal cooldown spiral (remaining = dark, elapsed = bright)
             -- Use actual start time from API for accuracy
             frame.cooldown:SetReverse(false)  -- Swipe drains as time passes (remaining = dark)
-            frame.cooldown:SetSwipeColor(0, 0, 0, spiralAlpha)
             -- Only update if cooldown changed to avoid visual glitches
             if frame.lastCdStart ~= cdStartTime or frame.lastCdDuration ~= duration then
                 frame.cooldown:SetCooldown(cdStartTime, duration)
@@ -1587,6 +1588,9 @@ function CooldownIcons:Refresh()
             -- Reconfigure external cooldown text (OmniCC, etc.) when settings change
             if icon.cooldown then
                 self:ConfigureCooldownText(icon.cooldown)
+                -- Clear cached cooldown values to force re-apply of spiral settings
+                icon.lastCdStart = nil
+                icon.lastCdDuration = nil
             end
         end
         
