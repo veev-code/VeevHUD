@@ -92,9 +92,34 @@ function ProcTracker:CreateFrames(parent)
     -- Store for later reference
     self.classProcs = classProcs
     
+    -- Calculate position relative to health bar (proc tracker is ABOVE health bar)
+    local healthDb = addon.db.profile.healthBar
+    local resourceDb = addon.db.profile.resourceBar
+    local procGap = 2  -- pixels between bar and proc icons
+    local procOffset
+    
+    if healthDb.enabled then
+        -- Health bar is shown - position above it
+        local healthBarOffset
+        if resourceDb.enabled then
+            healthBarOffset = resourceDb.height / 2 + healthDb.height / 2
+        else
+            healthBarOffset = 0
+        end
+        local healthBarTop = healthBarOffset + healthDb.height / 2
+        procOffset = healthBarTop + procGap + db.iconSize / 2
+    elseif resourceDb.enabled then
+        -- Only resource bar shown - position above it
+        local resourceBarTop = resourceDb.height / 2
+        procOffset = resourceBarTop + procGap + db.iconSize / 2
+    else
+        -- No bars shown - position at center
+        procOffset = procGap + db.iconSize / 2
+    end
+    
     -- Container frame
     local container = CreateFrame("Frame", "VeevHUD_ProcTracker", parent)
-    container:SetPoint("CENTER", parent, "CENTER", 0, db.offsetY)
+    container:SetPoint("CENTER", parent, "CENTER", 0, procOffset)
     self.container = container
     
     -- Create icon frames for each proc
@@ -456,5 +481,68 @@ function ProcTracker:Disable()
 end
 
 function ProcTracker:Refresh()
+    -- Re-apply config settings to existing frames
+    local db = addon.db.profile.procTracker
+    local healthDb = addon.db.profile.healthBar
+    local resourceDb = addon.db.profile.resourceBar
+    
+    if self.container then
+        -- Calculate position relative to health bar (proc tracker is ABOVE health bar)
+        local procGap = 2  -- pixels between bar and proc icons
+        local procOffset
+        
+        if healthDb.enabled then
+            -- Health bar is shown - position above it
+            local healthBarOffset
+            if resourceDb.enabled then
+                healthBarOffset = resourceDb.height / 2 + healthDb.height / 2
+            else
+                healthBarOffset = 0
+            end
+            local healthBarTop = healthBarOffset + healthDb.height / 2
+            procOffset = healthBarTop + procGap + db.iconSize / 2
+        elseif resourceDb.enabled then
+            -- Only resource bar shown - position above it
+            local resourceBarTop = resourceDb.height / 2
+            procOffset = resourceBarTop + procGap + db.iconSize / 2
+        else
+            -- No bars shown - position at center
+            procOffset = procGap + db.iconSize / 2
+        end
+        
+        self.container:ClearAllPoints()
+        self.container:SetPoint("CENTER", self.container:GetParent(), "CENTER", 0, procOffset)
+        
+        -- Toggle visibility based on enabled
+        if db.enabled then
+            self.container:Show()
+        else
+            self.container:Hide()
+        end
+        
+        -- Update icon sizes and spacing
+        local iconSize = db.iconSize
+        local spacing = db.iconSpacing
+        local numProcs = #(self.classProcs or {})
+        local totalWidth = (numProcs * iconSize) + ((numProcs - 1) * spacing)
+        
+        self.container:SetSize(totalWidth, iconSize)
+        
+        -- Reposition and resize all icons
+        for i, frame in ipairs(self.icons or {}) do
+            local xOffset = (i - 1) * (iconSize + spacing) - (totalWidth / 2) + (iconSize / 2)
+            frame:SetSize(iconSize, iconSize)
+            frame:ClearAllPoints()
+            frame:SetPoint("CENTER", self.container, "CENTER", xOffset, 0)
+            
+            -- Update border to match new size
+            if frame.border then
+                frame.border:ClearAllPoints()
+                frame.border:SetPoint("TOPLEFT", -1, 1)
+                frame.border:SetPoint("BOTTOMRIGHT", 1, -1)
+            end
+        end
+    end
+    
     self:UpdateAllProcs()
 end

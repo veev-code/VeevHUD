@@ -80,12 +80,13 @@ function CooldownIcons:InitializeMasque()
 end
 
 -- Configure external cooldown text addons (OmniCC, ElvUI, etc.)
--- By default, we use our own text and tell external addons to hide theirs
+-- If showCooldownText is enabled, we use our own text and hide external addons
+-- If showCooldownText is disabled, we let external addons show their text
 function CooldownIcons:ConfigureCooldownText(cooldown)
     local db = addon.db and addon.db.profile.icons or {}
-    local useOwnText = db.useOwnCooldownText ~= false  -- Default true
+    local showOwnText = db.showCooldownText ~= false  -- Default true
     
-    if useOwnText then
+    if showOwnText then
         -- Hide external cooldown text, use our own
         if OmniCC and OmniCC.Cooldown and OmniCC.Cooldown.SetNoCooldownCount then
             -- OmniCC: always hide default numbers, tell OmniCC to hide its text
@@ -101,7 +102,7 @@ function CooldownIcons:ConfigureCooldownText(cooldown)
             cooldown:SetHideCountdownNumbers(true)
         end
     else
-        -- Let external addons show their text, hide ours
+        -- Let external addons show their text (OmniCC, ElvUI, etc.)
         if OmniCC and OmniCC.Cooldown and OmniCC.Cooldown.SetNoCooldownCount then
             cooldown:SetHideCountdownNumbers(true)
             OmniCC.Cooldown.SetNoCooldownCount(cooldown, false)
@@ -300,14 +301,21 @@ function CooldownIcons:PlayCastFeedback(frame)
     local db = addon.db and addon.db.profile.icons or {}
     if db.castFeedback == false then return end  -- Allow disabling
     
-    -- Create animation group on first use
-    if not frame.punchAnim then
+    local scale = db.castFeedbackScale or 1.1
+    
+    -- Create or update animation group
+    if not frame.punchAnim or frame.punchAnimScale ~= scale then
+        -- Need to create new animation with updated scale
+        if frame.punchAnim then
+            frame.punchAnim:Stop()
+        end
+        
         local ag = frame:CreateAnimationGroup()
         
         -- Scale up from center
         local scaleUp = ag:CreateAnimation("Scale")
         scaleUp:SetOrigin("CENTER", 0, 0)
-        scaleUp:SetScale(1.1, 1.1)
+        scaleUp:SetScale(scale, scale)
         scaleUp:SetDuration(0.08)
         scaleUp:SetSmoothing("OUT")
         scaleUp:SetOrder(1)
@@ -315,12 +323,13 @@ function CooldownIcons:PlayCastFeedback(frame)
         -- Scale back down to normal
         local scaleDown = ag:CreateAnimation("Scale")
         scaleDown:SetOrigin("CENTER", 0, 0)
-        scaleDown:SetScale(1/1.1, 1/1.1)
+        scaleDown:SetScale(1/scale, 1/scale)
         scaleDown:SetDuration(0.12)
         scaleDown:SetSmoothing("IN")
         scaleDown:SetOrder(2)
         
         frame.punchAnim = ag
+        frame.punchAnimScale = scale
     end
     
     frame.punchAnim:Stop()
@@ -388,7 +397,14 @@ function CooldownIcons:CreateRowFrames()
 
             -- Use per-row settings or fall back to global
             local rowIconSize = rowConfig.iconSize or iconDb.iconSize or 40
-            local rowIconSpacing = rowConfig.iconSpacing or iconDb.iconSpacing or 2
+            -- Use explicit nil check since 0 is a valid spacing value
+            local rowIconSpacing = rowConfig.iconSpacing
+            if rowIconSpacing == nil then
+                rowIconSpacing = iconDb.iconSpacing
+            end
+            if rowIconSpacing == nil then
+                rowIconSpacing = 1
+            end
 
             self.Utils:LogInfo("Row", rowIndex, rowConfig.name, "iconSize:", rowIconSize, "maxIcons:", rowConfig.maxIcons)
 
@@ -689,7 +705,14 @@ function CooldownIcons:PositionRowIcons(rowFrame, count, db)
 
     -- Use per-row settings (set during creation)
     local size = rowFrame.iconSize or db.iconSize or 40
-    local spacing = rowFrame.iconSpacing or db.iconSpacing or 2
+    -- Use explicit nil check since 0 is a valid spacing value
+    local spacing = rowFrame.iconSpacing
+    if spacing == nil then
+        spacing = db.iconSpacing
+    end
+    if spacing == nil then
+        spacing = 1
+    end
     local iconsPerRow = rowFrame.iconsPerRow or count  -- Default to all on one row
     local flowLayout = rowFrame.flowLayout or false
 
@@ -810,23 +833,33 @@ function CooldownIcons:UpdateIconState(frame, db)
     if not spellID then return end
 
     -- Check for active aura (debuff/buff applied by this spell)
-    local auraTracker = addon:GetModule("AuraTracker")
-    local auraActive = auraTracker and auraTracker:IsAuraActive(spellID)
+    -- Only if aura tracking is enabled in settings
+    local auraActive = false
     local auraRemaining, auraDuration, auraStacks = 0, 0, 0
-    if auraTracker then
-        auraRemaining, auraDuration, auraStacks = auraTracker:GetAuraRemaining(spellID)
-    end
-    local auraTargetCount = auraTracker and auraTracker:GetAuraTargetCount(spellID) or 0
+    local auraTargetCount = 0
     
-    -- For shared CD abilities (Reck/Retal/SWall), also check player buffs directly
-    -- since AuraTracker may not track non-displayed spells
-    if not auraActive then
-        local isBuffActive, buffRemaining, buffDuration, buffStacks = self:GetPlayerBuff(spellID)
-        if isBuffActive then
-            auraActive = true
-            auraRemaining = buffRemaining
-            auraDuration = buffDuration
-            auraStacks = buffStacks or 0
+    if db.showAuraTracking ~= false then
+        local auraTracker = addon:GetModule("AuraTracker")
+        auraActive = auraTracker and auraTracker:IsAuraActive(spellID)
+        if auraTracker then
+            auraRemaining, auraDuration, auraStacks = auraTracker:GetAuraRemaining(spellID)
+        end
+        auraTargetCount = auraTracker and auraTracker:GetAuraTargetCount(spellID) or 0
+        
+        -- For shared CD abilities (Reck/Retal/SWall), also check player buffs directly
+        -- since AuraTracker may not track non-displayed spells
+        -- Skip if spell has ignoreAura set (e.g., Bloodthirst buff is longer than CD)
+        local spellData = frame.spellData
+        local shouldCheckBuff = not (spellData and spellData.ignoreAura)
+        
+        if not auraActive and shouldCheckBuff then
+            local isBuffActive, buffRemaining, buffDuration, buffStacks = self:GetPlayerBuff(spellID)
+            if isBuffActive then
+                auraActive = true
+                auraRemaining = buffRemaining
+                auraDuration = buffDuration
+                auraStacks = buffStacks or 0
+            end
         end
     end
 
@@ -986,12 +1019,13 @@ function CooldownIcons:UpdateIconState(frame, db)
         end
     end
 
-    -- Show/hide cooldown spiral
-    if showSpinner and db.showCooldownSpiral then
+    -- Show/hide cooldown spiral (alpha of 0 = disabled)
+    local spiralAlpha = db.cooldownSpiralAlpha or 0.8
+    if showSpinner and spiralAlpha > 0 then
         if showAuraActive and auraDisplayDuration > 0 then
             -- Show aura duration spiral (remaining = bright, elapsed = dark)
             frame.cooldown:SetReverse(true)  -- Swipe fills as time passes (elapsed = dark)
-            frame.cooldown:SetSwipeColor(0, 0, 0, 0.8)
+            frame.cooldown:SetSwipeColor(0, 0, 0, spiralAlpha)
             local start = GetTime() - (auraDisplayDuration - auraDisplayRemaining)
             -- Only update if cooldown changed to avoid visual glitches
             if frame.lastCdStart ~= start or frame.lastCdDuration ~= auraDisplayDuration then
@@ -1004,7 +1038,7 @@ function CooldownIcons:UpdateIconState(frame, db)
             -- Normal cooldown spiral (remaining = dark, elapsed = bright)
             -- Use actual start time from API for accuracy
             frame.cooldown:SetReverse(false)  -- Swipe drains as time passes (remaining = dark)
-            frame.cooldown:SetSwipeColor(0, 0, 0, 0.8)
+            frame.cooldown:SetSwipeColor(0, 0, 0, spiralAlpha)
             -- Only update if cooldown changed to avoid visual glitches
             if frame.lastCdStart ~= cdStartTime or frame.lastCdDuration ~= duration then
                 frame.cooldown:SetCooldown(cdStartTime, duration)
@@ -1165,7 +1199,7 @@ function CooldownIcons:UpdateResourceDisplay(frame, spellID, cooldownRemaining, 
     end
 end
 
--- Animate resource display smoothly
+-- Animate resource display smoothly (or instantly if smoothing disabled)
 function CooldownIcons:AnimateResourceDisplay(frame, elapsed, db)
     if not frame.resourceTarget then return end
     
@@ -1173,14 +1207,21 @@ function CooldownIcons:AnimateResourceDisplay(frame, elapsed, db)
     local current = frame.resourceCurrent or 0
     local target = frame.resourceTarget
     
-    -- Smooth interpolation (lerp) - adjust speed as needed
-    local speed = 8  -- Higher = faster animation
-    local diff = target - current
-    
-    if math.abs(diff) < 0.01 then
-        current = target
+    -- Check global animation setting
+    local animDb = addon.db.profile.animations or {}
+    if animDb.smoothBars then
+        -- Smooth interpolation (lerp)
+        local speed = 8  -- Higher = faster animation
+        local diff = target - current
+        
+        if math.abs(diff) < 0.01 then
+            current = target
+        else
+            current = current + diff * math.min(1, elapsed * speed)
+        end
     else
-        current = current + diff * math.min(1, elapsed * speed)
+        -- Instant update
+        current = target
     end
     
     frame.resourceCurrent = current
@@ -1262,11 +1303,25 @@ end
 --   1. <1s remaining on CD AND usable -> show for remaining duration
 --   2. Was not usable, just became usable (while off CD) -> show for configured duration
 -- For Execute: "usable" means target < 20% AND enough rage
--- isReactive controls repeated glows:
---   - Reactive (Execute, Overpower): allow repeated glows when conditions change
---   - Non-reactive: only glow once per cooldown cycle
+-- readyGlowMode controls behavior:
+--   - "once": only glow once per cooldown cycle (default)
+--   - "always": glow every time ability becomes ready
+--   - "disabled": no glow
+-- Reactive abilities (Execute, Overpower) always behave as "always" regardless of mode
 function CooldownIcons:UpdateReadyGlow(frame, spellID, remaining, duration, isUsable, isReactive, db)
-    if not db.showReadyGlow then return end
+    local glowMode = db.readyGlowMode or "once"
+    
+    -- Disabled mode: hide any active glow and return (unless reactive)
+    if glowMode == "disabled" and not isReactive then
+        if frame.readyGlowActive then
+            self:HideReadyGlow(frame)
+            frame.readyGlowActive = false
+        end
+        return
+    end
+    
+    -- Determine effective mode: reactive abilities always use "always" behavior
+    local effectiveMode = isReactive and "always" or glowMode
     
     local GCD_THRESHOLD = 1.5
     local isOnRealCooldown = remaining > 0 and duration > GCD_THRESHOLD
@@ -1283,12 +1338,14 @@ function CooldownIcons:UpdateReadyGlow(frame, spellID, remaining, duration, isUs
         frame.readyGlowExpires = nil
     end
     
-    -- For REACTIVE abilities only: reset glow when usability changes
-    -- This allows Execute to glow again if target goes above 20% then back below
-    -- Non-reactive abilities only glow once per cooldown cycle
-    if isReactive and isUsable and not wasUsable then
-        frame.readyGlowShown = false
+    -- Reset glow tracking based on effective mode
+    if effectiveMode == "always" then
+        -- Reset glow when usability changes (allows re-triggering)
+        if isUsable and not wasUsable then
+            frame.readyGlowShown = false
+        end
     end
+    -- "once" mode: readyGlowShown stays true until ability is used (goes on CD)
     
     -- Check if ready glow should be triggered
     local showReadyGlow = false
@@ -1502,6 +1559,55 @@ function CooldownIcons:Disable()
 end
 
 function CooldownIcons:Refresh()
+    -- Update cached row settings from current config before rebuilding
+    local rowConfigs = addon.db.profile.rows or {}
+    local iconDb = addon.db.profile.icons or {}
+    
+    -- Track vertical offset for row repositioning
+    local yOffset = 0
+    
+    for rowIndex, rowFrame in ipairs(self.rows or {}) do
+        local rowConfig = rowConfigs[rowIndex] or {}
+        rowFrame.iconSize = rowConfig.iconSize or iconDb.iconSize or 40
+        -- Use explicit nil check since 0 is a valid spacing value
+        local newSpacing = rowConfig.iconSpacing
+        if newSpacing == nil then
+            newSpacing = iconDb.iconSpacing
+        end
+        if newSpacing == nil then
+            newSpacing = 1
+        end
+        rowFrame.iconSpacing = newSpacing
+        rowFrame.iconsPerRow = rowConfig.iconsPerRow or rowConfig.maxIcons or 6
+        
+        -- Update icon sizes and cooldown text config if needed
+        local size = rowFrame.iconSize
+        for _, icon in ipairs(rowFrame.icons or {}) do
+            icon:SetSize(size, size)
+            -- Reconfigure external cooldown text (OmniCC, etc.) when settings change
+            if icon.cooldown then
+                self:ConfigureCooldownText(icon.cooldown)
+            end
+        end
+        
+        -- Reposition row vertically based on current settings
+        if rowConfig.spaceBefore then
+            yOffset = yOffset - rowConfig.spaceBefore
+        end
+        
+        rowFrame:ClearAllPoints()
+        rowFrame:SetPoint("TOP", self.container, "TOP", 0, yOffset)
+        
+        -- Calculate height for next row offset
+        local estimatedHeight = size
+        if rowFrame.flowLayout and rowFrame.iconsPerRow then
+            local maxIcons = rowConfig.maxIcons or 6
+            local estimatedRows = math.ceil(maxIcons / rowFrame.iconsPerRow)
+            estimatedHeight = estimatedRows * (size + rowFrame.iconSpacing)
+        end
+        yOffset = yOffset - (estimatedHeight + iconDb.rowSpacing)
+    end
+    
     self:RebuildAllRows()
     self:UpdateAllIcons()
 end

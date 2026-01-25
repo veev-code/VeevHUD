@@ -48,8 +48,20 @@ function HealthBar:CreatePlayerBar(parent)
 
     if not db.enabled then return end
 
+    -- Calculate position relative to resource bar (health bar is ABOVE resource bar)
+    -- If resource bar is disabled, health bar takes its place at Y=0
+    local resourceDb = addon.db.profile.resourceBar
+    local healthBarOffset
+    if resourceDb.enabled then
+        local resourceBarTop = resourceDb.height / 2
+        healthBarOffset = resourceBarTop + db.height / 2
+    else
+        -- Resource bar disabled: health bar takes its place at center (Y=0)
+        healthBarOffset = 0
+    end
+    
     local bar = self.Utils:CreateStatusBar(parent, db.width, db.height)
-    bar:SetPoint("CENTER", parent, "CENTER", 0, db.offsetY)
+    bar:SetPoint("CENTER", parent, "CENTER", 0, healthBarOffset)
     self.playerBar = bar
 
     -- Border
@@ -60,8 +72,13 @@ function HealthBar:CreatePlayerBar(parent)
         self:CreateGradient(bar)
     end
 
-    -- Set class color
-    local r, g, b = self.Utils:GetClassColor(addon.playerClass)
+    -- Set bar color (class color or default green)
+    local r, g, b
+    if db.classColored then
+        r, g, b = self.Utils:GetClassColor(addon.playerClass)
+    else
+        r, g, b = 0.0, 0.8, 0.0  -- Default green for health
+    end
     bar:SetStatusBarColor(r, g, b)
     bar.bg:SetVertexColor(r * 0.3, g * 0.3, b * 0.3)
 
@@ -76,8 +93,9 @@ function HealthBar:CreatePlayerBar(parent)
     -- Initial update
     self:UpdatePlayerBar()
 
-    -- Smooth updates
-    if db.smoothing then
+    -- Smooth updates (uses global animation setting)
+    local animDb = addon.db.profile.animations or {}
+    if animDb.smoothBars then
         self.Events:RegisterUpdate(self, 0.02, self.SmoothUpdatePlayer)
         self.playerTargetValue = 1
         self.playerCurrentValue = 1
@@ -137,7 +155,8 @@ function HealthBar:UpdatePlayerBar()
 
     local db = addon.db.profile.healthBar
 
-    if db.smoothing then
+    local animDb = addon.db.profile.animations or {}
+    if animDb.smoothBars then
         self.playerTargetValue = percent
     else
         self.playerBar:SetValue(percent)
@@ -150,6 +169,10 @@ end
 
 function HealthBar:SmoothUpdatePlayer()
     if not self.playerBar or not self.playerTargetValue then return end
+    
+    -- Check if smoothing is still enabled (user may have disabled it)
+    local animDb = addon.db.profile.animations or {}
+    if not animDb.smoothBars then return end
 
     local diff = self.playerTargetValue - self.playerCurrentValue
     if math.abs(diff) < 0.001 then
@@ -201,5 +224,57 @@ function HealthBar:Disable()
 end
 
 function HealthBar:Refresh()
+    -- Re-apply config settings to existing frames
+    local db = addon.db.profile.healthBar
+    local resourceDb = addon.db.profile.resourceBar
+    
+    if self.playerBar then
+        -- Update size
+        self.playerBar:SetSize(db.width, db.height)
+        
+        -- Calculate position relative to resource bar (health bar is ABOVE resource bar)
+        -- Resource bar center is at Y=0, top edge at resourceBar.height/2
+        -- If resource bar is disabled, health bar takes its place at Y=0
+        local healthBarOffset
+        if resourceDb.enabled then
+            local resourceBarTop = resourceDb.height / 2
+            healthBarOffset = resourceBarTop + db.height / 2
+        else
+            -- Resource bar disabled: health bar takes its place at center (Y=0)
+            healthBarOffset = 0
+        end
+        
+        self.playerBar:ClearAllPoints()
+        self.playerBar:SetPoint("CENTER", self.playerBar:GetParent(), "CENTER", 0, healthBarOffset)
+        
+        -- Toggle visibility based on enabled
+        if db.enabled then
+            self.playerBar:Show()
+        else
+            self.playerBar:Hide()
+        end
+        
+        -- Update bar color (class color or default green)
+        local r, g, b
+        if db.classColored then
+            r, g, b = self.Utils:GetClassColor(addon.playerClass)
+        else
+            r, g, b = 0.0, 0.8, 0.0  -- Default green for health
+        end
+        self.playerBar:SetStatusBarColor(r, g, b)
+        if self.playerBar.bg then
+            self.playerBar.bg:SetVertexColor(r * 0.3, g * 0.3, b * 0.3)
+        end
+        
+        -- Toggle text visibility
+        if self.playerText then
+            if db.showText then
+                self.playerText:Show()
+            else
+                self.playerText:Hide()
+            end
+        end
+    end
+    
     self:UpdatePlayerBar()
 end

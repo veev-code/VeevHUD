@@ -1,6 +1,6 @@
 ## Interface: 11508
 ## Title: VeevHUD
-## Notes: Clean cooldown and resource HUD
+## Notes: Clean cooldown and resource HUD - https://github.com/veev-code/VeevHUD
 ## Author: Veev
 ## Version: 1.0.0
 ## IconTexture: Interface\Icons\Spell_Nature_Reincarnation

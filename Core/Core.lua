@@ -329,6 +329,10 @@ function addon:CreateHUDFrame()
     )
     hud:SetFrameStrata("MEDIUM")
     hud:SetFrameLevel(10)
+    
+    -- Apply global scale
+    local scale = self.db.profile.icons.scale or 1.0
+    hud:SetScale(scale)
 
     -- Make draggable when unlocked
     self.Utils:MakeDraggable(hud, function(frame)
@@ -414,10 +418,11 @@ function addon:RegisterSlashCommands()
             table.insert(args, word:lower())
         end
 
-        local cmd = args[1] or "help"
+        local cmd = args[1] or "options"
 
         if cmd == "help" then
             self.Utils:Print("Commands:")
+            print("  /vh options - Open settings panel")
             print("  /vh lock - Toggle lock/unlock")
             print("  /vh reset - Reset to defaults")
             print("  /vh toggle - Enable/disable HUD")
@@ -446,8 +451,13 @@ function addon:RegisterSlashCommands()
             end
 
         elseif cmd == "config" or cmd == "options" then
-            -- Will open options panel when implemented
-            self.Utils:Print("Configuration panel coming soon. Use /vh lock to reposition.")
+            -- Open the Blizzard settings panel
+            local options = self:GetModule("Options")
+            if options then
+                options:Open()
+            else
+                self.Utils:Print("Options module not loaded.")
+            end
 
         elseif cmd == "log" then
             local count = args[2] and tonumber(args[2]) or 20

@@ -143,14 +143,20 @@ function AuraTracker:OnAuraEvent(subEvent, data)
         local baseSpellID = self.rankToBaseMap[spellID]
         
         if baseSpellID then
+            -- Check if this spell has ignoreAura set (e.g., Bloodthirst buff is longer than CD)
+            local spellData = self.LibSpellDB and self.LibSpellDB:GetSpellInfo(baseSpellID)
+            
+            -- Skip auto-tracking if ignoreAura is set
+            if spellData and spellData.ignoreAura then
+                return
+            end
+            
             -- This spell (or its base) is tracked and applies an aura
             -- Determine aura type based on spell tags and target
             sourceSpellID = baseSpellID
             local isSelfBuff = (destGUID == self.playerGUID)
             
             -- Check if this is a healing/buff spell (applies buff) or damage spell (applies debuff)
-            -- Look up spell data to determine type
-            local spellData = self.LibSpellDB and self.LibSpellDB:GetSpellInfo(baseSpellID)
             local isBuff = isSelfBuff  -- Default: self = buff
             
             if spellData and spellData.tags then

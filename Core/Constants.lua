@@ -83,6 +83,11 @@ C.DEFAULTS = {
         visibility = {
             hideOnFlightPath = true, -- Hide completely when on taxi/flight
         },
+        
+        -- Global animation settings
+        animations = {
+            smoothBars = true,  -- Smooth animation for health bar, resource bar, and resource cost display
+        },
 
         -- Resource bar settings (mana/rage/energy)
         resourceBar = {
@@ -131,8 +136,8 @@ C.DEFAULTS = {
         icons = {
             enabled = true,
             iconSize = 52,          -- Default icon size (per-row overrides in rows config)
-            iconSpacing = 2,        -- Slight spacing for visual separation
-            rowSpacing = 0,         -- No vertical space between rows (touching)
+            iconSpacing = 1,        -- Horizontal spacing between icons
+            rowSpacing = 1,         -- Vertical spacing between rows
             scale = 1.0,            -- Global scale multiplier
             
             -- Alpha settings
@@ -142,8 +147,7 @@ C.DEFAULTS = {
             
             -- Cooldown display
             showCooldownText = true,
-            showCooldownSpiral = true,
-            useOwnCooldownText = true,  -- Use VeevHUD's text instead of OmniCC/ElvUI
+            cooldownSpiralAlpha = 0.8,  -- Alpha of the cooldown spiral (0 = disabled, 0.8 = default)
             
             -- Resource cost display (for rage/energy classes)
             -- "none" = disabled, "bar" = horizontal bar at bottom, "fill" = vertical fill from bottom
@@ -151,15 +155,20 @@ C.DEFAULTS = {
             resourceBarHeight = 4,       -- Height of horizontal bar (Option A)
             resourceFillAlpha = 0.6,     -- Alpha of fill overlay (Option B)
             
-            -- Cast feedback: flash + scale punch when ability is used
+            -- Cast feedback: scale punch when ability is used
             castFeedback = true,
+            castFeedbackScale = 1.1,  -- How much to scale up (1.1 = 110%)
+            
+            -- Aura tracking: show buff/debuff active state on icons
+            -- When enabled, icons show the active aura (with duration) before showing cooldown
+            showAuraTracking = true,
             
             -- Ready glow: shows a proc-style glow when ability becomes ready
             -- Triggers: 1) <1s remaining on CD with enough resources
             --           2) Just got enough resources after CD finished
-            -- Only shows once per cooldown cycle to avoid flicker
-            showReadyGlow = true,
-            readyGlowDuration = 1.0,     -- Duration to show glow when triggered by resources
+            -- Mode: "once" = once per cooldown, "always" = every time ready, "disabled" = off
+            readyGlowMode = "once",
+            readyGlowDuration = 1.0,     -- Duration to show glow when triggered
             
             -- Per-spell overrides for icons (legacy, use top-level spellOverrides)
             spellOverrides = {},
@@ -177,7 +186,7 @@ C.DEFAULTS = {
                 maxIcons = 6,
                 enabled = true,
                 iconSize = 56,       -- Larger core icons (like retail)
-                iconSpacing = 2,
+                -- iconSpacing inherited from icons.iconSpacing
             },
             {
                 name = "Situational / Cooldowns",
@@ -185,7 +194,7 @@ C.DEFAULTS = {
                 maxIcons = 8,
                 enabled = true,
                 iconSize = 48,
-                iconSpacing = 2,
+                -- iconSpacing inherited from icons.iconSpacing
             },
             {
                 -- Combined utility group - flows into multiple rows automatically
@@ -198,7 +207,7 @@ C.DEFAULTS = {
                 iconsPerRow = 6,     -- Target icons per row
                 enabled = true,
                 iconSize = 42,
-                iconSpacing = 2,
+                -- iconSpacing inherited from icons.iconSpacing
                 spaceBefore = 16,    -- Larger gap before utility group (like retail)
                 flowLayout = true,   -- Enable multi-row flow layout
             },

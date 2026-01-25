@@ -51,9 +51,9 @@ function ResourceBar:CreateFrames(parent)
 
     if not db.enabled then return end
 
-    -- Main bar frame
+    -- Main bar frame (resource bar is anchor at Y=0)
     local bar = self.Utils:CreateStatusBar(parent, db.width, db.height)
-    bar:SetPoint("CENTER", parent, "CENTER", 0, db.offsetY)
+    bar:SetPoint("CENTER", parent, "CENTER", 0, 0)
     self.bar = bar
 
     -- Border/backdrop
@@ -77,8 +77,9 @@ function ResourceBar:CreateFrames(parent)
     self:UpdatePowerType()
     self:UpdateBar()
 
-    -- Register for smooth updates
-    if db.smoothing then
+    -- Register for smooth updates (uses global animation setting)
+    local animDb = addon.db.profile.animations or {}
+    if animDb.smoothBars then
         self.Events:RegisterUpdate(self, 0.02, self.SmoothUpdate)
         self.targetValue = 1
         self.currentValue = 1
@@ -181,7 +182,8 @@ function ResourceBar:UpdateBar()
 
     local db = addon.db.profile.resourceBar
 
-    if db.smoothing then
+    local animDb = addon.db.profile.animations or {}
+    if animDb.smoothBars then
         self.targetValue = percent
     else
         self.bar:SetValue(percent)
@@ -200,6 +202,12 @@ function ResourceBar:UpdateSpark(percent)
     if not self.spark then return end
     
     local db = addon.db.profile.resourceBar
+    
+    -- Respect showSpark setting
+    if db.showSpark == false then
+        self.spark:Hide()
+        return
+    end
     
     -- Hide spark when full or empty
     if db.sparkHideFullEmpty ~= false then
@@ -237,6 +245,10 @@ end
 
 function ResourceBar:SmoothUpdate()
     if not self.bar or not self.targetValue then return end
+    
+    -- Check if smoothing is still enabled (user may have disabled it)
+    local animDb = addon.db.profile.animations or {}
+    if not animDb.smoothBars then return end
 
     local diff = self.targetValue - self.currentValue
     if math.abs(diff) < 0.001 then
@@ -266,6 +278,51 @@ function ResourceBar:Disable()
 end
 
 function ResourceBar:Refresh()
+    -- Re-apply config settings to existing frames
+    local db = addon.db.profile.resourceBar
+    
+    if self.bar then
+        -- Update size
+        self.bar:SetSize(db.width, db.height)
+        
+        -- Resource bar is the anchor at Y=0
+        self.bar:ClearAllPoints()
+        self.bar:SetPoint("CENTER", self.bar:GetParent(), "CENTER", 0, 0)
+        
+        -- Update spark visibility and size
+        if db.showSpark == false then
+            -- Hide spark if disabled
+            if self.spark then
+                self.spark:Hide()
+            end
+        else
+            -- Show/create spark if enabled
+            if not self.spark then
+                self:CreateSpark(self.bar, db)
+            end
+            if self.spark then
+                self.spark:SetSize(db.sparkWidth or 12, db.height + (db.sparkOverflow or 8))
+                self.spark:Show()
+            end
+        end
+        
+        -- Toggle visibility based on enabled
+        if db.enabled then
+            self.bar:Show()
+        else
+            self.bar:Hide()
+        end
+        
+        -- Toggle text visibility
+        if self.text then
+            if db.showText then
+                self.text:Show()
+            else
+                self.text:Hide()
+            end
+        end
+    end
+    
     self:UpdatePowerType()
     self:UpdateBar()
 end
