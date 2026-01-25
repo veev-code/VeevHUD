@@ -7,11 +7,10 @@ ignore:
   - .github
   - .git
   - .gitignore
-  - "*.md"
 
-# VeevHUD requires LibSpellDB
-required-dependencies:
-  - libspelldb
+# Embed LibSpellDB directly into VeevHUD for self-contained distribution
+externals:
+  Libs/LibSpellDB: https://github.com/veev-code/LibSpellDB
 
 manual-changelog:
   filename: CHANGELOG.md

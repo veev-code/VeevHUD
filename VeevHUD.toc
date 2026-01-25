@@ -5,8 +5,7 @@
 ## Version: 1.0.0
 ## IconTexture: Interface\Icons\Spell_Nature_Reincarnation
 ## SavedVariables: VeevHUDDB, VeevHUDLog
-## Dependencies: LibSpellDB
-## OptionalDeps: Ace3, LibSharedMedia-3.0, Masque
+## OptionalDeps: Ace3, LibSharedMedia-3.0, Masque, LibSpellDB
 
 ## X-License: MIT
 ## X-Website: https://github.com/veev-code/VeevHUD

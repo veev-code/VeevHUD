@@ -4,9 +4,9 @@
     <!--
         VeevHUD - Embedded Libraries
 
-        Note: We depend on LibSpellDB as a standalone addon.
-        Other common libraries can be embedded here if needed,
-        or we can use them from other addons via OptionalDeps.
+        LibSpellDB is embedded for self-contained distribution.
+        If LibSpellDB is installed as a standalone addon, it will take precedence
+        via LibStub's version checking.
     -->
 
     <!-- LibStub - Required for library access -->
@@ -17,5 +17,8 @@
 
     <!-- LibCustomGlow for animated glow effects -->
     <Include file="LibCustomGlow-1.0\LibCustomGlow-1.0.xml"/>
+
+    <!-- LibSpellDB - Spell database (embedded) -->
+    <Include file="LibSpellDB\lib.xml"/>
 
 </Ui>
