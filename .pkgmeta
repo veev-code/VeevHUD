@@ -1,0 +1,18 @@
+package-as: VeevHUD
+
+enable-nolib-creation: no
+
+ignore:
+  - README.md
+  - .github
+  - .git
+  - .gitignore
+  - "*.md"
+
+# VeevHUD requires LibSpellDB
+required-dependencies:
+  - libspelldb
+
+manual-changelog:
+  filename: CHANGELOG.md
+  markup-type: markdown
