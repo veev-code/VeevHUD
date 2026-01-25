@@ -85,7 +85,7 @@ function HealthBar:CreatePlayerBar(parent)
     -- Text
     if db.showText then
         local text = bar:CreateFontString(nil, "OVERLAY")
-        text:SetFont(self.C.FONTS.NUMBER, 10, "OUTLINE")
+        text:SetFont(self.C.FONTS.NUMBER, db.textSize or 10, "OUTLINE")
         text:SetPoint("CENTER")
         self.playerText = text
     end
@@ -266,8 +266,9 @@ function HealthBar:Refresh()
             self.playerBar.bg:SetVertexColor(r * 0.3, g * 0.3, b * 0.3)
         end
         
-        -- Toggle text visibility
+        -- Toggle text visibility and update font size
         if self.playerText then
+            self.playerText:SetFont(self.C.FONTS.NUMBER, db.textSize or 10, "OUTLINE")
             if db.showText then
                 self.playerText:Show()
             else

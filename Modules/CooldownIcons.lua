@@ -390,9 +390,10 @@ function CooldownIcons:CreateRowFrames()
 
     for rowIndex, rowConfig in ipairs(rowConfigs) do
         if rowConfig.enabled then
-            -- Add extra space before row if specified
-            if rowConfig.spaceBefore then
-                yOffset = yOffset - rowConfig.spaceBefore
+            -- Add extra space before utility section (row 3+)
+            if rowIndex >= 3 then
+                local sectionGap = iconDb.sectionGap or 16
+                yOffset = yOffset - sectionGap
             end
 
             -- Use per-row settings or fall back to global
@@ -433,9 +434,10 @@ function CooldownIcons:CreateRowFrames()
             local estimatedHeight = rowIconSize
             if rowConfig.flowLayout and rowConfig.iconsPerRow then
                 local estimatedRows = math.ceil(rowConfig.maxIcons / rowConfig.iconsPerRow)
-                estimatedHeight = estimatedRows * (rowIconSize + rowIconSpacing)
+                local verticalSpacing = iconDb.rowSpacing or 1
+                estimatedHeight = estimatedRows * (rowIconSize + verticalSpacing)
             end
-            yOffset = yOffset - (estimatedHeight + iconDb.rowSpacing)
+            yOffset = yOffset - (estimatedHeight + (iconDb.rowSpacing or 1))
         end
     end
 end
@@ -682,7 +684,7 @@ function CooldownIcons:UpdateRowIcons()
             for i, iconFrame in ipairs(rowFrame.icons) do
                 if i <= iconCount then
                     local spellInfo = spells[i]
-                    self:SetupIcon(iconFrame, spellInfo.spellID, spellInfo.spellData, isCoreRow)
+                    self:SetupIcon(iconFrame, spellInfo.spellID, spellInfo.spellData, isCoreRow, rowIndex)
                     iconFrame:Show()
                 else
                     iconFrame:Hide()
@@ -715,10 +717,11 @@ function CooldownIcons:PositionRowIcons(rowFrame, count, db)
     end
     local iconsPerRow = rowFrame.iconsPerRow or count  -- Default to all on one row
     local flowLayout = rowFrame.flowLayout or false
+    local rowSpacing = db.rowSpacing or 1  -- Vertical spacing between wrapped rows
 
     if flowLayout and count > iconsPerRow then
         -- Multi-row flow layout
-        self:PositionFlowLayout(rowFrame, count, size, spacing, iconsPerRow)
+        self:PositionFlowLayout(rowFrame, count, size, spacing, iconsPerRow, rowSpacing)
     else
         -- Single row layout (centered)
         local totalWidth = count * size + (count - 1) * spacing
@@ -735,7 +738,7 @@ function CooldownIcons:PositionRowIcons(rowFrame, count, db)
     end
 end
 
-function CooldownIcons:PositionFlowLayout(rowFrame, count, size, spacing, iconsPerRow)
+function CooldownIcons:PositionFlowLayout(rowFrame, count, size, spacing, iconsPerRow, rowSpacing)
     -- Calculate how many rows we need
     local numRows = math.ceil(count / iconsPerRow)
     
@@ -746,7 +749,9 @@ function CooldownIcons:PositionFlowLayout(rowFrame, count, size, spacing, iconsP
         iconsPerRow = math.ceil(count / numRows)
     end
     
-    local rowHeight = size + spacing
+    -- Use rowSpacing for vertical gap between wrapped rows (defaults to 1 if not provided)
+    local verticalSpacing = rowSpacing or 1
+    local rowHeight = size + verticalSpacing
     local currentRow = 0
     local currentCol = 0
     local iconsInCurrentRow = 0
@@ -792,12 +797,13 @@ end
 -- Icon Setup and Updates
 -------------------------------------------------------------------------------
 
-function CooldownIcons:SetupIcon(frame, spellID, spellData, isCoreRotation)
+function CooldownIcons:SetupIcon(frame, spellID, spellData, isCoreRotation, rowIndex)
     local texture = spellData.icon or self.Utils:GetSpellTexture(spellID)
     frame.icon:SetTexture(texture)
     frame.spellID = spellID
     frame.spellData = spellData
     frame.isCoreRotation = isCoreRotation or false
+    frame.rowIndex = rowIndex or 1
     
     -- Check if this is a reactive spell (Execute, Revenge, Overpower)
     -- These allow repeated ready glows based on condition changes (e.g., target HP)
@@ -893,6 +899,18 @@ function CooldownIcons:UpdateIconState(frame, db)
 
     -- Check if this is a core rotation ability
     local isCoreRotation = frame.isCoreRotation or false
+    
+    -- Determine if GCD should be shown for this row based on settings
+    local rowIndex = frame.rowIndex or 1
+    local showGCDOn = db.showGCDOn or "primary"
+    local showGCDForThisRow = false
+    if showGCDOn == "primary" then
+        showGCDForThisRow = (rowIndex == 1)
+    elseif showGCDOn == "primary_secondary" then
+        showGCDForThisRow = (rowIndex == 1 or rowIndex == 2)
+    elseif showGCDOn == "all" then
+        showGCDForThisRow = true
+    end
 
     -- Get usability info (uses spell NAME which correctly handles Execute, Revenge, etc.)
     local isUsable, notEnoughMana = self:IsSpellUsable(spellID)
@@ -984,8 +1002,8 @@ function CooldownIcons:UpdateIconState(frame, db)
     else
         -----------------------------------------------------------------------
         -- NON-CORE ABILITIES
-        -- 30% alpha when on cooldown, ignore GCD entirely
-        -- Key: check if DURATION > GCD to distinguish real cooldown from GCD
+        -- 30% alpha when on cooldown
+        -- GCD display controlled by showGCDOn setting
         -----------------------------------------------------------------------
         
         -- Is this a real cooldown (duration > GCD) or just the GCD?
@@ -1002,6 +1020,11 @@ function CooldownIcons:UpdateIconState(frame, db)
             if almostReady then
                 showGlow = true
             end
+        elseif isOnGCD and showGCDForThisRow then
+            -- Show GCD spinner for this row (based on setting)
+            showSpinner = true
+            showText = false  -- No text for GCD
+            alpha = db.readyAlpha  -- Keep full alpha during GCD
         elseif noChargesLeft then
             -- No charges left: dim + desaturate
             alpha = db.cooldownAlpha
@@ -1595,8 +1618,10 @@ function CooldownIcons:Refresh()
         end
         
         -- Reposition row vertically based on current settings
-        if rowConfig.spaceBefore then
-            yOffset = yOffset - rowConfig.spaceBefore
+        -- Add section gap before utility rows (row 3+)
+        if rowIndex >= 3 then
+            local sectionGap = iconDb.sectionGap or 16
+            yOffset = yOffset - sectionGap
         end
         
         rowFrame:ClearAllPoints()
@@ -1607,9 +1632,10 @@ function CooldownIcons:Refresh()
         if rowFrame.flowLayout and rowFrame.iconsPerRow then
             local maxIcons = rowConfig.maxIcons or 6
             local estimatedRows = math.ceil(maxIcons / rowFrame.iconsPerRow)
-            estimatedHeight = estimatedRows * (size + rowFrame.iconSpacing)
+            local verticalSpacing = iconDb.rowSpacing or 1
+            estimatedHeight = estimatedRows * (size + verticalSpacing)
         end
-        yOffset = yOffset - (estimatedHeight + iconDb.rowSpacing)
+        yOffset = yOffset - (estimatedHeight + (iconDb.rowSpacing or 1))
     end
     
     self:RebuildAllRows()

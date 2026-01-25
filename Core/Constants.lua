@@ -96,6 +96,7 @@ C.DEFAULTS = {
             height = 14,
             offsetY = 0,
             showText = true,
+            textSize = 11,
             textFormat = "current",  -- "current", "percent", "both", "none"
             smoothing = true,
             classColored = false,  -- Use power color by default
@@ -114,6 +115,7 @@ C.DEFAULTS = {
             height = 10,
             offsetY = 12,  -- Position so bars touch (resourceBar.height/2 + healthBar.height/2)
             showText = true,
+            textSize = 10,
             textFormat = "percent",
             smoothing = true,
             classColored = true,
@@ -138,6 +140,7 @@ C.DEFAULTS = {
             iconSize = 52,          -- Default icon size (per-row overrides in rows config)
             iconSpacing = 1,        -- Horizontal spacing between icons
             rowSpacing = 1,         -- Vertical spacing between rows
+            sectionGap = 16,        -- Extra gap before utility/misc section
             scale = 1.0,            -- Global scale multiplier
             
             -- Alpha settings
@@ -148,6 +151,10 @@ C.DEFAULTS = {
             -- Cooldown display
             showCooldownText = true,
             showCooldownSpiral = true,  -- Show the cooldown spiral overlay
+            
+            -- GCD display: which rows show the global cooldown spinner
+            -- "primary" = Core Rotation only, "primary_secondary" = Core + Situational, "all" = everywhere
+            showGCDOn = "primary",
             
             -- Resource cost display (for rage/energy classes)
             -- "none" = disabled, "bar" = horizontal bar at bottom, "fill" = vertical fill from bottom
@@ -208,7 +215,7 @@ C.DEFAULTS = {
                 enabled = true,
                 iconSize = 42,
                 -- iconSpacing inherited from icons.iconSpacing
-                spaceBefore = 16,    -- Larger gap before utility group (like retail)
+                -- Gap before this row is controlled by icons.sectionGap
                 flowLayout = true,   -- Enable multi-row flow layout
             },
         },

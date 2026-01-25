@@ -69,7 +69,7 @@ function ResourceBar:CreateFrames(parent)
 
     -- Text overlay
     local text = bar:CreateFontString(nil, "OVERLAY")
-    text:SetFont(self.C.FONTS.NUMBER, 11, "OUTLINE")
+    text:SetFont(self.C.FONTS.NUMBER, db.textSize or 11, "OUTLINE")
     text:SetPoint("CENTER")
     self.text = text
 
@@ -313,8 +313,9 @@ function ResourceBar:Refresh()
             self.bar:Hide()
         end
         
-        -- Toggle text visibility
+        -- Toggle text visibility and update font size
         if self.text then
+            self.text:SetFont(self.C.FONTS.NUMBER, db.textSize or 11, "OUTLINE")
             if db.showText then
                 self.text:Show()
             else

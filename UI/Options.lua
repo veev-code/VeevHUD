@@ -14,6 +14,10 @@ local ADDON_NAME, addon = ...
 local Options = {}
 addon.Options = Options
 
+-- Widget registry for dependency management
+Options.widgets = {}  -- widgets[path] = { widget = frame, control = checkbox/slider, config = config }
+Options.dependencies = {}  -- dependencies[parentPath] = { childPath1, childPath2, ... }
+
 -------------------------------------------------------------------------------
 -- Helper: Check if a setting path is overridden by user
 -------------------------------------------------------------------------------
@@ -189,15 +193,22 @@ function Options:CreatePanelContent(container)
     yOffset = self:CreateSlider(container, yOffset, {
         path = "icons.iconSpacing",
         label = "Horizontal Icon Spacing",
-        tooltip = "The horizontal gap in pixels between each ability icon within a row. A small gap (2-4) helps visually separate icons. Set to 0 for icons to touch horizontally.",
-        min = 0, max = 10, step = 1,
+        tooltip = "The horizontal gap in pixels between each ability icon within a row. A small gap (2-4) helps visually separate icons. Set to 0 for icons to touch. Negative values allow overlap, which may look better with certain skins.",
+        min = -10, max = 10, step = 1,
     })
     
     yOffset = self:CreateSlider(container, yOffset, {
         path = "icons.rowSpacing",
         label = "Vertical Row Spacing",
-        tooltip = "The vertical gap in pixels between rows of icons (e.g., between Core Rotation and Situational rows). Set to 0 for rows to touch vertically.",
-        min = 0, max = 20, step = 1,
+        tooltip = "The vertical gap in pixels between rows of icons (e.g., between Core Rotation and Situational rows). Set to 0 for rows to touch. Negative values allow overlap, which may look better with certain skins.",
+        min = -10, max = 20, step = 1,
+    })
+    
+    yOffset = self:CreateSlider(container, yOffset, {
+        path = "icons.sectionGap",
+        label = "Utility Section Gap",
+        tooltip = "Extra vertical gap in pixels before the utility/misc row section. This creates visual separation between your main rotation abilities and utility spells. Set to 0 to remove the gap. Negative values allow overlap.",
+        min = -10, max = 30, step = 1,
     })
     
     yOffset = self:CreateSlider(container, yOffset, {
@@ -219,13 +230,24 @@ function Options:CreatePanelContent(container)
     yOffset = self:CreateCheckbox(container, yOffset, {
         path = "icons.showCooldownText",
         label = "Show Cooldown Text",
-        tooltip = "Displays the remaining cooldown time as numbers on top of each icon (e.g., '5s', '1.2'). Very helpful for tracking when abilities will be ready. Works alongside addons like OmniCC.",
+        tooltip = "Displays the remaining cooldown time as numbers on top of each icon (e.g., '5s', '1.2'). When enabled, VeevHUD shows its own text and hides text from addons like OmniCC. When disabled, OmniCC or similar addons can display their cooldown text instead.",
     })
     
     yOffset = self:CreateCheckbox(container, yOffset, {
         path = "icons.showCooldownSpiral",
         label = "Show Cooldown Spiral",
         tooltip = "Shows the dark 'clock sweep' overlay on abilities that are on cooldown. This visual helps you see at a glance how much time remains. Disable if you prefer text-only cooldowns.",
+    })
+    
+    yOffset = self:CreateDropdown(container, yOffset, {
+        path = "icons.showGCDOn",
+        label = "Show GCD On",
+        tooltip = "Controls which rows display the Global Cooldown (GCD) spinner. The GCD is the brief ~1.5 second lockout after using most abilities. Showing GCD helps you see when you can press your next ability.",
+        options = {
+            { value = "primary", label = "Primary Row Only" },
+            { value = "primary_secondary", label = "Primary + Secondary" },
+            { value = "all", label = "All Rows" },
+        },
     })
     
     yOffset = self:CreateCheckbox(container, yOffset, {
@@ -246,6 +268,7 @@ function Options:CreatePanelContent(container)
         tooltip = "How much the icon grows during the cast feedback animation. 110% is a subtle pop, 150%+ is more dramatic. Only applies if Cast Feedback Animation is enabled.",
         min = 1.05, max = 2.0, step = 0.05,
         isPercent = true,
+        dependsOn = "icons.castFeedback",
     })
     
     yOffset = self:CreateCheckbox(container, yOffset, {
@@ -291,6 +314,7 @@ function Options:CreatePanelContent(container)
         label = "Width",
         tooltip = "How wide the health bar is in pixels. By default it matches the resource bar width for a clean, aligned look.",
         min = 100, max = 400, step = 10,
+        dependsOn = "healthBar.enabled",
     })
     
     yOffset = self:CreateSlider(container, yOffset, {
@@ -298,18 +322,29 @@ function Options:CreatePanelContent(container)
         label = "Height",
         tooltip = "How tall/thick the health bar is in pixels. Changing this will automatically adjust the position of the resource bar below it.",
         min = 4, max = 20, step = 1,
+        dependsOn = "healthBar.enabled",
     })
     
     yOffset = self:CreateCheckbox(container, yOffset, {
         path = "healthBar.showText",
         label = "Show Text",
         tooltip = "Displays your health percentage as text on the bar (e.g., '85%'). Useful for knowing exactly when you're in execute range or need to use a defensive.",
+        dependsOn = "healthBar.enabled",
+    })
+    
+    yOffset = self:CreateSlider(container, yOffset, {
+        path = "healthBar.textSize",
+        label = "Text Size",
+        tooltip = "The font size in pixels for the health text. Larger sizes are easier to read but may overflow small bars.",
+        min = 6, max = 18, step = 1,
+        dependsOn = "healthBar.showText",
     })
     
     yOffset = self:CreateCheckbox(container, yOffset, {
         path = "healthBar.classColored",
         label = "Class Colored",
         tooltip = "Colors the health bar using your class color (e.g., brown for Warriors, purple for Warlocks) instead of the standard green. Helps you quickly identify your health bar.",
+        dependsOn = "healthBar.enabled",
     })
     
     -- === RESOURCE BAR SECTION ===
@@ -327,6 +362,7 @@ function Options:CreatePanelContent(container)
         label = "Width",
         tooltip = "How wide the resource bar is in pixels. By default it matches the width of 4 core ability icons. Make it wider or narrower to fit your preference.",
         min = 100, max = 400, step = 10,
+        dependsOn = "resourceBar.enabled",
     })
     
     yOffset = self:CreateSlider(container, yOffset, {
@@ -334,18 +370,29 @@ function Options:CreatePanelContent(container)
         label = "Height",
         tooltip = "How tall/thick the resource bar is in pixels. Changing this will automatically adjust the position of elements above it (health bar, proc tracker).",
         min = 6, max = 30, step = 1,
+        dependsOn = "resourceBar.enabled",
     })
     
     yOffset = self:CreateCheckbox(container, yOffset, {
         path = "resourceBar.showText",
         label = "Show Text",
         tooltip = "Displays your current resource amount as text on the bar (e.g., '4523' for mana or '67' for rage). Helpful if you need exact numbers rather than just the bar visual.",
+        dependsOn = "resourceBar.enabled",
+    })
+    
+    yOffset = self:CreateSlider(container, yOffset, {
+        path = "resourceBar.textSize",
+        label = "Text Size",
+        tooltip = "The font size in pixels for the resource text. Larger sizes are easier to read but may overflow small bars.",
+        min = 6, max = 18, step = 1,
+        dependsOn = "resourceBar.showText",
     })
     
     yOffset = self:CreateCheckbox(container, yOffset, {
         path = "resourceBar.showSpark",
         label = "Show Spark",
         tooltip = "Displays a glowing 'spark' effect at the current fill position of the bar. This small visual flourish makes the bar look more polished and helps you track changes.",
+        dependsOn = "resourceBar.enabled",
     })
     
     -- === PROC TRACKER SECTION ===
@@ -363,6 +410,7 @@ function Options:CreatePanelContent(container)
         label = "Icon Size",
         tooltip = "How big the proc icons are in pixels. These are typically smaller than ability icons since they're just indicators. 20-28 pixels works well for most people.",
         min = 16, max = 40, step = 2,
+        dependsOn = "procTracker.enabled",
     })
     
     -- === SUPPORT SECTION ===
@@ -421,6 +469,102 @@ function Options:CreatePanelContent(container)
     
     -- Set scroll child height
     container:SetHeight(math.abs(yOffset) + 20)
+    
+    -- Initialize widget dependencies (grey out dependent widgets based on parent state)
+    self:InitializeDependencies()
+end
+
+-------------------------------------------------------------------------------
+-- Widget Dependency Management
+-------------------------------------------------------------------------------
+
+function Options:RegisterWidget(path, frame, control, config)
+    self.widgets[path] = { frame = frame, control = control, config = config }
+    
+    -- Register dependency if specified
+    if config.dependsOn then
+        if not self.dependencies[config.dependsOn] then
+            self.dependencies[config.dependsOn] = {}
+        end
+        table.insert(self.dependencies[config.dependsOn], path)
+    end
+end
+
+function Options:UpdateDependentWidgets(parentPath)
+    local dependents = self.dependencies[parentPath]
+    if not dependents then return end
+    
+    local parentEnabled = addon:GetSettingValue(parentPath) == true
+    
+    for _, childPath in ipairs(dependents) do
+        local widget = self.widgets[childPath]
+        if widget then
+            -- Check if this widget should be enabled
+            -- It needs its direct parent enabled AND all ancestors enabled
+            local shouldEnable = parentEnabled and self:IsParentChainEnabled(widget.config.dependsOn)
+            self:SetWidgetEnabled(widget, shouldEnable, childPath)
+        end
+    end
+end
+
+function Options:IsParentChainEnabled(parentPath)
+    if not parentPath then return true end
+    
+    local parentWidget = self.widgets[parentPath]
+    if not parentWidget then
+        -- Parent widget not registered, check value directly
+        return addon:GetSettingValue(parentPath) == true
+    end
+    
+    -- Check if parent is enabled and its parent chain is enabled
+    local parentEnabled = addon:GetSettingValue(parentPath) == true
+    if not parentEnabled then return false end
+    
+    -- Recursively check parent's parent
+    if parentWidget.config.dependsOn then
+        return self:IsParentChainEnabled(parentWidget.config.dependsOn)
+    end
+    
+    return true
+end
+
+function Options:SetWidgetEnabled(widget, enabled, widgetPath)
+    local frame = widget.frame
+    local control = widget.control
+    
+    if enabled then
+        -- Enable
+        if control.Enable then control:Enable() end
+        if control.Text then control.Text:SetTextColor(1, 1, 1) end
+        frame:SetAlpha(1.0)
+        -- Re-enable mouse on all children
+        for _, child in ipairs({frame:GetChildren()}) do
+            if child.EnableMouse then child:EnableMouse(true) end
+            if child.Enable then child:Enable() end
+        end
+    else
+        -- Disable (grey out)
+        if control.Disable then control:Disable() end
+        if control.Text then control.Text:SetTextColor(0.5, 0.5, 0.5) end
+        frame:SetAlpha(0.5)
+        -- Disable mouse on all children to prevent interaction
+        for _, child in ipairs({frame:GetChildren()}) do
+            if child.EnableMouse then child:EnableMouse(false) end
+            if child.Disable then child:Disable() end
+        end
+    end
+    
+    -- Cascade to dependents of this widget
+    if widgetPath then
+        self:UpdateDependentWidgets(widgetPath)
+    end
+end
+
+function Options:InitializeDependencies()
+    -- Update all dependent widgets based on current parent values
+    for parentPath, _ in pairs(self.dependencies) do
+        self:UpdateDependentWidgets(parentPath)
+    end
 end
 
 -------------------------------------------------------------------------------
@@ -428,12 +572,32 @@ end
 -------------------------------------------------------------------------------
 
 function Options:CreateSectionHeader(parent, text, yOffset)
-    local header = parent:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-    header:SetPoint("TOPLEFT", 0, yOffset)
+    -- Create container frame for the header
+    local frame = CreateFrame("Frame", nil, parent)
+    frame:SetPoint("TOPLEFT", 0, yOffset)
+    frame:SetSize(400, 20)
+    
+    -- Left separator line
+    local leftLine = frame:CreateTexture(nil, "ARTWORK")
+    leftLine:SetHeight(1)
+    leftLine:SetPoint("LEFT", 0, 0)
+    leftLine:SetPoint("RIGHT", frame, "LEFT", 80, 0)
+    leftLine:SetColorTexture(0.6, 0.5, 0.2, 0.8)  -- Gold-ish
+    
+    -- Header text (centered in section)
+    local header = frame:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+    header:SetPoint("LEFT", leftLine, "RIGHT", 8, 0)
     header:SetText(text)
     header:SetTextColor(1, 0.82, 0)  -- Gold
     
-    return yOffset - 20
+    -- Right separator line
+    local rightLine = frame:CreateTexture(nil, "ARTWORK")
+    rightLine:SetHeight(1)
+    rightLine:SetPoint("LEFT", header, "RIGHT", 8, 0)
+    rightLine:SetPoint("RIGHT", frame, "RIGHT", 0, 0)
+    rightLine:SetColorTexture(0.6, 0.5, 0.2, 0.8)  -- Gold-ish
+    
+    return yOffset - 24
 end
 
 function Options:CreateCheckbox(parent, yOffset, config)
@@ -468,6 +632,7 @@ function Options:CreateCheckbox(parent, yOffset, config)
             self.Text:SetText(config.label)
         end
         Options:RefreshModuleIfNeeded(config.path)
+        Options:UpdateDependentWidgets(config.path)
     end)
     
     -- Tooltip helper function
@@ -505,6 +670,7 @@ function Options:CreateCheckbox(parent, yOffset, config)
             checkbox:SetChecked(addon:GetSettingValue(config.path) == true)
             checkbox.Text:SetText(config.label)
             Options:RefreshModuleIfNeeded(config.path)
+            Options:UpdateDependentWidgets(config.path)
         end
     end)
     
@@ -516,8 +682,12 @@ function Options:CreateCheckbox(parent, yOffset, config)
             self:SetChecked(addon:GetSettingValue(config.path) == true)
             self.Text:SetText(config.label)
             Options:RefreshModuleIfNeeded(config.path)
+            Options:UpdateDependentWidgets(config.path)
         end
     end)
+    
+    -- Register widget for dependency management
+    Options:RegisterWidget(config.path, frame, checkbox, config)
     
     return yOffset - 24
 end
@@ -650,6 +820,9 @@ function Options:CreateSlider(parent, yOffset, config)
     frame.slider = slider
     frame.valueText = valueText
     
+    -- Register widget for dependency management
+    Options:RegisterWidget(config.path, frame, slider, config)
+    
     return yOffset - 52
 end
 
@@ -743,6 +916,9 @@ function Options:CreateDropdown(parent, yOffset, config)
     
     frame.label = label
     frame.dropdown = dropdown
+    
+    -- Register widget for dependency management
+    Options:RegisterWidget(config.path, frame, dropdown, config)
     
     return yOffset - 50
 end
