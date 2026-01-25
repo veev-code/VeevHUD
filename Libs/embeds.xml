@@ -1,0 +1,21 @@
+<Ui xmlns="http://www.blizzard.com/wow/ui/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.blizzard.com/wow/ui/
+..\FrameXML\UI.xsd">
+
+    <!--
+        VeevHUD - Embedded Libraries
+
+        Note: We depend on LibSpellDB as a standalone addon.
+        Other common libraries can be embedded here if needed,
+        or we can use them from other addons via OptionalDeps.
+    -->
+
+    <!-- LibStub - Required for library access -->
+    <Script file="LibStub\LibStub.lua"/>
+
+    <!-- CallbackHandler for event handling -->
+    <Script file="CallbackHandler-1.0\CallbackHandler-1.0.lua"/>
+
+    <!-- LibCustomGlow for animated glow effects -->
+    <Include file="LibCustomGlow-1.0\LibCustomGlow-1.0.xml"/>
+
+</Ui>

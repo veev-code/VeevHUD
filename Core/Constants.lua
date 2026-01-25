@@ -1,0 +1,229 @@
+--[[
+    VeevHUD - Constants
+    Static values and default settings
+]]
+
+local ADDON_NAME, addon = ...
+
+addon.Constants = {}
+local C = addon.Constants
+
+-------------------------------------------------------------------------------
+-- Addon Info
+-------------------------------------------------------------------------------
+
+C.ADDON_NAME = ADDON_NAME
+C.VERSION = "1.0.0"
+
+-------------------------------------------------------------------------------
+-- Class Colors (Classic values)
+-------------------------------------------------------------------------------
+
+C.CLASS_COLORS = {
+    WARRIOR     = { r = 0.78, g = 0.61, b = 0.43 },
+    PALADIN     = { r = 0.96, g = 0.55, b = 0.73 },
+    HUNTER      = { r = 0.67, g = 0.83, b = 0.45 },
+    ROGUE       = { r = 1.00, g = 0.96, b = 0.41 },
+    PRIEST      = { r = 1.00, g = 1.00, b = 1.00 },
+    SHAMAN      = { r = 0.00, g = 0.44, b = 0.87 },
+    MAGE        = { r = 0.41, g = 0.80, b = 0.94 },
+    WARLOCK     = { r = 0.58, g = 0.51, b = 0.79 },
+    DRUID       = { r = 1.00, g = 0.49, b = 0.04 },
+}
+
+-------------------------------------------------------------------------------
+-- Power/Resource Colors
+-------------------------------------------------------------------------------
+
+C.POWER_COLORS = {
+    MANA        = { r = 0.00, g = 0.00, b = 1.00 },
+    RAGE        = { r = 1.00, g = 0.00, b = 0.00 },
+    ENERGY      = { r = 1.00, g = 1.00, b = 0.00 },
+    FOCUS       = { r = 1.00, g = 0.50, b = 0.25 },
+    RUNIC_POWER = { r = 0.00, g = 0.82, b = 1.00 },
+}
+
+-- Power type IDs (Classic)
+C.POWER_TYPE = {
+    MANA    = 0,
+    RAGE    = 1,
+    FOCUS   = 2,
+    ENERGY  = 3,
+}
+
+-------------------------------------------------------------------------------
+-- Default Icon Sizes
+-------------------------------------------------------------------------------
+
+C.ICON_SIZE = {
+    LARGE   = 40,
+    MEDIUM  = 32,
+    SMALL   = 24,
+    TINY    = 20,
+}
+
+-------------------------------------------------------------------------------
+-- Default Settings
+-------------------------------------------------------------------------------
+
+C.DEFAULTS = {
+    profile = {
+        enabled = true,
+        locked = false,
+
+        -- Global positioning anchor (centered, below character)
+        anchor = {
+            point = "CENTER",
+            relativePoint = "CENTER",
+            x = 0,
+            y = -84,  -- Moved up by ~56px (one core icon height)
+        },
+
+        -- Visibility conditions
+        visibility = {
+            hideOnFlightPath = true, -- Hide completely when on taxi/flight
+        },
+
+        -- Resource bar settings (mana/rage/energy)
+        resourceBar = {
+            enabled = true,
+            width = 285,
+            height = 14,
+            offsetY = 0,
+            showText = true,
+            textFormat = "current",  -- "current", "percent", "both", "none"
+            smoothing = true,
+            classColored = false,  -- Use power color by default
+            gradient = true,  -- Use gradient coloring
+        },
+
+        -- Health bar settings
+        healthBar = {
+            enabled = true,
+            width = 285,
+            height = 10,
+            offsetY = 16,
+            showText = true,
+            textFormat = "percent",
+            smoothing = true,
+            classColored = true,
+        },
+
+        -- Icon display settings (defaults, rows can override)
+        icons = {
+            enabled = true,
+            iconSize = 52,          -- Default icon size (per-row overrides in rows config)
+            iconSpacing = 2,        -- Slight spacing for visual separation
+            rowSpacing = 0,         -- No vertical space between rows (touching)
+            scale = 1.0,            -- Global scale multiplier
+            
+            -- Alpha settings
+            readyAlpha = 1.0,
+            cooldownAlpha = 0.3,
+            desaturateNoResources = true,
+            
+            -- Cooldown display
+            showCooldownText = true,
+            showCooldownSpiral = true,
+            useOwnCooldownText = true,  -- Use VeevHUD's text instead of OmniCC/ElvUI
+            
+            -- Resource cost display (for rage/energy classes)
+            -- "none" = disabled, "bar" = horizontal bar at bottom, "fill" = vertical fill from bottom
+            resourceDisplayMode = "fill",
+            resourceBarHeight = 4,       -- Height of horizontal bar (Option A)
+            resourceFillAlpha = 0.6,     -- Alpha of fill overlay (Option B)
+            
+            -- Ready glow: shows a proc-style glow when ability becomes ready
+            -- Triggers: 1) <1s remaining on CD with enough resources
+            --           2) Just got enough resources after CD finished
+            -- Only shows once per cooldown cycle to avoid flicker
+            showReadyGlow = true,
+            readyGlowDuration = 1.0,     -- Duration to show glow when triggered by resources
+            
+            -- Per-spell overrides for icons (legacy, use top-level spellOverrides)
+            spellOverrides = {},
+        },
+
+        -- Global spell overrides: spellID -> true (force show) / false (force hide)
+        spellOverrides = {},
+
+        -- Row definitions (order matters - top to bottom)
+        -- Each row shows spells matching these LibSpellDB tags
+        rows = {
+            {
+                name = "Core Rotation",
+                tags = {"CORE_ROTATION"},
+                maxIcons = 6,
+                enabled = true,
+                iconSize = 56,       -- Larger core icons (like retail)
+                iconSpacing = 2,
+            },
+            {
+                name = "Major Cooldowns",
+                tags = {"OFFENSIVE_CD", "HEALING_CD"},
+                maxIcons = 6,
+                enabled = true,
+                iconSize = 48,
+                iconSpacing = 2,
+            },
+            {
+                -- Combined utility group - flows into multiple rows automatically
+                name = "Utility",
+                tags = {"CC_BREAK", "CC_IMMUNITY", "INTERRUPT", "CC_HARD", "SILENCE", 
+                        "MOVEMENT", "MOVEMENT_GAP_CLOSE", "MOVEMENT_ESCAPE",
+                        "PERSONAL_DEFENSIVE", "IMMUNITY", "DAMAGE_REDUCTION",
+                        "UTILITY", "DISPEL_MAGIC", "DISPEL_POISON", "DISPEL_DISEASE"},
+                maxIcons = 24,       -- Allow many icons, will wrap
+                iconsPerRow = 6,     -- Target icons per row
+                enabled = true,
+                iconSize = 42,
+                iconSpacing = 2,
+                spaceBefore = 16,    -- Larger gap before utility group (like retail)
+                flowLayout = true,   -- Enable multi-row flow layout
+            },
+        },
+
+        -- Proc/buff tracking row (glowing when active)
+        procIcons = {
+            enabled = true,
+            iconSize = 32,
+            iconSpacing = 3,
+            maxIcons = 6,
+            offsetY = 40,  -- Above the resource bar
+            glowEnabled = true,
+        },
+
+        -- Cast bar (target)
+        castBar = {
+            enabled = true,
+            width = 220,
+            height = 16,
+            offsetY = 50,
+            showIcon = true,
+            showTimer = true,
+            interruptHighlight = true,
+        },
+    },
+}
+
+-------------------------------------------------------------------------------
+-- Texture Paths
+-------------------------------------------------------------------------------
+
+C.TEXTURES = {
+    STATUSBAR       = "Interface\\TargetingFrame\\UI-StatusBar",
+    STATUSBAR_FLAT  = "Interface\\Buttons\\WHITE8X8",
+    BORDER          = "Interface\\Tooltips\\UI-Tooltip-Border",
+    BACKDROP        = "Interface\\Tooltips\\UI-Tooltip-Background",
+    GLOW            = "Interface\\SpellActivationOverlay\\IconAlert",
+}
+
+-------------------------------------------------------------------------------
+-- Fonts
+-------------------------------------------------------------------------------
+
+C.FONTS = {
+    DEFAULT     = "Fonts\\FRIZQT__.TTF",
+    NUMBER      = "Interface\\AddOns\\VeevHUD\\Fonts\\Expressway-Bold.ttf",
+    BOLD        = "Interface\\AddOns\\VeevHUD\\Fonts\\Expressway-Bold.ttf",
+}

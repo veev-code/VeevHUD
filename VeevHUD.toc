@@ -1,0 +1,41 @@
+## Interface: 11508
+## Title: VeevHUD
+## Notes: Clean cooldown and resource HUD
+## Author: Veev
+## Version: 1.0.0
+## IconTexture: Interface\Icons\Spell_Nature_Reincarnation
+## SavedVariables: VeevHUDDB, VeevHUDLog
+## Dependencies: LibSpellDB
+## OptionalDeps: Ace3, LibSharedMedia-3.0, Masque
+
+## X-License: MIT
+## X-Website: https://github.com/veev-code/VeevHUD
+## X-Twitch: https://www.twitch.tv/veev
+## X-Twitter: https://x.com/VeevTSG
+
+# Libraries
+Libs\embeds.xml
+
+# Localization
+Locales\enUS.lua
+
+# Core
+Core\Constants.lua
+Core\Utils.lua
+Core\Events.lua
+Core\Core.lua
+Core\Config.lua
+
+# Modules
+Modules\SpellTracker.lua
+Modules\AuraTracker.lua
+Modules\ResourceBar.lua
+Modules\HealthBar.lua
+Modules\CooldownIcons.lua
+Modules\ProcGlow.lua
+Modules\CastBar.lua
+
+# UI
+UI\Templates.xml
+UI\Anchor.lua
+UI\Options.lua

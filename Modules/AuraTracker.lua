@@ -1,0 +1,416 @@
+--[[
+    VeevHUD - Aura Tracker Module
+    Tracks buffs/debuffs applied by player spells
+    
+    Used to show "active" state on icons when their associated 
+    aura is active on a target (debuff) or self (buff).
+]]
+
+local ADDON_NAME, addon = ...
+
+local AuraTracker = {}
+addon:RegisterModule("AuraTracker", AuraTracker)
+
+-- Active auras: auraSpellID -> {targetGUID -> expirationTime}
+AuraTracker.activeAuras = {}
+
+-- Mapping: auraSpellID -> sourceSpellID (reverse lookup)
+AuraTracker.auraToSpellMap = {}
+
+-- Mapping: sourceSpellID -> auraSpellID
+AuraTracker.spellToAuraMap = {}
+
+-- Mapping: rankSpellID -> baseSpellID (for looking up tracked spell from any rank)
+AuraTracker.rankToBaseMap = {}
+
+-------------------------------------------------------------------------------
+-- Initialization
+-------------------------------------------------------------------------------
+
+function AuraTracker:Initialize()
+    self.Events = addon.Events
+    self.Utils = addon.Utils
+    self.LibSpellDB = addon.LibSpellDB
+    
+    self.playerGUID = UnitGUID("player")
+    
+    -- Build aura mappings from spell database
+    self:BuildAuraMappings()
+    
+    -- Register for combat log aura events
+    self.Events:RegisterCLEU(self, "SPELL_AURA_APPLIED", self.OnAuraEvent)
+    self.Events:RegisterCLEU(self, "SPELL_AURA_REMOVED", self.OnAuraEvent)
+    self.Events:RegisterCLEU(self, "SPELL_AURA_REFRESH", self.OnAuraEvent)
+    
+    -- Periodic cleanup of expired auras
+    self.cleanupTicker = C_Timer.NewTicker(1, function()
+        self:CleanupExpiredAuras()
+    end)
+    
+    self.Utils:LogDebug("AuraTracker initialized")
+end
+
+function AuraTracker:BuildAuraMappings()
+    local spellTracker = addon:GetModule("SpellTracker")
+    if not spellTracker then return end
+    
+    wipe(self.auraToSpellMap)
+    wipe(self.spellToAuraMap)
+    wipe(self.rankToBaseMap)
+    
+    local trackedSpells = spellTracker:GetTrackedSpells()
+    local count = 0
+    local rankCount = 0
+    
+    for spellID, data in pairs(trackedSpells) do
+        local spellData = data.spellData
+        
+        -- Build rank-to-base mapping for all tracked spells
+        -- This allows us to look up tracked spell from any rank ID in combat log
+        self.rankToBaseMap[spellID] = spellID  -- Base ID maps to itself
+        if spellData.ranks then
+            for _, rankID in ipairs(spellData.ranks) do
+                self.rankToBaseMap[rankID] = spellID
+                rankCount = rankCount + 1
+            end
+        end
+        
+        -- Only pre-map spells with explicit appliesAura definition (different aura ID than spell ID)
+        -- Same-ID auras are detected dynamically in OnAuraEvent
+        if spellData.appliesAura then
+            local auraInfo = {
+                spellID = spellData.appliesAura.spellID,
+                type = spellData.appliesAura.type or "DEBUFF",
+                onTarget = spellData.appliesAura.onTarget,
+                duration = spellData.appliesAura.duration,  -- Can be nil, will detect dynamically
+            }
+            
+            local auraID = auraInfo.spellID
+            self.auraToSpellMap[auraID] = spellID
+            self.spellToAuraMap[spellID] = auraInfo
+            self.activeAuras[auraID] = self.activeAuras[auraID] or {}
+            
+            local spellName = GetSpellInfo(spellID) or tostring(spellID)
+            self.Utils:LogInfo("AuraTracker: Pre-mapped aura for", spellName, "->", auraID, auraInfo.type)
+            count = count + 1
+        end
+    end
+    
+    if count > 0 then
+        self.Utils:LogInfo("AuraTracker: Pre-mapped", count, "spells with different aura IDs")
+    end
+    if rankCount > 0 then
+        self.Utils:LogInfo("AuraTracker: Built rank mapping for", rankCount, "spell ranks")
+    end
+    self.Utils:LogInfo("AuraTracker: Same-ID auras will be detected dynamically from combat log")
+end
+
+function AuraTracker:HasTag(tags, tagName)
+    for _, tag in ipairs(tags) do
+        if tag == tagName then
+            return true
+        end
+    end
+    return false
+end
+
+-------------------------------------------------------------------------------
+-- Combat Log Processing
+-------------------------------------------------------------------------------
+
+-- CLEU callback for aura events
+-- data contains: timestamp, sourceGUID, sourceName, sourceFlags, destGUID, destName, destFlags, spellID, spellName, spellSchool
+function AuraTracker:OnAuraEvent(subEvent, data)
+    local spellID = data.spellID
+    local spellName = data.spellName
+    local sourceGUID = data.sourceGUID
+    local destGUID = data.destGUID
+    local destName = data.destName
+    
+    -- Must be from us (we only track our own auras)
+    if sourceGUID ~= self.playerGUID then return end
+    
+    -- Check if this aura is explicitly mapped (different aura ID than spell ID)
+    local sourceSpellID = self.auraToSpellMap[spellID]
+    local auraInfo = sourceSpellID and self.spellToAuraMap[sourceSpellID]
+    
+    -- If not explicitly mapped, check if this spell ID (or its base spell) is one we're tracking
+    -- This enables auto-detection for spells where aura ID = spell ID (including ranks)
+    if not sourceSpellID then
+        -- First check if this is a rank of a tracked spell
+        local baseSpellID = self.rankToBaseMap[spellID]
+        
+        if baseSpellID then
+            -- This spell (or its base) is tracked and applies an aura
+            -- Dynamically determine if it's a buff on self or debuff on target
+            sourceSpellID = baseSpellID
+            local isSelfBuff = (destGUID == self.playerGUID)
+            auraInfo = {
+                spellID = spellID,  -- Use actual aura ID (rank ID) for tracking
+                type = isSelfBuff and "BUFF" or "DEBUFF",
+                onTarget = not isSelfBuff,
+                duration = nil,  -- Will be detected from game API
+                baseSpellID = baseSpellID,  -- Store base ID for lookup
+            }
+        end
+    end
+    
+    if not sourceSpellID or not auraInfo then return end
+    
+    -- For debuffs on targets: must be from us (already checked above)
+    -- For buffs on self: destGUID must be us
+    local isSelfBuff = not auraInfo.onTarget
+    
+    if isSelfBuff then
+        -- Self buff: only track if dest is player
+        if destGUID ~= self.playerGUID then return end
+    else
+        -- Target debuff: only track if source is player
+        if sourceGUID ~= self.playerGUID then return end
+    end
+    
+    -- Use the base spell ID for storage so icon lookups work correctly
+    -- (e.g., Hamstring rank 3 is stored under base ID 1715, not rank ID 7373)
+    local storageID = sourceSpellID
+    
+    -- Process the event
+    if subEvent == "SPELL_AURA_APPLIED" or subEvent == "SPELL_AURA_REFRESH" then
+        -- Aura applied or refreshed - get actual duration from the unit
+        local expiration = nil
+        local duration = 0
+        
+        -- Try to get actual duration from the unit
+        local unit = self:GetUnitFromGUID(destGUID)
+        if unit then
+            local actualDuration, actualExpiration = self:GetAuraDurationOnUnit(unit, spellID, spellName, isSelfBuff)
+            if actualExpiration and actualExpiration > 0 then
+                expiration = actualExpiration
+                duration = actualDuration or 0
+            end
+        end
+        
+        -- Fallback to estimated duration if we couldn't get actual
+        if not expiration or expiration <= GetTime() then
+            duration = auraInfo.duration or 10
+            expiration = GetTime() + duration
+        end
+        
+        if not self.activeAuras[storageID] then
+            self.activeAuras[storageID] = {}
+        end
+        -- Store both expiration and duration for spiral display
+        self.activeAuras[storageID][destGUID] = {
+            expiration = expiration,
+            duration = duration,
+        }
+        
+        self.Utils:LogInfo("AuraTracker: Aura applied", spellName, "(", spellID, "->", storageID, ") on", destName, "expires in", string.format("%.1f", expiration - GetTime()))
+        
+        -- Notify CooldownIcons
+        self:NotifyAuraChange(sourceSpellID, true)
+        
+    elseif subEvent == "SPELL_AURA_REMOVED" then
+        -- Aura removed
+        if self.activeAuras[storageID] then
+            self.activeAuras[storageID][destGUID] = nil
+        end
+        
+        self.Utils:LogDebug("AuraTracker: Aura removed", spellName, "from", destName)
+        
+        -- Notify CooldownIcons
+        self:NotifyAuraChange(sourceSpellID, self:IsAuraActive(sourceSpellID))
+    end
+end
+
+-------------------------------------------------------------------------------
+-- Cleanup
+-------------------------------------------------------------------------------
+
+function AuraTracker:CleanupExpiredAuras()
+    local now = GetTime()
+    local changed = false
+    
+    for auraID, targets in pairs(self.activeAuras) do
+        for targetGUID, auraData in pairs(targets) do
+            local expiration = type(auraData) == "table" and auraData.expiration or auraData
+            if expiration <= now then
+                targets[targetGUID] = nil
+                changed = true
+            end
+        end
+    end
+    
+    if changed then
+        -- Update UI
+        local cooldownIcons = addon:GetModule("CooldownIcons")
+        if cooldownIcons then
+            cooldownIcons:UpdateAllIcons()
+        end
+    end
+end
+
+-------------------------------------------------------------------------------
+-- Unit/Aura Helpers
+-------------------------------------------------------------------------------
+
+-- Get unit token from GUID
+function AuraTracker:GetUnitFromGUID(guid)
+    if not guid then return nil end
+    
+    -- Check common units
+    if guid == UnitGUID("player") then return "player" end
+    if guid == UnitGUID("target") then return "target" end
+    if guid == UnitGUID("focus") then return "focus" end
+    if guid == UnitGUID("pet") then return "pet" end
+    
+    -- Check party/raid
+    for i = 1, 4 do
+        if guid == UnitGUID("party" .. i) then return "party" .. i end
+        if guid == UnitGUID("party" .. i .. "target") then return "party" .. i .. "target" end
+    end
+    
+    -- Check nameplates
+    for i = 1, 40 do
+        local unit = "nameplate" .. i
+        if UnitExists(unit) and guid == UnitGUID(unit) then
+            return unit
+        end
+    end
+    
+    -- Check arena (if applicable)
+    for i = 1, 5 do
+        if guid == UnitGUID("arena" .. i) then return "arena" .. i end
+    end
+    
+    return nil
+end
+
+-- Get aura duration and expiration from a unit
+function AuraTracker:GetAuraDurationOnUnit(unit, spellID, spellName, isBuff)
+    if not unit or not UnitExists(unit) then return nil, nil end
+    
+    local scanFunc = isBuff and UnitBuff or UnitDebuff
+    local filter = isBuff and "HELPFUL" or "HARMFUL"
+    
+    -- Scan auras on the unit
+    for i = 1, 40 do
+        local name, icon, count, debuffType, duration, expirationTime, source, 
+              isStealable, nameplateShowPersonal, auraSpellID = scanFunc(unit, i, filter)
+        
+        if not name then break end
+        
+        -- Match by spell ID or name
+        if (auraSpellID and auraSpellID == spellID) or name == spellName then
+            -- For debuffs, make sure it's ours
+            if not isBuff and source and source ~= "player" then
+                -- Not our debuff, keep scanning
+            else
+                return duration, expirationTime
+            end
+        end
+    end
+    
+    return nil, nil
+end
+
+-------------------------------------------------------------------------------
+-- Public API
+-------------------------------------------------------------------------------
+
+-- Check if a spell's aura is currently active on any target
+function AuraTracker:IsAuraActive(spellID)
+    -- Check pre-mapped auras (different aura ID than spell ID)
+    local auraInfo = self.spellToAuraMap[spellID]
+    local auraID = auraInfo and auraInfo.spellID or spellID  -- Fall back to spell ID for same-ID auras
+    
+    local targets = self.activeAuras[auraID]
+    if not targets then return false end
+    
+    local now = GetTime()
+    for targetGUID, auraData in pairs(targets) do
+        local expiration = type(auraData) == "table" and auraData.expiration or auraData
+        if expiration > now then
+            return true
+        end
+    end
+    
+    return false
+end
+
+-- Get the remaining duration and total duration of a spell's aura (longest if multiple targets)
+function AuraTracker:GetAuraRemaining(spellID)
+    -- Check pre-mapped auras (different aura ID) or fall back to spell ID (same-ID auras)
+    local auraInfo = self.spellToAuraMap[spellID]
+    local auraID = auraInfo and auraInfo.spellID or spellID
+    
+    local targets = self.activeAuras[auraID]
+    if not targets then return 0, 0 end
+    
+    local now = GetTime()
+    local maxRemaining = 0
+    local maxDuration = 0
+    
+    for targetGUID, auraData in pairs(targets) do
+        local expiration = type(auraData) == "table" and auraData.expiration or auraData
+        local duration = type(auraData) == "table" and auraData.duration or 0
+        local remaining = expiration - now
+        if remaining > maxRemaining then
+            maxRemaining = remaining
+            maxDuration = duration
+        end
+    end
+    
+    return maxRemaining, maxDuration
+end
+
+-- Get count of targets with this aura active
+function AuraTracker:GetAuraTargetCount(spellID)
+    -- Check pre-mapped auras (different aura ID) or fall back to spell ID (same-ID auras)
+    local auraInfo = self.spellToAuraMap[spellID]
+    local auraID = auraInfo and auraInfo.spellID or spellID
+    
+    local targets = self.activeAuras[auraID]
+    if not targets then return 0 end
+    
+    local now = GetTime()
+    local count = 0
+    
+    for targetGUID, auraData in pairs(targets) do
+        local expiration = type(auraData) == "table" and auraData.expiration or auraData
+        if expiration > now then
+            count = count + 1
+        end
+    end
+    
+    return count
+end
+
+-- Notify that an aura changed (for icon updates)
+function AuraTracker:NotifyAuraChange(spellID, isActive)
+    local cooldownIcons = addon:GetModule("CooldownIcons")
+    if cooldownIcons then
+        cooldownIcons:UpdateAllIcons()
+    end
+end
+
+-- Rebuild mappings when tracked spells change
+function AuraTracker:OnTrackedSpellsChanged()
+    self:BuildAuraMappings()
+end
+
+-------------------------------------------------------------------------------
+-- Enable/Disable
+-------------------------------------------------------------------------------
+
+function AuraTracker:Enable()
+    self.playerGUID = UnitGUID("player")
+    self:BuildAuraMappings()
+end
+
+function AuraTracker:Disable()
+    wipe(self.activeAuras)
+end
+
+function AuraTracker:Refresh()
+    self:BuildAuraMappings()
+end
