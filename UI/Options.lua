@@ -709,42 +709,29 @@ function Options:CreateSlider(parent, yOffset, config)
     label:SetPoint("TOPLEFT", 0, 0)
     label:SetText(labelText)
     
-    -- Create slider using UISliderTemplate (more compatible than OptionsSliderTemplate)
+    -- Create slider using OptionsSliderTemplate for better visibility
     local sliderName = "VeevHUDSlider_" .. config.path:gsub("%.", "_")
-    local slider = CreateFrame("Slider", sliderName, frame, "UISliderTemplate")
-    slider:SetPoint("TOPLEFT", label, "BOTTOMLEFT", 5, -12)
-    slider:SetWidth(200)
-    slider:SetHeight(16)
+    local slider = CreateFrame("Slider", sliderName, frame, "OptionsSliderTemplate")
+    slider:SetPoint("TOPLEFT", label, "BOTTOMLEFT", 5, -8)
+    slider:SetWidth(180)
     slider:SetMinMaxValues(config.min, config.max)
     slider:SetValueStep(config.step)
     slider:SetObeyStepOnDrag(true)
-    slider:SetStepsPerPage(1)
     
-    -- UISliderTemplate is bugged, need to create these elements manually
-    if not slider.High then
-        slider.High = slider:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-        slider.High:SetPoint("TOPRIGHT", slider, "BOTTOMRIGHT", 0, 0)
-    end
-    if not slider.Low then
-        slider.Low = slider:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-        slider.Low:SetPoint("TOPLEFT", slider, "BOTTOMLEFT", 0, 0)
-    end
-    if not slider.Text then
-        slider.Text = slider:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
-        slider.Text:SetPoint("BOTTOM", slider, "TOP", 0, 0)
-    end
+    -- Add a visible background track
+    local track = slider:CreateTexture(nil, "BACKGROUND")
+    track:SetPoint("TOPLEFT", slider, "TOPLEFT", 8, -6)
+    track:SetPoint("BOTTOMRIGHT", slider, "BOTTOMRIGHT", -8, 6)
+    track:SetColorTexture(0.2, 0.2, 0.2, 0.8)
     
     -- Set min/max labels
-    slider.Low:SetText(tostring(config.min))
-    slider.High:SetText(tostring(config.max))
-    slider.Text:SetText("")  -- Don't use the top text
+    _G[sliderName .. "Low"]:SetText(tostring(config.min))
+    _G[sliderName .. "High"]:SetText(tostring(config.max))
+    _G[sliderName .. "Text"]:SetText("")  -- Don't use the top text
     
     -- Value text (to the right of slider)
     local valueText = frame:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
     valueText:SetPoint("LEFT", slider, "RIGHT", 12, 0)
-    
-    local currentValue = addon:GetSettingValue(config.path) or config.min
-    slider:SetValue(currentValue)
     
     local function FormatValue(v)
         if config.isPercent then
@@ -754,8 +741,13 @@ function Options:CreateSlider(parent, yOffset, config)
         end
     end
     
+    local currentValue = addon:GetSettingValue(config.path) or config.min
+    
+    -- Set initial slider value and display text
+    slider:SetValue(currentValue)
     valueText:SetText(FormatValue(currentValue))
     
+    -- Sync slider -> value text
     slider:SetScript("OnValueChanged", function(self, value)
         value = math.floor(value / config.step + 0.5) * config.step
         valueText:SetText(FormatValue(value))
@@ -768,6 +760,19 @@ function Options:CreateSlider(parent, yOffset, config)
             label:SetText(config.label)
         end
         Options:RefreshModuleIfNeeded(config.path)
+    end)
+    
+    -- Right-click on slider to reset
+    slider:EnableMouse(true)
+    slider:HookScript("OnMouseUp", function(self, button)
+        if button == "RightButton" then
+            addon:ClearOverride(config.path)
+            local defaultValue = addon:GetSettingValue(config.path)
+            self:SetValue(defaultValue)
+            valueText:SetText(FormatValue(defaultValue))
+            label:SetText(config.label)
+            Options:RefreshModuleIfNeeded(config.path)
+        end
     end)
     
     -- Tooltip helper function
@@ -802,19 +807,6 @@ function Options:CreateSlider(parent, yOffset, config)
     labelHitbox:EnableMouse(true)
     labelHitbox:SetScript("OnEnter", function(self) ShowTooltip(slider) end)
     labelHitbox:SetScript("OnLeave", function(self) GameTooltip:Hide() end)
-    
-    -- Right-click to reset (use HookScript to not break slider dragging)
-    slider:EnableMouse(true)
-    slider:HookScript("OnMouseUp", function(self, button)
-        if button == "RightButton" then
-            addon:ClearOverride(config.path)
-            local defaultValue = addon:GetSettingValue(config.path)
-            self:SetValue(defaultValue)
-            valueText:SetText(FormatValue(defaultValue))
-            label:SetText(config.label)
-            Options:RefreshModuleIfNeeded(config.path)
-        end
-    end)
     
     frame.label = label
     frame.slider = slider
