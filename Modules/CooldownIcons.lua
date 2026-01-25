@@ -57,6 +57,9 @@ function CooldownIcons:Initialize()
     -- Register for spell activation overlay events (procs)
     self.Events:RegisterEvent(self, "SPELL_ACTIVATION_OVERLAY_GLOW_SHOW", self.OnOverlayShow)
     self.Events:RegisterEvent(self, "SPELL_ACTIVATION_OVERLAY_GLOW_HIDE", self.OnOverlayHide)
+    
+    -- Register for spell cast events (for cast feedback animation)
+    self.Events:RegisterEvent(self, "UNIT_SPELLCAST_SUCCEEDED", self.OnSpellCastSucceeded)
 
     self.Utils:LogInfo("CooldownIcons initialized")
 end
@@ -138,6 +141,75 @@ function CooldownIcons:OnOverlayHide(event, spellID)
         self.activeOverlays[spellID] = nil
         self:UpdateAllIcons()
     end
+end
+
+function CooldownIcons:OnSpellCastSucceeded(event, unit, castGUID, spellID)
+    if unit ~= "player" then return end
+    
+    -- Find the icon frame for this spell
+    local frame = self:FindIconFrameBySpellID(spellID)
+    if frame then
+        self:PlayCastFeedback(frame)
+    end
+end
+
+-- Find icon frame by spell ID (checks ranks too)
+function CooldownIcons:FindIconFrameBySpellID(spellID)
+    local LibSpellDB = addon.LibSpellDB
+    local canonicalID = LibSpellDB and LibSpellDB:GetCanonicalSpellID(spellID) or spellID
+    
+    for _, rowFrame in ipairs(self.rows or {}) do
+        if rowFrame.icons then
+            for _, iconFrame in ipairs(rowFrame.icons) do
+                if iconFrame.spellID == canonicalID or iconFrame.spellID == spellID then
+                    return iconFrame
+                end
+                -- Check ranks
+                if iconFrame.spellData and iconFrame.spellData.ranks then
+                    for _, rankID in ipairs(iconFrame.spellData.ranks) do
+                        if rankID == spellID then
+                            return iconFrame
+                        end
+                    end
+                end
+            end
+        end
+    end
+    return nil
+end
+
+-- Play cast feedback animation (scale punch using Animation API)
+function CooldownIcons:PlayCastFeedback(frame)
+    if not frame then return end
+    
+    local db = addon.db and addon.db.profile.icons or {}
+    if db.castFeedback == false then return end  -- Allow disabling
+    
+    -- Create animation group on first use
+    if not frame.punchAnim then
+        local ag = frame:CreateAnimationGroup()
+        
+        -- Scale up from center
+        local scaleUp = ag:CreateAnimation("Scale")
+        scaleUp:SetOrigin("CENTER", 0, 0)
+        scaleUp:SetScale(1.1, 1.1)
+        scaleUp:SetDuration(0.08)
+        scaleUp:SetSmoothing("OUT")
+        scaleUp:SetOrder(1)
+        
+        -- Scale back down to normal
+        local scaleDown = ag:CreateAnimation("Scale")
+        scaleDown:SetOrigin("CENTER", 0, 0)
+        scaleDown:SetScale(1/1.1, 1/1.1)
+        scaleDown:SetDuration(0.12)
+        scaleDown:SetSmoothing("IN")
+        scaleDown:SetOrder(2)
+        
+        frame.punchAnim = ag
+    end
+    
+    frame.punchAnim:Stop()
+    frame.punchAnim:Play()
 end
 
 -------------------------------------------------------------------------------

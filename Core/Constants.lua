@@ -87,7 +87,7 @@ C.DEFAULTS = {
         -- Resource bar settings (mana/rage/energy)
         resourceBar = {
             enabled = true,
-            width = 285,
+            width = 230,  -- Width of 4 core icons (4×56 + 3×2 spacing)
             height = 14,
             offsetY = 0,
             showText = true,
@@ -100,7 +100,7 @@ C.DEFAULTS = {
         -- Health bar settings
         healthBar = {
             enabled = true,
-            width = 285,
+            width = 230,  -- Width of 4 core icons (4×56 + 3×2 spacing)
             height = 10,
             offsetY = 16,
             showText = true,
@@ -133,6 +133,9 @@ C.DEFAULTS = {
             resourceBarHeight = 4,       -- Height of horizontal bar (Option A)
             resourceFillAlpha = 0.6,     -- Alpha of fill overlay (Option B)
             
+            -- Cast feedback: flash + scale punch when ability is used
+            castFeedback = true,
+            
             -- Ready glow: shows a proc-style glow when ability becomes ready
             -- Triggers: 1) <1s remaining on CD with enough resources
             --           2) Just got enough resources after CD finished
@@ -159,9 +162,9 @@ C.DEFAULTS = {
                 iconSpacing = 2,
             },
             {
-                name = "Major Cooldowns",
-                tags = {"OFFENSIVE_CD", "HEALING_CD"},
-                maxIcons = 6,
+                name = "Situational / Cooldowns",
+                tags = {"SITUATIONAL", "OFFENSIVE_CD", "OFFENSIVE_CD_MINOR", "HEALING_CD", "RESOURCE"},
+                maxIcons = 8,
                 enabled = true,
                 iconSize = 48,
                 iconSpacing = 2,

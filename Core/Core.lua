@@ -427,6 +427,7 @@ function addon:RegisterSlashCommands()
             print("  /vh show <id> - Force show a spell")
             print("  /vh hide <id> - Force hide a spell")
             print("  /vh clear <id> - Remove spell override")
+            print("  /vh check <id> - Diagnose why a spell isn't showing")
             print("  /vh log [n] - Show log entries")
             print("  /vh debug - Toggle debug mode")
 
@@ -745,6 +746,72 @@ function addon:RegisterSlashCommands()
                 end
             else
                 self.Utils:Print("Usage: /vh overlay <spellID>")
+            end
+
+        elseif cmd == "check" then
+            -- Diagnose why a spell isn't showing: /vh check <spellID>
+            local spellID = args[2] and tonumber(args[2])
+            if spellID then
+                local name = GetSpellInfo(spellID) or "Unknown"
+                print("|cff00ff00Spell Check:|r " .. name .. " (" .. spellID .. ")")
+                
+                -- Check if LibSpellDB knows about it
+                local LibSpellDB = self.LibSpellDB
+                local spellData = LibSpellDB and LibSpellDB:GetSpellInfo(spellID)
+                if spellData then
+                    print("  In LibSpellDB: |cff00ff00yes|r")
+                    print("    Class: " .. (spellData.class or "unknown"))
+                    print("    Tags: " .. (spellData.tags and table.concat(spellData.tags, ", ") or "none"))
+                    print("    Specs: " .. (spellData.specs and table.concat(spellData.specs, ", ") or "all"))
+                    print("    Talent: " .. tostring(spellData.talent or false))
+                else
+                    print("  In LibSpellDB: |cffff0000no|r (spell not in database)")
+                end
+                
+                -- Check current spec
+                local playerSpec = LibSpellDB and LibSpellDB:GetPlayerSpec()
+                print("  Detected spec: " .. (playerSpec or "unknown"))
+                
+                -- Check if spec relevant
+                if LibSpellDB and LibSpellDB.IsSpellRelevantForSpec then
+                    local relevant = LibSpellDB:IsSpellRelevantForSpec(spellID)
+                    print("  Relevant for spec: " .. tostring(relevant))
+                end
+                
+                -- Check if known
+                local tracker = self:GetModule("SpellTracker")
+                if tracker then
+                    local known = tracker:IsSpellKnown(spellID, spellData or {})
+                    print("  IsSpellKnown: " .. tostring(known))
+                    
+                    -- Check if tracked
+                    local isTracked = tracker:IsSpellTracked(spellID)
+                    print("  IsTracked: " .. tostring(isTracked))
+                    
+                    -- Check enabled tags
+                    local enabledTags = tracker:GetEnabledTags()
+                    local matchingTags = {}
+                    if spellData and spellData.tags then
+                        for _, tag in ipairs(spellData.tags) do
+                            if enabledTags[tag] then
+                                table.insert(matchingTags, tag)
+                            end
+                        end
+                    end
+                    if #matchingTags > 0 then
+                        print("  Matching row tags: " .. table.concat(matchingTags, ", "))
+                    else
+                        print("  Matching row tags: |cffff0000none|r (not in any enabled row)")
+                    end
+                    
+                    -- Check exclusion
+                    if spellData and tracker.ShouldExcludeSpell then
+                        local excluded = tracker:ShouldExcludeSpell(spellData)
+                        print("  ShouldExclude: " .. tostring(excluded))
+                    end
+                end
+            else
+                self.Utils:Print("Usage: /vh check <spellID>")
             end
 
         else
