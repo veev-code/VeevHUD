@@ -33,6 +33,7 @@ Modules\ResourceBar.lua
 Modules\HealthBar.lua
 Modules\CooldownIcons.lua
 Modules\ProcGlow.lua
+Modules\ProcTracker.lua
 
 # UI
 UI\Templates.xml

@@ -115,6 +115,18 @@ C.DEFAULTS = {
             showGradient = true,
         },
 
+        -- Proc/Buff tracker (important buffs like Enrage, Flurry)
+        procTracker = {
+            enabled = true,
+            iconSize = 20,
+            iconSpacing = 3,  -- spacing between icons
+            offsetY = 31,     -- adjusted for smaller icons
+            showDuration = false,  -- hidden to avoid overlap with stack count
+            showInactiveIcons = false,  -- Only show when active
+            inactiveAlpha = 0.4,
+            activeGlow = false,  -- No glow needed, presence implies active
+        },
+
         -- Icon display settings (defaults, rows can override)
         icons = {
             enabled = true,
