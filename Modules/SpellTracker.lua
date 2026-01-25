@@ -126,6 +126,7 @@ function SpellTracker:FullRescan()
     local tracked = 0
     local skippedUnknown = 0
     local skippedTags = 0
+    local skippedFillers = 0
 
     for spellID, spellData in pairs(relevantSpells) do
         local shouldTrack, reason = self:ShouldTrackSpell(spellID, spellData, enabledTags)
@@ -141,11 +142,13 @@ function SpellTracker:FullRescan()
                 skippedUnknown = skippedUnknown + 1
             elseif reason == "no_matching_tags" then
                 skippedTags = skippedTags + 1
+            elseif reason == "excluded" then
+                skippedFillers = skippedFillers + 1
             end
         end
     end
 
-    self.Utils:LogInfo("SpellTracker: Tracking", tracked, "spells (skipped:", skippedUnknown, "unknown,", skippedTags, "tags)")
+    self.Utils:LogInfo("SpellTracker: Tracking", tracked, "spells (skipped:", skippedUnknown, "unknown,", skippedTags, "tags,", skippedFillers, "fillers)")
 
     -- Log details in debug mode
     if addon.db and addon.db.profile and addon.db.profile.debugMode then
@@ -198,12 +201,72 @@ function SpellTracker:ShouldTrackSpell(spellID, spellData, enabledTags)
         return false, "no_matching_tags"
     end
 
+    -- Exclude spells that shouldn't be on the combat HUD
+    -- (fillers, out-of-combat abilities, long buffs, spammable utility)
+    if self:ShouldExcludeSpell(spellData) then
+        return false, "excluded"
+    end
+
     -- Check if spell is known
     if not self:IsSpellKnown(spellID, spellData) then
         return false, "not_known"
     end
 
     return true, matchedTag
+end
+
+-- Check if spell should be excluded from HUD
+-- Returns true if spell should NOT be shown
+function SpellTracker:ShouldExcludeSpell(spellData)
+    if not spellData.tags then return false end
+    
+    local isFiller = false
+    local isOutOfCombat = false
+    local isLongBuff = false
+    local hasTrackableDuration = false
+    
+    for _, tag in ipairs(spellData.tags) do
+        if tag == "FILLER" then
+            isFiller = true
+        elseif tag == "OUT_OF_COMBAT" then
+            isOutOfCombat = true
+        elseif tag == "LONG_BUFF" then
+            isLongBuff = true
+        elseif tag == "DEBUFF" or tag == "HOT" or tag == "BUFF" or tag == "TRACK_BUFF" then
+            hasTrackableDuration = true
+        end
+    end
+    
+    -- Always exclude OUT_OF_COMBAT abilities (resurrects, etc.)
+    if isOutOfCombat then
+        return true
+    end
+    
+    -- Exclude LONG_BUFF (30+ min buffs cast out of combat)
+    if isLongBuff then
+        return true
+    end
+    
+    -- Check FILLER exclusion
+    if isFiller then
+        -- Has a meaningful cooldown? Worth tracking
+        local cooldown = spellData.cooldown or 0
+        if cooldown > 0 then
+            return false  -- Has CD, worth tracking
+        end
+        
+        -- Has a short duration to track?
+        if spellData.duration and spellData.duration > 0 and spellData.duration < 300 then
+            if hasTrackableDuration then
+                return false  -- Has trackable duration, worth showing
+            end
+        end
+        
+        -- FILLER with no CD and no short trackable duration = exclude
+        return true
+    end
+    
+    return false
 end
 
 -------------------------------------------------------------------------------

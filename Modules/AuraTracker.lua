@@ -41,6 +41,8 @@ function AuraTracker:Initialize()
     self.Events:RegisterCLEU(self, "SPELL_AURA_APPLIED", self.OnAuraEvent)
     self.Events:RegisterCLEU(self, "SPELL_AURA_REMOVED", self.OnAuraEvent)
     self.Events:RegisterCLEU(self, "SPELL_AURA_REFRESH", self.OnAuraEvent)
+    self.Events:RegisterCLEU(self, "SPELL_AURA_APPLIED_DOSE", self.OnAuraStackEvent)
+    self.Events:RegisterCLEU(self, "SPELL_AURA_REMOVED_DOSE", self.OnAuraStackEvent)
     
     -- Periodic cleanup of expired auras
     self.cleanupTicker = C_Timer.NewTicker(1, function()
@@ -178,14 +180,16 @@ function AuraTracker:OnAuraEvent(subEvent, data)
         -- Aura applied or refreshed - get actual duration from the unit
         local expiration = nil
         local duration = 0
+        local stacks = 0
         
-        -- Try to get actual duration from the unit
+        -- Try to get actual duration and stacks from the unit
         local unit = self:GetUnitFromGUID(destGUID)
         if unit then
-            local actualDuration, actualExpiration = self:GetAuraDurationOnUnit(unit, spellID, spellName, isSelfBuff)
+            local actualDuration, actualExpiration, actualStacks = self:GetAuraDurationOnUnit(unit, spellID, spellName, isSelfBuff)
             if actualExpiration and actualExpiration > 0 then
                 expiration = actualExpiration
                 duration = actualDuration or 0
+                stacks = actualStacks or 0
             end
         end
         
@@ -198,13 +202,15 @@ function AuraTracker:OnAuraEvent(subEvent, data)
         if not self.activeAuras[storageID] then
             self.activeAuras[storageID] = {}
         end
-        -- Store both expiration and duration for spiral display
+        -- Store expiration, duration, and stacks for display
         self.activeAuras[storageID][destGUID] = {
             expiration = expiration,
             duration = duration,
+            stacks = stacks,
         }
         
-        self.Utils:LogInfo("AuraTracker: Aura applied", spellName, "(", spellID, "->", storageID, ") on", destName, "expires in", string.format("%.1f", expiration - GetTime()))
+        local stackInfo = stacks > 0 and (" (" .. stacks .. " stacks)") or ""
+        self.Utils:LogInfo("AuraTracker: Aura applied", spellName, "(", spellID, "->", storageID, ") on", destName, "expires in", string.format("%.1f", expiration - GetTime()) .. stackInfo)
         
         -- Notify CooldownIcons
         self:NotifyAuraChange(sourceSpellID, true)
@@ -219,6 +225,44 @@ function AuraTracker:OnAuraEvent(subEvent, data)
         
         -- Notify CooldownIcons
         self:NotifyAuraChange(sourceSpellID, self:IsAuraActive(sourceSpellID))
+    end
+end
+
+-- CLEU callback for aura stack changes
+function AuraTracker:OnAuraStackEvent(subEvent, data)
+    local spellID = data.spellID
+    local spellName = data.spellName
+    local sourceGUID = data.sourceGUID
+    local destGUID = data.destGUID
+    local destName = data.destName
+    
+    -- Must be from us
+    if sourceGUID ~= self.playerGUID then return end
+    
+    -- Find the source spell ID
+    local sourceSpellID = self.auraToSpellMap[spellID]
+    if not sourceSpellID then
+        local baseSpellID = self.rankToBaseMap[spellID]
+        if baseSpellID then
+            sourceSpellID = baseSpellID
+        end
+    end
+    
+    if not sourceSpellID then return end
+    
+    local storageID = sourceSpellID
+    local isSelfBuff = (destGUID == self.playerGUID)
+    
+    -- Update stack count from the unit
+    local unit = self:GetUnitFromGUID(destGUID)
+    if unit and self.activeAuras[storageID] and self.activeAuras[storageID][destGUID] then
+        local _, _, stacks = self:GetAuraDurationOnUnit(unit, spellID, spellName, isSelfBuff)
+        self.activeAuras[storageID][destGUID].stacks = stacks or 0
+        
+        self.Utils:LogInfo("AuraTracker: Stacks changed", spellName, "->", stacks or 0)
+        
+        -- Notify for UI update
+        self:NotifyAuraChange(sourceSpellID, true)
     end
 end
 
@@ -285,9 +329,9 @@ function AuraTracker:GetUnitFromGUID(guid)
     return nil
 end
 
--- Get aura duration and expiration from a unit
+-- Get aura duration, expiration, and stack count from a unit
 function AuraTracker:GetAuraDurationOnUnit(unit, spellID, spellName, isBuff)
-    if not unit or not UnitExists(unit) then return nil, nil end
+    if not unit or not UnitExists(unit) then return nil, nil, nil end
     
     local scanFunc = isBuff and UnitBuff or UnitDebuff
     local filter = isBuff and "HELPFUL" or "HARMFUL"
@@ -305,12 +349,12 @@ function AuraTracker:GetAuraDurationOnUnit(unit, spellID, spellName, isBuff)
             if not isBuff and source and source ~= "player" then
                 -- Not our debuff, keep scanning
             else
-                return duration, expirationTime
+                return duration, expirationTime, count or 0
             end
         end
     end
     
-    return nil, nil
+    return nil, nil, nil
 end
 
 -------------------------------------------------------------------------------
@@ -319,11 +363,9 @@ end
 
 -- Check if a spell's aura is currently active on any target
 function AuraTracker:IsAuraActive(spellID)
-    -- Check pre-mapped auras (different aura ID than spell ID)
-    local auraInfo = self.spellToAuraMap[spellID]
-    local auraID = auraInfo and auraInfo.spellID or spellID  -- Fall back to spell ID for same-ID auras
-    
-    local targets = self.activeAuras[auraID]
+    -- Active auras are stored by sourceSpellID (the spell you cast), not auraID
+    -- So we just look up directly by spellID
+    local targets = self.activeAuras[spellID]
     if not targets then return false end
     
     local now = GetTime()
@@ -337,39 +379,36 @@ function AuraTracker:IsAuraActive(spellID)
     return false
 end
 
--- Get the remaining duration and total duration of a spell's aura (longest if multiple targets)
+-- Get the remaining duration, total duration, and stacks of a spell's aura (longest if multiple targets)
 function AuraTracker:GetAuraRemaining(spellID)
-    -- Check pre-mapped auras (different aura ID) or fall back to spell ID (same-ID auras)
-    local auraInfo = self.spellToAuraMap[spellID]
-    local auraID = auraInfo and auraInfo.spellID or spellID
-    
-    local targets = self.activeAuras[auraID]
-    if not targets then return 0, 0 end
+    -- Active auras are stored by sourceSpellID
+    local targets = self.activeAuras[spellID]
+    if not targets then return 0, 0, 0 end
     
     local now = GetTime()
     local maxRemaining = 0
     local maxDuration = 0
+    local maxStacks = 0
     
     for targetGUID, auraData in pairs(targets) do
         local expiration = type(auraData) == "table" and auraData.expiration or auraData
         local duration = type(auraData) == "table" and auraData.duration or 0
+        local stacks = type(auraData) == "table" and auraData.stacks or 0
         local remaining = expiration - now
         if remaining > maxRemaining then
             maxRemaining = remaining
             maxDuration = duration
+            maxStacks = stacks
         end
     end
     
-    return maxRemaining, maxDuration
+    return maxRemaining, maxDuration, maxStacks
 end
 
 -- Get count of targets with this aura active
 function AuraTracker:GetAuraTargetCount(spellID)
-    -- Check pre-mapped auras (different aura ID) or fall back to spell ID (same-ID auras)
-    local auraInfo = self.spellToAuraMap[spellID]
-    local auraID = auraInfo and auraInfo.spellID or spellID
-    
-    local targets = self.activeAuras[auraID]
+    -- Active auras are stored by sourceSpellID
+    local targets = self.activeAuras[spellID]
     if not targets then return 0 end
     
     local now = GetTime()
@@ -383,6 +422,29 @@ function AuraTracker:GetAuraTargetCount(spellID)
     end
     
     return count
+end
+
+-- Get stack count for a spell's aura (highest if multiple targets)
+function AuraTracker:GetAuraStacks(spellID)
+    local targets = self.activeAuras[spellID]
+    if not targets then return 0 end
+    
+    local now = GetTime()
+    local maxStacks = 0
+    
+    for targetGUID, auraData in pairs(targets) do
+        if type(auraData) == "table" then
+            local expiration = auraData.expiration or 0
+            if expiration > now then
+                local stacks = auraData.stacks or 0
+                if stacks > maxStacks then
+                    maxStacks = stacks
+                end
+            end
+        end
+    end
+    
+    return maxStacks
 end
 
 -- Notify that an aura changed (for icon updates)

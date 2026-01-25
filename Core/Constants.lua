@@ -192,17 +192,6 @@ C.DEFAULTS = {
             offsetY = 40,  -- Above the resource bar
             glowEnabled = true,
         },
-
-        -- Cast bar (target)
-        castBar = {
-            enabled = true,
-            width = 220,
-            height = 16,
-            offsetY = 50,
-            showIcon = true,
-            showTimer = true,
-            interruptHighlight = true,
-        },
     },
 }
 

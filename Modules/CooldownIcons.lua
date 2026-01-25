@@ -306,6 +306,14 @@ function CooldownIcons:CreateIcon(parent, index, size)
     frame.charges = charges
     frame.Count = charges  -- Masque reference
 
+    -- Stacks text (bottom right, for aura stacks like Rampage, Lifebloom, Sunder)
+    local stacksFontSize = math.max(10, math.floor(size * 0.26))
+    local stacks = frame:CreateFontString(nil, "OVERLAY")
+    stacks:SetFont(self.C.FONTS.NUMBER, stacksFontSize, "OUTLINE")
+    stacks:SetPoint("BOTTOMRIGHT", -3, 3)
+    stacks:SetTextColor(1.0, 0.906, 0.745)  -- #ffe7be to match aura state
+    frame.stacks = stacks
+
     -- Resource cost display elements
     -- Option A: Horizontal bar at bottom
     local resourceBar = CreateFrame("Frame", nil, frame)
@@ -425,9 +433,17 @@ function CooldownIcons:RebuildAllRows()
         end
     end
 
-    -- Sort spells within each row by some priority (e.g., cooldown duration)
+    -- Sort spells within each row by rotation priority (lower = higher priority)
+    -- Falls back to cooldown duration if no priority is set
     for rowIndex, spells in pairs(self.iconsByRow) do
         table.sort(spells, function(a, b)
+            local priorityA = a.spellData.priority or 999
+            local priorityB = b.spellData.priority or 999
+            -- Primary sort by priority (lower = earlier in rotation)
+            if priorityA ~= priorityB then
+                return priorityA < priorityB
+            end
+            -- Secondary sort by cooldown (shorter CDs first)
             local cdA = a.spellData.cooldown or 0
             local cdB = b.spellData.cooldown or 0
             return cdA < cdB
@@ -609,9 +625,9 @@ function CooldownIcons:UpdateIconState(frame, db)
     -- Check for active aura (debuff/buff applied by this spell)
     local auraTracker = addon:GetModule("AuraTracker")
     local auraActive = auraTracker and auraTracker:IsAuraActive(spellID)
-    local auraRemaining, auraDuration = 0, 0
+    local auraRemaining, auraDuration, auraStacks = 0, 0, 0
     if auraTracker then
-        auraRemaining, auraDuration = auraTracker:GetAuraRemaining(spellID)
+        auraRemaining, auraDuration, auraStacks = auraTracker:GetAuraRemaining(spellID)
     end
     local auraTargetCount = auraTracker and auraTracker:GetAuraTargetCount(spellID) or 0
 
@@ -844,6 +860,13 @@ function CooldownIcons:UpdateIconState(frame, db)
         frame.charges:SetText(charges)
     else
         frame.charges:SetText("")
+    end
+
+    -- Update stacks display (for aura stacks like Rampage, Lifebloom, Sunder)
+    if auraActive and auraStacks and auraStacks > 1 then
+        frame.stacks:SetText(auraStacks)
+    else
+        frame.stacks:SetText("")
     end
 
     -- Update resource display (only show when ability is ready but lacking resources)
