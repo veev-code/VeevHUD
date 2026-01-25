@@ -94,7 +94,12 @@ C.DEFAULTS = {
             textFormat = "current",  -- "current", "percent", "both", "none"
             smoothing = true,
             classColored = false,  -- Use power color by default
-            gradient = true,  -- Use gradient coloring
+            showGradient = true,  -- Gradient overlay (darker at bottom)
+            -- Spark settings
+            showSpark = true,
+            sparkWidth = 12,
+            sparkOverflow = 8,  -- How much taller than bar (for glow effect)
+            sparkHideFullEmpty = true,
         },
 
         -- Health bar settings
@@ -102,11 +107,12 @@ C.DEFAULTS = {
             enabled = true,
             width = 230,  -- Width of 4 core icons (4×56 + 3×2 spacing)
             height = 10,
-            offsetY = 16,
+            offsetY = 12,  -- Position so bars touch (resourceBar.height/2 + healthBar.height/2)
             showText = true,
             textFormat = "percent",
             smoothing = true,
             classColored = true,
+            showGradient = true,
         },
 
         -- Icon display settings (defaults, rows can override)
@@ -203,8 +209,9 @@ C.DEFAULTS = {
 -------------------------------------------------------------------------------
 
 C.TEXTURES = {
-    STATUSBAR       = "Interface\\TargetingFrame\\UI-StatusBar",
+    STATUSBAR       = "Interface\\AddOns\\VeevHUD\\Media\\Statusbar_Clean",
     STATUSBAR_FLAT  = "Interface\\Buttons\\WHITE8X8",
+    STATUSBAR_DEFAULT = "Interface\\TargetingFrame\\UI-StatusBar",
     BORDER          = "Interface\\Tooltips\\UI-Tooltip-Border",
     BACKDROP        = "Interface\\Tooltips\\UI-Tooltip-Background",
     GLOW            = "Interface\\SpellActivationOverlay\\IconAlert",

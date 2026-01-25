@@ -59,6 +59,14 @@ function ResourceBar:CreateFrames(parent)
     -- Border/backdrop
     self:CreateBorder(bar)
 
+    -- Gradient overlay (darker at bottom, lighter at top)
+    if db.showGradient ~= false then
+        self:CreateGradient(bar)
+    end
+
+    -- Spark texture (glowing line at fill position)
+    self:CreateSpark(bar, db)
+
     -- Text overlay
     local text = bar:CreateFontString(nil, "OVERLAY")
     text:SetFont(self.C.FONTS.NUMBER, 11, "OUTLINE")
@@ -75,6 +83,21 @@ function ResourceBar:CreateFrames(parent)
         self.targetValue = 1
         self.currentValue = 1
     end
+end
+
+function ResourceBar:CreateSpark(bar, db)
+    if db.showSpark == false then return end
+    
+    local spark = bar:CreateTexture(nil, "OVERLAY")
+    
+    -- Use the casting bar spark texture (available in all WoW versions)
+    spark:SetTexture([[Interface\CastingBar\UI-CastingBar-Spark]])
+    spark:SetBlendMode("ADD")
+    spark:SetSize(db.sparkWidth or 12, db.height + (db.sparkOverflow or 8))
+    spark:SetPoint("CENTER", bar, "LEFT", 0, 0)
+    spark:SetAlpha(0.9)
+    
+    self.spark = spark
 end
 
 function ResourceBar:CreateBorder(bar)
@@ -101,6 +124,21 @@ function ResourceBar:CreateBorder(bar)
     shadow:SetFrameLevel(border:GetFrameLevel() - 1)
 
     self.border = border
+end
+
+function ResourceBar:CreateGradient(bar)
+    -- Gradient overlay: darker on left, lighter on right
+    local gradient = bar:CreateTexture(nil, "OVERLAY", nil, 1)
+    gradient:SetAllPoints(bar:GetStatusBarTexture())
+    gradient:SetTexture([[Interface\Buttons\WHITE8X8]])
+    
+    -- Horizontal gradient: left is darker, right is lighter
+    gradient:SetGradient("HORIZONTAL", 
+        CreateColor(0, 0, 0, 0.35),  -- Left (darker)
+        CreateColor(1, 1, 1, 0.15)   -- Right (lighter/highlight)
+    )
+    
+    self.gradient = gradient
 end
 
 -------------------------------------------------------------------------------
@@ -147,6 +185,7 @@ function ResourceBar:UpdateBar()
         self.targetValue = percent
     else
         self.bar:SetValue(percent)
+        self:UpdateSpark(percent)
     end
 
     -- Update text
@@ -155,6 +194,27 @@ function ResourceBar:UpdateBar()
     elseif self.text then
         self.text:SetText("")
     end
+end
+
+function ResourceBar:UpdateSpark(percent)
+    if not self.spark then return end
+    
+    local db = addon.db.profile.resourceBar
+    
+    -- Hide spark when full or empty
+    if db.sparkHideFullEmpty ~= false then
+        if percent <= 0 or percent >= 1 then
+            self.spark:Hide()
+            return
+        else
+            self.spark:Show()
+        end
+    end
+    
+    -- Position spark at the fill edge
+    local barWidth = self.bar:GetWidth()
+    local sparkX = barWidth * percent
+    self.spark:SetPoint("CENTER", self.bar, "LEFT", sparkX, 0)
 end
 
 function ResourceBar:UpdateText(power, maxPower, percent, format)
@@ -186,6 +246,7 @@ function ResourceBar:SmoothUpdate()
     end
 
     self.bar:SetValue(self.currentValue)
+    self:UpdateSpark(self.currentValue)
 end
 
 -------------------------------------------------------------------------------

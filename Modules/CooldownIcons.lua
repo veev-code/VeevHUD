@@ -731,8 +731,11 @@ function CooldownIcons:UpdateIconState(frame, db)
     local hasCharges = maxCharges and maxCharges > 1
     local noChargesLeft = hasCharges and charges == 0
 
-    -- Only desaturate when in combat
+    -- Only suppress desaturation/usability checks when RESTING and OUT OF COMBAT
+    -- This means in PvP or open world, you'll still see indicators even if combat drops
     local inCombat = UnitAffectingCombat("player")
+    local isResting = IsResting()
+    local showUsabilityIndicators = inCombat or not isResting
 
     -- Initialize state
     local alpha = db.readyAlpha
@@ -769,8 +772,9 @@ function CooldownIcons:UpdateIconState(frame, db)
         -----------------------------------------------------------------------
         alpha = db.readyAlpha  -- Always 100%
 
-        -- Desaturate when: no charges OR not usable - ONLY IN COMBAT
-        if inCombat then
+        -- Desaturate when: no charges OR not usable
+        -- Only suppress when resting AND out of combat (e.g., in town)
+        if showUsabilityIndicators then
             if noChargesLeft then
                 desaturate = true
             elseif not isUsable then
@@ -829,8 +833,8 @@ function CooldownIcons:UpdateIconState(frame, db)
             -- Ready to use (ignore GCD for non-core)
             alpha = db.readyAlpha
             
-            -- Desaturate only in combat
-            if inCombat and not isUsable and db.desaturateNoResources then
+            -- Desaturate when not usable (suppressed only when resting and out of combat)
+            if showUsabilityIndicators and not isUsable and db.desaturateNoResources then
                 desaturate = true
             end
         end
@@ -895,7 +899,8 @@ function CooldownIcons:UpdateIconState(frame, db)
 
     -- Resource-based desaturation: if ability is ready (off cooldown) but lacking resources,
     -- desaturate to clearly show it's not usable yet
-    -- Only apply in combat to avoid grey icons while hanging out in town
+    -- Only suppress when RESTING and OUT OF COMBAT (town/inn) to avoid grey icons there
+    -- In PvP/world, indicators remain active even if combat drops briefly
     -- Note: For core rotation abilities, desaturation is already handled above via isUsable.
     -- IsUsableSpell checks ALL conditions (resources, target health, etc.) so we don't
     -- need a separate resource-based desaturation check here.
@@ -965,12 +970,14 @@ function CooldownIcons:UpdateResourceDisplay(frame, spellID, cooldownRemaining, 
     local displayMode = db.resourceDisplayMode or "bar"
     
     -- Only show resource indicator if:
-    -- 1. We're in combat (don't clutter UI in town)
+    -- 1. Not resting and out of combat (show in PvP/world even if combat drops)
     -- 2. The spell has a resource cost
     -- 3. We don't have enough resources (resourcePercent < 1)
     -- 4. The ability is off cooldown (cooldown takes visual priority)
     local inCombat = UnitAffectingCombat("player")
-    local showResource = inCombat and hasResourceCost and resourcePercent < 1 and cooldownRemaining <= 0
+    local isResting = IsResting()
+    local showUsability = inCombat or not isResting
+    local showResource = showUsability and hasResourceCost and resourcePercent < 1 and cooldownRemaining <= 0
     
     if not showResource or displayMode == "none" then
         -- Hide and reset

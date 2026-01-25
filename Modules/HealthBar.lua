@@ -55,6 +55,11 @@ function HealthBar:CreatePlayerBar(parent)
     -- Border
     self:CreateBorder(bar)
 
+    -- Gradient overlay
+    if db.showGradient ~= false then
+        self:CreateGradient(bar)
+    end
+
     -- Set class color
     local r, g, b = self.Utils:GetClassColor(addon.playerClass)
     bar:SetStatusBarColor(r, g, b)
@@ -81,8 +86,8 @@ end
 
 function HealthBar:CreateBorder(bar)
     local border = CreateFrame("Frame", nil, bar, "BackdropTemplate")
-    border:SetPoint("TOPLEFT", -2, 2)
-    border:SetPoint("BOTTOMRIGHT", 2, -2)
+    border:SetPoint("TOPLEFT", -1, 1)
+    border:SetPoint("BOTTOMRIGHT", 1, -1)
     border:SetBackdrop({
         edgeFile = "Interface\\Buttons\\WHITE8X8",
         edgeSize = 1,
@@ -90,9 +95,31 @@ function HealthBar:CreateBorder(bar)
     border:SetBackdropBorderColor(0, 0, 0, 1)
     border:SetFrameLevel(bar:GetFrameLevel() - 1)
 
-    local bg = border:CreateTexture(nil, "BACKGROUND")
-    bg:SetAllPoints()
-    bg:SetColorTexture(0, 0, 0, 0.6)
+    -- Outer shadow for depth
+    local shadow = CreateFrame("Frame", nil, border, "BackdropTemplate")
+    shadow:SetPoint("TOPLEFT", -1, 1)
+    shadow:SetPoint("BOTTOMRIGHT", 1, -1)
+    shadow:SetBackdrop({
+        edgeFile = "Interface\\Buttons\\WHITE8X8",
+        edgeSize = 1,
+    })
+    shadow:SetBackdropBorderColor(0, 0, 0, 0.5)
+    shadow:SetFrameLevel(border:GetFrameLevel() - 1)
+end
+
+function HealthBar:CreateGradient(bar)
+    -- Gradient overlay: darker on left, lighter on right
+    local gradient = bar:CreateTexture(nil, "OVERLAY", nil, 1)
+    gradient:SetAllPoints(bar:GetStatusBarTexture())
+    gradient:SetTexture([[Interface\Buttons\WHITE8X8]])
+    
+    -- Horizontal gradient: left is darker, right is lighter
+    gradient:SetGradient("HORIZONTAL", 
+        CreateColor(0, 0, 0, 0.35),  -- Left (darker)
+        CreateColor(1, 1, 1, 0.15)   -- Right (lighter/highlight)
+    )
+    
+    self.playerGradient = gradient
 end
 
 -------------------------------------------------------------------------------
