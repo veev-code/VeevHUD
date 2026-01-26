@@ -118,6 +118,26 @@ function SpellTracker:FullRescan()
 
     self.Utils:LogInfo("SpellTracker: Found", relevantCount, "spec-relevant spells")
 
+    -- Also include spells explicitly enabled via spellConfig (even if not spec-relevant)
+    -- This allows users to enable off-spec abilities like Rend for a Fury Warrior
+    local spellCfg = addon:GetSpellConfig()
+    local userEnabledCount = 0
+    
+    for spellID, cfg in pairs(spellCfg) do
+        if cfg.enabled == true and not relevantSpells[spellID] then
+            -- User explicitly enabled this spell, add it to the scan list
+            local spellData = LibSpellDB:GetSpellInfo(spellID)
+            if spellData then
+                relevantSpells[spellID] = spellData
+                userEnabledCount = userEnabledCount + 1
+            end
+        end
+    end
+    
+    if userEnabledCount > 0 then
+        self.Utils:LogInfo("SpellTracker: Added", userEnabledCount, "user-enabled spells")
+    end
+
     -- Build enabled tags from row config
     local enabledTags = self:GetEnabledTags()
 
@@ -179,12 +199,27 @@ function SpellTracker:FullRescan()
 end
 
 function SpellTracker:ShouldTrackSpell(spellID, spellData, enabledTags)
-    -- Check user override first
+    -- Check user override first (legacy spellOverrides)
     local override = self:GetOverride(spellID)
     if override == true then
         return true, "override_show"
     elseif override == false then
         return false, "override_hide"
+    end
+    
+    -- Check new per-spec spellConfig
+    local spellCfgEnabled = self:GetSpellConfigEnabled(spellID)
+    if spellCfgEnabled == false then
+        return false, "disabled_by_user"
+    end
+    
+    -- If user explicitly enabled via spellConfig, skip tag/exclusion checks
+    -- (but still require spell to be known)
+    if spellCfgEnabled == true then
+        if not self:IsSpellKnown(spellID, spellData) then
+            return false, "not_known"
+        end
+        return true, "enabled_by_user"
     end
 
     -- Check if spell matches any enabled row tag
@@ -370,6 +405,20 @@ function SpellTracker:GetOverride(spellID)
         return overrides[spellID]
     end
     return nil
+end
+
+-- Get enabled state from per-spec spellConfig
+function SpellTracker:GetSpellConfigEnabled(spellID)
+    local cfg = addon:GetSpellConfigForSpell(spellID)
+    if cfg.enabled ~= nil then
+        return cfg.enabled
+    end
+    return nil  -- No override, use default
+end
+
+-- Get current spec key for spellConfig lookup
+function SpellTracker:GetSpecKey()
+    return addon:GetSpecKey()
 end
 
 function SpellTracker:SetOverride(spellID, enabled)

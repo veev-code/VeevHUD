@@ -109,6 +109,37 @@ function Options:CreateOptionsPanel()
     legend:SetText("|cffffd200*|r = Modified (Right-click to reset)")
     legend:SetTextColor(0.7, 0.7, 0.7)
     
+    -- Reset Display Settings Button (pinned top-right)
+    local resetButton = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+    resetButton:SetPoint("TOPRIGHT", legend, "BOTTOMRIGHT", 0, -4)
+    resetButton:SetSize(180, 22)
+    resetButton:SetText("Reset Display Settings")
+    resetButton:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_LEFT")
+        GameTooltip:AddLine("Reset Display Settings", 1, 1, 1)
+        GameTooltip:AddLine("Resets all settings on this page to defaults.", 1, 0.82, 0, true)
+        GameTooltip:AddLine("Does NOT affect spell configuration.", 0.7, 0.7, 0.7, true)
+        GameTooltip:Show()
+    end)
+    resetButton:SetScript("OnLeave", function()
+        GameTooltip:Hide()
+    end)
+    resetButton:SetScript("OnClick", function()
+        StaticPopupDialogs["VEEVHUD_RESET_DISPLAY_CONFIRM"] = {
+            text = "Reset all VeevHUD display settings to defaults?\n\n(Spell configuration will NOT be affected)",
+            button1 = "Yes",
+            button2 = "No",
+            OnAccept = function()
+                addon:ResetProfile()
+                ReloadUI()
+            end,
+            timeout = 0,
+            whileDead = true,
+            hideOnEscape = true,
+        }
+        StaticPopup_Show("VEEVHUD_RESET_DISPLAY_CONFIRM")
+    end)
+    
     -- Create scroll frame
     local scrollFrame = CreateFrame("ScrollFrame", nil, panel, "UIPanelScrollFrameTemplate")
     scrollFrame:SetPoint("TOPLEFT", version, "BOTTOMLEFT", 0, -12)
@@ -442,30 +473,6 @@ function Options:CreatePanelContent(container)
     end)
     
     yOffset = yOffset - 20
-    
-    -- === RESET BUTTON ===
-    yOffset = yOffset - 8
-    local resetButton = CreateFrame("Button", nil, container, "UIPanelButtonTemplate")
-    resetButton:SetPoint("TOPLEFT", 0, yOffset)
-    resetButton:SetSize(140, 22)
-    resetButton:SetText("Reset All to Defaults")
-    resetButton:SetScript("OnClick", function()
-        StaticPopupDialogs["VEEVHUD_RESET_CONFIRM"] = {
-            text = "Reset all VeevHUD settings to defaults?",
-            button1 = "Yes",
-            button2 = "No",
-            OnAccept = function()
-                addon:ResetProfile()
-                ReloadUI()
-            end,
-            timeout = 0,
-            whileDead = true,
-            hideOnEscape = true,
-        }
-        StaticPopup_Show("VEEVHUD_RESET_CONFIRM")
-    end)
-    
-    yOffset = yOffset - 30
     
     -- Set scroll child height
     container:SetHeight(math.abs(yOffset) + 20)

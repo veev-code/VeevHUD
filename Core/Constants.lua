@@ -182,7 +182,14 @@ C.DEFAULTS = {
         },
 
         -- Global spell overrides: spellID -> true (force show) / false (force hide)
+        -- Legacy - prefer spellConfig for new overrides
         spellOverrides = {},
+        
+        -- Per-spec spell configuration (sparse storage)
+        -- Format: spellConfig[specKey][spellID] = { enabled, rowIndex, order }
+        -- specKey = "CLASS_SPEC" (e.g., "WARRIOR_FURY")
+        -- Only modified values are stored; nil = use default
+        spellConfig = {},
 
         -- Row definitions (order matters - top to bottom)
         -- Each row shows spells matching these LibSpellDB tags

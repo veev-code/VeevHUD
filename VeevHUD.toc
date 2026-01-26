@@ -39,3 +39,4 @@ Modules\ProcTracker.lua
 UI\Templates.xml
 UI\Anchor.lua
 UI\Options.lua
+UI\SpellsOptions.lua

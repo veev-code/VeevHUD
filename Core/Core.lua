@@ -272,6 +272,88 @@ function addon:ResetProfile()
 end
 
 -------------------------------------------------------------------------------
+-- Spell Config Helpers
+-------------------------------------------------------------------------------
+
+-- Get the specKey for the current player (e.g., "WARRIOR_FURY")
+function addon:GetSpecKey()
+    local class = self.playerClass or "UNKNOWN"
+    local spec = self.playerSpec or "UNKNOWN"
+    return class .. "_" .. spec
+end
+
+-- Get spellConfig for current spec (read from live profile, safe nil handling)
+function addon:GetSpellConfig(specKey)
+    specKey = specKey or self:GetSpecKey()
+    local spellCfgAll = self.db and self.db.profile and self.db.profile.spellConfig or {}
+    return spellCfgAll[specKey] or {}
+end
+
+-- Get spellConfig override for a specific spell
+function addon:GetSpellConfigForSpell(spellID, specKey)
+    local spellCfg = self:GetSpellConfig(specKey)
+    return spellCfg[spellID] or {}
+end
+
+-- Set a spellConfig override (writes to VeevHUDDB.overrides and rebuilds profile)
+function addon:SetSpellConfigOverride(spellID, field, value, specKey)
+    specKey = specKey or self:GetSpecKey()
+    
+    -- Initialize nested tables in overrides
+    VeevHUDDB.overrides.spellConfig = VeevHUDDB.overrides.spellConfig or {}
+    VeevHUDDB.overrides.spellConfig[specKey] = VeevHUDDB.overrides.spellConfig[specKey] or {}
+    VeevHUDDB.overrides.spellConfig[specKey][spellID] = VeevHUDDB.overrides.spellConfig[specKey][spellID] or {}
+    
+    if value == nil then
+        -- Remove override
+        VeevHUDDB.overrides.spellConfig[specKey][spellID][field] = nil
+        -- Clean up empty tables
+        if next(VeevHUDDB.overrides.spellConfig[specKey][spellID]) == nil then
+            VeevHUDDB.overrides.spellConfig[specKey][spellID] = nil
+        end
+        if next(VeevHUDDB.overrides.spellConfig[specKey]) == nil then
+            VeevHUDDB.overrides.spellConfig[specKey] = nil
+        end
+        if next(VeevHUDDB.overrides.spellConfig) == nil then
+            VeevHUDDB.overrides.spellConfig = nil
+        end
+    else
+        VeevHUDDB.overrides.spellConfig[specKey][spellID][field] = value
+    end
+    
+    -- Rebuild live profile
+    self:RebuildLiveProfile()
+end
+
+-- Clear all spellConfig overrides for a specific spell
+function addon:ClearSpellConfigOverride(spellID, specKey)
+    specKey = specKey or self:GetSpecKey()
+    
+    if VeevHUDDB.overrides.spellConfig and VeevHUDDB.overrides.spellConfig[specKey] then
+        VeevHUDDB.overrides.spellConfig[specKey][spellID] = nil
+        if next(VeevHUDDB.overrides.spellConfig[specKey]) == nil then
+            VeevHUDDB.overrides.spellConfig[specKey] = nil
+        end
+        if VeevHUDDB.overrides.spellConfig and next(VeevHUDDB.overrides.spellConfig) == nil then
+            VeevHUDDB.overrides.spellConfig = nil
+        end
+    end
+    
+    self:RebuildLiveProfile()
+end
+
+-- Check if a spell has any overrides (for showing "modified" indicator)
+function addon:IsSpellConfigModified(spellID, specKey)
+    specKey = specKey or self:GetSpecKey()
+    local overrides = VeevHUDDB.overrides.spellConfig
+    if overrides and overrides[specKey] and overrides[specKey][spellID] then
+        local cfg = overrides[specKey][spellID]
+        return cfg.enabled ~= nil or cfg.rowIndex ~= nil or cfg.order ~= nil
+    end
+    return false
+end
+
+-------------------------------------------------------------------------------
 -- Module System
 -------------------------------------------------------------------------------
 

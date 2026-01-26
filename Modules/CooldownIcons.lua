@@ -581,6 +581,41 @@ function CooldownIcons:OnTrackedSpellsChanged()
     self:UpdateAllIcons()
 end
 
+-- Get current spec key for spellConfig lookup
+function CooldownIcons:GetSpecKey()
+    return addon:GetSpecKey()
+end
+
+-- Get the default row for a spell based on tag matching (used by SpellsOptions)
+function CooldownIcons:GetDefaultRowForSpell(spellID)
+    local LibSpellDB = addon.LibSpellDB
+    if not LibSpellDB then return nil end
+    
+    -- Also check if this spell is spec-relevant
+    if not LibSpellDB:IsSpellRelevantForSpec(spellID) then
+        return nil  -- Not relevant for current spec
+    end
+    
+    local rowConfigs = addon.db.profile.rows or {}
+    
+    for rowIndex, rowConfig in ipairs(rowConfigs) do
+        if rowConfig.enabled then
+            for _, requiredTag in ipairs(rowConfig.tags or {}) do
+                if LibSpellDB:HasTag(spellID, requiredTag) then
+                    return rowIndex
+                end
+            end
+        end
+    end
+    
+    return nil  -- No matching row tags
+end
+
+-- Get spell config override for a specific spell
+function CooldownIcons:GetSpellConfig(spellID)
+    return addon:GetSpellConfigForSpell(spellID)
+end
+
 function CooldownIcons:RebuildAllRows()
     local tracker = addon:GetModule("SpellTracker")
     if not tracker then 
@@ -605,32 +640,59 @@ function CooldownIcons:RebuildAllRows()
         wipe(self.iconsByRow[rowIndex])
     end
 
-    -- Assign each tracked spell to a row based on tags
+    -- Assign each tracked spell to a row based on tags (or spellConfig override)
     local rowConfigs = addon.db.profile.rows
+    local spellCfg = addon:GetSpellConfig()
 
     for spellID, trackedData in pairs(trackedSpells) do
         local spellData = trackedData.spellData
         local assigned = false
+        local cfg = spellCfg[spellID] or {}
+        
+        -- Check if spell has a row override in spellConfig
+        if cfg.rowIndex then
+            local rowIndex = cfg.rowIndex
+            local rowConfig = rowConfigs[rowIndex]
+            
+            if rowConfig and rowConfig.enabled then
+                if not self.iconsByRow[rowIndex] then
+                    self.iconsByRow[rowIndex] = {}
+                end
+                
+                if #self.iconsByRow[rowIndex] < rowConfig.maxIcons then
+                    table.insert(self.iconsByRow[rowIndex], {
+                        spellID = spellID,
+                        spellData = spellData,
+                        customOrder = cfg.order,  -- Store custom order if set
+                    })
+                    self.spellAssignments[spellID] = rowIndex
+                    assigned = true
+                end
+            end
+        end
+        
+        -- Default: Find first matching row based on tags
+        if not assigned then
+            for rowIndex, rowConfig in ipairs(rowConfigs) do
+                if rowConfig.enabled and not assigned then
+                    for _, requiredTag in ipairs(rowConfig.tags) do
+                        if LibSpellDB:HasTag(spellID, requiredTag) then
+                            -- Assign to this row
+                            if not self.iconsByRow[rowIndex] then
+                                self.iconsByRow[rowIndex] = {}
+                            end
 
-        -- Find first matching row
-        for rowIndex, rowConfig in ipairs(rowConfigs) do
-            if rowConfig.enabled and not assigned then
-                for _, requiredTag in ipairs(rowConfig.tags) do
-                    if LibSpellDB:HasTag(spellID, requiredTag) then
-                        -- Assign to this row
-                        if not self.iconsByRow[rowIndex] then
-                            self.iconsByRow[rowIndex] = {}
-                        end
-
-                        -- Check if we have room
-                        if #self.iconsByRow[rowIndex] < rowConfig.maxIcons then
-                            table.insert(self.iconsByRow[rowIndex], {
-                                spellID = spellID,
-                                spellData = spellData,
-                            })
-                            self.spellAssignments[spellID] = rowIndex
-                            assigned = true
-                            break
+                            -- Check if we have room
+                            if #self.iconsByRow[rowIndex] < rowConfig.maxIcons then
+                                table.insert(self.iconsByRow[rowIndex], {
+                                    spellID = spellID,
+                                    spellData = spellData,
+                                    customOrder = cfg.order,  -- Store custom order if set
+                                })
+                                self.spellAssignments[spellID] = rowIndex
+                                assigned = true
+                                break
+                            end
                         end
                     end
                 end
@@ -638,20 +700,36 @@ function CooldownIcons:RebuildAllRows()
         end
     end
 
-    -- Sort spells within each row by rotation priority (lower = higher priority)
-    -- Falls back to cooldown duration if no priority is set
+    -- Sort spells within each row
+    -- Custom order takes precedence, then priority, then cooldown
     for rowIndex, spells in pairs(self.iconsByRow) do
+        -- First, assign default order indices for sorting
+        -- Sort initially by priority/cooldown/spellID to get default order (stable)
         table.sort(spells, function(a, b)
             local priorityA = a.spellData.priority or 999
             local priorityB = b.spellData.priority or 999
-            -- Primary sort by priority (lower = earlier in rotation)
             if priorityA ~= priorityB then
                 return priorityA < priorityB
             end
-            -- Secondary sort by cooldown (shorter CDs first)
             local cdA = a.spellData.cooldown or 0
             local cdB = b.spellData.cooldown or 0
-            return cdA < cdB
+            if cdA ~= cdB then
+                return cdA < cdB
+            end
+            -- Tie-breaker: spellID for stable sorting
+            return a.spellID < b.spellID
+        end)
+        
+        -- Assign default order to each spell
+        for i, spell in ipairs(spells) do
+            spell.defaultOrder = i
+        end
+        
+        -- Re-sort applying custom order overrides
+        table.sort(spells, function(a, b)
+            local orderA = a.customOrder or a.defaultOrder
+            local orderB = b.customOrder or b.defaultOrder
+            return orderA < orderB
         end)
     end
 
