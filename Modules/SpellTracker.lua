@@ -83,7 +83,7 @@ function SpellTracker:OnSpecSwitched()
     if self.LibSpellDB then
         local oldSpec = self.LibSpellDB:GetPlayerSpec()
         local newSpec = self.LibSpellDB:DetectPlayerSpec()
-        self.Utils:LogInfo("SpellTracker: Spec switched from", oldSpec, "to", newSpec)
+        self.Utils:LogInfo("SpellTracker: Spec switched from", oldSpec or "Unknown", "to", newSpec or "Unknown")
         addon.playerSpec = newSpec
     end
     
@@ -110,7 +110,7 @@ function SpellTracker:FullRescan()
     local playerClass = addon.playerClass
     local playerSpec = LibSpellDB:GetPlayerSpec()
 
-    self.Utils:LogInfo("SpellTracker: Scanning for", playerClass, "/", playerSpec)
+    self.Utils:LogInfo("SpellTracker: Scanning for", playerClass or "Unknown", "/", playerSpec or "Unknown")
 
     -- Get all spells relevant for current spec
     local relevantSpells = LibSpellDB:GetSpellsForCurrentSpec(playerClass)

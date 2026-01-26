@@ -65,7 +65,7 @@ function addon:OnPlayerLogin()
         local success, err = pcall(function()
             local spec, points = self.LibSpellDB:DetectPlayerSpec()
             self.playerSpec = spec
-            self.Utils:LogInfo("Player spec:", spec, "(" .. points[1] .. "/" .. points[2] .. "/" .. points[3] .. ")")
+            self.Utils:LogInfo("Player spec:", spec or "Unknown", "(" .. (points[1] or 0) .. "/" .. (points[2] or 0) .. "/" .. (points[3] or 0) .. ")")
         end)
         if not success then
             self:ShowFatalError("Spec Detection Failed", err)
