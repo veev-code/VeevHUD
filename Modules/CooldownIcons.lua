@@ -390,6 +390,12 @@ function CooldownIcons:CreateRowFrames()
 
     for rowIndex, rowConfig in ipairs(rowConfigs) do
         if rowConfig.enabled then
+            -- Add extra space between primary and secondary rows
+            if rowIndex == 2 then
+                local psGap = iconDb.primarySecondaryGap or 0
+                yOffset = yOffset - psGap
+            end
+            
             -- Add extra space before utility section (row 3+)
             if rowIndex >= 3 then
                 local sectionGap = iconDb.sectionGap or 16
@@ -1455,14 +1461,17 @@ function CooldownIcons:UpdateReadyGlow(frame, spellID, remaining, duration, isUs
     if not frame.readyGlowShown then
         local glowDuration = db.readyGlowDuration or 1.0
         
+        -- Only initiate new glows when in combat
+        local inCombat = UnitAffectingCombat("player")
+        
         -- Condition 1: <1s remaining on CD AND usable
-        if isAlmostReady and isUsable then
+        if isAlmostReady and isUsable and inCombat then
             showReadyGlow = true
             frame.readyGlowShown = true
             frame.readyGlowExpires = GetTime() + glowDuration
             
         -- Condition 2: Just became usable while off CD
-        elseif isOffCooldown and isUsable and not wasUsable then
+        elseif isOffCooldown and isUsable and not wasUsable and inCombat then
             showReadyGlow = true
             frame.readyGlowShown = true
             frame.readyGlowExpires = GetTime() + glowDuration
@@ -1696,6 +1705,12 @@ function CooldownIcons:Refresh()
         end
         
         -- Reposition row vertically based on current settings
+        -- Add extra gap between primary and secondary rows
+        if rowIndex == 2 then
+            local psGap = iconDb.primarySecondaryGap or 0
+            yOffset = yOffset - psGap
+        end
+        
         -- Add section gap before utility rows (row 3+)
         if rowIndex >= 3 then
             local sectionGap = iconDb.sectionGap or 16

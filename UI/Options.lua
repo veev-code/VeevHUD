@@ -236,6 +236,13 @@ function Options:CreatePanelContent(container)
     })
     
     yOffset = self:CreateSlider(container, yOffset, {
+        path = "icons.primarySecondaryGap",
+        label = "Primary/Secondary Gap",
+        tooltip = "Extra vertical gap in pixels between the Primary and Secondary rows. This creates visual separation between your core rotation abilities and secondary throughput cooldowns. Set to 0 to use only the base row spacing.",
+        min = -10, max = 30, step = 1,
+    })
+    
+    yOffset = self:CreateSlider(container, yOffset, {
         path = "icons.sectionGap",
         label = "Utility Section Gap",
         tooltip = "Extra vertical gap in pixels before the utility/misc row section. This creates visual separation between your main rotation abilities and utility spells. Set to 0 to remove the gap. Negative values allow overlap.",

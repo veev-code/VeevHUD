@@ -140,6 +140,7 @@ C.DEFAULTS = {
             iconSize = 52,          -- Default icon size (per-row overrides in rows config)
             iconSpacing = 1,        -- Horizontal spacing between icons
             rowSpacing = 1,         -- Vertical spacing between rows
+            primarySecondaryGap = 0, -- Extra gap between primary and secondary rows
             sectionGap = 16,        -- Extra gap before utility/misc section
             scale = 1.0,            -- Global scale multiplier
             
