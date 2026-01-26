@@ -8,6 +8,7 @@
 ## OptionalDeps: Ace3, LibSharedMedia-3.0, Masque, LibSpellDB
 
 ## X-License: MIT
+## X-Curse-Project-ID: 1444019
 ## X-Website: https://github.com/veev-code/VeevHUD
 ## X-Twitch: https://www.twitch.tv/veev
 ## X-Twitter: https://x.com/VeevTSG
