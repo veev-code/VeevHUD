@@ -205,8 +205,9 @@ C.DEFAULTS = {
                 name = "Secondary Row",
                 -- Secondary: Throughput abilities (DPS/healing CDs, maintenance debuffs, AoE-exclusive)
                 -- Matches DPS or HEAL role tags, plus MAINTENANCE for tank upkeep
-                -- Defensive-only CDs (Shield Wall, Last Stand) fall through to Utility
-                tags = {"DPS", "HEAL", "MAINTENANCE", "AOE",
+                -- EXTERNAL_DEFENSIVE included: healer external CDs are their "throughput" equivalent
+                -- Self-only defensives (DEFENSIVE without EXTERNAL_DEFENSIVE) fall through to Utility
+                tags = {"DPS", "HEAL", "MAINTENANCE", "AOE", "EXTERNAL_DEFENSIVE",
                         -- Legacy tags for backward compatibility
                         "SITUATIONAL", "OFFENSIVE_CD", "OFFENSIVE_CD_MINOR", "HEALING_CD", "RESOURCE"},
                 maxIcons = 8,
