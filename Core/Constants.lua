@@ -204,7 +204,7 @@ C.DEFAULTS = {
                     required = {"ROTATIONAL"},
                     anyOf = {"DPS", "HEAL", "TANK"},
                 },
-                maxIcons = 6,
+                maxIcons = 20,       -- No practical limit, grows horizontally
                 enabled = true,
                 iconSize = 56,       -- Larger core icons (like retail)
             },
@@ -217,7 +217,7 @@ C.DEFAULTS = {
                 tags = {"DPS", "HEAL", "MAINTENANCE", "AOE", "EXTERNAL_DEFENSIVE",
                         -- Legacy tags for backward compatibility
                         "SITUATIONAL", "OFFENSIVE_CD", "OFFENSIVE_CD_MINOR", "HEALING_CD", "RESOURCE"},
-                maxIcons = 8,
+                maxIcons = 20,       -- No practical limit, grows horizontally
                 enabled = true,
                 iconSize = 48,
             },
