@@ -33,8 +33,10 @@ L["In Combat"] = "In Combat"
 L["Has Target"] = "Has Target"
 L["In Instance"] = "In Instance"
 
--- Spell categories
-L["Core Rotation"] = "Core Rotation"
+-- Spell categories / Row names
+L["Primary Row"] = "Primary Row"
+L["Secondary Row"] = "Secondary Row"
+L["Core Rotation"] = "Core Rotation"  -- Legacy
 L["Offensive Cooldowns"] = "Offensive Cooldowns"
 L["Defensive Cooldowns"] = "Defensive Cooldowns"
 L["Interrupts"] = "Interrupts"

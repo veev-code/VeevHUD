@@ -200,7 +200,7 @@ function Options:CreatePanelContent(container)
     yOffset = self:CreateSlider(container, yOffset, {
         path = "icons.rowSpacing",
         label = "Vertical Row Spacing",
-        tooltip = "The vertical gap in pixels between rows of icons (e.g., between Core Rotation and Situational rows). Set to 0 for rows to touch. Negative values allow overlap, which may look better with certain skins.",
+        tooltip = "The vertical gap in pixels between rows of icons (e.g., between Primary and Secondary rows). Set to 0 for rows to touch. Negative values allow overlap, which may look better with certain skins.",
         min = -10, max = 20, step = 1,
     })
     

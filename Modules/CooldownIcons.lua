@@ -515,7 +515,7 @@ function CooldownIcons:CreateIcon(parent, index, size)
     local stacksFontSize = math.max(10, math.floor(size * 0.26))
     local stacks = frame:CreateFontString(nil, "OVERLAY")
     stacks:SetFont(self.C.FONTS.NUMBER, stacksFontSize, "OUTLINE")
-    stacks:SetPoint("BOTTOMRIGHT", -3, 3)
+    stacks:SetPoint("BOTTOMRIGHT", -4, 4)
     stacks:SetTextColor(1.0, 0.906, 0.745)  -- #ffe7be to match aura state
     frame.stacks = stacks
 
@@ -676,9 +676,9 @@ function CooldownIcons:UpdateRowIcons()
             local spells = self.iconsByRow[rowIndex] or {}
             local iconCount = #spells
             
-            -- Check if this row is the "Core Rotation" row
+            -- Check if this row is the "Primary Row" (core rotation)
             local rowConfig = rowConfigs[rowIndex]
-            local isCoreRow = rowConfig and rowConfig.name == "Core Rotation"
+            local isCoreRow = rowConfig and (rowConfig.name == "Primary Row" or rowConfig.name == "Core Rotation")
 
             -- Position and show icons for this row
             for i, iconFrame in ipairs(rowFrame.icons) do

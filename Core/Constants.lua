@@ -153,7 +153,7 @@ C.DEFAULTS = {
             showCooldownSpiral = true,  -- Show the cooldown spiral overlay
             
             -- GCD display: which rows show the global cooldown spinner
-            -- "primary" = Core Rotation only, "primary_secondary" = Core + Situational, "all" = everywhere
+            -- "primary" = Primary Row only, "primary_secondary" = Primary + Secondary, "all" = everywhere
             showGCDOn = "primary",
             
             -- Resource cost display (for rage/energy classes)
@@ -186,36 +186,44 @@ C.DEFAULTS = {
 
         -- Row definitions (order matters - top to bottom)
         -- Each row shows spells matching these LibSpellDB tags
+        -- Spells are assigned to the FIRST matching row (no duplicates)
         rows = {
             {
-                name = "Core Rotation",
-                tags = {"CORE_ROTATION"},
+                name = "Primary Row",
+                -- Primary: ROTATIONAL abilities for DPS/Healing/Tanking
+                -- Uses composite tag matching: must have ROTATIONAL + (DPS or HEAL or TANK)
+                tags = {"ROTATIONAL", "CORE_ROTATION"},  -- CORE_ROTATION for legacy compat
+                compositeTags = {  -- New: requires ROTATIONAL + at least one role tag
+                    required = {"ROTATIONAL"},
+                    anyOf = {"DPS", "HEAL", "TANK"},
+                },
                 maxIcons = 6,
                 enabled = true,
                 iconSize = 56,       -- Larger core icons (like retail)
-                -- iconSpacing inherited from icons.iconSpacing
             },
             {
-                name = "Situational / Cooldowns",
-                tags = {"SITUATIONAL", "OFFENSIVE_CD", "OFFENSIVE_CD_MINOR", "HEALING_CD", "RESOURCE"},
+                name = "Secondary Row",
+                -- Secondary: Throughput abilities (DPS/healing CDs, maintenance debuffs, AoE-exclusive)
+                -- Matches DPS or HEAL role tags, plus MAINTENANCE for tank upkeep
+                -- Defensive-only CDs (Shield Wall, Last Stand) fall through to Utility
+                tags = {"DPS", "HEAL", "MAINTENANCE", "AOE",
+                        -- Legacy tags for backward compatibility
+                        "SITUATIONAL", "OFFENSIVE_CD", "OFFENSIVE_CD_MINOR", "HEALING_CD", "RESOURCE"},
                 maxIcons = 8,
                 enabled = true,
                 iconSize = 48,
-                -- iconSpacing inherited from icons.iconSpacing
             },
             {
                 -- Combined utility group - flows into multiple rows automatically
                 name = "Utility",
-                tags = {"CC_BREAK", "CC_IMMUNITY", "INTERRUPT", "CC_HARD", "SILENCE", 
+                tags = {"CC_BREAK", "CC_IMMUNITY", "INTERRUPT", "CC_HARD", "CC_SOFT", "SILENCE", 
                         "MOVEMENT", "MOVEMENT_GAP_CLOSE", "MOVEMENT_ESCAPE",
-                        "PERSONAL_DEFENSIVE", "IMMUNITY", "DAMAGE_REDUCTION",
+                        "TAUNT", "DEFENSIVE", "PERSONAL_DEFENSIVE", "EXTERNAL_DEFENSIVE", "IMMUNITY", "DAMAGE_REDUCTION",
                         "UTILITY", "DISPEL_MAGIC", "DISPEL_POISON", "DISPEL_DISEASE"},
                 maxIcons = 24,       -- Allow many icons, will wrap
                 iconsPerRow = 6,     -- Target icons per row
                 enabled = true,
                 iconSize = 42,
-                -- iconSpacing inherited from icons.iconSpacing
-                -- Gap before this row is controlled by icons.sectionGap
                 flowLayout = true,   -- Enable multi-row flow layout
             },
         },
