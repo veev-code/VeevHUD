@@ -517,7 +517,14 @@ function addon:RegisterSlashCommands()
             self.db.profile.debugMode = not self.db.profile.debugMode
             local state = self.db.profile.debugMode and "enabled" or "disabled"
             self.Utils:Print("Debug mode " .. state)
-            self.Utils:LogInfo("Debug mode", state)
+            if self.db.profile.debugMode then
+                -- Start logging session when debug mode is enabled
+                self.Utils:StartNewSession()
+                self.Utils:Print("Logging to SavedVariables. Use /vh log to view.")
+            else
+                -- Clear log from SavedVariables when debug mode is disabled
+                self.Utils:ClearLog()
+            end
 
         elseif cmd == "resource" or cmd == "res" then
             -- Cycle through resource display modes: none -> bar -> fill -> none

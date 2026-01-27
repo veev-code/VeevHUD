@@ -9,20 +9,30 @@ local Utils = addon.Utils
 local C = addon.Constants
 
 -------------------------------------------------------------------------------
--- Logging System
+-- Logging System (only saves to SavedVariables when debug mode is enabled)
 -------------------------------------------------------------------------------
 
 local MAX_LOG_ENTRIES = 200
 
--- Initialize log storage
+-- Check if debug mode is enabled
+local function IsDebugMode()
+    return addon.db and addon.db.profile and addon.db.profile.debugMode
+end
+
+-- Get log storage (only creates SavedVariables entry if debug mode is on)
 local function GetLog()
+    if not IsDebugMode() then
+        return nil
+    end
     VeevHUDLog = VeevHUDLog or { entries = {}, session = 0 }
     return VeevHUDLog
 end
 
--- Add entry to persistent log
+-- Add entry to persistent log (only if debug mode is enabled)
 function Utils:Log(level, ...)
     local log = GetLog()
+    if not log then return end  -- Debug mode off, skip logging
+    
     local message = table.concat({...}, " ")
     local timestamp = date("%H:%M:%S")
     
@@ -47,7 +57,7 @@ end
 
 function Utils:LogError(...)
     self:Log("ERROR", ...)
-    -- Also print errors to chat
+    -- Also print errors to chat (always, regardless of debug mode)
     print("|cffff0000VeevHUD Error:|r", ...)
 end
 
@@ -57,6 +67,8 @@ end
 
 function Utils:StartNewSession()
     local log = GetLog()
+    if not log then return end  -- Debug mode off, skip
+    
     log.session = (log.session or 0) + 1
     self:LogInfo("=== Session", log.session, "started ===")
     self:LogInfo("Player:", UnitName("player"), "Class:", select(2, UnitClass("player")))
@@ -64,12 +76,17 @@ function Utils:StartNewSession()
 end
 
 function Utils:ClearLog()
-    VeevHUDLog = { entries = {}, session = 0 }
+    VeevHUDLog = nil  -- Remove entirely from SavedVariables
     self:Print("Log cleared.")
 end
 
 function Utils:PrintRecentLog(count)
-    local log = GetLog()
+    if not VeevHUDLog or not VeevHUDLog.entries then
+        self:Print("No log entries. Enable debug mode (/vh debug) to start logging.")
+        return
+    end
+    
+    local log = VeevHUDLog
     count = count or 20
     
     print("|cff00ccffVeevHUD Log|r (last " .. count .. " entries):")
