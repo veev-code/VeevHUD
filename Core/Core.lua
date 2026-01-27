@@ -214,6 +214,12 @@ function addon:DeepCopy(orig)
     return copy
 end
 
+-- Helper to convert a key to number if it looks like one (for array tables like rows)
+local function ToKeyType(key)
+    local num = tonumber(key)
+    return num or key
+end
+
 -- Save a user override (only saves the specific changed value)
 function addon:SetOverride(path, value)
     local overrides = VeevHUDDB.overrides
@@ -221,7 +227,7 @@ function addon:SetOverride(path, value)
     
     -- Navigate to the parent table, creating as needed
     for i = 1, #keys - 1 do
-        local key = keys[i]
+        local key = ToKeyType(keys[i])
         if not overrides[key] then
             overrides[key] = {}
         end
@@ -229,7 +235,7 @@ function addon:SetOverride(path, value)
     end
     
     -- Set the value
-    overrides[keys[#keys]] = value
+    overrides[ToKeyType(keys[#keys])] = value
     
     -- Rebuild live profile
     self:RebuildLiveProfile()
@@ -242,7 +248,7 @@ function addon:ClearOverride(path)
     
     -- Navigate to the parent
     for i = 1, #keys - 1 do
-        local key = keys[i]
+        local key = ToKeyType(keys[i])
         if not overrides[key] then
             return -- Path doesn't exist, nothing to clear
         end
@@ -250,7 +256,7 @@ function addon:ClearOverride(path)
     end
     
     -- Clear the value
-    overrides[keys[#keys]] = nil
+    overrides[ToKeyType(keys[#keys])] = nil
     
     -- Rebuild live profile
     self:RebuildLiveProfile()

@@ -157,6 +157,11 @@ C.DEFAULTS = {
             -- "primary" = Primary Row only, "primary_secondary" = Primary + Secondary, "all" = everywhere
             showGCDOn = "primary",
             
+            -- Dim on cooldown: which rows fade to cooldownAlpha when on cooldown
+            -- "none" = all rows stay full alpha, "utility" = Utility only,
+            -- "secondary_utility" = Secondary + Utility, "all" = all rows dim
+            dimOnCooldown = "secondary_utility",
+            
             -- Resource cost display (for rage/energy classes)
             -- "none" = disabled, "bar" = horizontal bar at bottom, "fill" = vertical fill from bottom
             resourceDisplayMode = "fill",

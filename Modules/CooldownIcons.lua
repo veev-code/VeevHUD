@@ -466,7 +466,7 @@ function CooldownIcons:CreateIcon(parent, index, size)
     -- Icon texture - fills the frame, spacing between icons creates separation
     local icon = frame:CreateTexture(buttonName .. "Icon", "ARTWORK")
     icon:SetAllPoints()
-    -- Zoom in 30% (15% cut from each edge, like Afenar style)
+    -- Zoom in 30% (15% cut from each edge)
     local zoom = 0.15
     icon:SetTexCoord(zoom, 1 - zoom, zoom, 1 - zoom)
     frame.icon = icon
@@ -763,15 +763,14 @@ function CooldownIcons:UpdateRowIcons()
             local spells = self.iconsByRow[rowIndex] or {}
             local iconCount = #spells
             
-            -- Check if this row is the "Primary Row" (core rotation)
+            -- Get row config for per-row settings
             local rowConfig = rowConfigs[rowIndex]
-            local isCoreRow = rowConfig and (rowConfig.name == "Primary Row" or rowConfig.name == "Core Rotation")
 
             -- Position and show icons for this row
             for i, iconFrame in ipairs(rowFrame.icons) do
                 if i <= iconCount then
                     local spellInfo = spells[i]
-                    self:SetupIcon(iconFrame, spellInfo.spellID, spellInfo.spellData, isCoreRow, rowIndex)
+                    self:SetupIcon(iconFrame, spellInfo.spellID, spellInfo.spellData, rowConfig, rowIndex)
                     iconFrame:Show()
                 else
                     iconFrame:Hide()
@@ -884,13 +883,13 @@ end
 -- Icon Setup and Updates
 -------------------------------------------------------------------------------
 
-function CooldownIcons:SetupIcon(frame, spellID, spellData, isCoreRotation, rowIndex)
+function CooldownIcons:SetupIcon(frame, spellID, spellData, rowConfig, rowIndex)
     local texture = spellData.icon or self.Utils:GetSpellTexture(spellID)
     frame.icon:SetTexture(texture)
     frame.spellID = spellID
     frame.spellData = spellData
-    frame.isCoreRotation = isCoreRotation or false
     frame.rowIndex = rowIndex or 1
+    -- dimOnCooldown is now determined dynamically in UpdateIcon based on global setting
     
     -- Check if this is a reactive spell (Execute, Revenge, Overpower)
     -- These allow repeated ready glows based on condition changes (e.g., target HP)
@@ -984,11 +983,22 @@ function CooldownIcons:UpdateIconState(frame, db)
     local isOnActualCooldown = remaining > 0 and duration > GCD_THRESHOLD  -- Real CD if duration exceeds GCD
     local almostReady = remaining > 0 and remaining <= 1.0 and duration > GCD_THRESHOLD
 
-    -- Check if this is a core rotation ability
-    local isCoreRotation = frame.isCoreRotation or false
+    -- Determine if this row dims icons on cooldown based on global setting
+    -- When false: full alpha + desaturation (keeps core rotation visually prominent)
+    -- When true: reduced alpha on cooldown (traditional behavior)
+    local rowIndex = frame.rowIndex or 1
+    local dimSetting = db.dimOnCooldown or "secondary_utility"
+    local dimOnCooldown = false
+    if dimSetting == "all" then
+        dimOnCooldown = true
+    elseif dimSetting == "secondary_utility" then
+        dimOnCooldown = (rowIndex >= 2)  -- Secondary (2) and Utility (3+)
+    elseif dimSetting == "utility" then
+        dimOnCooldown = (rowIndex >= 3)  -- Utility only (3+)
+    end
+    -- "none" leaves dimOnCooldown = false
     
     -- Determine if GCD should be shown for this row based on settings
-    local rowIndex = frame.rowIndex or 1
     local showGCDOn = db.showGCDOn or "primary"
     local showGCDForThisRow = false
     if showGCDOn == "primary" then
@@ -1049,9 +1059,9 @@ function CooldownIcons:UpdateIconState(frame, db)
         showText = true  -- Show aura duration
         desaturate = false
         
-    elseif isCoreRotation then
+    elseif not dimOnCooldown then
         -----------------------------------------------------------------------
-        -- CORE ROTATION ABILITIES (Afenar-style)
+        -- NO DIM ON COOLDOWN (default for Primary row)
         -- Always 100% alpha, use desaturation for unavailable state
         -----------------------------------------------------------------------
         alpha = db.readyAlpha  -- Always 100%
@@ -1088,8 +1098,8 @@ function CooldownIcons:UpdateIconState(frame, db)
 
     else
         -----------------------------------------------------------------------
-        -- NON-CORE ABILITIES
-        -- 30% alpha when on cooldown
+        -- DIM ON COOLDOWN (default for Secondary/Utility rows)
+        -- Reduced alpha when on cooldown
         -- GCD display controlled by showGCDOn setting
         -----------------------------------------------------------------------
         
@@ -1170,7 +1180,7 @@ function CooldownIcons:UpdateIconState(frame, db)
 
     -- Show/hide cooldown text (or aura duration text)
     if showAuraActive and auraDisplayRemaining > 0 then
-        -- Show aura remaining time in #ffe7be color (like Afenar)
+        -- Show aura remaining time in #ffe7be color
         -- Always show our own text for aura duration (OmniCC doesn't track this)
         frame.text:SetText(self.Utils:FormatCooldown(auraDisplayRemaining))
         frame.text:SetTextColor(1.0, 0.906, 0.745)  -- #ffe7be
@@ -1196,32 +1206,14 @@ function CooldownIcons:UpdateIconState(frame, db)
     -- IsUsableSpell checks ALL conditions (resources, target health, etc.) so we don't
     -- need a separate resource-based desaturation check here.
 
-    -- Apply alpha to icon and all border textures
-    frame.icon:SetAlpha(alpha)
+    -- Store alpha on frame for use by glows and resource display
+    frame.iconAlpha = alpha
+    
+    -- Apply alpha to the entire frame (affects all children and styling)
+    frame:SetAlpha(alpha)
+    
+    -- Apply desaturation to icon
     frame.icon:SetDesaturated(desaturate)
-    
-    -- Apply alpha to Masque elements if present (only when Masque is managing the frame)
-    if self.MasqueGroup then
-        if frame.NormalTexture then frame.NormalTexture:SetAlpha(alpha) end
-        if frame.Border then frame.Border:SetAlpha(alpha) end
-        if frame.FloatingBG then frame.FloatingBG:SetAlpha(alpha) end
-    end
-    
-    -- Also apply to cooldown spiral so it dims with the icon
-    if frame.cooldown then frame.cooldown:SetAlpha(alpha) end
-    
-    -- Apply alpha to text (matches icon alpha like Afenar)
-    if frame.text then frame.text:SetAlpha(alpha) end
-    
-    -- Iterate through all frame regions to catch any other Masque textures
-    -- Only do this when Masque is active, otherwise it affects our hidden NormalTexture
-    if self.MasqueGroup then
-        for _, region in pairs({frame:GetRegions()}) do
-            if region:GetObjectType() == "Texture" and region ~= frame.icon then
-                region:SetAlpha(alpha)
-            end
-        end
-    end
 
     -- Update charges display
     if hasCharges then
@@ -1304,6 +1296,7 @@ function CooldownIcons:UpdateResourceDisplay(frame, spellID, cooldownRemaining, 
         frame.resourceBar:Show()
         if frame.resourceFill then frame.resourceFill:Hide() end
     elseif displayMode == "fill" and frame.resourceFill then
+        -- Frame alpha already handles visibility, just set the resource fill's own alpha
         frame.resourceFill:SetVertexColor(0, 0, 0, db.resourceFillAlpha or 0.6)
         frame.resourceFill:Show()
         if frame.resourceBar then frame.resourceBar:Hide() end
@@ -1351,6 +1344,7 @@ function CooldownIcons:AnimateResourceDisplay(frame, elapsed, db)
         
     elseif displayMode == "fill" and frame.resourceFill and frame.resourceFill:IsShown() then
         -- Vertical fill (dark overlay showing missing portion)
+        -- Frame alpha handles visibility; vertex color just controls fill darkness
         local missingPercent = 1 - current
         local fillHeight = iconSize * missingPercent
         frame.resourceFill:SetHeight(math.max(0, fillHeight))
@@ -1374,13 +1368,15 @@ end
 function CooldownIcons:UpdateIconGlow(frame, showGlow, isAuraActive)
     if showGlow then
         local glowType = isAuraActive and "aura" or "normal"
+        local iconAlpha = frame.iconAlpha or 1
         
-        -- Check if glow is already showing with correct type
-        if frame.glowActive and frame.glowType == glowType then
+        -- Check if glow is already showing with correct type AND same alpha
+        -- We need to refresh the glow if alpha changed
+        if frame.glowActive and frame.glowType == glowType and frame.glowAlpha == iconAlpha then
             return
         end
         
-        -- Hide existing glow first if type changed
+        -- Hide existing glow first if type or alpha changed
         if frame.glowActive then
             self:HideGlow(frame)
         end
@@ -1400,11 +1396,13 @@ function CooldownIcons:UpdateIconGlow(frame, showGlow, isAuraActive)
         
         frame.glowActive = true
         frame.glowType = glowType
+        frame.glowAlpha = iconAlpha
     else
         if frame.glowActive then
             self:HideGlow(frame)
             frame.glowActive = false
             frame.glowType = nil
+            frame.glowAlpha = nil
         end
     end
 end
@@ -1535,11 +1533,14 @@ function CooldownIcons:HideReadyGlow(frame)
 end
 
 function CooldownIcons:ShowAuraGlow(frame)
+    -- Get icon's current alpha so glow respects Ready/Cooldown Alpha settings
+    local iconAlpha = frame.iconAlpha or 1
+    
     -- Use LibCustomGlow for animated pixel glow if available
     if self.LibCustomGlow then
         -- PixelGlow_Start(frame, color, N, frequency, length, thickness, xOffset, yOffset, border, key, frameLevel)
-        -- Color #ffcfaf (peachy gold like Afenar), offset inward by -2 to match Afenar
-        local color = {1.0, 0.812, 0.686, 1}  -- #ffcfaf
+        -- Color #ffcfaf (peachy gold), offset inward by -2
+        local color = {1.0, 0.812, 0.686, iconAlpha}  -- #ffcfaf with icon alpha
         self.LibCustomGlow.PixelGlow_Start(frame, color, 8, 0.1, 10, 1, -2, -2, true, "aura")
         return
     end
@@ -1547,7 +1548,7 @@ function CooldownIcons:ShowAuraGlow(frame)
     -- Fallback: Create simple pixel border for aura active state
     if not frame.pixelGlow then
         frame.pixelGlow = {}
-        local r, g, b, a = 1, 0.82, 0, 1  -- Golden yellow like retail
+        local r, g, b, a = 1, 0.82, 0, iconAlpha  -- Golden yellow with icon alpha
         local thickness = 2
         local offset = 1  -- Offset from icon edge
         

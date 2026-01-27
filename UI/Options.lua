@@ -31,6 +31,12 @@ function addon:IsSettingOverridden(path)
     return currentValue ~= defaultValue
 end
 
+-- Helper to convert a key to number if it looks like one (for array tables like rows)
+local function ToKeyType(key)
+    local num = tonumber(key)
+    return num or key
+end
+
 -- Get the default value for a path
 function addon:GetDefaultValue(path)
     local defaults = self.Constants.DEFAULTS.profile
@@ -41,7 +47,7 @@ function addon:GetDefaultValue(path)
         if type(current) ~= "table" then
             return nil
         end
-        current = current[key]
+        current = current[ToKeyType(key)]
     end
     
     return current
@@ -57,7 +63,7 @@ function addon:GetSettingValue(path)
         if type(current) ~= "table" then
             return nil
         end
-        current = current[key]
+        current = current[ToKeyType(key)]
     end
     
     return current
@@ -260,9 +266,21 @@ function Options:CreatePanelContent(container)
     yOffset = self:CreateSlider(container, yOffset, {
         path = "icons.cooldownAlpha",
         label = "Cooldown Alpha",
-        tooltip = "How visible icons are when the ability is on cooldown. A lower value (like 30%) makes cooldown abilities fade out so you can focus on what's ready. Higher values keep them visible.",
+        tooltip = "How visible icons are when the ability is on cooldown (for rows with dimming enabled). A lower value (like 30%) makes cooldown abilities fade out so you can focus on what's ready. Higher values keep them visible.",
         min = 0, max = 1.0, step = 0.05,
         isPercent = true,
+    })
+    
+    yOffset = self:CreateDropdown(container, yOffset, {
+        path = "icons.dimOnCooldown",
+        label = "Dim on Cooldown",
+        tooltip = "Controls which rows fade to Cooldown Alpha when abilities are on cooldown. Rows that don't dim stay at full brightness and use desaturation to show unavailability instead. Primary row typically stays bright to keep your core rotation visually prominent.",
+        options = {
+            { value = "none", label = "None (All Rows Full Alpha)" },
+            { value = "utility", label = "Utility Only" },
+            { value = "secondary_utility", label = "Secondary + Utility" },
+            { value = "all", label = "All Rows" },
+        },
     })
     
     yOffset = self:CreateCheckbox(container, yOffset, {
@@ -661,6 +679,8 @@ function Options:CreateCheckbox(parent, yOffset, config)
             GameTooltip:AddLine(" ")
             GameTooltip:AddLine("Default: " .. defaultText, 0.5, 0.5, 0.5)
         end
+        GameTooltip:AddLine(" ")
+        GameTooltip:AddLine("Right-click to reset to default", 0.6, 0.6, 0.6)
         GameTooltip:Show()
     end
     
@@ -806,6 +826,8 @@ function Options:CreateSlider(parent, yOffset, config)
             GameTooltip:AddLine(" ")
             GameTooltip:AddLine("Default: " .. defaultText, 0.5, 0.5, 0.5)
         end
+        GameTooltip:AddLine(" ")
+        GameTooltip:AddLine("Right-click to reset to default", 0.6, 0.6, 0.6)
         GameTooltip:Show()
     end
     
@@ -813,14 +835,25 @@ function Options:CreateSlider(parent, yOffset, config)
     slider:SetScript("OnEnter", function(self) ShowTooltip(self) end)
     slider:SetScript("OnLeave", function(self) GameTooltip:Hide() end)
     
-    -- Make the label also show tooltip
-    local labelHitbox = CreateFrame("Frame", nil, frame)
+    -- Make the label also show tooltip and support right-click reset
+    local labelHitbox = CreateFrame("Button", nil, frame)
     labelHitbox:SetPoint("LEFT", label, "LEFT", 0, 0)
     labelHitbox:SetPoint("RIGHT", label, "RIGHT", 0, 0)
     labelHitbox:SetHeight(16)
     labelHitbox:EnableMouse(true)
+    labelHitbox:RegisterForClicks("RightButtonUp")
     labelHitbox:SetScript("OnEnter", function(self) ShowTooltip(slider) end)
     labelHitbox:SetScript("OnLeave", function(self) GameTooltip:Hide() end)
+    labelHitbox:SetScript("OnClick", function(self, button)
+        if button == "RightButton" then
+            addon:ClearOverride(config.path)
+            local defaultValue = addon:GetSettingValue(config.path)
+            slider:SetValue(defaultValue)
+            valueText:SetText(FormatValue(defaultValue))
+            label:SetText(config.label)
+            Options:RefreshModuleIfNeeded(config.path)
+        end
+    end)
     
     frame.label = label
     frame.slider = slider
@@ -908,17 +941,45 @@ function Options:CreateDropdown(parent, yOffset, config)
             GameTooltip:AddLine(" ")
             GameTooltip:AddLine("Default: " .. tostring(defaultText), 0.5, 0.5, 0.5)
         end
+        GameTooltip:AddLine(" ")
+        GameTooltip:AddLine("Right-click to reset to default", 0.6, 0.6, 0.6)
         GameTooltip:Show()
     end
     
-    -- Make the label show tooltip
-    local labelHitbox = CreateFrame("Frame", nil, frame)
+    -- Make the label show tooltip and handle right-click reset
+    local labelHitbox = CreateFrame("Button", nil, frame)
     labelHitbox:SetPoint("LEFT", label, "LEFT", 0, 0)
     labelHitbox:SetPoint("RIGHT", label, "RIGHT", 0, 0)
     labelHitbox:SetHeight(16)
     labelHitbox:EnableMouse(true)
+    labelHitbox:RegisterForClicks("RightButtonUp")
     labelHitbox:SetScript("OnEnter", function(self) ShowTooltip(dropdown) end)
     labelHitbox:SetScript("OnLeave", function(self) GameTooltip:Hide() end)
+    labelHitbox:SetScript("OnClick", function(self, button)
+        if button == "RightButton" then
+            addon:ClearOverride(config.path)
+            local defaultValue = addon:GetDefaultValue(config.path)
+            UIDropDownMenu_SetText(dropdown, GetLabelForValue(defaultValue))
+            label:SetText(config.label)  -- Remove * indicator
+            Options:RefreshModuleIfNeeded(config.path)
+        end
+    end)
+    
+    -- Also add right-click to dropdown button area
+    local dropdownButton = _G[dropdownName .. "Button"]
+    if dropdownButton then
+        dropdownButton:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+        dropdownButton:HookScript("OnClick", function(self, button)
+            if button == "RightButton" then
+                addon:ClearOverride(config.path)
+                local defaultValue = addon:GetDefaultValue(config.path)
+                UIDropDownMenu_SetText(dropdown, GetLabelForValue(defaultValue))
+                label:SetText(config.label)  -- Remove * indicator
+                Options:RefreshModuleIfNeeded(config.path)
+                CloseDropDownMenus()  -- Close any open menus
+            end
+        end)
+    end
     
     frame.label = label
     frame.dropdown = dropdown
