@@ -13,7 +13,8 @@ local C = addon.Constants
 -------------------------------------------------------------------------------
 
 C.ADDON_NAME = ADDON_NAME
-C.VERSION = "1.0.0"
+-- Version is set later in Core.lua after API is available
+C.VERSION = nil
 
 -------------------------------------------------------------------------------
 -- Class Colors (Classic values)

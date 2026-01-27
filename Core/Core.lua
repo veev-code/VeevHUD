@@ -9,7 +9,7 @@ _G.VeevHUD = addon
 
 -- Core addon object
 addon.name = ADDON_NAME
-addon.version = addon.Constants.VERSION
+addon.version = nil  -- Set in ADDON_LOADED when API is available
 
 -- Module registry
 addon.modules = {}
@@ -37,6 +37,12 @@ frame:SetScript("OnEvent", function(self, event, arg1)
 end)
 
 function addon:OnAddonLoaded()
+    -- Set version from TOC metadata (API available now)
+    -- Handle different API names across WoW versions
+    local getMetadata = GetAddOnMetadata or (C_AddOns and C_AddOns.GetAddOnMetadata)
+    self.version = getMetadata and getMetadata(ADDON_NAME, "Version") or "1.0.5"
+    self.Constants.VERSION = self.version
+    
     -- Initialize saved variables with defaults
     VeevHUDDB = VeevHUDDB or {}
     self:InitializeDB()
