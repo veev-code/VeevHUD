@@ -253,17 +253,6 @@ function Utils:GetSpellCooldown(spellID)
     return 0, 0, enabled ~= 0, 0
 end
 
--- Check if spell is usable
-function Utils:IsSpellUsable(spellID)
-    if C_Spell and C_Spell.IsSpellUsable then
-        return C_Spell.IsSpellUsable(spellID)
-    elseif IsUsableSpell then
-        local usable, noMana = IsUsableSpell(spellID)
-        return usable or noMana
-    end
-    return false
-end
-
 -- Get spell info
 function Utils:GetSpellInfo(spellID)
     if C_Spell and C_Spell.GetSpellInfo then
@@ -287,15 +276,109 @@ function Utils:GetSpellTexture(spellID)
     return nil
 end
 
+-------------------------------------------------------------------------------
+-- Effective Spell ID Resolution (with caching)
+-- Determines the actual spell rank to use for costs, based on action bar placement
+-------------------------------------------------------------------------------
+
+-- Cache for effective spell IDs
+Utils.effectiveSpellCache = {}
+
+-- Find if any rank of a spell is on the player's action bars
+-- Returns the spell ID found on action bar, or nil if not found
+function Utils:FindSpellOnActionBar(spellID)
+    local LibSpellDB = LibStub and LibStub("LibSpellDB-1.0", true)
+    if not LibSpellDB then return nil end
+    
+    local rankSet = LibSpellDB:GetAllRankIDs(spellID)
+    
+    -- Scan all action bar slots (1-120 covers all bars)
+    for slot = 1, 120 do
+        local actionType, id, subType = GetActionInfo(slot)
+        if actionType == "spell" and id then
+            if rankSet[id] then
+                return id
+            end
+        end
+    end
+    
+    return nil
+end
+
+-- Ensure the cache invalidation event frame is set up (lazy initialization)
+function Utils:EnsureCacheInitialized()
+    if self.effectiveSpellCacheFrame then return end
+    
+    local frame = CreateFrame("Frame")
+    frame:RegisterEvent("ACTIONBAR_SLOT_CHANGED")
+    frame:RegisterEvent("PLAYER_LEVEL_UP")
+    frame:RegisterEvent("PLAYER_ENTERING_WORLD")
+    frame:RegisterEvent("SPELLS_CHANGED")
+    frame:RegisterEvent("CHARACTER_POINTS_CHANGED")  -- Talent changes (TBC)
+    
+    frame:SetScript("OnEvent", function(eventFrame, event, ...)
+        Utils:InvalidateEffectiveSpellCache()
+    end)
+    
+    self.effectiveSpellCacheFrame = frame
+end
+
+-- Invalidate the effective spell cache
+-- Called when action bars or spells change
+function Utils:InvalidateEffectiveSpellCache()
+    wipe(self.effectiveSpellCache)
+end
+
+-- Get the effective spell ID for a spell, with caching
+-- Priority: 1) Spell rank on action bar, 2) Highest known rank
+function Utils:GetEffectiveSpellID(spellID)
+    -- Lazy initialize the cache event frame
+    self:EnsureCacheInitialized()
+    
+    local LibSpellDB = LibStub and LibStub("LibSpellDB-1.0", true)
+    if not LibSpellDB then return spellID end
+    
+    local canonicalID = LibSpellDB:GetCanonicalSpellID(spellID) or spellID
+    
+    -- Check cache first
+    local cached = self.effectiveSpellCache[canonicalID]
+    if cached then
+        return cached
+    end
+    
+    -- Not cached, compute it
+    local result
+    
+    -- First, check if any rank is on the action bar
+    local actionBarSpellID = self:FindSpellOnActionBar(spellID)
+    if actionBarSpellID then
+        result = actionBarSpellID
+    else
+        -- Fallback to highest known rank from LibSpellDB
+        result = LibSpellDB:GetHighestKnownRank(spellID)
+    end
+    
+    -- Cache and return
+    self.effectiveSpellCache[canonicalID] = result
+    return result
+end
+
+-------------------------------------------------------------------------------
+-- Spell Power Info
+-------------------------------------------------------------------------------
+
 -- Get spell power cost and current power
 -- Returns: cost, currentPower, maxPower, powerType, powerColor
 function Utils:GetSpellPowerInfo(spellID)
     local cost = 0
     local powerType = nil
     
+    -- Get effective spell ID: action bar rank first, then highest known rank
+    local effectiveSpellID = self:GetEffectiveSpellID(spellID)
+    
     -- Try to get power cost from spell info
     if GetSpellPowerCost then
-        local costTable = GetSpellPowerCost(spellID)
+        local costTable = GetSpellPowerCost(effectiveSpellID)
         if costTable and costTable[1] then
             cost = costTable[1].cost or 0
             powerType = costTable[1].type

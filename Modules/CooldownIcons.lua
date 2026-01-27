@@ -1722,19 +1722,23 @@ end
 -------------------------------------------------------------------------------
 
 function CooldownIcons:IsSpellUsable(spellID)
+    -- Get effective spell ID (action bar rank, or highest known rank)
+    -- This ensures we check usability for the same rank used for cost calculations
+    local effectiveSpellID = self.Utils:GetEffectiveSpellID(spellID)
+    
     if C_Spell and C_Spell.IsSpellUsable then
-        local isUsable, notEnoughMana = C_Spell.IsSpellUsable(spellID)
+        local isUsable, notEnoughMana = C_Spell.IsSpellUsable(effectiveSpellID)
         return isUsable, notEnoughMana
     elseif IsUsableSpell then
         -- Try spell NAME first (like WeakAuras does), then fall back to ID
-        local spellName = GetSpellInfo(spellID)
+        local spellName = GetSpellInfo(effectiveSpellID)
         if spellName then
             local usable, noMana = IsUsableSpell(spellName)
             if usable ~= nil then
                 return usable, noMana
             end
         end
-        return IsUsableSpell(spellID)
+        return IsUsableSpell(effectiveSpellID)
     end
     return true, false
 end
