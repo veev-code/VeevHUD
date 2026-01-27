@@ -1,5 +1,18 @@
 # VeevHUD Changelog
 
+## [1.0.7] - 2026-01-27
+
+### Added
+- Built-in "Classic Enhanced" icon styling when Masque is not installed (uses same WoW game textures as Masque skin)
+
+### Fixed
+- Resource cost display now correctly uses action bar spell rank instead of base rank
+- Mana abilities now properly desaturate when player lacks sufficient mana
+- Improved caching for spell rank lookups with event-driven invalidation
+
+### LibSpellDB Updates
+- Added `GetAllRankIDs()` and `GetHighestKnownRank()` utility functions for accurate spell rank detection
+
 ## [1.0.6] - 2026-01-27
 
 ### Fixed
