@@ -576,9 +576,99 @@ function CooldownIcons:CreateIcon(parent, index, size)
             Normal = normalTexture,
             Count = charges,
         })
+    else
+        -- Apply built-in Classic Enhanced style when Masque is not installed
+        self:ApplyBuiltInStyle(frame, size)
     end
 
     return frame
+end
+
+-------------------------------------------------------------------------------
+-- Built-in Icon Styling (when Masque is not installed)
+-- Uses the exact same textures as Masque's "Classic Enhanced" skin
+-------------------------------------------------------------------------------
+
+-- Classic Enhanced skin texture paths (built into WoW client)
+-- Tweaked for a more subtle appearance while maintaining proper proportions
+local CLASSIC_ENHANCED = {
+    Normal = [[Interface\Buttons\UI-Quickslot2]],      -- The action button border frame
+    Backdrop = [[Interface\Buttons\UI-Quickslot]],     -- Empty slot background
+    IconTexCoords = {0.07, 0.93, 0.07, 0.93},          -- Icon crop (7% from each edge)
+    NormalSize = 62,                                    -- Border texture size (must be larger than icon to frame it)
+    BackdropSize = 64,                                  -- Backdrop texture size
+    NormalOffset = {0.5, -0.5},                         -- Border offset {x, y}
+    BackdropAlpha = 0.4,                                -- Subtle backdrop visibility
+    NormalAlpha = 0.8,                                  -- Slightly softer border
+}
+
+function CooldownIcons:ApplyBuiltInStyle(frame, size)
+    size = size or frame.iconSize or 40
+    
+    -- Calculate scale factor (Classic Enhanced is designed for 36px base icon, our default is 40)
+    local scale = size / 36
+    
+    -- Apply icon TexCoords to match Classic Enhanced (7% crop from each edge)
+    if frame.icon then
+        frame.icon:SetTexCoord(unpack(CLASSIC_ENHANCED.IconTexCoords))
+    end
+    
+    -- Create backdrop (empty slot background) - sits behind everything
+    if not frame.builtInBackdrop then
+        local backdrop = frame:CreateTexture(nil, "BACKGROUND", nil, -1)
+        backdrop:SetTexture(CLASSIC_ENHANCED.Backdrop)
+        frame.builtInBackdrop = backdrop
+    end
+    
+    -- Apply subtle backdrop styling
+    frame.builtInBackdrop:SetVertexColor(1, 1, 1, CLASSIC_ENHANCED.BackdropAlpha)
+    
+    -- Size and position backdrop (centered, slightly larger than icon)
+    local backdropSize = CLASSIC_ENHANCED.BackdropSize * scale
+    frame.builtInBackdrop:SetSize(backdropSize, backdropSize)
+    frame.builtInBackdrop:SetPoint("CENTER", frame, "CENTER", 0, 0)
+    frame.builtInBackdrop:Show()
+    
+    -- Create normal border (the classic action button frame)
+    if not frame.builtInNormal then
+        local normal = frame:CreateTexture(nil, "OVERLAY", nil, 1)
+        normal:SetTexture(CLASSIC_ENHANCED.Normal)
+        frame.builtInNormal = normal
+    end
+    
+    -- Apply subtle border styling
+    frame.builtInNormal:SetVertexColor(1, 1, 1, CLASSIC_ENHANCED.NormalAlpha)
+    
+    -- Size and position border (centered with slight offset like Masque does)
+    local normalSize = CLASSIC_ENHANCED.NormalSize * scale
+    local offsetX, offsetY = CLASSIC_ENHANCED.NormalOffset[1], CLASSIC_ENHANCED.NormalOffset[2]
+    frame.builtInNormal:SetSize(normalSize, normalSize)
+    frame.builtInNormal:SetPoint("CENTER", frame, "CENTER", offsetX, offsetY)
+    frame.builtInNormal:Show()
+    
+    -- Store that we applied built-in style
+    frame.hasBuiltInStyle = true
+end
+
+-- Update built-in style when icon size changes
+function CooldownIcons:UpdateBuiltInStyle(frame, size)
+    if frame.hasBuiltInStyle then
+        -- Recalculate sizes based on new icon size
+        size = size or frame.iconSize or 40
+        local scale = size / 36
+        
+        if frame.builtInBackdrop then
+            local backdropSize = CLASSIC_ENHANCED.BackdropSize * scale
+            frame.builtInBackdrop:SetSize(backdropSize, backdropSize)
+        end
+        
+        if frame.builtInNormal then
+            local normalSize = CLASSIC_ENHANCED.NormalSize * scale
+            frame.builtInNormal:SetSize(normalSize, normalSize)
+        end
+    elseif not self.MasqueGroup then
+        self:ApplyBuiltInStyle(frame, size)
+    end
 end
 
 -------------------------------------------------------------------------------
@@ -1699,6 +1789,7 @@ function CooldownIcons:Refresh()
         local size = rowFrame.iconSize
         for _, icon in ipairs(rowFrame.icons or {}) do
             icon:SetSize(size, size)
+            icon.iconSize = size
             -- Reconfigure external cooldown text (OmniCC, etc.) when settings change
             if icon.cooldown then
                 self:ConfigureCooldownText(icon.cooldown)
@@ -1706,6 +1797,8 @@ function CooldownIcons:Refresh()
                 icon.lastCdStart = nil
                 icon.lastCdDuration = nil
             end
+            -- Update built-in style if Masque is not installed
+            self:UpdateBuiltInStyle(icon, size)
         end
         
         -- Reposition row vertically based on current settings
