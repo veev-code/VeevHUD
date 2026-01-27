@@ -411,19 +411,11 @@ function addon:CreateHUDFrame()
     )
     hud:SetFrameStrata("MEDIUM")
     hud:SetFrameLevel(10)
+    hud:EnableMouse(false)  -- Always click-through (position via settings only)
     
     -- Apply global scale
     local scale = self.db.profile.icons.scale or 1.0
     hud:SetScale(scale)
-
-    -- Make draggable when unlocked
-    self.Utils:MakeDraggable(hud, function(frame)
-        local point, _, relativePoint, x, y = frame:GetPoint()
-        self.db.profile.anchor.point = point
-        self.db.profile.anchor.relativePoint = relativePoint
-        self.db.profile.anchor.x = x
-        self.db.profile.anchor.y = y
-    end)
 
     self.hudFrame = hud
 
@@ -464,29 +456,6 @@ function addon:UpdateVisibility()
 end
 
 -------------------------------------------------------------------------------
--- Lock/Unlock
--------------------------------------------------------------------------------
-
-function addon:ToggleLock()
-    self.db.profile.locked = not self.db.profile.locked
-
-    if self.db.profile.locked then
-        self.Utils:Print("HUD |cffff0000locked|r.")
-    else
-        self.Utils:Print("HUD |cff00ff00unlocked|r. Drag to reposition.")
-        -- Show frame while unlocked for positioning
-        if self.hudFrame then
-            self.hudFrame:Show()
-            self.hudFrame:SetAlpha(1)
-        end
-    end
-end
-
-function addon:IsLocked()
-    return self.db.profile.locked
-end
-
--------------------------------------------------------------------------------
 -- Slash Commands
 -------------------------------------------------------------------------------
 
@@ -505,7 +474,6 @@ function addon:RegisterSlashCommands()
         if cmd == "help" then
             self.Utils:Print("Commands:")
             print("  /vh options - Open settings panel")
-            print("  /vh lock - Toggle lock/unlock")
             print("  /vh reset - Reset to defaults")
             print("  /vh toggle - Enable/disable HUD")
             print("  /vh spec - Show detected spec")
@@ -517,9 +485,6 @@ function addon:RegisterSlashCommands()
             print("  /vh check <id> - Diagnose why a spell isn't showing")
             print("  /vh log [n] - Show log entries")
             print("  /vh debug - Toggle debug mode")
-
-        elseif cmd == "lock" or cmd == "unlock" then
-            self:ToggleLock()
 
         elseif cmd == "reset" then
             self:ResetProfile()

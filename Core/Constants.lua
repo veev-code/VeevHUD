@@ -69,14 +69,14 @@ C.ICON_SIZE = {
 C.DEFAULTS = {
     profile = {
         enabled = true,
-        locked = false,
 
         -- Global positioning anchor (centered, below character)
+        -- Note: x is always 0 (centered), y is configurable via settings
         anchor = {
             point = "CENTER",
             relativePoint = "CENTER",
             x = 0,
-            y = -84,  -- Moved up by ~56px (one core icon height)
+            y = -84,  -- Default vertical offset
         },
 
         -- Visibility conditions

@@ -124,6 +124,7 @@ function ProcGlow:CreateFrames(parent)
     local container = CreateFrame("Frame", nil, parent)
     container:SetSize(db.maxIcons * (db.iconSize + db.iconSpacing), db.iconSize)
     container:SetPoint("CENTER", parent, "CENTER", 0, db.offsetY)
+    container:EnableMouse(false)  -- Click-through
     self.container = container
 
     -- Pre-create icon pool
@@ -141,6 +142,7 @@ function ProcGlow:CreateProcIcon(parent, index)
 
     local frame = CreateFrame("Frame", nil, parent)
     frame:SetSize(size, size)
+    frame:EnableMouse(false)  -- Click-through
 
     -- Icon texture
     local icon = frame:CreateTexture(nil, "ARTWORK")

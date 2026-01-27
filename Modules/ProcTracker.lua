@@ -120,6 +120,7 @@ function ProcTracker:CreateFrames(parent)
     -- Container frame
     local container = CreateFrame("Frame", "VeevHUD_ProcTracker", parent)
     container:SetPoint("CENTER", parent, "CENTER", 0, procOffset)
+    container:EnableMouse(false)  -- Click-through
     self.container = container
     
     -- Create icon frames for each proc
@@ -147,6 +148,7 @@ function ProcTracker:CreateProcIcon(parent, procData, index, size, spacing, db)
     local frame = CreateFrame("Button", "VeevHUD_Proc" .. index, parent)
     frame:SetSize(size, size)
     frame:SetPoint("CENTER", parent, "CENTER", xOffset, 0)
+    frame:EnableMouse(false)  -- Click-through
     
     -- Store proc data
     frame.procData = procData

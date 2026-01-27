@@ -112,6 +112,7 @@ function ResourceBar:CreateBorder(bar)
     })
     border:SetBackdropBorderColor(0, 0, 0, 1)
     border:SetFrameLevel(bar:GetFrameLevel() - 1)
+    border:EnableMouse(false)  -- Click-through
 
     -- Outer glow/shadow for depth
     local shadow = CreateFrame("Frame", nil, border, "BackdropTemplate")
@@ -122,6 +123,7 @@ function ResourceBar:CreateBorder(bar)
         edgeSize = 1,
     })
     shadow:SetBackdropBorderColor(0, 0, 0, 0.5)
+    shadow:EnableMouse(false)  -- Click-through
     shadow:SetFrameLevel(border:GetFrameLevel() - 1)
 
     self.border = border

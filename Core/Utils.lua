@@ -383,26 +383,6 @@ function Utils:CreateBackdrop(frame, bgColor, borderColor)
     end
 end
 
--- Make a frame draggable
-function Utils:MakeDraggable(frame, saveCallback)
-    frame:SetMovable(true)
-    frame:EnableMouse(true)
-    frame:RegisterForDrag("LeftButton")
-
-    frame:SetScript("OnDragStart", function(self)
-        if not addon.db.profile.locked then
-            self:StartMoving()
-        end
-    end)
-
-    frame:SetScript("OnDragStop", function(self)
-        self:StopMovingOrSizing()
-        if saveCallback then
-            saveCallback(self)
-        end
-    end)
-end
-
 -- Create a status bar
 function Utils:CreateStatusBar(parent, width, height, texture)
     local bar = CreateFrame("StatusBar", nil, parent)
@@ -410,6 +390,7 @@ function Utils:CreateStatusBar(parent, width, height, texture)
     bar:SetStatusBarTexture(texture or C.TEXTURES.STATUSBAR)
     bar:SetMinMaxValues(0, 1)
     bar:SetValue(1)
+    bar:EnableMouse(false)  -- Click-through
 
     -- Background
     bar.bg = bar:CreateTexture(nil, "BACKGROUND")

@@ -356,6 +356,7 @@ function CooldownIcons:CreateFrames(parent)
     local container = CreateFrame("Frame", "VeevHUDIconContainer", parent)
     container:SetSize(400, 400)
     container:SetPoint("TOP", parent, "CENTER", 0, resourceBarBottom - 2)  -- 2px below resource bar
+    container:EnableMouse(false)  -- Click-through
     self.container = container
 
     self.Utils:LogInfo("CooldownIcons: Container created")
@@ -418,6 +419,7 @@ function CooldownIcons:CreateRowFrames()
             local rowFrame = CreateFrame("Frame", nil, self.container)
             rowFrame:SetSize(rowConfig.maxIcons * (rowIconSize + rowIconSpacing), rowIconSize)
             rowFrame:SetPoint("TOP", self.container, "TOP", 0, yOffset)
+            rowFrame:EnableMouse(false)  -- Click-through
             rowFrame.iconSize = rowIconSize
             rowFrame.iconSpacing = rowIconSpacing
             rowFrame.iconsPerRow = rowConfig.iconsPerRow or rowConfig.maxIcons
@@ -458,6 +460,7 @@ function CooldownIcons:CreateIcon(parent, index, size)
 
     local frame = CreateFrame("Button", buttonName, parent)
     frame:SetSize(size, size)
+    frame:EnableMouse(false)  -- Click-through (display only, no interaction)
     frame.iconSize = size
 
     -- Icon texture - fills the frame, spacing between icons creates separation
