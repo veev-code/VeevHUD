@@ -1,5 +1,16 @@
 # VeevHUD Changelog
 
+## [1.0.12] - 2026-01-28
+
+### Added
+- Icon Zoom setting (0-50%) to crop icon edges, similar to WeakAuras' zoom feature
+- First-time welcome popup with Discord invite for new users
+- Stack count text now renders above cooldown spiral for better visibility
+
+### Changed
+- Stack count text moved to top-right corner (consistent with proc tracker icons)
+- Support link updated to Discord server (https://discord.gg/HuSXTa5XNq)
+
 ## [1.0.11] - 2026-01-28
 
 ### Added
