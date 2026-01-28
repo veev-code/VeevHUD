@@ -172,14 +172,13 @@ function Events:RegisterUpdate(owner, interval, callback)
     -- Start ticker if not running
     if not updateTicker then
         updateTicker = C_Timer.NewTicker(0.01, function()
-            local now = GetTime()
             for owner, data in pairs(updateCallbacks) do
                 data.elapsed = data.elapsed + 0.01
                 if data.elapsed >= data.interval then
                     data.elapsed = 0
                     local success, err = pcall(data.callback, owner)
                     if not success then
-                        addon.Utils:Debug("Update error: " .. tostring(err))
+                        addon.Utils:LogError("Update error:", tostring(err))
                     end
                 end
             end

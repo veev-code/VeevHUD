@@ -164,6 +164,54 @@ function Utils:FormatCooldown(seconds)
 end
 
 -------------------------------------------------------------------------------
+-- Icon Dimension Utilities
+-------------------------------------------------------------------------------
+
+-- Get icon width and height based on base size and global aspect ratio setting
+-- Width stays at base size; height shrinks based on ratio (makes HUD more compact vertically)
+-- Returns: width, height
+function Utils:GetIconDimensions(baseSize)
+    local aspectRatio = 1.0
+    if addon.db and addon.db.profile and addon.db.profile.icons then
+        aspectRatio = addon.db.profile.icons.iconAspectRatio or 1.0
+    end
+    local width = baseSize
+    local height = math.floor(baseSize / aspectRatio + 0.5)  -- Round to nearest pixel
+    return width, height
+end
+
+-- Get texture coordinates for cropping an icon to fit the aspect ratio
+-- Crops top/bottom of the texture to maintain proper proportions (no stretching)
+-- Returns: left, right, top, bottom texcoords
+function Utils:GetIconTexCoords(baseZoom)
+    baseZoom = baseZoom or 0.15  -- Default 15% zoom on each edge
+    
+    local aspectRatio = 1.0
+    if addon.db and addon.db.profile and addon.db.profile.icons then
+        aspectRatio = addon.db.profile.icons.iconAspectRatio or 1.0
+    end
+    
+    -- Horizontal texcoords stay the same
+    local left = baseZoom
+    local right = 1 - baseZoom
+    
+    -- For square aspect (1:1), use same zoom for vertical
+    if aspectRatio <= 1.0 then
+        return left, right, baseZoom, 1 - baseZoom
+    end
+    
+    -- For wide aspect (>1), crop more from top/bottom
+    -- The visible height of texture = (1 - 2*baseZoom) / aspectRatio
+    local visibleWidth = 1 - 2 * baseZoom  -- e.g., 0.70 for 15% zoom
+    local visibleHeight = visibleWidth / aspectRatio  -- shrinks for wider ratios
+    local verticalMargin = (1 - visibleHeight) / 2
+    local top = verticalMargin
+    local bottom = 1 - verticalMargin
+    
+    return left, right, top, bottom
+end
+
+-------------------------------------------------------------------------------
 -- Class & Spec Utilities
 -------------------------------------------------------------------------------
 

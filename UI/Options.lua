@@ -18,6 +18,19 @@ addon.Options = Options
 Options.widgets = {}  -- widgets[path] = { widget = frame, control = checkbox/slider, config = config }
 Options.dependencies = {}  -- dependencies[parentPath] = { childPath1, childPath2, ... }
 
+-- Static popup for reload UI prompt (needed for Masque compatibility with aspect ratio changes)
+StaticPopupDialogs["VEEVHUD_RELOAD_UI"] = {
+    text = "Changing icon aspect ratio with Masque installed requires a UI reload.\n\nReload now?",
+    button1 = "Reload",
+    button2 = "Cancel",
+    OnAccept = function()
+        ReloadUI()
+    end,
+    timeout = 0,
+    whileDead = true,
+    hideOnEscape = true,
+}
+
 -------------------------------------------------------------------------------
 -- Helper: Check if a setting path is overridden by user
 -------------------------------------------------------------------------------
@@ -234,6 +247,17 @@ function Options:CreatePanelContent(container)
     masqueNote:SetText("|cff888888Tip: Install the Masque addon to reskin ability icons with custom button styles.|r")
     masqueNote:SetJustifyH("LEFT")
     yOffset = yOffset - 16
+    
+    yOffset = self:CreateDropdown(container, yOffset, {
+        path = "icons.iconAspectRatio",
+        label = "Icon Aspect Ratio",
+        tooltip = "Makes icons shorter to create a more vertically compact HUD. Width stays the same while height shrinks, cropping the top/bottom of icon textures. The health and resource bars stay in place; proc icons shift down and ability rows shift up to fill the space. Affects both HUD icons and proc icons.",
+        options = {
+            { value = 1.0, label = "1:1 (Square)" },
+            { value = 1.33, label = "4:3 (Compact)" },
+            { value = 2.0, label = "4:2 (Ultra Compact)" },
+        },
+    })
     
     yOffset = self:CreateSlider(container, yOffset, {
         path = "icons.iconSpacing",
@@ -1057,6 +1081,22 @@ function Options:RefreshModuleIfNeeded(path)
         -- Scale is under icons but affects the whole HUD
         if path == "icons.scale" then
             Options:UpdateHUDPosition()
+        end
+        -- Aspect ratio affects both HUD icons and proc tracker
+        if path == "icons.iconAspectRatio" then
+            local cooldownIcons = addon:GetModule("CooldownIcons")
+            local procTracker = addon:GetModule("ProcTracker")
+            
+            -- If Masque is active, prompt for reload since Masque doesn't handle dynamic resizing
+            if cooldownIcons and cooldownIcons.MasqueGroup then
+                StaticPopup_Show("VEEVHUD_RELOAD_UI")
+                return  -- Skip refresh, reload will handle it
+            end
+            
+            if procTracker and procTracker.Refresh then
+                procTracker:Refresh()
+            end
+            -- CooldownIcons will be refreshed via normal moduleName path below
         end
     elseif path:match("^resourceBar%.") then
         moduleName = "ResourceBar"

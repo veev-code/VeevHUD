@@ -92,7 +92,12 @@ function ProcTracker:CreateFrames(parent)
     -- Store for later reference
     self.classProcs = classProcs
     
+    -- Get width/height based on global aspect ratio (needed for positioning)
+    local iconSize = db.iconSize
+    local iconWidth, iconHeight = self.Utils:GetIconDimensions(iconSize)
+    
     -- Calculate position relative to health bar (proc tracker is ABOVE health bar)
+    -- Use iconHeight (not iconSize) since icons may be shorter with aspect ratio
     local healthDb = addon.db.profile.healthBar
     local resourceDb = addon.db.profile.resourceBar
     local procGap = db.gapAboveHealthBar
@@ -107,33 +112,35 @@ function ProcTracker:CreateFrames(parent)
             healthBarOffset = 0
         end
         local healthBarTop = healthBarOffset + healthDb.height / 2
-        procOffset = healthBarTop + procGap + db.iconSize / 2
+        procOffset = healthBarTop + procGap + iconHeight / 2
     elseif resourceDb.enabled then
         -- Only resource bar shown - position above it
         local resourceBarTop = resourceDb.height / 2
-        procOffset = resourceBarTop + procGap + db.iconSize / 2
+        procOffset = resourceBarTop + procGap + iconHeight / 2
     else
         -- No bars shown - position at center
-        procOffset = procGap + db.iconSize / 2
+        procOffset = procGap + iconHeight / 2
     end
     
-    -- Container frame
-    local container = CreateFrame("Frame", "VeevHUD_ProcTracker", parent)
+    -- Container frame (anonymous - named frames can't be recreated properly)
+    local container = CreateFrame("Frame", nil, parent)
     container:SetPoint("CENTER", parent, "CENTER", 0, procOffset)
     container:EnableMouse(false)  -- Click-through
     self.container = container
     
     -- Create icon frames for each proc
-    local iconSize = db.iconSize
     local spacing = db.iconSpacing
-    local totalWidth = (#classProcs * iconSize) + ((#classProcs - 1) * spacing)
+    local totalWidth = (#classProcs * iconWidth) + ((#classProcs - 1) * spacing)
     
-    container:SetSize(totalWidth, iconSize)
+    container:SetSize(totalWidth, iconHeight)
     
     for i, procData in ipairs(classProcs) do
-        local frame = self:CreateProcIcon(container, procData, i, iconSize, spacing, db)
+        local frame = self:CreateProcIcon(container, procData, i, iconSize, iconWidth, iconHeight, spacing, db)
         self.icons[i] = frame
     end
+    
+    -- Apply texcoords after all icons are created (ensures aspect ratio is respected)
+    self:ApplyIconTexCoords()
     
     -- Start update ticker
     self.Events:RegisterUpdate(self, 0.1, self.UpdateAllProcs)
@@ -142,25 +149,40 @@ function ProcTracker:CreateFrames(parent)
     self:UpdateAllProcs()
 end
 
-function ProcTracker:CreateProcIcon(parent, procData, index, size, spacing, db)
-    local xOffset = (index - 1) * (size + spacing) - (parent:GetWidth() / 2) + (size / 2)
+-- Apply texcoords to all proc icons based on current aspect ratio setting
+function ProcTracker:ApplyIconTexCoords()
+    local left, right, top, bottom = self.Utils:GetIconTexCoords(0.1)
+    for _, frame in ipairs(self.icons or {}) do
+        if frame.icon then
+            frame.icon:SetTexCoord(left, right, top, bottom)
+        end
+    end
+end
+
+function ProcTracker:CreateProcIcon(parent, procData, index, size, iconWidth, iconHeight, spacing, db)
+    local xOffset = (index - 1) * (iconWidth + spacing) - (parent:GetWidth() / 2) + (iconWidth / 2)
     
-    local frame = CreateFrame("Button", "VeevHUD_Proc" .. index, parent)
-    frame:SetSize(size, size)
+    -- Use nil name to create anonymous frame (named frames can't be recreated)
+    local frame = CreateFrame("Button", nil, parent)
+    frame:SetSize(iconWidth, iconHeight)
     frame:SetPoint("CENTER", parent, "CENTER", xOffset, 0)
     frame:EnableMouse(false)  -- Click-through
     
-    -- Store proc data
+    -- Store proc data and dimensions
     frame.procData = procData
     frame.spellID = procData.spellID
+    frame.iconSize = size
+    frame.iconWidth = iconWidth
+    frame.iconHeight = iconHeight
     
     -- Backdrop glow (soft radial halo behind icon) - BACKGROUND layer, behind everything
     -- Created if intensity > 0 (intensity of 0 effectively disables it)
     local glowIntensity = db.backdropGlowIntensity
     if glowIntensity > 0 then
         local backdropGlow = frame:CreateTexture(nil, "BACKGROUND", nil, -1)
-        local glowSize = size * db.backdropGlowSize
-        backdropGlow:SetSize(glowSize, glowSize)
+        local glowWidth = iconWidth * db.backdropGlowSize
+        local glowHeight = iconHeight * db.backdropGlowSize
+        backdropGlow:SetSize(glowWidth, glowHeight)
         backdropGlow:SetPoint("CENTER", frame, "CENTER", 0, 0)
         -- Use a simple circular glow texture
         backdropGlow:SetTexture("Interface\\BUTTONS\\UI-ActionButton-Border")
@@ -182,9 +204,9 @@ function ProcTracker:CreateProcIcon(parent, procData, index, size, spacing, db)
     -- Icon texture (ARTWORK layer - above border)
     local icon = frame:CreateTexture(nil, "ARTWORK")
     icon:SetAllPoints()
-    -- Zoom in slightly like other icons
-    local zoom = 0.1
-    icon:SetTexCoord(zoom, 1 - zoom, zoom, 1 - zoom)
+    -- Apply texcoords with zoom and aspect ratio cropping
+    local left, right, top, bottom = self.Utils:GetIconTexCoords(0.1)
+    icon:SetTexCoord(left, right, top, bottom)
     frame.icon = icon
     
     -- Get spell texture
@@ -249,6 +271,7 @@ function ProcTracker:UpdateAllProcs()
     if not self.icons then return end
     
     local db = addon.db.profile.procTracker
+    if not db then return end
     
     for _, frame in ipairs(self.icons) do
         self:UpdateProcIcon(frame, db)
@@ -397,6 +420,7 @@ function ProcTracker:RepositionIcons()
     
     local db = addon.db.profile.procTracker
     local size = db.iconSize
+    local iconWidth, iconHeight = self.Utils:GetIconDimensions(size)
     local spacing = db.iconSpacing
     local useSlideAnimation = db.slideAnimation ~= false  -- default true
     
@@ -410,11 +434,11 @@ function ProcTracker:RepositionIcons()
     
     if #visibleIcons == 0 then return end
     
-    -- Calculate total width and target positions
-    local totalWidth = (#visibleIcons * size) + ((#visibleIcons - 1) * spacing)
+    -- Calculate total width and target positions (use iconWidth for horizontal layout)
+    local totalWidth = (#visibleIcons * iconWidth) + ((#visibleIcons - 1) * spacing)
     
     for i, frame in ipairs(visibleIcons) do
-        local targetX = (i - 1) * (size + spacing) - (totalWidth / 2) + (size / 2)
+        local targetX = (i - 1) * (iconWidth + spacing) - (totalWidth / 2) + (iconWidth / 2)
         
         if useSlideAnimation then
             -- Initialize current position if not set (first time or just became visible)
@@ -620,7 +644,12 @@ function ProcTracker:Refresh()
     local resourceDb = addon.db.profile.resourceBar
     
     if self.container then
+        -- Get icon dimensions (needed for positioning with aspect ratio)
+        local iconSize = db.iconSize
+        local iconWidth, iconHeight = self.Utils:GetIconDimensions(iconSize)
+        
         -- Calculate position relative to health bar (proc tracker is ABOVE health bar)
+        -- Use iconHeight (not iconSize) since icons may be shorter with aspect ratio
         local procGap = db.gapAboveHealthBar
         local procOffset
         
@@ -633,14 +662,14 @@ function ProcTracker:Refresh()
                 healthBarOffset = 0
             end
             local healthBarTop = healthBarOffset + healthDb.height / 2
-            procOffset = healthBarTop + procGap + db.iconSize / 2
+            procOffset = healthBarTop + procGap + iconHeight / 2
         elseif resourceDb.enabled then
             -- Only resource bar shown - position above it
             local resourceBarTop = resourceDb.height / 2
-            procOffset = resourceBarTop + procGap + db.iconSize / 2
+            procOffset = resourceBarTop + procGap + iconHeight / 2
         else
             -- No bars shown - position at center
-            procOffset = procGap + db.iconSize / 2
+            procOffset = procGap + iconHeight / 2
         end
         
         self.container:ClearAllPoints()
@@ -653,35 +682,48 @@ function ProcTracker:Refresh()
             self.container:Hide()
         end
         
-        -- Update icon sizes and spacing
-        local iconSize = db.iconSize
+        -- Update icon sizes and spacing (use aspect ratio for height)
         local spacing = db.iconSpacing
         local numProcs = #(self.classProcs or {})
-        local totalWidth = (numProcs * iconSize) + ((numProcs - 1) * spacing)
+        local totalWidth = (numProcs * iconWidth) + ((numProcs - 1) * spacing)
         
-        self.container:SetSize(totalWidth, iconSize)
+        self.container:SetSize(totalWidth, iconHeight)
         
-        -- Reposition and resize all icons
+        -- Resize all icons and update stored dimensions
+        local left, right, top, bottom = self.Utils:GetIconTexCoords(0.1)
         for i, frame in ipairs(self.icons or {}) do
-            local xOffset = (i - 1) * (iconSize + spacing) - (totalWidth / 2) + (iconSize / 2)
-            frame:SetSize(iconSize, iconSize)
+            local xOffset = (i - 1) * (iconWidth + spacing) - (totalWidth / 2) + (iconWidth / 2)
+            frame:SetSize(iconWidth, iconHeight)
+            frame.iconSize = iconSize
+            frame.iconWidth = iconWidth
+            frame.iconHeight = iconHeight
             frame:ClearAllPoints()
             frame:SetPoint("CENTER", self.container, "CENTER", xOffset, 0)
             
-            -- Update border to match new size
-            if frame.border then
-                frame.border:ClearAllPoints()
-                frame.border:SetPoint("TOPLEFT", -1, 1)
-                frame.border:SetPoint("BOTTOMRIGHT", 1, -1)
+            -- Resize icon texture
+            if frame.icon then
+                frame.icon:SetSize(iconWidth, iconHeight)
+                frame.icon:SetTexCoord(left, right, top, bottom)
             end
             
             -- Update backdrop glow size to match new icon size
             if frame.backdropGlow then
-                local glowSize = iconSize * 2.0
-                frame.backdropGlow:SetSize(glowSize, glowSize)
+                local glowWidth = iconWidth * db.backdropGlowSize
+                local glowHeight = iconHeight * db.backdropGlowSize
+                frame.backdropGlow:SetSize(glowWidth, glowHeight)
             end
+            
+            -- Reset slide animation position so RepositionIcons will snap to new position
+            frame.currentX = nil
+            frame.targetX = nil
         end
     end
+    
+    -- Apply texcoords for aspect ratio cropping
+    self:ApplyIconTexCoords()
+    
+    -- Reposition to re-center visible icons
+    self:RepositionIcons()
     
     self:UpdateAllProcs()
 end

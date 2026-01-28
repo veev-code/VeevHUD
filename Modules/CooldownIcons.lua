@@ -360,8 +360,29 @@ function CooldownIcons:CreateFrames(parent)
         self.Utils:LogError("CooldownIcons: CreateRowFrames failed:", err)
     end
 
+    -- Apply texcoords after all icons are created (ensures aspect ratio is respected)
+    -- This handles cases where settings might not be fully loaded during CreateIcon
+    self:ApplyIconTexCoords()
+
     -- Start update ticker
     self.Events:RegisterUpdate(self, 0.05, self.UpdateAllIcons)
+end
+
+-- Apply texcoords to all icons based on current aspect ratio setting
+function CooldownIcons:ApplyIconTexCoords()
+    -- Use 0.07 zoom for built-in style, 0.15 for default/Masque
+    local defaultZoom = 0.15
+    local builtInZoom = 0.07
+    
+    for _, rowFrame in ipairs(self.rows or {}) do
+        for _, icon in ipairs(rowFrame.icons or {}) do
+            if icon.icon then
+                local zoom = icon.hasBuiltInStyle and builtInZoom or defaultZoom
+                local left, right, top, bottom = self.Utils:GetIconTexCoords(zoom)
+                icon.icon:SetTexCoord(left, right, top, bottom)
+            end
+        end
+    end
 end
 
 function CooldownIcons:CreateRowFrames()
@@ -405,13 +426,18 @@ function CooldownIcons:CreateRowFrames()
                 rowIconSpacing = 1
             end
 
-            self.Utils:LogInfo("Row", rowIndex, rowConfig.name, "iconSize:", rowIconSize, "maxIcons:", rowConfig.maxIcons)
+            -- Get width/height based on aspect ratio
+            local rowIconWidth, rowIconHeight = self.Utils:GetIconDimensions(rowIconSize)
+            
+            self.Utils:LogInfo("Row", rowIndex, rowConfig.name, "iconSize:", rowIconSize, "iconWidth:", rowIconWidth, "maxIcons:", rowConfig.maxIcons)
 
             local rowFrame = CreateFrame("Frame", nil, self.container)
-            rowFrame:SetSize(rowConfig.maxIcons * (rowIconSize + rowIconSpacing), rowIconSize)
+            rowFrame:SetSize(rowConfig.maxIcons * (rowIconWidth + rowIconSpacing), rowIconHeight)
             rowFrame:SetPoint("TOP", self.container, "TOP", 0, yOffset)
             rowFrame:EnableMouse(false)  -- Click-through
             rowFrame.iconSize = rowIconSize
+            rowFrame.iconWidth = rowIconWidth
+            rowFrame.iconHeight = rowIconHeight
             rowFrame.iconSpacing = rowIconSpacing
             rowFrame.iconsPerRow = rowConfig.iconsPerRow or rowConfig.maxIcons
             rowFrame.flowLayout = rowConfig.flowLayout or false
@@ -430,11 +456,11 @@ function CooldownIcons:CreateRowFrames()
             self.iconsByRow[rowIndex] = {}
 
             -- Calculate height for yOffset - estimate rows needed for flow layout
-            local estimatedHeight = rowIconSize
+            local estimatedHeight = rowIconHeight
             if rowConfig.flowLayout and rowConfig.iconsPerRow then
                 local estimatedRows = math.ceil(rowConfig.maxIcons / rowConfig.iconsPerRow)
                 local verticalSpacing = iconDb.rowSpacing or 1
-                estimatedHeight = estimatedRows * (rowIconSize + verticalSpacing)
+                estimatedHeight = estimatedRows * (rowIconHeight + verticalSpacing)
             end
             yOffset = yOffset - (estimatedHeight + (iconDb.rowSpacing or 1))
         end
@@ -444,22 +470,27 @@ end
 function CooldownIcons:CreateIcon(parent, index, size)
     local db = addon.db.profile.icons
     size = size or db.iconSize or 56
+    
+    -- Get width/height based on aspect ratio (width = size * ratio, height = size)
+    local iconWidth, iconHeight = self.Utils:GetIconDimensions(size)
 
     -- Create as Button for Masque compatibility
     local buttonName = "VeevHUDIcon" .. (self.iconCounter or 0)
     self.iconCounter = (self.iconCounter or 0) + 1
 
     local frame = CreateFrame("Button", buttonName, parent)
-    frame:SetSize(size, size)
+    frame:SetSize(iconWidth, iconHeight)
     frame:EnableMouse(false)  -- Click-through (display only, no interaction)
-    frame.iconSize = size
+    frame.iconSize = size  -- Base size (used for calculations)
+    frame.iconWidth = iconWidth
+    frame.iconHeight = iconHeight
 
     -- Icon texture - fills the frame, spacing between icons creates separation
     local icon = frame:CreateTexture(buttonName .. "Icon", "ARTWORK")
     icon:SetAllPoints()
-    -- Zoom in 30% (15% cut from each edge)
-    local zoom = 0.15
-    icon:SetTexCoord(zoom, 1 - zoom, zoom, 1 - zoom)
+    -- Apply texcoords with zoom and aspect ratio cropping
+    local left, right, top, bottom = self.Utils:GetIconTexCoords(0.15)
+    icon:SetTexCoord(left, right, top, bottom)
     frame.icon = icon
     frame.Icon = icon  -- Masque reference
 
@@ -596,12 +627,17 @@ local CLASSIC_ENHANCED = {
 function CooldownIcons:ApplyBuiltInStyle(frame, size)
     size = size or frame.iconSize or 40
     
-    -- Calculate scale factor (Classic Enhanced is designed for 36px base icon, our default is 40)
-    local scale = size / 36
+    -- Get actual icon dimensions (may be non-square with aspect ratio)
+    local iconWidth, iconHeight = self.Utils:GetIconDimensions(size)
     
-    -- Apply icon TexCoords to match Classic Enhanced (7% crop from each edge)
+    -- Calculate scale factors for width and height separately
+    local scaleW = iconWidth / 36
+    local scaleH = iconHeight / 36
+    
+    -- Apply icon TexCoords with 7% base zoom, adjusted for aspect ratio cropping
     if frame.icon then
-        frame.icon:SetTexCoord(unpack(CLASSIC_ENHANCED.IconTexCoords))
+        local left, right, top, bottom = self.Utils:GetIconTexCoords(0.07)
+        frame.icon:SetTexCoord(left, right, top, bottom)
     end
     
     -- Create backdrop (empty slot background) - sits behind everything
@@ -614,9 +650,10 @@ function CooldownIcons:ApplyBuiltInStyle(frame, size)
     -- Apply subtle backdrop styling
     frame.builtInBackdrop:SetVertexColor(1, 1, 1, CLASSIC_ENHANCED.BackdropAlpha)
     
-    -- Size and position backdrop (centered, slightly larger than icon)
-    local backdropSize = CLASSIC_ENHANCED.BackdropSize * scale
-    frame.builtInBackdrop:SetSize(backdropSize, backdropSize)
+    -- Size and position backdrop (non-square for aspect ratio)
+    local backdropWidth = CLASSIC_ENHANCED.BackdropSize * scaleW
+    local backdropHeight = CLASSIC_ENHANCED.BackdropSize * scaleH
+    frame.builtInBackdrop:SetSize(backdropWidth, backdropHeight)
     frame.builtInBackdrop:SetPoint("CENTER", frame, "CENTER", 0, 0)
     frame.builtInBackdrop:Show()
     
@@ -630,10 +667,11 @@ function CooldownIcons:ApplyBuiltInStyle(frame, size)
     -- Apply subtle border styling
     frame.builtInNormal:SetVertexColor(1, 1, 1, CLASSIC_ENHANCED.NormalAlpha)
     
-    -- Size and position border (centered with slight offset like Masque does)
-    local normalSize = CLASSIC_ENHANCED.NormalSize * scale
+    -- Size and position border (non-square for aspect ratio)
+    local normalWidth = CLASSIC_ENHANCED.NormalSize * scaleW
+    local normalHeight = CLASSIC_ENHANCED.NormalSize * scaleH
     local offsetX, offsetY = CLASSIC_ENHANCED.NormalOffset[1], CLASSIC_ENHANCED.NormalOffset[2]
-    frame.builtInNormal:SetSize(normalSize, normalSize)
+    frame.builtInNormal:SetSize(normalWidth, normalHeight)
     frame.builtInNormal:SetPoint("CENTER", frame, "CENTER", offsetX, offsetY)
     frame.builtInNormal:Show()
     
@@ -644,18 +682,22 @@ end
 -- Update built-in style when icon size changes
 function CooldownIcons:UpdateBuiltInStyle(frame, size)
     if frame.hasBuiltInStyle then
-        -- Recalculate sizes based on new icon size
+        -- Recalculate sizes based on new icon size and aspect ratio
         size = size or frame.iconSize or 40
-        local scale = size / 36
+        local iconWidth, iconHeight = self.Utils:GetIconDimensions(size)
+        local scaleW = iconWidth / 36
+        local scaleH = iconHeight / 36
         
         if frame.builtInBackdrop then
-            local backdropSize = CLASSIC_ENHANCED.BackdropSize * scale
-            frame.builtInBackdrop:SetSize(backdropSize, backdropSize)
+            local backdropWidth = CLASSIC_ENHANCED.BackdropSize * scaleW
+            local backdropHeight = CLASSIC_ENHANCED.BackdropSize * scaleH
+            frame.builtInBackdrop:SetSize(backdropWidth, backdropHeight)
         end
         
         if frame.builtInNormal then
-            local normalSize = CLASSIC_ENHANCED.NormalSize * scale
-            frame.builtInNormal:SetSize(normalSize, normalSize)
+            local normalWidth = CLASSIC_ENHANCED.NormalSize * scaleW
+            local normalHeight = CLASSIC_ENHANCED.NormalSize * scaleH
+            frame.builtInNormal:SetSize(normalWidth, normalHeight)
         end
     elseif not self.MasqueGroup then
         self:ApplyBuiltInStyle(frame, size)
@@ -874,6 +916,8 @@ function CooldownIcons:PositionRowIcons(rowFrame, count, db)
 
     -- Use per-row settings (set during creation)
     local size = rowFrame.iconSize or db.iconSize or 40
+    local iconWidth = rowFrame.iconWidth or size
+    local iconHeight = rowFrame.iconHeight or size
     -- Use explicit nil check since 0 is a valid spacing value
     local spacing = rowFrame.iconSpacing
     if spacing == nil then
@@ -888,16 +932,16 @@ function CooldownIcons:PositionRowIcons(rowFrame, count, db)
 
     if flowLayout and count > iconsPerRow then
         -- Multi-row flow layout
-        self:PositionFlowLayout(rowFrame, count, size, spacing, iconsPerRow, rowSpacing)
+        self:PositionFlowLayout(rowFrame, count, iconWidth, iconHeight, spacing, iconsPerRow, rowSpacing)
     else
-        -- Single row layout (centered)
-        local totalWidth = count * size + (count - 1) * spacing
-        local startX = -totalWidth / 2 + size / 2
+        -- Single row layout (centered) - use width for horizontal positioning
+        local totalWidth = count * iconWidth + (count - 1) * spacing
+        local startX = -totalWidth / 2 + iconWidth / 2
 
         for i = 1, count do
             local frame = rowFrame.icons[i]
             if frame and frame:IsShown() then
-                local x = startX + (i - 1) * (size + spacing)
+                local x = startX + (i - 1) * (iconWidth + spacing)
                 frame:ClearAllPoints()
                 frame:SetPoint("CENTER", rowFrame, "CENTER", x, 0)
             end
@@ -905,7 +949,7 @@ function CooldownIcons:PositionRowIcons(rowFrame, count, db)
     end
 end
 
-function CooldownIcons:PositionFlowLayout(rowFrame, count, size, spacing, iconsPerRow, rowSpacing)
+function CooldownIcons:PositionFlowLayout(rowFrame, count, iconWidth, iconHeight, spacing, iconsPerRow, rowSpacing)
     -- Calculate how many rows we need
     local numRows = math.ceil(count / iconsPerRow)
     
@@ -918,7 +962,7 @@ function CooldownIcons:PositionFlowLayout(rowFrame, count, size, spacing, iconsP
     
     -- Use rowSpacing for vertical gap between wrapped rows (defaults to 1 if not provided)
     local verticalSpacing = rowSpacing or 1
-    local rowHeight = size + verticalSpacing
+    local rowHeight = iconHeight + verticalSpacing
     local currentRow = 0
     local currentCol = 0
     local iconsInCurrentRow = 0
@@ -941,14 +985,14 @@ function CooldownIcons:PositionFlowLayout(rowFrame, count, size, spacing, iconsP
     local iconIndex = 1
     for row = 1, numRows do
         local iconsThisRow = rowIconCounts[row] or 0
-        local rowWidth = iconsThisRow * size + (iconsThisRow - 1) * spacing
-        local startX = -rowWidth / 2 + size / 2
+        local rowWidth = iconsThisRow * iconWidth + (iconsThisRow - 1) * spacing
+        local startX = -rowWidth / 2 + iconWidth / 2
         local yOffset = -(row - 1) * rowHeight
         
         for col = 1, iconsThisRow do
             local frame = rowFrame.icons[iconIndex]
             if frame and frame:IsShown() then
-                local x = startX + (col - 1) * (size + spacing)
+                local x = startX + (col - 1) * (iconWidth + spacing)
                 frame:ClearAllPoints()
                 frame:SetPoint("TOP", rowFrame, "TOP", x, yOffset)
             end
@@ -1373,6 +1417,8 @@ function CooldownIcons:UpdateResourceDisplay(frame, spellID, cooldownRemaining, 
     end
     
     local iconSize = frame.iconSize or 48
+    local iconWidth = frame.iconWidth or iconSize
+    local iconHeight = frame.iconHeight or iconSize
     
     -- Initialize smooth animation state
     if not frame.resourceCurrent then
@@ -1381,6 +1427,8 @@ function CooldownIcons:UpdateResourceDisplay(frame, spellID, cooldownRemaining, 
     frame.resourceTarget = resourcePercent
     frame.resourcePowerColor = powerColor
     frame.resourceIconSize = iconSize
+    frame.resourceIconWidth = iconWidth
+    frame.resourceIconHeight = iconHeight
     frame.resourceDisplayMode = displayMode  -- Store mode on frame for animation
     
     -- Set up OnUpdate for smooth animation if not already
@@ -1432,11 +1480,12 @@ function CooldownIcons:AnimateResourceDisplay(frame, elapsed, db)
     
     frame.resourceCurrent = current
     
-    local iconSize = frame.resourceIconSize or 48
+    local iconWidth = frame.resourceIconWidth or frame.resourceIconSize or 48
+    local iconHeight = frame.resourceIconHeight or frame.resourceIconSize or 48
     
     if displayMode == "bar" and frame.resourceBar and frame.resourceBar:IsShown() then
-        -- Horizontal bar fill
-        local fillWidth = iconSize * current
+        -- Horizontal bar fill - use width
+        local fillWidth = iconWidth * current
         frame.resourceBar.fill:SetWidth(math.max(1, fillWidth))
         
         if frame.resourcePowerColor then
@@ -1445,10 +1494,10 @@ function CooldownIcons:AnimateResourceDisplay(frame, elapsed, db)
         end
         
     elseif displayMode == "fill" and frame.resourceFill and frame.resourceFill:IsShown() then
-        -- Vertical fill (dark overlay showing missing portion)
+        -- Vertical fill (dark overlay showing missing portion) - use height
         -- Frame alpha handles visibility; vertex color just controls fill darkness
         local missingPercent = 1 - current
-        local fillHeight = iconSize * missingPercent
+        local fillHeight = iconHeight * missingPercent
         frame.resourceFill:SetHeight(math.max(0, fillHeight))
     end
 end
@@ -1528,8 +1577,10 @@ function CooldownIcons:ShowPermanentBuffGlow(frame)
     end
     
     -- Size it slightly larger than the icon for a subtle border glow
-    local size = (frame.iconSize or 40) * 1.5
-    frame.permanentGlow:SetSize(size, size)
+    -- Use width (larger dimension with aspect ratio) for proper coverage
+    local glowWidth = (frame.iconWidth or frame.iconSize or 40) * 1.5
+    local glowHeight = (frame.iconHeight or frame.iconSize or 40) * 1.5
+    frame.permanentGlow:SetSize(glowWidth, glowHeight)
     
     -- Golden/yellow color to match the default UI active state
     frame.permanentGlow:SetVertexColor(1.0, 0.82, 0.0, 0.6 * iconAlpha)
@@ -1821,7 +1872,12 @@ function CooldownIcons:Refresh()
     
     for rowIndex, rowFrame in ipairs(self.rows or {}) do
         local rowConfig = rowConfigs[rowIndex] or {}
-        rowFrame.iconSize = rowConfig.iconSize or iconDb.iconSize or 40
+        local size = rowConfig.iconSize or iconDb.iconSize or 40
+        local iconWidth, iconHeight = self.Utils:GetIconDimensions(size)
+        
+        rowFrame.iconSize = size
+        rowFrame.iconWidth = iconWidth
+        rowFrame.iconHeight = iconHeight
         -- Use explicit nil check since 0 is a valid spacing value
         local newSpacing = rowConfig.iconSpacing
         if newSpacing == nil then
@@ -1833,18 +1889,24 @@ function CooldownIcons:Refresh()
         rowFrame.iconSpacing = newSpacing
         rowFrame.iconsPerRow = rowConfig.iconsPerRow or rowConfig.maxIcons or 6
         
-        -- Update icon sizes and cooldown text config if needed
-        local size = rowFrame.iconSize
+        -- Update row frame size to match new icon dimensions
+        local maxIcons = rowConfig.maxIcons or 6
+        rowFrame:SetSize(maxIcons * (iconWidth + newSpacing), iconHeight)
+        
+        -- Update icon sizes and config
         for _, icon in ipairs(rowFrame.icons or {}) do
-            icon:SetSize(size, size)
+            icon:SetSize(iconWidth, iconHeight)
             icon.iconSize = size
-            -- Reconfigure external cooldown text (OmniCC, etc.) when settings change
+            icon.iconWidth = iconWidth
+            icon.iconHeight = iconHeight
+            
             if icon.cooldown then
                 self:ConfigureCooldownText(icon.cooldown)
                 -- Clear cached cooldown values to force re-apply of spiral settings
                 icon.lastCdStart = nil
                 icon.lastCdDuration = nil
             end
+            
             -- Update built-in style if Masque is not installed
             self:UpdateBuiltInStyle(icon, size)
         end
@@ -1865,17 +1927,20 @@ function CooldownIcons:Refresh()
         rowFrame:ClearAllPoints()
         rowFrame:SetPoint("TOP", self.container, "TOP", 0, yOffset)
         
-        -- Calculate height for next row offset
-        local estimatedHeight = size
+        -- Calculate height for next row offset (use iconHeight, not size)
+        local estimatedHeight = iconHeight
         if rowFrame.flowLayout and rowFrame.iconsPerRow then
             local maxIcons = rowConfig.maxIcons or 6
             local estimatedRows = math.ceil(maxIcons / rowFrame.iconsPerRow)
             local verticalSpacing = iconDb.rowSpacing or 1
-            estimatedHeight = estimatedRows * (size + verticalSpacing)
+            estimatedHeight = estimatedRows * (iconHeight + verticalSpacing)
         end
         yOffset = yOffset - (estimatedHeight + (iconDb.rowSpacing or 1))
     end
     
     self:RebuildAllRows()
     self:UpdateAllIcons()
+    
+    -- Reapply texcoords (ensures aspect ratio cropping is applied)
+    self:ApplyIconTexCoords()
 end
