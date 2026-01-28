@@ -1025,13 +1025,17 @@ function CooldownIcons:UpdateIconState(frame, db)
         local spellData = frame.spellData
         local shouldCheckBuff = not (spellData and spellData.ignoreAura)
         
-        if not auraActive and shouldCheckBuff then
+        if shouldCheckBuff then
             local isBuffActive, buffRemaining, buffDuration, buffStacks = self:GetPlayerBuff(spellID)
             if isBuffActive then
-                auraActive = true
-                auraRemaining = buffRemaining
-                auraDuration = buffDuration
-                auraStacks = buffStacks or 0
+                -- Always prefer player buff data for permanent buffs (duration=0)
+                -- This handles Shadowform, Stealth, Aspects, etc. correctly
+                if buffDuration == 0 or not auraActive then
+                    auraActive = true
+                    auraRemaining = buffRemaining
+                    auraDuration = buffDuration
+                    auraStacks = buffStacks or 0
+                end
             end
         end
     end
@@ -1121,6 +1125,9 @@ function CooldownIcons:UpdateIconState(frame, db)
     local showAuraActive = false
     local auraDisplayRemaining = 0
     local auraDisplayDuration = 0
+    
+    -- Detect permanent buff (active but no duration, e.g., Shadowform, Stealth)
+    local isPermanentBuffActive = auraActive and auraDuration == 0 and auraRemaining == 0
 
     -----------------------------------------------------------------------
     -- AURA ACTIVE STATE (overrides normal cooldown display)
@@ -1128,8 +1135,8 @@ function CooldownIcons:UpdateIconState(frame, db)
     -----------------------------------------------------------------------
     if auraActive and auraRemaining > 0 then
         -----------------------------------------------------------------------
-        -- AURA ACTIVE STATE
-        -- Debuff/buff from this spell is active on a target
+        -- TIMED AURA ACTIVE STATE
+        -- Debuff/buff from this spell is active with a duration
         -----------------------------------------------------------------------
         showAuraActive = true
         auraDisplayRemaining = auraRemaining
@@ -1139,6 +1146,20 @@ function CooldownIcons:UpdateIconState(frame, db)
         showSpinner = true  -- Show spiral for aura duration
         showText = true  -- Show aura duration
         desaturate = false
+        
+    elseif isPermanentBuffActive then
+        -----------------------------------------------------------------------
+        -- PERMANENT BUFF ACTIVE STATE (e.g., Shadowform, Stealth, Aspects)
+        -- Buff is active but has no duration - show subtle active indicator
+        -- Don't show cooldown while buff is active (it's already cast)
+        -- Cooldown only matters if buff is removed and needs to be recast
+        -----------------------------------------------------------------------
+        showAuraActive = true
+        alpha = db.readyAlpha  -- Full alpha
+        showGlow = true  -- Subtle static glow to indicate active state
+        desaturate = false
+        showSpinner = false  -- No cooldown display while buff is active
+        showText = false
         
     elseif not dimOnCooldown then
         -----------------------------------------------------------------------
@@ -1313,8 +1334,8 @@ function CooldownIcons:UpdateIconState(frame, db)
     -- Update resource display (only show when ability is ready but lacking resources)
     self:UpdateResourceDisplay(frame, spellID, remaining, hasResourceCost, resourcePercent, powerColor, db)
 
-    -- Handle glow effect (aura active / normal almost-ready glow)
-    self:UpdateIconGlow(frame, showGlow, showAuraActive)
+    -- Handle glow effect (aura active / permanent buff / normal almost-ready glow)
+    self:UpdateIconGlow(frame, showGlow, showAuraActive, isPermanentBuffActive)
     
     -- Handle ready glow (proc-style glow when ability becomes usable)
     -- Uses isUsable which checks ALL conditions (resources, target health for Execute, etc.)
@@ -1446,9 +1467,10 @@ function CooldownIcons:HasSpellActivationOverlay(spellID)
 end
 
 -- Update glow effect on icon
-function CooldownIcons:UpdateIconGlow(frame, showGlow, isAuraActive)
+-- glowStyle: "aura" (timed aura), "permanent" (permanent buff), or nil (proc/ready glow)
+function CooldownIcons:UpdateIconGlow(frame, showGlow, isAuraActive, isPermanentBuff)
     if showGlow then
-        local glowType = isAuraActive and "aura" or "normal"
+        local glowType = isPermanentBuff and "permanent" or (isAuraActive and "aura" or "normal")
         local iconAlpha = frame.iconAlpha or 1
         
         -- Check if glow is already showing with correct type AND same alpha
@@ -1462,8 +1484,11 @@ function CooldownIcons:UpdateIconGlow(frame, showGlow, isAuraActive)
             self:HideGlow(frame)
         end
         
-        if isAuraActive then
-            -- Aura active: Use pixel glow (purple/pink border)
+        if isPermanentBuff then
+            -- Permanent buff: Use subtle static glow (like default UI)
+            self:ShowPermanentBuffGlow(frame)
+        elseif isAuraActive then
+            -- Timed aura active: Use pixel glow (animated border)
             self:ShowAuraGlow(frame)
         else
             -- Normal glow: Use standard overlay glow
@@ -1486,6 +1511,29 @@ function CooldownIcons:UpdateIconGlow(frame, showGlow, isAuraActive)
             frame.glowAlpha = nil
         end
     end
+end
+
+-- Show static glow for permanent buffs (like Shadowform, Stealth)
+-- Mimics the subtle glow effect from the default UI action buttons
+function CooldownIcons:ShowPermanentBuffGlow(frame)
+    local iconAlpha = frame.iconAlpha or 1
+    
+    -- Create the static glow overlay if it doesn't exist
+    if not frame.permanentGlow then
+        frame.permanentGlow = frame:CreateTexture(nil, "OVERLAY", nil, 1)
+        frame.permanentGlow:SetTexture("Interface\\Buttons\\UI-ActionButton-Border")
+        frame.permanentGlow:SetBlendMode("ADD")
+        -- Offset Y slightly upward to center the glow visually (texture has asymmetric glow)
+        frame.permanentGlow:SetPoint("CENTER", frame, "CENTER", 0, 1)
+    end
+    
+    -- Size it slightly larger than the icon for a subtle border glow
+    local size = (frame.iconSize or 40) * 1.5
+    frame.permanentGlow:SetSize(size, size)
+    
+    -- Golden/yellow color to match the default UI active state
+    frame.permanentGlow:SetVertexColor(1.0, 0.82, 0.0, 0.6 * iconAlpha)
+    frame.permanentGlow:Show()
 end
 
 -- Update the "ready glow" - shows when ability becomes ready
@@ -1700,6 +1748,11 @@ function CooldownIcons:HideGlow(frame)
     -- Hide old auraGlow if exists
     if frame.auraGlow then
         frame.auraGlow:Hide()
+    end
+    
+    -- Hide permanent buff glow
+    if frame.permanentGlow then
+        frame.permanentGlow:Hide()
     end
     
     -- Reset border color (only when Masque is active)

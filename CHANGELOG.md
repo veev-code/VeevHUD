@@ -1,5 +1,14 @@
 # VeevHUD Changelog
 
+## [1.0.8] - 2026-01-27
+
+### Changed
+- Add buff/debuff caching to reduce aura scanning overhead (event-driven invalidation)
+
+### LibSpellDB Updates
+- Added `lib.Specs` constants for type-safe spec tagging
+- All spells now have explicit `specs` field for better spec filtering
+
 ## [1.0.7] - 2026-01-27
 
 ### Added
