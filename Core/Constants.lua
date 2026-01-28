@@ -53,6 +53,14 @@ C.POWER_TYPE = {
 }
 
 -------------------------------------------------------------------------------
+-- UI Colors
+-------------------------------------------------------------------------------
+
+C.COLORS = {
+    TEXT = { r = 1.0, g = 0.906, b = 0.745 },  -- #ffe7be warm cream/gold for cooldown/stack text
+}
+
+-------------------------------------------------------------------------------
 -- Default Icon Sizes
 -------------------------------------------------------------------------------
 
@@ -126,13 +134,18 @@ C.DEFAULTS = {
         -- Proc/Buff tracker (important buffs like Enrage, Flurry)
         procTracker = {
             enabled = true,
-            iconSize = 20,
-            iconSpacing = 3,  -- spacing between icons
-            offsetY = 31,     -- adjusted for smaller icons
-            showDuration = false,  -- hidden to avoid overlap with stack count
-            showInactiveIcons = false,  -- Only show when active
+            iconSize = 26,
+            iconSpacing = 6,  -- spacing between icons
+            offsetY = 31,     -- calculated dynamically in CreateFrames
+            gapAboveHealthBar = 6,  -- gap between health bar and proc icons
+            showDuration = true,  -- show remaining time text on procs
+            showInactiveIcons = false,  -- Only show when active (not exposed in UI)
             inactiveAlpha = 0.4,
-            activeGlow = false,  -- No glow needed, presence implies active
+            activeGlow = true,  -- Show animated pixel glow around active procs
+            backdropGlowIntensity = 0.25,  -- 0 = disabled, higher = more visible (max ~0.8)
+            backdropGlowSize = 2.2,  -- Multiplier for glow size relative to icon
+            backdropGlowColor = {1.0, 0.7, 0.35},  -- Warm orange-gold (alpha controlled by intensity)
+            slideAnimation = true,  -- Smooth sliding when procs appear/disappear
         },
 
         -- Icon display settings (defaults, rows can override)

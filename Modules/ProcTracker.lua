@@ -95,7 +95,7 @@ function ProcTracker:CreateFrames(parent)
     -- Calculate position relative to health bar (proc tracker is ABOVE health bar)
     local healthDb = addon.db.profile.healthBar
     local resourceDb = addon.db.profile.resourceBar
-    local procGap = 2  -- pixels between bar and proc icons
+    local procGap = db.gapAboveHealthBar
     local procOffset
     
     if healthDb.enabled then
@@ -154,6 +154,23 @@ function ProcTracker:CreateProcIcon(parent, procData, index, size, spacing, db)
     frame.procData = procData
     frame.spellID = procData.spellID
     
+    -- Backdrop glow (soft radial halo behind icon) - BACKGROUND layer, behind everything
+    -- Created if intensity > 0 (intensity of 0 effectively disables it)
+    local glowIntensity = db.backdropGlowIntensity
+    if glowIntensity > 0 then
+        local backdropGlow = frame:CreateTexture(nil, "BACKGROUND", nil, -1)
+        local glowSize = size * db.backdropGlowSize
+        backdropGlow:SetSize(glowSize, glowSize)
+        backdropGlow:SetPoint("CENTER", frame, "CENTER", 0, 0)
+        -- Use a simple circular glow texture
+        backdropGlow:SetTexture("Interface\\BUTTONS\\UI-ActionButton-Border")
+        backdropGlow:SetBlendMode("ADD")
+        local glowColor = db.backdropGlowColor
+        backdropGlow:SetVertexColor(glowColor[1], glowColor[2], glowColor[3], glowIntensity)
+        backdropGlow:Hide()  -- Hidden by default, shown when proc is active
+        frame.backdropGlow = backdropGlow
+    end
+    
     -- Border (BACKGROUND layer - below icon so icon covers it when scaling)
     local border = frame:CreateTexture(nil, "BACKGROUND")
     border:SetTexture([[Interface\Buttons\WHITE8X8]])
@@ -179,19 +196,28 @@ function ProcTracker:CreateProcIcon(parent, procData, index, size, spacing, db)
     end
     frame.spellName = spellName or procData.name
     
-    -- Duration text
-    local text = frame:CreateFontString(nil, "OVERLAY")
-    text:SetFont(self.C.FONTS.NUMBER, math.max(10, size * 0.35), "OUTLINE")
-    text:SetPoint("CENTER", 0, 0)
-    text:SetTextColor(1.0, 0.906, 0.745)  -- #ffe7be
+    -- Text container (sits above cooldown spiral)
+    local textContainer = CreateFrame("Frame", nil, frame)
+    textContainer:SetAllPoints(frame)
+    textContainer:SetFrameLevel(frame:GetFrameLevel() + 10)
+    frame.textContainer = textContainer
+    
+    -- Duration text (center)
+    local durationFontSize = math.max(10, math.floor(size * 0.5))
+    local text = textContainer:CreateFontString(nil, "OVERLAY", nil, 7)
+    text:SetFont(self.C.FONTS.NUMBER, durationFontSize, "OUTLINE")
+    text:SetPoint("CENTER", frame, "CENTER", 0, 0)
+    text:SetTextColor(self.C.COLORS.TEXT.r, self.C.COLORS.TEXT.g, self.C.COLORS.TEXT.b)
     frame.text = text
     
-    -- Stack count (bottom right, matching Rampage style from CooldownIcons)
-    local stacksFontSize = math.max(10, math.floor(size * 0.32))
-    local stacks = frame:CreateFontString(nil, "OVERLAY")
+    -- Stack count (top right corner, slightly larger font)
+    local stacksFontSize = math.max(11, math.floor(size * 0.55))
+    local stacks = textContainer:CreateFontString(nil, "OVERLAY", nil, 7)
     stacks:SetFont(self.C.FONTS.NUMBER, stacksFontSize, "OUTLINE")
-    stacks:SetPoint("BOTTOMRIGHT", -3, 3)
-    stacks:SetTextColor(1.0, 0.906, 0.745)  -- #ffe7be to match aura state
+    stacks:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 4, 4)
+    stacks:SetJustifyH("RIGHT")
+    stacks:SetJustifyV("TOP")
+    stacks:SetTextColor(self.C.COLORS.TEXT.r, self.C.COLORS.TEXT.g, self.C.COLORS.TEXT.b)
     frame.stacks = stacks
     
     -- Cooldown spiral for duration
@@ -209,7 +235,7 @@ function ProcTracker:CreateProcIcon(parent, procData, index, size, spacing, db)
     self:ConfigureCooldownText(cooldown)
     
     -- Set initial state (inactive)
-    frame:SetAlpha(db.inactiveAlpha or 0.4)
+    frame:SetAlpha(db.inactiveAlpha)
     icon:SetDesaturated(true)
     
     return frame
@@ -302,7 +328,15 @@ function ProcTracker:UpdateProcIcon(frame, db)
             frame.cooldown:Hide()
         end
         
-        -- Show glow
+        -- Show backdrop glow (soft halo behind icon) if intensity > 0
+        if frame.backdropGlow and db.backdropGlowIntensity > 0 then
+            frame.backdropGlow:SetAlpha(db.backdropGlowIntensity)
+            frame.backdropGlow:Show()
+        elseif frame.backdropGlow then
+            frame.backdropGlow:Hide()
+        end
+        
+        -- Show edge glow (pixel glow matching aura style)
         if db.activeGlow and not frame.glowActive then
             self:ShowProcGlow(frame)
             frame.glowActive = true
@@ -312,11 +346,13 @@ function ProcTracker:UpdateProcIcon(frame, db)
         frame.wasInactive = true
         
         if db.showInactiveIcons then
-            frame:SetAlpha(db.inactiveAlpha or 0.4)
+            frame:SetAlpha(db.inactiveAlpha)
             frame.icon:SetDesaturated(true)
             frame:Show()
         else
             frame:Hide()
+            -- Reset position tracking so it doesn't slide from old position when reappearing
+            self:ResetIconPosition(frame)
         end
         
         frame.text:SetText("")
@@ -326,7 +362,12 @@ function ProcTracker:UpdateProcIcon(frame, db)
         frame.lastDuration = nil
         frame.lastExpirationTime = nil
         
-        -- Hide glow
+        -- Hide backdrop glow
+        if frame.backdropGlow then
+            frame.backdropGlow:Hide()
+        end
+        
+        -- Hide edge glow
         if frame.glowActive then
             self:HideProcGlow(frame)
             frame.glowActive = false
@@ -339,13 +380,14 @@ function ProcTracker:UpdateProcIcon(frame, db)
     end
 end
 
--- Reposition visible icons dynamically (removes gaps when some are hidden)
+-- Reposition visible icons dynamically (with optional smooth sliding animation)
 function ProcTracker:RepositionIcons()
     if not self.icons or not self.container then return end
     
     local db = addon.db.profile.procTracker
     local size = db.iconSize
     local spacing = db.iconSpacing
+    local useSlideAnimation = db.slideAnimation ~= false  -- default true
     
     -- Count visible icons
     local visibleIcons = {}
@@ -357,14 +399,81 @@ function ProcTracker:RepositionIcons()
     
     if #visibleIcons == 0 then return end
     
-    -- Calculate total width and reposition
+    -- Calculate total width and target positions
     local totalWidth = (#visibleIcons * size) + ((#visibleIcons - 1) * spacing)
     
     for i, frame in ipairs(visibleIcons) do
-        local xOffset = (i - 1) * (size + spacing) - (totalWidth / 2) + (size / 2)
-        frame:ClearAllPoints()
-        frame:SetPoint("CENTER", self.container, "CENTER", xOffset, 0)
+        local targetX = (i - 1) * (size + spacing) - (totalWidth / 2) + (size / 2)
+        
+        if useSlideAnimation then
+            -- Initialize current position if not set (first time or just became visible)
+            if not frame.currentX then
+                frame.currentX = targetX
+                frame:ClearAllPoints()
+                frame:SetPoint("CENTER", self.container, "CENTER", targetX, 0)
+            end
+            
+            -- Set target for sliding
+            frame.targetX = targetX
+        else
+            -- No animation - snap directly to position
+            frame:ClearAllPoints()
+            frame:SetPoint("CENTER", self.container, "CENTER", targetX, 0)
+            frame.currentX = targetX
+            frame.targetX = targetX
+        end
     end
+    
+    -- Start slide update if animation enabled and not already running
+    if useSlideAnimation and not self.slideUpdateRunning then
+        self:StartSlideUpdate()
+    end
+end
+
+-- Smooth sliding animation using OnUpdate lerp
+function ProcTracker:StartSlideUpdate()
+    if self.slideUpdateRunning then return end
+    
+    self.slideUpdateRunning = true
+    local slideSpeed = 12  -- Higher = faster (pixels per second multiplier)
+    
+    self.container:SetScript("OnUpdate", function(_, elapsed)
+        local allSettled = true
+        
+        for _, frame in ipairs(self.icons) do
+            if frame:IsShown() and frame.currentX and frame.targetX then
+                local diff = frame.targetX - frame.currentX
+                
+                -- If close enough, snap to target
+                if math.abs(diff) < 0.5 then
+                    if frame.currentX ~= frame.targetX then
+                        frame.currentX = frame.targetX
+                        frame:ClearAllPoints()
+                        frame:SetPoint("CENTER", self.container, "CENTER", frame.targetX, 0)
+                    end
+                else
+                    -- Lerp toward target (ease-out feel)
+                    allSettled = false
+                    local move = diff * math.min(1, elapsed * slideSpeed)
+                    frame.currentX = frame.currentX + move
+                    frame:ClearAllPoints()
+                    frame:SetPoint("CENTER", self.container, "CENTER", frame.currentX, 0)
+                end
+            end
+        end
+        
+        -- Stop updating when all icons have settled
+        if allSettled then
+            self.container:SetScript("OnUpdate", nil)
+            self.slideUpdateRunning = false
+        end
+    end)
+end
+
+-- Reset position tracking when icon becomes hidden
+function ProcTracker:ResetIconPosition(frame)
+    frame.currentX = nil
+    frame.targetX = nil
 end
 
 function ProcTracker:FindBuffBySpellID(spellID)
@@ -440,17 +549,18 @@ end
 
 function ProcTracker:ShowProcGlow(frame)
     if self.LibCustomGlow then
-        -- Use pixel glow like aura active state
+        -- Proc glow: Subtle animated border
+        -- PixelGlow_Start(frame, color, N, frequency, length, thickness, xOffset, yOffset, border, key)
         self.LibCustomGlow.PixelGlow_Start(
             frame,
-            {1, 0.812, 0.686, 1},  -- #ffcfaf color
-            8,      -- Number of particles
-            0.25,   -- Frequency
-            8,      -- Length
-            2,      -- Thickness
-            2,      -- xOffset
-            2,      -- yOffset
-            false,  -- Border
+            {1.0, 0.75, 0.4, 1},  -- Warm orange-gold
+            6,      -- Fewer particles for cleaner look
+            0.25,   -- Slower frequency
+            4,      -- Shorter particle length
+            1,      -- Thinner
+            0,      -- xOffset - centered
+            0,      -- yOffset - centered
+            true,   -- Border: constrain to frame edges
             "procGlow"
         )
     end
@@ -486,7 +596,7 @@ function ProcTracker:Refresh()
     
     if self.container then
         -- Calculate position relative to health bar (proc tracker is ABOVE health bar)
-        local procGap = 2  -- pixels between bar and proc icons
+        local procGap = db.gapAboveHealthBar
         local procOffset
         
         if healthDb.enabled then
@@ -538,6 +648,12 @@ function ProcTracker:Refresh()
                 frame.border:ClearAllPoints()
                 frame.border:SetPoint("TOPLEFT", -1, 1)
                 frame.border:SetPoint("BOTTOMRIGHT", 1, -1)
+            end
+            
+            -- Update backdrop glow size to match new icon size
+            if frame.backdropGlow then
+                local glowSize = iconSize * 2.0
+                frame.backdropGlow:SetSize(glowSize, glowSize)
             end
         end
     end

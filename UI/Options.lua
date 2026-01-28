@@ -469,6 +469,52 @@ function Options:CreatePanelContent(container)
         dependsOn = "procTracker.enabled",
     })
     
+    yOffset = self:CreateSlider(container, yOffset, {
+        path = "procTracker.iconSpacing",
+        label = "Icon Spacing",
+        tooltip = "The gap in pixels between proc icons. Increase for more visual separation between procs.",
+        min = 2, max = 12, step = 1,
+        dependsOn = "procTracker.enabled",
+    })
+    
+    yOffset = self:CreateSlider(container, yOffset, {
+        path = "procTracker.gapAboveHealthBar",
+        label = "Gap Above Health Bar",
+        tooltip = "The gap in pixels between the health bar and the proc icons. Increase if procs feel too close to the health bar.",
+        min = 2, max = 16, step = 1,
+        dependsOn = "procTracker.enabled",
+    })
+    
+    yOffset = self:CreateCheckbox(container, yOffset, {
+        path = "procTracker.showDuration",
+        label = "Show Duration Text",
+        tooltip = "Displays the remaining time on proc buffs as text on the icon. Disable if you prefer a cleaner look or if it overlaps with stack counts.",
+        dependsOn = "procTracker.enabled",
+    })
+    
+    yOffset = self:CreateCheckbox(container, yOffset, {
+        path = "procTracker.activeGlow",
+        label = "Show Edge Glow",
+        tooltip = "Shows an animated pixel glow effect around the edge of active proc icons. Helps draw attention to active procs.",
+        dependsOn = "procTracker.enabled",
+    })
+    
+    yOffset = self:CreateSlider(container, yOffset, {
+        path = "procTracker.backdropGlowIntensity",
+        label = "Backdrop Glow Intensity",
+        tooltip = "Controls the brightness of the soft glow halo behind proc icons. Set to 0 to disable the backdrop glow entirely. Higher values make it more visible.",
+        min = 0, max = 0.8, step = 0.05,
+        isPercent = true,
+        dependsOn = "procTracker.enabled",
+    })
+    
+    yOffset = self:CreateCheckbox(container, yOffset, {
+        path = "procTracker.slideAnimation",
+        label = "Slide Animation",
+        tooltip = "When procs appear or disappear, the remaining icons smoothly slide to re-center instead of snapping instantly. Disable for instant repositioning.",
+        dependsOn = "procTracker.enabled",
+    })
+    
     -- === SUPPORT SECTION ===
     yOffset = yOffset - 8
     yOffset = self:CreateSectionHeader(container, "Support", yOffset)

@@ -496,7 +496,7 @@ function CooldownIcons:CreateIcon(parent, index, size)
     local text = textFrame:CreateFontString(nil, "OVERLAY", nil, 7)
     text:SetFont(self.C.FONTS.NUMBER, fontSize, "OUTLINE")  -- Lighter outline
     text:SetPoint("CENTER", frame, "CENTER", 0, 0)
-    text:SetTextColor(1.0, 0.906, 0.745)  -- #ffe7be
+    text:SetTextColor(self.C.COLORS.TEXT.r, self.C.COLORS.TEXT.g, self.C.COLORS.TEXT.b)
     text:SetShadowOffset(0.5, -0.5)  -- Subtle shadow
     text:SetShadowColor(0, 0, 0, 0.5)
     frame.text = text
@@ -516,7 +516,7 @@ function CooldownIcons:CreateIcon(parent, index, size)
     local stacks = frame:CreateFontString(nil, "OVERLAY")
     stacks:SetFont(self.C.FONTS.NUMBER, stacksFontSize, "OUTLINE")
     stacks:SetPoint("BOTTOMRIGHT", -4, 4)
-    stacks:SetTextColor(1.0, 0.906, 0.745)  -- #ffe7be to match aura state
+    stacks:SetTextColor(self.C.COLORS.TEXT.r, self.C.COLORS.TEXT.g, self.C.COLORS.TEXT.b)
     frame.stacks = stacks
 
     -- Resource cost display elements
@@ -1285,14 +1285,14 @@ function CooldownIcons:UpdateIconState(frame, db)
         -- Show aura remaining time in #ffe7be color
         -- Always show our own text for aura duration (OmniCC doesn't track this)
         frame.text:SetText(self.Utils:FormatCooldown(auraDisplayRemaining))
-        frame.text:SetTextColor(1.0, 0.906, 0.745)  -- #ffe7be
+        frame.text:SetTextColor(self.C.COLORS.TEXT.r, self.C.COLORS.TEXT.g, self.C.COLORS.TEXT.b)
     elseif showText and db.showCooldownText and remaining > 0 then
         -- For cooldowns, respect useOwnCooldownText setting
         local useOwnText = db.useOwnCooldownText ~= false  -- Default true
         if useOwnText then
             frame.text:SetText(self.Utils:FormatCooldown(remaining))
             -- Always use the same color for cooldown text
-            frame.text:SetTextColor(1.0, 0.906, 0.745)  -- #ffe7be
+            frame.text:SetTextColor(self.C.COLORS.TEXT.r, self.C.COLORS.TEXT.g, self.C.COLORS.TEXT.b)
         else
             frame.text:SetText("")  -- Let external addon show text
         end
