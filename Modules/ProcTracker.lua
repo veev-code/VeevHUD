@@ -368,17 +368,13 @@ function ProcTracker:RepositionIcons()
 end
 
 function ProcTracker:FindBuffBySpellID(spellID)
-    -- Scan player buffs for the spell ID
-    for i = 1, 40 do
-        local name, icon, count, debuffType, duration, expirationTime, source, 
-              isStealable, nameplateShowPersonal, buffSpellId = UnitBuff("player", i)
-        
-        if not name then break end
-        
-        if buffSpellId == spellID then
-            return name, icon, count, debuffType, duration, expirationTime, source, 
-                   isStealable, nameplateShowPersonal, buffSpellId
-        end
+    -- Use cached buff lookup to avoid scanning 40 buffs per proc per update
+    local aura = self.Utils:GetCachedBuff("player", spellID)
+    
+    if aura then
+        return aura.name, aura.icon, aura.count, aura.debuffType, aura.duration, 
+               aura.expirationTime, aura.source, aura.isStealable, 
+               aura.nameplateShowPersonal, aura.spellID
     end
     
     return nil

@@ -207,23 +207,18 @@ end
 
 -- Check if a buff is active on the player (for shared CD abilities like Reck/Retal/SWall)
 -- Returns: isActive, remaining, duration, stacks
+-- Uses cached buff lookup to avoid scanning 40 buffs per icon per update
 function CooldownIcons:GetPlayerBuff(spellID)
     local spellName = GetSpellInfo(spellID)
+    local aura = self.Utils:GetCachedBuff("player", spellID, spellName)
     
-    for i = 1, 40 do
-        local name, icon, count, debuffType, duration, expirationTime, source, 
-              isStealable, nameplateShowPersonal, buffSpellId = UnitBuff("player", i)
-        
-        if not name then break end
-        
-        if buffSpellId == spellID or name == spellName then
-            local remaining = 0
-            if expirationTime and expirationTime > 0 then
-                remaining = expirationTime - GetTime()
-                if remaining < 0 then remaining = 0 end
-            end
-            return true, remaining, duration or 0, count or 0
+    if aura then
+        local remaining = 0
+        if aura.expirationTime and aura.expirationTime > 0 then
+            remaining = aura.expirationTime - GetTime()
+            if remaining < 0 then remaining = 0 end
         end
+        return true, remaining, aura.duration or 0, aura.count or 0
     end
     
     return false, 0, 0, 0
@@ -232,6 +227,7 @@ end
 -- Check for target lockout debuff (e.g., Weakened Soul for PWS)
 -- Priority: friendly target -> friendly targettarget -> self
 -- Returns: isActive, remaining, duration, expirationTime
+-- Uses cached debuff lookup to avoid scanning 40 debuffs per icon per update
 function CooldownIcons:GetTargetLockoutDebuff(debuffSpellID)
     if not debuffSpellID then return false, 0, 0, 0 end
     
@@ -249,21 +245,16 @@ function CooldownIcons:GetTargetLockoutDebuff(debuffSpellID)
     end
     -- else: fallback to self
     
-    -- Scan debuffs on the unit
-    for i = 1, 40 do
-        local name, icon, count, debuffType, duration, expirationTime, source, 
-              isStealable, nameplateShowPersonal, debuffSpellId = UnitDebuff(unit, i)
-        
-        if not name then break end
-        
-        if debuffSpellId == debuffSpellID or name == debuffName then
-            local remaining = 0
-            if expirationTime and expirationTime > 0 then
-                remaining = expirationTime - GetTime()
-                if remaining < 0 then remaining = 0 end
-            end
-            return true, remaining, duration or 0, expirationTime or 0
+    -- Use cached debuff lookup
+    local aura = self.Utils:GetCachedDebuff(unit, debuffSpellID, debuffName)
+    
+    if aura then
+        local remaining = 0
+        if aura.expirationTime and aura.expirationTime > 0 then
+            remaining = aura.expirationTime - GetTime()
+            if remaining < 0 then remaining = 0 end
         end
+        return true, remaining, aura.duration or 0, aura.expirationTime or 0
     end
     
     return false, 0, 0, 0
