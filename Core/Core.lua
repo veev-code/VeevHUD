@@ -587,6 +587,7 @@ function addon:StartAlphaAnimation()
     
     self.alphaAnimating = true
     local fadeSpeed = 6  -- Higher = faster fade
+    local minStep = 0.02  -- Minimum alpha change per frame to prevent getting stuck
     
     self.hudFrame:SetScript("OnUpdate", function(frame, elapsed)
         if not self.targetAlpha then
@@ -604,8 +605,13 @@ function addon:StartAlphaAnimation()
             return
         end
         
-        -- Lerp toward target (ease-out)
-        local newAlpha = currentAlpha + diff * math.min(1, elapsed * fadeSpeed)
+        -- Lerp toward target (ease-out) with minimum step to prevent getting stuck
+        local step = diff * math.min(1, elapsed * fadeSpeed)
+        -- Ensure minimum step size (in the correct direction)
+        if math.abs(step) < minStep then
+            step = diff > 0 and minStep or -minStep
+        end
+        local newAlpha = math.max(0, math.min(1, currentAlpha + step))
         frame:SetAlpha(newAlpha)
     end)
 end
