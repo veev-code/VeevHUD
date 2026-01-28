@@ -1,5 +1,11 @@
 # VeevHUD Changelog
 
+## [1.0.10] - 2026-01-28
+
+### Added
+- Out of Combat Alpha setting to fade the entire HUD when not in combat
+- Smooth fade animation when entering/leaving combat
+
 ## [1.0.9] - 2026-01-28
 
 ### Added
