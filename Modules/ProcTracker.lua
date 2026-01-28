@@ -149,9 +149,11 @@ function ProcTracker:CreateFrames(parent)
     self:UpdateAllProcs()
 end
 
--- Apply texcoords to all proc icons based on current aspect ratio setting
+-- Apply texcoords to all proc icons based on current aspect ratio and zoom settings
 function ProcTracker:ApplyIconTexCoords()
-    local left, right, top, bottom = self.Utils:GetIconTexCoords(0.1)
+    -- iconZoom is total crop percentage; divide by 2 to get per-edge crop
+    local zoomPerEdge = addon.db.profile.icons.iconZoom / 2
+    local left, right, top, bottom = self.Utils:GetIconTexCoords(zoomPerEdge)
     for _, frame in ipairs(self.icons or {}) do
         if frame.icon then
             frame.icon:SetTexCoord(left, right, top, bottom)
@@ -204,8 +206,9 @@ function ProcTracker:CreateProcIcon(parent, procData, index, size, iconWidth, ic
     -- Icon texture (ARTWORK layer - above border)
     local icon = frame:CreateTexture(nil, "ARTWORK")
     icon:SetAllPoints()
-    -- Apply texcoords with zoom and aspect ratio cropping
-    local left, right, top, bottom = self.Utils:GetIconTexCoords(0.1)
+    -- Apply texcoords with zoom and aspect ratio cropping (will be reapplied in ApplyIconTexCoords)
+    local zoomPerEdge = addon.db.profile.icons.iconZoom / 2
+    local left, right, top, bottom = self.Utils:GetIconTexCoords(zoomPerEdge)
     icon:SetTexCoord(left, right, top, bottom)
     frame.icon = icon
     
@@ -690,7 +693,8 @@ function ProcTracker:Refresh()
         self.container:SetSize(totalWidth, iconHeight)
         
         -- Resize all icons and update stored dimensions
-        local left, right, top, bottom = self.Utils:GetIconTexCoords(0.1)
+        local zoomPerEdge = addon.db.profile.icons.iconZoom / 2
+        local left, right, top, bottom = self.Utils:GetIconTexCoords(zoomPerEdge)
         for i, frame in ipairs(self.icons or {}) do
             local xOffset = (i - 1) * (iconWidth + spacing) - (totalWidth / 2) + (iconWidth / 2)
             frame:SetSize(iconWidth, iconHeight)

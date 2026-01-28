@@ -10,6 +10,7 @@
 ## X-License: MIT
 ## X-Curse-Project-ID: 1444019
 ## X-Website: https://github.com/veev-code/VeevHUD
+## X-Discord: https://discord.gg/HuSXTa5XNq
 ## X-Twitch: https://www.twitch.tv/veev
 ## X-Twitter: https://x.com/VeevTSG
 ## X-Description: VeevHUD is a lightweight, WeakAuras-inspired heads-up display for tracking cooldowns, buffs, debuffs, DoTs, procs, and resources. Unlike WeakAuras packages that must be downloaded and configured separately for each class (often requiring per-ability setup), VeevHUD provides tailored setups for every class and spec out of the box. One addon, all classes, zero configuration required. When you do want to customize, global settings apply across your entire HUD instantly - no more tweaking dozens of individual auras. Supports Masque for icon skinning.

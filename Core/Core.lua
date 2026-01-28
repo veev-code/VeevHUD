@@ -41,6 +41,105 @@ frame:SetScript("OnEvent", function(self, event, arg1)
     end
 end)
 
+-------------------------------------------------------------------------------
+-- Welcome Popup (shown once on first load)
+-------------------------------------------------------------------------------
+
+local DISCORD_URL = "https://discord.gg/HuSXTa5XNq"
+
+function addon:CreateWelcomeDialog()
+    if self.welcomeDialog then return self.welcomeDialog end
+    
+    local dialog = CreateFrame("Frame", "VeevHUDWelcomeDialog", UIParent, "BasicFrameTemplateWithInset")
+    dialog:SetSize(400, 240)
+    dialog:SetPoint("CENTER")
+    dialog:SetFrameStrata("DIALOG")
+    dialog:SetMovable(true)
+    dialog:EnableMouse(true)
+    dialog:RegisterForDrag("LeftButton")
+    dialog:SetScript("OnDragStart", dialog.StartMoving)
+    dialog:SetScript("OnDragStop", dialog.StopMovingOrSizing)
+    dialog:Hide()
+    
+    -- Title
+    local title = dialog:CreateFontString(nil, "OVERLAY", "GameFontHighlightLarge")
+    title:SetPoint("TOP", 0, -8)
+    title:SetText("|cff00ccffVeevHUD|r")
+    
+    -- Message text
+    local message = dialog:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    message:SetPoint("TOP", title, "BOTTOM", 0, -12)
+    message:SetWidth(360)
+    message:SetJustifyH("CENTER")
+    message:SetText("Thanks for trying VeevHUD!\n\n" ..
+                   "This addon is under active development.\n" ..
+                   "Your feedback helps shape its future.\n\n" ..
+                   "Type |cff00ff00/vh|r to open settings.\n\n" ..
+                   "Join the |cffffffffVeev Addons Discord|r for suggestions,\n" ..
+                   "bug reports, and updates:")
+    
+    -- URL edit box (for copy/paste)
+    local editBox = CreateFrame("EditBox", nil, dialog, "InputBoxTemplate")
+    editBox:SetSize(300, 20)
+    editBox:SetPoint("TOP", message, "BOTTOM", 0, -12)
+    editBox:SetAutoFocus(false)
+    editBox:SetText(DISCORD_URL)
+    editBox:SetScript("OnEditFocusGained", function(self)
+        self:HighlightText()
+    end)
+    editBox:SetScript("OnEscapePressed", function(self)
+        self:ClearFocus()
+    end)
+    editBox:SetScript("OnTextChanged", function(self)
+        -- Prevent editing - always reset to the URL
+        self:SetText(DISCORD_URL)
+        self:HighlightText()
+    end)
+    
+    -- Instructions
+    local instructions = dialog:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    instructions:SetPoint("TOP", editBox, "BOTTOM", 0, -4)
+    instructions:SetText("|cff888888Click the link above, then Ctrl+C to copy|r")
+    
+    -- Close button
+    local closeBtn = CreateFrame("Button", nil, dialog, "UIPanelButtonTemplate")
+    closeBtn:SetSize(120, 24)
+    closeBtn:SetPoint("BOTTOM", 0, 12)
+    closeBtn:SetText("Got it!")
+    closeBtn:SetScript("OnClick", function()
+        VeevHUDDB.welcomeShown = true
+        dialog:Hide()
+    end)
+    
+    -- Also mark as shown when closing via X button
+    dialog:SetScript("OnHide", function()
+        VeevHUDDB.welcomeShown = true
+    end)
+    
+    self.welcomeDialog = dialog
+    return dialog
+end
+
+function addon:ShowWelcomePopup()
+    if not VeevHUDDB.welcomeShown then
+        -- Delay slightly to ensure UI is fully loaded
+        C_Timer.After(1, function()
+            local dialog = self:CreateWelcomeDialog()
+            dialog:Show()
+            -- Auto-select the URL for easy copying
+            local editBox = dialog:GetChildren()
+            for i = 1, dialog:GetNumChildren() do
+                local child = select(i, dialog:GetChildren())
+                if child:IsObjectType("EditBox") then
+                    child:SetFocus()
+                    child:HighlightText()
+                    break
+                end
+            end
+        end)
+    end
+end
+
 function addon:OnAddonLoaded()
     -- Set version from TOC metadata (API available now)
     -- Handle different API names across WoW versions
@@ -108,6 +207,9 @@ function addon:OnPlayerLogin()
 
     -- Print load message
     self.Utils:Print("v" .. self.version .. " loaded. Type |cff00ff00/vh|r for options.")
+    
+    -- Show welcome popup on first load
+    self:ShowWelcomePopup()
 end
 
 function addon:OnPlayerLogout()

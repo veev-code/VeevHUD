@@ -260,6 +260,14 @@ function Options:CreatePanelContent(container)
     })
     
     yOffset = self:CreateSlider(container, yOffset, {
+        path = "icons.iconZoom",
+        label = "Icon Zoom",
+        tooltip = "How much to zoom into the icon textures, cropping the edges. The percentage represents total texture cropped (split evenly between all edges). 0% shows the full texture, 16% is a subtle zoom, 30% is more noticeable. Similar to WeakAuras' zoom setting.",
+        min = 0, max = 0.5, step = 0.02,
+        isPercent = true,
+    })
+    
+    yOffset = self:CreateSlider(container, yOffset, {
         path = "icons.iconSpacing",
         label = "Horizontal Icon Spacing",
         tooltip = "The horizontal gap in pixels between each ability icon within a row. A small gap (2-4) helps visually separate icons. Set to 0 for icons to touch. Negative values allow overlap, which may look better with certain skins.",
@@ -553,26 +561,26 @@ function Options:CreatePanelContent(container)
     
     local supportLabel = container:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
     supportLabel:SetPoint("TOPLEFT", 0, yOffset)
-    supportLabel:SetText("|cff888888Report bugs or request features:|r")
+    supportLabel:SetText("|cff888888Join the |cffffffffVeev Addons Discord|r|cff888888 for feedback, suggestions, and bug reports:|r")
     supportLabel:SetJustifyH("LEFT")
     
-    local issuesLink = CreateFrame("Button", nil, container)
-    issuesLink:SetPoint("LEFT", supportLabel, "RIGHT", 4, 0)
-    issuesLink:SetSize(240, 14)
+    local discordLink = CreateFrame("Button", nil, container)
+    discordLink:SetPoint("LEFT", supportLabel, "RIGHT", 4, 0)
+    discordLink:SetSize(180, 14)
     
-    local linkText = issuesLink:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+    local linkText = discordLink:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
     linkText:SetPoint("LEFT")
-    linkText:SetText("|cff69b8ffhttps://github.com/veev-code/VeevHUD/issues|r")
-    issuesLink:SetFontString(linkText)
+    linkText:SetText("|cff69b8ffhttps://discord.gg/HuSXTa5XNq|r")
+    discordLink:SetFontString(linkText)
     
-    issuesLink:SetScript("OnEnter", function(self)
+    discordLink:SetScript("OnEnter", function(self)
         linkText:SetText("|cff99d1ff[Click to copy URL]|r")
     end)
-    issuesLink:SetScript("OnLeave", function(self)
-        linkText:SetText("|cff69b8ffhttps://github.com/veev-code/VeevHUD/issues|r")
+    discordLink:SetScript("OnLeave", function(self)
+        linkText:SetText("|cff69b8ffhttps://discord.gg/HuSXTa5XNq|r")
     end)
-    issuesLink:SetScript("OnClick", function()
-        Options:ShowURLDialog("https://github.com/veev-code/VeevHUD/issues")
+    discordLink:SetScript("OnClick", function()
+        Options:ShowURLDialog("https://discord.gg/HuSXTa5XNq")
     end)
     
     yOffset = yOffset - 20

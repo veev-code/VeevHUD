@@ -154,6 +154,7 @@ C.DEFAULTS = {
             enabled = true,
             iconSize = 52,          -- Default icon size (per-row overrides in rows config)
             iconAspectRatio = 1.0,  -- Width:Height ratio (1.0 = square, 1.33 = 4:3 wide)
+            iconZoom = 0.20,        -- How much to zoom into icon textures (0 = none, 0.20 = 10% cropped from each edge)
             iconSpacing = 1,        -- Horizontal spacing between icons
             rowSpacing = 1,         -- Vertical spacing between rows
             primarySecondaryGap = 0, -- Extra gap between primary and secondary rows

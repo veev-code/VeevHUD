@@ -368,17 +368,16 @@ function CooldownIcons:CreateFrames(parent)
     self.Events:RegisterUpdate(self, 0.05, self.UpdateAllIcons)
 end
 
--- Apply texcoords to all icons based on current aspect ratio setting
+-- Apply texcoords to all icons based on current aspect ratio and zoom settings
 function CooldownIcons:ApplyIconTexCoords()
-    -- Use 0.07 zoom for built-in style, 0.15 for default/Masque
-    local defaultZoom = 0.15
-    local builtInZoom = 0.07
+    local db = addon.db.profile.icons
+    -- iconZoom is total crop percentage; divide by 2 to get per-edge crop
+    local zoomPerEdge = db.iconZoom / 2
     
     for _, rowFrame in ipairs(self.rows or {}) do
         for _, icon in ipairs(rowFrame.icons or {}) do
             if icon.icon then
-                local zoom = icon.hasBuiltInStyle and builtInZoom or defaultZoom
-                local left, right, top, bottom = self.Utils:GetIconTexCoords(zoom)
+                local left, right, top, bottom = self.Utils:GetIconTexCoords(zoomPerEdge)
                 icon.icon:SetTexCoord(left, right, top, bottom)
             end
         end
@@ -488,8 +487,10 @@ function CooldownIcons:CreateIcon(parent, index, size)
     -- Icon texture - fills the frame, spacing between icons creates separation
     local icon = frame:CreateTexture(buttonName .. "Icon", "ARTWORK")
     icon:SetAllPoints()
-    -- Apply texcoords with zoom and aspect ratio cropping
-    local left, right, top, bottom = self.Utils:GetIconTexCoords(0.15)
+    -- Apply texcoords with zoom and aspect ratio cropping (uses setting, will be reapplied in ApplyIconTexCoords)
+    -- iconZoom is total crop percentage; divide by 2 to get per-edge crop
+    local zoomPerEdge = db.iconZoom / 2
+    local left, right, top, bottom = self.Utils:GetIconTexCoords(zoomPerEdge)
     icon:SetTexCoord(left, right, top, bottom)
     frame.icon = icon
     frame.Icon = icon  -- Masque reference
@@ -542,11 +543,14 @@ function CooldownIcons:CreateIcon(parent, index, size)
     frame.charges = charges
     frame.Count = charges  -- Masque reference
 
-    -- Stacks text (bottom right, for aura stacks like Rampage, Lifebloom, Sunder)
+    -- Stacks text (top right, for aura stacks like Rampage, Lifebloom, Sunder)
+    -- Parented to textFrame so it renders above cooldown spiral
     local stacksFontSize = math.max(10, math.floor(size * 0.26))
-    local stacks = frame:CreateFontString(nil, "OVERLAY")
+    local stacks = textFrame:CreateFontString(nil, "OVERLAY", nil, 7)
     stacks:SetFont(self.C.FONTS.NUMBER, stacksFontSize, "OUTLINE")
-    stacks:SetPoint("BOTTOMRIGHT", -4, 4)
+    stacks:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 2, 2)
+    stacks:SetJustifyH("RIGHT")
+    stacks:SetJustifyV("TOP")
     stacks:SetTextColor(self.C.COLORS.TEXT.r, self.C.COLORS.TEXT.g, self.C.COLORS.TEXT.b)
     frame.stacks = stacks
 
@@ -634,9 +638,11 @@ function CooldownIcons:ApplyBuiltInStyle(frame, size)
     local scaleW = iconWidth / 36
     local scaleH = iconHeight / 36
     
-    -- Apply icon TexCoords with 7% base zoom, adjusted for aspect ratio cropping
+    -- Apply icon TexCoords with configured zoom, adjusted for aspect ratio cropping
+    -- iconZoom is total crop percentage; divide by 2 to get per-edge crop
     if frame.icon then
-        local left, right, top, bottom = self.Utils:GetIconTexCoords(0.07)
+        local zoomPerEdge = addon.db.profile.icons.iconZoom / 2
+        local left, right, top, bottom = self.Utils:GetIconTexCoords(zoomPerEdge)
         frame.icon:SetTexCoord(left, right, top, bottom)
     end
     
