@@ -1,5 +1,10 @@
 # VeevHUD Changelog
 
+## [1.0.13] - 2026-01-28
+
+### Fixed
+- Out-of-combat alpha animation no longer gets stuck at very low values when fading to 0%
+
 ## [1.0.12] - 2026-01-28
 
 ### Added
