@@ -1,5 +1,20 @@
 # VeevHUD Changelog
 
+## [1.0.9] - 2026-01-28
+
+### Added
+- Backdrop glow effect for active procs (soft halo behind icons)
+- Animated pixel glow for active proc borders
+- Smooth sliding animation when procs appear/disappear
+- New Proc Tracker options: Icon Spacing, Gap Above Health Bar, Show Duration Text, Show Edge Glow, Backdrop Glow Intensity, Slide Animation
+
+### Changed
+- Proc icons now 26px by default (increased from 20px) for better visibility
+- Duration text now displayed in center, stack count in top-right corner
+- Duration text enabled by default
+- Text renders above cooldown spiral for better readability
+- Extracted shared text color (#ffe7be) to centralized constant
+
 ## [1.0.8] - 2026-01-27
 
 ### Changed
