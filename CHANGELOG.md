@@ -1,5 +1,23 @@
 # VeevHUD Changelog
 
+## [1.0.11] - 2026-01-28
+
+### Added
+- Icon Aspect Ratio setting for more compact HUD (Square, Compact 4:3, Ultra Compact 4:2)
+- Icons shrink vertically while width stays the same, cropping textures proportionally
+- Proc Tracker now supports tracking target debuffs (e.g., Deep Wounds)
+
+### Fixed
+- Spec detection now properly updates after respeccing at NPC
+- Mortal Strike now prioritizes cooldown display over debuff tracking
+
+### Changed
+- Prompt for UI reload when changing aspect ratio with Masque installed (Masque requires reload for dynamic resizing)
+
+### LibSpellDB Updates
+- Added Deep Wounds proc tracking for Warriors (target debuff)
+- Added `ignoreAura` flag for spells where cooldown tracking is preferred over debuff tracking
+
 ## [1.0.10] - 2026-01-28
 
 ### Added
