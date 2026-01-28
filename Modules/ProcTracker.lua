@@ -266,9 +266,20 @@ function ProcTracker:UpdateProcIcon(frame, db)
     local procData = frame.procData
     local spellID = procData.spellID
     
-    -- Check if buff is active
+    -- Check if aura is active (buff on player or debuff on target)
     local name, icon, count, debuffType, duration, expirationTime, source, isStealable, 
-          nameplateShowPersonal, spellId = self:FindBuffBySpellID(spellID)
+          nameplateShowPersonal, spellId
+    
+    local isOnTarget = procData.procInfo and procData.procInfo.onTarget
+    if isOnTarget then
+        -- Check for debuff on target
+        name, icon, count, debuffType, duration, expirationTime, source, isStealable, 
+              nameplateShowPersonal, spellId = self:FindDebuffOnTarget(spellID)
+    else
+        -- Check for buff on player
+        name, icon, count, debuffType, duration, expirationTime, source, isStealable, 
+              nameplateShowPersonal, spellId = self:FindBuffBySpellID(spellID)
+    end
     
     local isActive = name ~= nil
     local remaining = 0
@@ -481,6 +492,20 @@ function ProcTracker:FindBuffBySpellID(spellID)
     local aura = self.Utils:GetCachedBuff("player", spellID)
     
     if aura then
+        return aura.name, aura.icon, aura.count, aura.debuffType, aura.duration, 
+               aura.expirationTime, aura.source, aura.isStealable, 
+               aura.nameplateShowPersonal, aura.spellID
+    end
+    
+    return nil
+end
+
+function ProcTracker:FindDebuffOnTarget(spellID)
+    -- Use cached debuff lookup on current target
+    -- Only track debuffs applied by the player
+    local aura = self.Utils:GetCachedDebuff("target", spellID)
+    
+    if aura and aura.source == "player" then
         return aura.name, aura.icon, aura.count, aura.debuffType, aura.duration, 
                aura.expirationTime, aura.source, aura.isStealable, 
                aura.nameplateShowPersonal, aura.spellID

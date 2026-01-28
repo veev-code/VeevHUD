@@ -61,12 +61,13 @@ function SpellTracker:OnTalentsChanged()
     -- Invalidate spellbook cache (talents may add new spells)
     self:InvalidateSpellbookCache()
     
-    -- Re-detect spec
+    -- Re-detect spec and update addon.playerSpec
     if self.LibSpellDB then
         local oldSpec = self.LibSpellDB:GetPlayerSpec()
         local newSpec = self.LibSpellDB:DetectPlayerSpec()
         if oldSpec ~= newSpec then
             self.Utils:LogInfo("SpellTracker: Spec changed from", oldSpec, "to", newSpec)
+            addon.playerSpec = newSpec
         end
     end
     
