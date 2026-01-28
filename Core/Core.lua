@@ -25,6 +25,8 @@ local frame = CreateFrame("Frame")
 frame:RegisterEvent("ADDON_LOADED")
 frame:RegisterEvent("PLAYER_LOGIN")
 frame:RegisterEvent("PLAYER_LOGOUT")
+frame:RegisterEvent("PLAYER_REGEN_DISABLED")  -- Entering combat
+frame:RegisterEvent("PLAYER_REGEN_ENABLED")   -- Leaving combat
 
 frame:SetScript("OnEvent", function(self, event, arg1)
     if event == "ADDON_LOADED" and arg1 == ADDON_NAME then
@@ -33,6 +35,9 @@ frame:SetScript("OnEvent", function(self, event, arg1)
         addon:OnPlayerLogin()
     elseif event == "PLAYER_LOGOUT" then
         addon:OnPlayerLogout()
+    elseif event == "PLAYER_REGEN_DISABLED" or event == "PLAYER_REGEN_ENABLED" then
+        -- Combat state changed, update HUD visibility/alpha immediately
+        addon:UpdateVisibility()
     end
 end)
 
@@ -457,14 +462,57 @@ end
 function addon:UpdateVisibility()
     if not self.hudFrame then return end
 
-    local shouldShow, alpha = self.Utils:ShouldShowHUD()
+    local shouldShow, targetAlpha = self.Utils:ShouldShowHUD()
 
     if shouldShow then
         self.hudFrame:Show()
-        self.hudFrame:SetAlpha(alpha)
+        
+        -- Start/update alpha animation if target changed
+        if self.targetAlpha ~= targetAlpha then
+            self.targetAlpha = targetAlpha
+            self:StartAlphaAnimation()
+        end
     else
         self.hudFrame:Hide()
+        self.targetAlpha = nil
+        self:StopAlphaAnimation()
     end
+end
+
+-- Start or continue animating HUD alpha toward target
+function addon:StartAlphaAnimation()
+    if not self.hudFrame or self.alphaAnimating then return end
+    
+    self.alphaAnimating = true
+    local fadeSpeed = 6  -- Higher = faster fade
+    
+    self.hudFrame:SetScript("OnUpdate", function(frame, elapsed)
+        if not self.targetAlpha then
+            self:StopAlphaAnimation()
+            return
+        end
+        
+        local currentAlpha = frame:GetAlpha()
+        local diff = self.targetAlpha - currentAlpha
+        
+        -- If close enough, snap to target and stop
+        if math.abs(diff) < 0.01 then
+            frame:SetAlpha(self.targetAlpha)
+            self:StopAlphaAnimation()
+            return
+        end
+        
+        -- Lerp toward target (ease-out)
+        local newAlpha = currentAlpha + diff * math.min(1, elapsed * fadeSpeed)
+        frame:SetAlpha(newAlpha)
+    end)
+end
+
+function addon:StopAlphaAnimation()
+    if self.hudFrame then
+        self.hudFrame:SetScript("OnUpdate", nil)
+    end
+    self.alphaAnimating = false
 end
 
 -------------------------------------------------------------------------------

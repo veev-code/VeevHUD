@@ -210,6 +210,14 @@ function Options:CreatePanelContent(container)
         tooltip = "Automatically hides the HUD when you're on a flight path (taxi). The HUD will reappear when you land. Useful to keep your screen clean while traveling.",
     })
     
+    yOffset = self:CreateSlider(container, yOffset, {
+        path = "visibility.outOfCombatAlpha",
+        label = "Out of Combat Alpha",
+        tooltip = "Multiplies the entire HUD's transparency when not in combat. Use this to fade the HUD when out of combat so it's less distracting. 100% = fully visible, 50% = half transparent, 0% = invisible.",
+        min = 0, max = 1.0, step = 0.05,
+        isPercent = true,
+    })
+    
     yOffset = self:CreateCheckbox(container, yOffset, {
         path = "animations.smoothBars",
         label = "Smooth Bar Animation",
@@ -1071,6 +1079,9 @@ function Options:RefreshModuleIfNeeded(path)
     elseif path:match("^anchor%.") then
         -- Update HUD position
         Options:UpdateHUDPosition()
+    elseif path:match("^visibility%.") then
+        -- Update HUD visibility/alpha
+        addon:UpdateVisibility()
     end
     
     if moduleName then

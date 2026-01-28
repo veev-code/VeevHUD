@@ -91,6 +91,7 @@ C.DEFAULTS = {
         -- Visibility conditions
         visibility = {
             hideOnFlightPath = true, -- Hide completely when on taxi/flight
+            outOfCombatAlpha = 1.0,  -- Alpha multiplier when not in combat (1.0 = full, 0.5 = half)
         },
         
         -- Global animation settings

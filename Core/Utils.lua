@@ -651,6 +651,7 @@ end
 -------------------------------------------------------------------------------
 
 -- Check if HUD should be visible based on settings
+-- Returns: shouldShow, alphaMultiplier
 function Utils:ShouldShowHUD()
     local db = addon.db.profile.visibility
 
@@ -659,6 +660,11 @@ function Utils:ShouldShowHUD()
         return false, 0
     end
 
-    -- Always show at full alpha otherwise
-    return true, 1.0
+    -- Apply out-of-combat alpha multiplier
+    local alpha = 1.0
+    if not UnitAffectingCombat("player") then
+        alpha = db.outOfCombatAlpha
+    end
+
+    return true, alpha
 end
