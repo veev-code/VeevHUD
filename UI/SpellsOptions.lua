@@ -186,27 +186,47 @@ function SpellsOptions:CreatePanel()
     local subcategory = Settings.RegisterCanvasLayoutSubcategory(mainOptions.category, panel, "Spells")
     self.category = subcategory
     
-    -- Watch for visibility changes using OnUpdate (backup for OnShow)
-    local hasRefreshed = false
+    -- Track the detected spec to know when to refresh
+    local lastDetectedSpec = nil
+    local lastRefreshTime = 0
+    
+    -- Helper function to refresh the spell list with spec detection
+    local function DoRefresh()
+        -- Set scroll child width
+        local width = scrollFrame:GetWidth()
+        if width and width > 0 then
+            scrollChild:SetWidth(width - 10)
+        else
+            scrollChild:SetWidth(500)
+        end
+        
+        -- Re-detect spec
+        if addon.LibSpellDB then
+            local newSpec = addon.LibSpellDB:DetectPlayerSpec()
+            addon.playerSpec = newSpec
+        end
+        
+        SpellsOptions:RefreshSpellList()
+        lastDetectedSpec = addon.playerSpec
+        lastRefreshTime = GetTime()
+    end
+    
+    -- Use OnUpdate to refresh when panel is visible and spec might have changed
     panel:SetScript("OnUpdate", function(self)
-        if not hasRefreshed and self:IsVisible() and SpellsOptions.scrollChild then
-            hasRefreshed = true
-            local width = scrollFrame:GetWidth()
-            if width and width > 0 then
-                scrollChild:SetWidth(width - 10)
-            else
-                scrollChild:SetWidth(500)
-            end
-            
-            -- Re-detect spec when panel opens (in case user switched specs since last open)
-            if addon.LibSpellDB then
-                local newSpec = addon.LibSpellDB:DetectPlayerSpec()
-                addon.playerSpec = newSpec
-            end
-            
-            SpellsOptions:RefreshSpellList()
-        elseif not self:IsVisible() then
-            hasRefreshed = false  -- Reset so we refresh again next time shown
+        if not self:IsVisible() or not SpellsOptions.scrollChild then
+            return
+        end
+        
+        local now = GetTime()
+        
+        -- Always refresh on first visibility, or if spec changed, or if it's been a while
+        local currentSpec = addon.playerSpec
+        local needsRefresh = (lastDetectedSpec == nil) or 
+                             (currentSpec ~= lastDetectedSpec) or
+                             (now - lastRefreshTime > 1.0)  -- Refresh after 1 second of visibility
+        
+        if needsRefresh and (now - lastRefreshTime > 0.3) then  -- Debounce 0.3s
+            DoRefresh()
         end
     end)
     

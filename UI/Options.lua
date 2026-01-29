@@ -396,7 +396,7 @@ function Options:CreatePanelContent(container)
     yOffset = self:CreateCheckbox(container, yOffset, {
         path = "icons.auraTargettargetSupport",
         label = "Targettarget Aura Support",
-        tooltip = "When targeting an enemy, shows your helpful effects (heals, buffs) on their target instead of yourself. Useful for healers using targettarget macros - target the boss, see your HOTs on the tank.\n\nDisable this if you don't use targettarget workflows.",
+        tooltip = "Enables targettarget-aware aura tracking. Helpful if you use @targettarget macros:\n\n- Target the boss, see your HOTs on the tank\n- Target the tank, see your DoTs on the boss\n\nExample macros:\n/cast [@target,help] [@targettarget,help] [@player] Renew\n/cast [@target,harm] [@targettarget,harm] [] Shadow Word: Pain",
         dependsOn = "icons.showAuraTracking",
     })
     
@@ -858,6 +858,7 @@ function Options:CreateCheckbox(parent, yOffset, config)
     -- Tooltip helper function
     local function ShowTooltip(anchor)
         GameTooltip:SetOwner(anchor, "ANCHOR_RIGHT")
+        GameTooltip:SetMinimumWidth(280)  -- Ensure tooltips have enough width for longer content
         GameTooltip:AddLine(config.label, 1, 1, 1)
         GameTooltip:AddLine(config.tooltip, 1, 0.82, 0, true)
         -- Add default value in grey
