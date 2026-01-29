@@ -1,5 +1,12 @@
 # VeevHUD Changelog
 
+## [1.0.18] - 2026-01-29
+
+### Fixed
+- **Targettarget Aura Support setting was never being read** - The setting path was incorrect, so enabling it had no effect. Now works correctly for healers using targettarget macros.
+- Fixed Spell Configuration panel causing CPU spikes every second while open (replaced aggressive polling with OnShow refresh)
+- Added `targettarget` to unit GUID lookup for accurate aura duration detection
+
 ## [1.0.17] - 2026-01-29
 
 ### Added

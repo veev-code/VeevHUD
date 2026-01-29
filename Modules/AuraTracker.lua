@@ -349,6 +349,7 @@ function AuraTracker:GetUnitFromGUID(guid)
     -- Check common units
     if guid == UnitGUID("player") then return "player" end
     if guid == UnitGUID("target") then return "target" end
+    if guid == UnitGUID("targettarget") then return "targettarget" end
     if guid == UnitGUID("focus") then return "focus" end
     if guid == UnitGUID("pet") then return "pet" end
     
@@ -484,7 +485,7 @@ function AuraTracker:GetRelevantTargetGUID(spellID)
     end
     
     -- Check if targettarget support is enabled
-    local db = addon.db and addon.db.profile or {}
+    local db = addon.db and addon.db.profile and addon.db.profile.icons or {}
     local useTargettarget = db.auraTargettargetSupport or false
     
     local targetGUID = UnitGUID("target")

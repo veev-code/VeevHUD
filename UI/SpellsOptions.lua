@@ -211,23 +211,14 @@ function SpellsOptions:CreatePanel()
         lastRefreshTime = GetTime()
     end
     
-    -- Use OnUpdate to refresh when panel is visible and spec might have changed
-    panel:SetScript("OnUpdate", function(self)
-        if not self:IsVisible() or not SpellsOptions.scrollChild then
-            return
-        end
-        
-        local now = GetTime()
-        
-        -- Always refresh on first visibility, or if spec changed, or if it's been a while
-        local currentSpec = addon.playerSpec
-        local needsRefresh = (lastDetectedSpec == nil) or 
-                             (currentSpec ~= lastDetectedSpec) or
-                             (now - lastRefreshTime > 1.0)  -- Refresh after 1 second of visibility
-        
-        if needsRefresh and (now - lastRefreshTime > 0.3) then  -- Debounce 0.3s
-            DoRefresh()
-        end
+    -- Refresh when panel becomes visible or spec changes
+    panel:SetScript("OnShow", function(self)
+        -- Small delay to ensure spec detection has run after talent changes
+        C_Timer.After(0.1, function()
+            if self:IsVisible() and SpellsOptions.scrollChild then
+                DoRefresh()
+            end
+        end)
     end)
     
     if addon.Utils then

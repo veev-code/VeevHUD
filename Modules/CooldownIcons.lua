@@ -274,7 +274,7 @@ function CooldownIcons:GetTargetLockoutDebuff(debuffSpellID, isSelfOnly)
     local unit = "player"
     
     if not isSelfOnly then
-        local db = addon.db and addon.db.profile or {}
+        local db = addon.db and addon.db.profile and addon.db.profile.icons or {}
         local useTargettarget = db.auraTargettargetSupport or false
         
         local targetExists = UnitExists("target")
