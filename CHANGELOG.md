@@ -1,5 +1,15 @@
 # VeevHUD Changelog
 
+## [1.0.14] - 2026-01-28
+
+### Added
+- Dynamic Sort (Time Remaining) option for Primary and Secondary rows
+- Icons reorder by "actionable time" (least time remaining first) so the ability needing attention soonest is always on the left
+- Useful for DOT classes (see which debuff is expiring) and cooldown-heavy rotations
+
+### LibSpellDB Updates
+- **Critical Fix**: Bundled LibSpellDB now properly loads spell data. Previously, users who only downloaded VeevHUD from CurseForge had zero spells displayed because the embedded library wasn't loading its data files.
+
 ## [1.0.13] - 2026-01-28
 
 ### Fixed
