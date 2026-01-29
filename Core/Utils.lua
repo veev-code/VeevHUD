@@ -716,3 +716,193 @@ function Utils:ShouldShowHUD()
 
     return true, alpha
 end
+
+-------------------------------------------------------------------------------
+-- Bar Utilities (shared by HealthBar and ResourceBar)
+-------------------------------------------------------------------------------
+
+-- Create a dark border with shadow around a status bar
+-- Returns: border frame (shadow is parented to border)
+function Utils:CreateBarBorder(bar)
+    local border = CreateFrame("Frame", nil, bar, "BackdropTemplate")
+    border:SetPoint("TOPLEFT", -1, 1)
+    border:SetPoint("BOTTOMRIGHT", 1, -1)
+    border:SetBackdrop({
+        edgeFile = "Interface\\Buttons\\WHITE8X8",
+        edgeSize = 1,
+    })
+    border:SetBackdropBorderColor(0, 0, 0, 1)
+    border:SetFrameLevel(bar:GetFrameLevel() - 1)
+    border:EnableMouse(false)
+
+    -- Outer shadow for depth
+    local shadow = CreateFrame("Frame", nil, border, "BackdropTemplate")
+    shadow:SetPoint("TOPLEFT", -1, 1)
+    shadow:SetPoint("BOTTOMRIGHT", 1, -1)
+    shadow:SetBackdrop({
+        edgeFile = "Interface\\Buttons\\WHITE8X8",
+        edgeSize = 1,
+    })
+    shadow:SetBackdropBorderColor(0, 0, 0, 0.5)
+    shadow:EnableMouse(false)
+    shadow:SetFrameLevel(border:GetFrameLevel() - 1)
+
+    return border
+end
+
+-- Create a horizontal gradient overlay on a status bar (darker left, lighter right)
+-- Returns: gradient texture
+function Utils:CreateBarGradient(bar)
+    local gradient = bar:CreateTexture(nil, "OVERLAY", nil, 1)
+    gradient:SetAllPoints(bar:GetStatusBarTexture())
+    gradient:SetTexture([[Interface\Buttons\WHITE8X8]])
+    gradient:SetGradient("HORIZONTAL", 
+        CreateColor(0, 0, 0, 0.35),  -- Left (darker)
+        CreateColor(1, 1, 1, 0.15)   -- Right (lighter/highlight)
+    )
+    return gradient
+end
+
+-- Format bar text based on format type
+-- Supported formats: "current", "percent", "both", "deficit", "full"
+function Utils:FormatBarText(value, maxValue, percent, format)
+    if format == "current" then
+        return self:FormatNumber(value)
+    elseif format == "percent" then
+        return string.format("%d%%", percent * 100)
+    elseif format == "both" then
+        return string.format("%s (%d%%)", self:FormatNumber(value), percent * 100)
+    elseif format == "deficit" then
+        local deficit = maxValue - value
+        if deficit > 0 then
+            return "-" .. self:FormatNumber(deficit)
+        else
+            return ""
+        end
+    elseif format == "full" then
+        return string.format("%s / %s", self:FormatNumber(value), self:FormatNumber(maxValue))
+    else
+        return ""
+    end
+end
+
+-- Smooth bar update using lerp
+-- Returns: newCurrentValue, hasReachedTarget
+function Utils:SmoothBarValue(currentValue, targetValue, speed)
+    speed = speed or 0.3
+    local diff = targetValue - currentValue
+    if math.abs(diff) < 0.001 then
+        return targetValue, true
+    else
+        return currentValue + diff * speed, false
+    end
+end
+
+-------------------------------------------------------------------------------
+-- LibCustomGlow Utilities (shared glow management)
+-------------------------------------------------------------------------------
+
+-- Get LibCustomGlow library (cached)
+function Utils:GetLibCustomGlow()
+    if self._libCustomGlow == nil then
+        self._libCustomGlow = LibStub and LibStub("LibCustomGlow-1.0", true) or false
+    end
+    return self._libCustomGlow or nil
+end
+
+-- Show button glow (proc-style animated glow)
+function Utils:ShowButtonGlow(frame, color)
+    local LCG = self:GetLibCustomGlow()
+    if LCG then
+        LCG.ButtonGlow_Start(frame, color)
+        return true
+    end
+    -- Fallback
+    if ActionButton_ShowOverlayGlow then
+        ActionButton_ShowOverlayGlow(frame)
+        return true
+    end
+    return false
+end
+
+-- Hide button glow
+function Utils:HideButtonGlow(frame)
+    local LCG = self:GetLibCustomGlow()
+    if LCG then
+        LCG.ButtonGlow_Stop(frame)
+        return true
+    end
+    -- Fallback
+    if ActionButton_HideOverlayGlow then
+        ActionButton_HideOverlayGlow(frame)
+        return true
+    end
+    return false
+end
+
+-- Show pixel glow (animated pixel border)
+-- color: {r, g, b, a} or nil for default
+-- key: unique identifier for this glow (allows multiple glows per frame)
+function Utils:ShowPixelGlow(frame, color, key, particles, frequency, length, thickness, xOffset, yOffset)
+    local LCG = self:GetLibCustomGlow()
+    if LCG then
+        LCG.PixelGlow_Start(
+            frame,
+            color,
+            particles or 8,
+            frequency or 0.1,
+            length or 10,
+            thickness or 1,
+            xOffset or 0,
+            yOffset or 0,
+            true,  -- border
+            key or "default"
+        )
+        return true
+    end
+    return false
+end
+
+-- Hide pixel glow
+function Utils:HidePixelGlow(frame, key)
+    local LCG = self:GetLibCustomGlow()
+    if LCG then
+        LCG.PixelGlow_Stop(frame, key or "default")
+        return true
+    end
+    return false
+end
+
+-------------------------------------------------------------------------------
+-- Cooldown Text Utilities (OmniCC/ElvUI integration)
+-------------------------------------------------------------------------------
+
+-- Configure external cooldown text addons (OmniCC, ElvUI, etc.)
+-- hideExternal: if true, hide external addon text; if false, allow external text
+function Utils:ConfigureCooldownText(cooldown, hideExternal)
+    if hideExternal then
+        -- Hide external cooldown text
+        if OmniCC and OmniCC.Cooldown and OmniCC.Cooldown.SetNoCooldownCount then
+            cooldown:SetHideCountdownNumbers(true)
+            OmniCC.Cooldown.SetNoCooldownCount(cooldown, true)
+        elseif ElvUI and ElvUI[1] and ElvUI[1].CooldownEnabled 
+               and ElvUI[1].ToggleCooldown and ElvUI[1]:CooldownEnabled() then
+            cooldown:SetHideCountdownNumbers(true)
+            ElvUI[1]:ToggleCooldown(cooldown, false)
+        else
+            cooldown:SetHideCountdownNumbers(true)
+        end
+    else
+        -- Allow external cooldown text
+        if OmniCC and OmniCC.Cooldown and OmniCC.Cooldown.SetNoCooldownCount then
+            cooldown:SetHideCountdownNumbers(false)
+            OmniCC.Cooldown.SetNoCooldownCount(cooldown, false)
+        elseif ElvUI and ElvUI[1] and ElvUI[1].CooldownEnabled 
+               and ElvUI[1].ToggleCooldown and ElvUI[1]:CooldownEnabled() then
+            cooldown:SetHideCountdownNumbers(false)
+            ElvUI[1]:ToggleCooldown(cooldown, true)
+        else
+            cooldown:SetHideCountdownNumbers(false)
+        end
+    end
+end

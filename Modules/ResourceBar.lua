@@ -102,46 +102,11 @@ function ResourceBar:CreateSpark(bar, db)
 end
 
 function ResourceBar:CreateBorder(bar)
-    -- Clean dark border with slight padding
-    local border = CreateFrame("Frame", nil, bar, "BackdropTemplate")
-    border:SetPoint("TOPLEFT", -1, 1)
-    border:SetPoint("BOTTOMRIGHT", 1, -1)
-    border:SetBackdrop({
-        edgeFile = "Interface\\Buttons\\WHITE8X8",
-        edgeSize = 1,
-    })
-    border:SetBackdropBorderColor(0, 0, 0, 1)
-    border:SetFrameLevel(bar:GetFrameLevel() - 1)
-    border:EnableMouse(false)  -- Click-through
-
-    -- Outer glow/shadow for depth
-    local shadow = CreateFrame("Frame", nil, border, "BackdropTemplate")
-    shadow:SetPoint("TOPLEFT", -1, 1)
-    shadow:SetPoint("BOTTOMRIGHT", 1, -1)
-    shadow:SetBackdrop({
-        edgeFile = "Interface\\Buttons\\WHITE8X8",
-        edgeSize = 1,
-    })
-    shadow:SetBackdropBorderColor(0, 0, 0, 0.5)
-    shadow:EnableMouse(false)  -- Click-through
-    shadow:SetFrameLevel(border:GetFrameLevel() - 1)
-
-    self.border = border
+    self.border = self.Utils:CreateBarBorder(bar)
 end
 
 function ResourceBar:CreateGradient(bar)
-    -- Gradient overlay: darker on left, lighter on right
-    local gradient = bar:CreateTexture(nil, "OVERLAY", nil, 1)
-    gradient:SetAllPoints(bar:GetStatusBarTexture())
-    gradient:SetTexture([[Interface\Buttons\WHITE8X8]])
-    
-    -- Horizontal gradient: left is darker, right is lighter
-    gradient:SetGradient("HORIZONTAL", 
-        CreateColor(0, 0, 0, 0.35),  -- Left (darker)
-        CreateColor(1, 1, 1, 0.15)   -- Right (lighter/highlight)
-    )
-    
-    self.gradient = gradient
+    self.gradient = self.Utils:CreateBarGradient(bar)
 end
 
 -------------------------------------------------------------------------------
@@ -228,21 +193,7 @@ function ResourceBar:UpdateSpark(percent)
 end
 
 function ResourceBar:UpdateText(power, maxPower, percent, format)
-    local text
-
-    if format == "current" then
-        text = self.Utils:FormatNumber(power)
-    elseif format == "percent" then
-        text = string.format("%d%%", percent * 100)
-    elseif format == "both" then
-        text = string.format("%s (%d%%)", self.Utils:FormatNumber(power), percent * 100)
-    elseif format == "full" then
-        text = string.format("%s / %s", self.Utils:FormatNumber(power), self.Utils:FormatNumber(maxPower))
-    else
-        text = ""
-    end
-
-    self.text:SetText(text)
+    self.text:SetText(self.Utils:FormatBarText(power, maxPower, percent, format))
 end
 
 function ResourceBar:SmoothUpdate()
@@ -252,13 +203,7 @@ function ResourceBar:SmoothUpdate()
     local animDb = addon.db.profile.animations or {}
     if not animDb.smoothBars then return end
 
-    local diff = self.targetValue - self.currentValue
-    if math.abs(diff) < 0.001 then
-        self.currentValue = self.targetValue
-    else
-        self.currentValue = self.currentValue + diff * 0.3
-    end
-
+    self.currentValue = self.Utils:SmoothBarValue(self.currentValue, self.targetValue)
     self.bar:SetValue(self.currentValue)
     self:UpdateSpark(self.currentValue)
 end

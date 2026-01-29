@@ -63,9 +63,8 @@ function CooldownIcons:Initialize()
     -- Initialize Masque support if available
     self:InitializeMasque()
     
-    -- Initialize LibCustomGlow if available
-    self.LibCustomGlow = LibStub and LibStub("LibCustomGlow-1.0", true)
-    if self.LibCustomGlow then
+    -- Check LibCustomGlow availability (shared via Utils)
+    if self.Utils:GetLibCustomGlow() then
         self.Utils:LogInfo("LibCustomGlow support enabled")
     end
 
@@ -118,35 +117,8 @@ function CooldownIcons:ConfigureCooldownText(cooldown, rowIndex)
         showOwnText = false
     end
     
-    if showOwnText then
-        -- Hide external cooldown text, use our own
-        if OmniCC and OmniCC.Cooldown and OmniCC.Cooldown.SetNoCooldownCount then
-            -- OmniCC: always hide default numbers, tell OmniCC to hide its text
-            cooldown:SetHideCountdownNumbers(true)
-            OmniCC.Cooldown.SetNoCooldownCount(cooldown, true)
-        elseif ElvUI and ElvUI[1] and ElvUI[1].CooldownEnabled 
-               and ElvUI[1].ToggleCooldown and ElvUI[1]:CooldownEnabled() then
-            -- ElvUI: hide countdown numbers and disable ElvUI cooldown
-            cooldown:SetHideCountdownNumbers(true)
-            ElvUI[1]:ToggleCooldown(cooldown, false)
-        else
-            -- Default: just hide the built-in countdown numbers
-            cooldown:SetHideCountdownNumbers(true)
-        end
-    else
-        -- Let external addons show their text (OmniCC, ElvUI, etc.)
-        if OmniCC and OmniCC.Cooldown and OmniCC.Cooldown.SetNoCooldownCount then
-            cooldown:SetHideCountdownNumbers(true)
-            OmniCC.Cooldown.SetNoCooldownCount(cooldown, false)
-        elseif ElvUI and ElvUI[1] and ElvUI[1].CooldownEnabled
-               and ElvUI[1].ToggleCooldown and ElvUI[1]:CooldownEnabled() then
-            cooldown:SetHideCountdownNumbers(true)
-            ElvUI[1]:ToggleCooldown(cooldown, true)
-        else
-            -- No external addon, show default countdown numbers
-            cooldown:SetHideCountdownNumbers(false)
-        end
-    end
+    -- Use shared utility for the actual OmniCC/ElvUI configuration
+    self.Utils:ConfigureCooldownText(cooldown, showOwnText)
 end
 
 function CooldownIcons:OnPlayerEnteringWorld()
@@ -2073,42 +2045,21 @@ function CooldownIcons:UpdateReadyGlow(frame, spellID, remaining, duration, isUs
 end
 
 function CooldownIcons:ShowReadyGlow(frame)
-    -- Use LibCustomGlow ButtonGlow for the proc effect
-    if self.LibCustomGlow then
-        -- ButtonGlow_Start(frame, color, frequency, frameLevel)
-        self.LibCustomGlow.ButtonGlow_Start(frame, nil, nil, nil)
-        return
-    end
-    
-    -- Fallback: Use ActionButton_ShowOverlayGlow if available
-    if ActionButton_ShowOverlayGlow then
-        ActionButton_ShowOverlayGlow(frame)
-    end
+    self.Utils:ShowButtonGlow(frame)
 end
 
 function CooldownIcons:HideReadyGlow(frame)
-    -- Use LibCustomGlow ButtonGlow stop
-    if self.LibCustomGlow then
-        self.LibCustomGlow.ButtonGlow_Stop(frame)
-        return
-    end
-    
-    -- Fallback
-    if ActionButton_HideOverlayGlow then
-        ActionButton_HideOverlayGlow(frame)
-    end
+    self.Utils:HideButtonGlow(frame)
 end
 
 function CooldownIcons:ShowAuraGlow(frame)
     -- Get icon's current alpha so glow respects Ready/Cooldown Alpha settings
     local iconAlpha = frame.iconAlpha or 1
     
-    -- Use LibCustomGlow for animated pixel glow if available
-    if self.LibCustomGlow then
-        -- PixelGlow_Start(frame, color, N, frequency, length, thickness, xOffset, yOffset, border, key, frameLevel)
-        -- Color #ffcfaf (peachy gold), offset inward by -2
-        local color = {1.0, 0.812, 0.686, iconAlpha}  -- #ffcfaf with icon alpha
-        self.LibCustomGlow.PixelGlow_Start(frame, color, 8, 0.1, 10, 1, -2, -2, true, "aura")
+    -- Use shared utility for LibCustomGlow pixel glow
+    -- Color #ffcfaf (peachy gold), offset inward by -2
+    local color = {1.0, 0.812, 0.686, iconAlpha}
+    if self.Utils:ShowPixelGlow(frame, color, "aura", 8, 0.1, 10, 1, -2, -2) then
         return
     end
     
@@ -2171,10 +2122,8 @@ function CooldownIcons:HideGlow(frame)
         ActionButton_HideOverlayGlow(frame)
     end
     
-    -- Stop LibCustomGlow pixel glow
-    if self.LibCustomGlow then
-        self.LibCustomGlow.PixelGlow_Stop(frame, "aura")
-    end
+    -- Stop LibCustomGlow pixel glow (via shared utility)
+    self.Utils:HidePixelGlow(frame, "aura")
     
     -- Hide fallback pixel glow borders
     if frame.pixelGlow then

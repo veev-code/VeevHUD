@@ -103,43 +103,11 @@ function HealthBar:CreatePlayerBar(parent)
 end
 
 function HealthBar:CreateBorder(bar)
-    local border = CreateFrame("Frame", nil, bar, "BackdropTemplate")
-    border:SetPoint("TOPLEFT", -1, 1)
-    border:SetPoint("BOTTOMRIGHT", 1, -1)
-    border:SetBackdrop({
-        edgeFile = "Interface\\Buttons\\WHITE8X8",
-        edgeSize = 1,
-    })
-    border:SetBackdropBorderColor(0, 0, 0, 1)
-    border:SetFrameLevel(bar:GetFrameLevel() - 1)
-    border:EnableMouse(false)  -- Click-through
-
-    -- Outer shadow for depth
-    local shadow = CreateFrame("Frame", nil, border, "BackdropTemplate")
-    shadow:SetPoint("TOPLEFT", -1, 1)
-    shadow:SetPoint("BOTTOMRIGHT", 1, -1)
-    shadow:SetBackdrop({
-        edgeFile = "Interface\\Buttons\\WHITE8X8",
-        edgeSize = 1,
-    })
-    shadow:SetBackdropBorderColor(0, 0, 0, 0.5)
-    shadow:EnableMouse(false)  -- Click-through
-    shadow:SetFrameLevel(border:GetFrameLevel() - 1)
+    self.Utils:CreateBarBorder(bar)
 end
 
 function HealthBar:CreateGradient(bar)
-    -- Gradient overlay: darker on left, lighter on right
-    local gradient = bar:CreateTexture(nil, "OVERLAY", nil, 1)
-    gradient:SetAllPoints(bar:GetStatusBarTexture())
-    gradient:SetTexture([[Interface\Buttons\WHITE8X8]])
-    
-    -- Horizontal gradient: left is darker, right is lighter
-    gradient:SetGradient("HORIZONTAL", 
-        CreateColor(0, 0, 0, 0.35),  -- Left (darker)
-        CreateColor(1, 1, 1, 0.15)   -- Right (lighter/highlight)
-    )
-    
-    self.playerGradient = gradient
+    self.playerGradient = self.Utils:CreateBarGradient(bar)
 end
 
 -------------------------------------------------------------------------------
@@ -176,13 +144,7 @@ function HealthBar:SmoothUpdatePlayer()
     local animDb = addon.db.profile.animations or {}
     if not animDb.smoothBars then return end
 
-    local diff = self.playerTargetValue - self.playerCurrentValue
-    if math.abs(diff) < 0.001 then
-        self.playerCurrentValue = self.playerTargetValue
-    else
-        self.playerCurrentValue = self.playerCurrentValue + diff * 0.3
-    end
-
+    self.playerCurrentValue = self.Utils:SmoothBarValue(self.playerCurrentValue, self.playerTargetValue)
     self.playerBar:SetValue(self.playerCurrentValue)
 end
 
@@ -191,26 +153,7 @@ end
 -------------------------------------------------------------------------------
 
 function HealthBar:UpdateText(fontString, health, maxHealth, percent, format)
-    local text
-
-    if format == "current" then
-        text = self.Utils:FormatNumber(health)
-    elseif format == "percent" then
-        text = string.format("%d%%", percent * 100)
-    elseif format == "both" then
-        text = string.format("%s (%d%%)", self.Utils:FormatNumber(health), percent * 100)
-    elseif format == "deficit" then
-        local deficit = maxHealth - health
-        if deficit > 0 then
-            text = "-" .. self.Utils:FormatNumber(deficit)
-        else
-            text = ""
-        end
-    else
-        text = ""
-    end
-
-    fontString:SetText(text)
+    fontString:SetText(self.Utils:FormatBarText(health, maxHealth, percent, format))
 end
 
 -------------------------------------------------------------------------------

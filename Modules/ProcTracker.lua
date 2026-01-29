@@ -34,9 +34,6 @@ function ProcTracker:Initialize()
     self.Events:RegisterEvent(self, "UNIT_AURA", self.OnAuraUpdate)
     self.Events:RegisterEvent(self, "PLAYER_ENTERING_WORLD", self.OnPlayerEnteringWorld)
     
-    -- Initialize LibCustomGlow
-    self.LibCustomGlow = LibStub and LibStub("LibCustomGlow-1.0", true)
-    
     self.Utils:Debug("ProcTracker initialized")
 end
 
@@ -582,17 +579,7 @@ end
 -- Configure external cooldown text addons (OmniCC, ElvUI, etc.)
 -- We use our own text, so hide theirs
 function ProcTracker:ConfigureCooldownText(cooldown)
-    -- Hide external cooldown text, use our own
-    if OmniCC and OmniCC.Cooldown and OmniCC.Cooldown.SetNoCooldownCount then
-        cooldown:SetHideCountdownNumbers(true)
-        OmniCC.Cooldown.SetNoCooldownCount(cooldown, true)
-    elseif ElvUI and ElvUI[1] and ElvUI[1].CooldownEnabled 
-           and ElvUI[1].ToggleCooldown and ElvUI[1]:CooldownEnabled() then
-        cooldown:SetHideCountdownNumbers(true)
-        ElvUI[1]:ToggleCooldown(cooldown, false)
-    else
-        cooldown:SetHideCountdownNumbers(true)
-    end
+    self.Utils:ConfigureCooldownText(cooldown, true)  -- Always hide external text
 end
 
 -------------------------------------------------------------------------------
@@ -600,28 +587,12 @@ end
 -------------------------------------------------------------------------------
 
 function ProcTracker:ShowProcGlow(frame)
-    if self.LibCustomGlow then
-        -- Proc glow: Subtle animated border
-        -- PixelGlow_Start(frame, color, N, frequency, length, thickness, xOffset, yOffset, border, key)
-        self.LibCustomGlow.PixelGlow_Start(
-            frame,
-            {1.0, 0.75, 0.4, 1},  -- Warm orange-gold
-            6,      -- Fewer particles for cleaner look
-            0.25,   -- Slower frequency
-            4,      -- Shorter particle length
-            1,      -- Thinner
-            0,      -- xOffset - centered
-            0,      -- yOffset - centered
-            true,   -- Border: constrain to frame edges
-            "procGlow"
-        )
-    end
+    -- Proc glow: Subtle animated border (warm orange-gold)
+    self.Utils:ShowPixelGlow(frame, {1.0, 0.75, 0.4, 1}, "procGlow", 6, 0.25, 4, 1, 0, 0)
 end
 
 function ProcTracker:HideProcGlow(frame)
-    if self.LibCustomGlow then
-        self.LibCustomGlow.PixelGlow_Stop(frame, "procGlow")
-    end
+    self.Utils:HidePixelGlow(frame, "procGlow")
 end
 
 -------------------------------------------------------------------------------
