@@ -1,5 +1,15 @@
 # VeevHUD Changelog
 
+## [1.0.15] - 2026-01-28
+
+### Changed
+- Target lockout debuffs (Forbearance, Weakened Soul) now show the **most restrictive** time remaining
+- Example: Divine Shield (5min CD) with Forbearance (1min) shows the 5min CD since that's more restrictive
+- Example: Avenging Wrath (ready) with Forbearance (1min) shows the 1min lockout
+
+### LibSpellDB Updates
+- Added Forbearance lockout tracking for Paladin immunity spells (Divine Shield, Divine Protection, Blessing of Protection, Avenging Wrath)
+
 ## [1.0.14] - 2026-01-28
 
 ### Added

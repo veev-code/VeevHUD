@@ -1400,8 +1400,10 @@ function CooldownIcons:UpdateIconState(frame, db)
         frame.actionableTime = math.max(effectiveCooldownRemaining, auraRemaining or 0)
     end
     
-    -- Check for target lockout debuff (e.g., Weakened Soul for PWS)
-    -- This acts as a per-target cooldown, overriding actual spell cooldown
+    -- Check for target lockout debuff (e.g., Weakened Soul for PWS, Forbearance for Paladin immunities)
+    -- Use the MORE RESTRICTIVE of actual cooldown vs lockout debuff
+    -- Example: Divine Shield (5min CD) + Forbearance (1min) -> show 5min CD
+    -- Example: Avenging Wrath (ready) + Forbearance (1min) -> show 1min lockout
     local targetLockoutActive = false
     local targetLockoutRemaining, targetLockoutDuration, targetLockoutExpiration = 0, 0, 0
     
@@ -1410,11 +1412,20 @@ function CooldownIcons:UpdateIconState(frame, db)
             self:GetTargetLockoutDebuff(spellData.targetLockoutDebuff)
         
         if targetLockoutActive and targetLockoutRemaining > 0 then
-            -- Use lockout debuff as the effective cooldown
-            remaining = targetLockoutRemaining
-            duration = targetLockoutDuration
-            -- Calculate start time from expiration for accurate spiral
-            cdStartTime = targetLockoutExpiration - targetLockoutDuration
+            -- Use whichever is more restrictive (longer remaining time)
+            if targetLockoutRemaining > remaining then
+                -- Lockout debuff is more restrictive - use it
+                remaining = targetLockoutRemaining
+                duration = targetLockoutDuration
+                -- Calculate start time from expiration for accurate spiral
+                cdStartTime = targetLockoutExpiration - targetLockoutDuration
+            end
+            -- else: actual cooldown is more restrictive - keep it
+            
+            -- Update actionableTime to factor in the lockout for dynamic sorting
+            if not isPermanentBuffActive then
+                frame.actionableTime = math.max(frame.actionableTime, targetLockoutRemaining)
+            end
         end
     end
     
