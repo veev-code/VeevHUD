@@ -28,6 +28,27 @@ CooldownIcons.Masque = nil
 CooldownIcons.MasqueGroup = nil
 
 -------------------------------------------------------------------------------
+-- Row-based Setting Helper
+-------------------------------------------------------------------------------
+
+-- Check if a row-based setting applies to a specific row index
+-- settingValue: "none", "primary", "primary_secondary", or "all"
+-- rowIndex: 1 = Primary, 2 = Secondary, 3+ = Utility
+local function IsSettingEnabledForRow(settingValue, rowIndex)
+    if settingValue == "none" then
+        return false
+    elseif settingValue == "primary" then
+        return rowIndex == 1
+    elseif settingValue == "primary_secondary" then
+        return rowIndex == 1 or rowIndex == 2
+    elseif settingValue == "all" then
+        return true
+    end
+    -- Default to true for backwards compatibility with boolean settings
+    return settingValue == true
+end
+
+-------------------------------------------------------------------------------
 -- Initialization
 -------------------------------------------------------------------------------
 
@@ -80,11 +101,22 @@ function CooldownIcons:InitializeMasque()
 end
 
 -- Configure external cooldown text addons (OmniCC, ElvUI, etc.)
--- If showCooldownText is enabled, we use our own text and hide external addons
--- If showCooldownText is disabled, we let external addons show their text
-function CooldownIcons:ConfigureCooldownText(cooldown)
+-- If showCooldownText is enabled for this row, we use our own text and hide external addons
+-- If showCooldownText is disabled for this row, we let external addons show their text
+-- rowIndex: 1 = Primary, 2 = Secondary, 3+ = Utility (nil = use global setting)
+function CooldownIcons:ConfigureCooldownText(cooldown, rowIndex)
     local db = addon.db and addon.db.profile.icons or {}
-    local showOwnText = db.showCooldownText ~= false  -- Default true
+    local showCooldownTextOn = db.showCooldownTextOn or "all"
+    
+    -- Check if VeevHUD will show its own text for this specific row
+    local showOwnText
+    if rowIndex then
+        showOwnText = IsSettingEnabledForRow(showCooldownTextOn, rowIndex)
+    else
+        -- No row specified (initial creation) - default to allowing external addons
+        -- Will be reconfigured when assigned to a row
+        showOwnText = false
+    end
     
     if showOwnText then
         -- Hide external cooldown text, use our own
@@ -290,7 +322,11 @@ function CooldownIcons:PlayCastFeedback(frame)
     if not frame then return end
     
     local db = addon.db and addon.db.profile.icons or {}
-    if db.castFeedback == false then return end  -- Allow disabling
+    
+    -- Check row-based setting
+    local feedbackRows = db.castFeedbackRows or "all"
+    local rowIndex = frame.rowIndex or 1
+    if not IsSettingEnabledForRow(feedbackRows, rowIndex) then return end
     
     local scale = db.castFeedbackScale or 1.1
     
@@ -768,6 +804,9 @@ function CooldownIcons:RebuildAllRows()
         return 
     end
     
+    -- Reset dynamic sort animation state before rebuilding
+    self:ResetDynamicSortPositions()
+    
     local spellCount = 0
     for _ in pairs(trackedSpells) do spellCount = spellCount + 1 end
     self.Utils:LogInfo("CooldownIcons: Rebuilding with", spellCount, "tracked spells")
@@ -900,9 +939,12 @@ function CooldownIcons:UpdateRowIcons()
                 if i <= iconCount then
                     local spellInfo = spells[i]
                     self:SetupIcon(iconFrame, spellInfo.spellID, spellInfo.spellData, rowConfig, rowIndex)
+                    -- Store default sort order for stable sorting when using dynamic sort
+                    iconFrame.defaultSortOrder = spellInfo.customOrder or spellInfo.defaultOrder or i
                     iconFrame:Show()
                 else
                     iconFrame:Hide()
+                    iconFrame.defaultSortOrder = nil
                 end
             end
 
@@ -1022,6 +1064,12 @@ function CooldownIcons:SetupIcon(frame, spellID, spellData, rowConfig, rowIndex)
     frame.rowIndex = rowIndex or 1
     -- dimOnCooldown is now determined dynamically in UpdateIcon based on global setting
     
+    -- Configure external cooldown text (OmniCC, ElvUI) based on row assignment
+    -- This allows OmniCC to show text on rows where VeevHUD doesn't
+    if frame.cooldown then
+        self:ConfigureCooldownText(frame.cooldown, frame.rowIndex)
+    end
+    
     -- Check if this is a reactive spell (Execute, Revenge, Overpower)
     -- These allow repeated ready glows based on condition changes (e.g., target HP)
     frame.isReactive = false
@@ -1049,6 +1097,251 @@ function CooldownIcons:UpdateAllIcons()
             end
         end
     end
+    
+    -- Apply dynamic sorting to configured rows
+    local dynamicSortRows = db.dynamicSortRows or "none"
+    if dynamicSortRows ~= "none" then
+        self:ApplyDynamicSorting(dynamicSortRows)
+    end
+end
+
+-- Determine which rows should have dynamic sorting based on setting
+function CooldownIcons:ShouldDynamicSortRow(rowIndex, dynamicSortRows)
+    if dynamicSortRows == "primary" then
+        return rowIndex == 1
+    elseif dynamicSortRows == "primary_secondary" then
+        return rowIndex == 1 or rowIndex == 2
+    end
+    return false
+end
+
+-- Apply dynamic sorting to all configured rows
+function CooldownIcons:ApplyDynamicSorting(dynamicSortRows)
+    for rowIndex, rowFrame in pairs(self.rows) do
+        if rowFrame and self:ShouldDynamicSortRow(rowIndex, dynamicSortRows) then
+            self:SortRowByTimeRemaining(rowFrame, rowIndex)
+        end
+    end
+end
+
+-------------------------------------------------------------------------------
+-- Dynamic Sorting by Time Remaining
+-------------------------------------------------------------------------------
+
+-- Reusable tables for sorting (avoids GC pressure from allocating every frame)
+-- Per-row caches to support multi-row dynamic sorting
+local dynamicSortCache = {}
+local previousSortOrder = {}  -- previousSortOrder[rowIndex] = { spellID1, spellID2, ... }
+
+-- Comparison function for sorting (defined once, not as closure each frame)
+local function compareByActionableTime(a, b)
+    local timeA = a.actionableTime or 0
+    local timeB = b.actionableTime or 0
+    if timeA ~= timeB then
+        return timeA < timeB
+    end
+    -- Tie-breaker: use default order (stored during RebuildAllRows)
+    local orderA = a.defaultSortOrder or a.spellID or 0
+    local orderB = b.defaultSortOrder or b.spellID or 0
+    return orderA < orderB
+end
+
+-- Sort a specific row by "actionable time" (least time remaining first)
+-- This is useful for DOT-tracking classes to see which ability needs attention soonest
+-- Optimized to minimize GC pressure and skip work when order hasn't changed
+function CooldownIcons:SortRowByTimeRemaining(rowFrame, rowIndex)
+    if not rowFrame then return end
+    
+    local db = addon.db.profile.icons
+    local useAnimation = db.dynamicSortAnimation ~= false  -- default true
+    
+    -- Reuse cached table (wipe and refill instead of allocating new)
+    wipe(dynamicSortCache)
+    for _, iconFrame in ipairs(rowFrame.icons) do
+        if iconFrame:IsShown() and iconFrame.spellID then
+            dynamicSortCache[#dynamicSortCache + 1] = iconFrame
+        end
+    end
+    
+    local iconCount = #dynamicSortCache
+    if iconCount == 0 then return end
+    
+    -- Sort by actionable time (ascending - least time remaining first)
+    table.sort(dynamicSortCache, compareByActionableTime)
+    
+    -- Initialize per-row previous order cache if needed
+    if not previousSortOrder[rowIndex] then
+        previousSortOrder[rowIndex] = {}
+    end
+    local prevOrder = previousSortOrder[rowIndex]
+    
+    -- Check if sort order actually changed (compare spellIDs in order)
+    local orderChanged = false
+    if #prevOrder ~= iconCount then
+        orderChanged = true
+    else
+        for i = 1, iconCount do
+            if prevOrder[i] ~= dynamicSortCache[i].spellID then
+                orderChanged = true
+                break
+            end
+        end
+    end
+    
+    -- Update previous order cache
+    if orderChanged then
+        wipe(prevOrder)
+        for i = 1, iconCount do
+            prevOrder[i] = dynamicSortCache[i].spellID
+        end
+    end
+    
+    -- Skip repositioning if order hasn't changed and all icons have positions
+    -- (Animation mode still needs to run to handle ongoing animations)
+    if not orderChanged and not useAnimation then
+        -- Verify all icons have valid positions before skipping
+        local allPositioned = true
+        for i = 1, iconCount do
+            if not dynamicSortCache[i].dynamicSortCurrentX then
+                allPositioned = false
+                break
+            end
+        end
+        if allPositioned then
+            return
+        end
+    end
+    
+    -- Use per-row settings
+    local iconWidth = rowFrame.iconWidth or db.iconSize or 40
+    local spacing = rowFrame.iconSpacing
+    if spacing == nil then
+        spacing = db.iconSpacing or 1
+    end
+    
+    -- Calculate centered positioning
+    local totalWidth = iconCount * iconWidth + (iconCount - 1) * spacing
+    local startX = -totalWidth / 2 + iconWidth / 2
+    
+    for i, iconFrame in ipairs(dynamicSortCache) do
+        local targetX = startX + (i - 1) * (iconWidth + spacing)
+        
+        if useAnimation then
+            -- Initialize current position if not set (first time)
+            if not iconFrame.dynamicSortCurrentX then
+                iconFrame.dynamicSortCurrentX = targetX
+                iconFrame:ClearAllPoints()
+                iconFrame:SetPoint("CENTER", rowFrame, "CENTER", targetX, 0)
+            end
+            
+            -- Only update target if it changed (avoids unnecessary work)
+            if iconFrame.dynamicSortTargetX ~= targetX then
+                iconFrame.dynamicSortTargetX = targetX
+            end
+        else
+            -- No animation - only reposition if position actually changed
+            if iconFrame.dynamicSortCurrentX ~= targetX then
+                iconFrame:ClearAllPoints()
+                iconFrame:SetPoint("CENTER", rowFrame, "CENTER", targetX, 0)
+                iconFrame.dynamicSortCurrentX = targetX
+                iconFrame.dynamicSortTargetX = targetX
+            end
+        end
+    end
+    
+    -- Start slide animation if enabled
+    -- Per-row check is done inside StartDynamicSortSlideUpdate
+    if useAnimation then
+        self:StartDynamicSortSlideUpdate(rowFrame)
+    end
+end
+
+-- Smooth sliding animation for dynamic sort repositioning
+-- Uses lerp with a fast slide speed for snappy, combat-friendly feedback
+-- Handles multiple rows with animations running simultaneously
+function CooldownIcons:StartDynamicSortSlideUpdate(rowFrame)
+    -- Track per-row animation state
+    if not self.dynamicSortSlideActive then
+        self.dynamicSortSlideActive = {}
+    end
+    
+    -- If this row already has an animation running, don't start another
+    if self.dynamicSortSlideActive[rowFrame] then return end
+    
+    self.dynamicSortSlideActive[rowFrame] = true
+    self.dynamicSortSlideRunning = true
+    
+    -- Fast slide speed for snappy feel (higher = faster)
+    -- 20 is faster than ProcTracker's 12, suitable for combat tracking
+    local slideSpeed = 20
+    
+    rowFrame:SetScript("OnUpdate", function(_, elapsed)
+        local allSettled = true
+        
+        for _, iconFrame in ipairs(rowFrame.icons) do
+            if iconFrame:IsShown() and iconFrame.dynamicSortCurrentX and iconFrame.dynamicSortTargetX then
+                local diff = iconFrame.dynamicSortTargetX - iconFrame.dynamicSortCurrentX
+                
+                -- If close enough, snap to target
+                if math.abs(diff) < 0.5 then
+                    if iconFrame.dynamicSortCurrentX ~= iconFrame.dynamicSortTargetX then
+                        iconFrame.dynamicSortCurrentX = iconFrame.dynamicSortTargetX
+                        iconFrame:ClearAllPoints()
+                        iconFrame:SetPoint("CENTER", rowFrame, "CENTER", iconFrame.dynamicSortTargetX, 0)
+                    end
+                else
+                    -- Lerp toward target (ease-out feel)
+                    allSettled = false
+                    local move = diff * math.min(1, elapsed * slideSpeed)
+                    iconFrame.dynamicSortCurrentX = iconFrame.dynamicSortCurrentX + move
+                    iconFrame:ClearAllPoints()
+                    iconFrame:SetPoint("CENTER", rowFrame, "CENTER", iconFrame.dynamicSortCurrentX, 0)
+                end
+            end
+        end
+        
+        -- Stop updating when all icons have settled
+        if allSettled then
+            rowFrame:SetScript("OnUpdate", nil)
+            self.dynamicSortSlideActive[rowFrame] = nil
+            
+            -- Check if any rows still have active animations
+            local anyActive = false
+            for _, active in pairs(self.dynamicSortSlideActive) do
+                if active then
+                    anyActive = true
+                    break
+                end
+            end
+            if not anyActive then
+                self.dynamicSortSlideRunning = false
+            end
+        end
+    end)
+end
+
+-- Reset dynamic sort position tracking (called when rebuilding rows)
+function CooldownIcons:ResetDynamicSortPositions()
+    -- Reset all rows
+    for rowIndex, rowFrame in pairs(self.rows or {}) do
+        if rowFrame then
+            for _, iconFrame in ipairs(rowFrame.icons) do
+                iconFrame.dynamicSortCurrentX = nil
+                iconFrame.dynamicSortTargetX = nil
+            end
+            
+            -- Stop any running animation on this row
+            if self.dynamicSortSlideActive and self.dynamicSortSlideActive[rowFrame] then
+                rowFrame:SetScript("OnUpdate", nil)
+                self.dynamicSortSlideActive[rowFrame] = nil
+            end
+        end
+    end
+    
+    -- Clear cached sort order for all rows
+    wipe(previousSortOrder)
+    
+    self.dynamicSortSlideRunning = false
 end
 
 function CooldownIcons:UpdateIconState(frame, db)
@@ -1060,6 +1353,7 @@ function CooldownIcons:UpdateIconState(frame, db)
     local auraActive = false
     local auraRemaining, auraDuration, auraStacks = 0, 0, 0
     local auraTargetCount = 0
+    local spellData = frame.spellData
     
     if db.showAuraTracking ~= false then
         local auraTracker = addon:GetModule("AuraTracker")
@@ -1072,7 +1366,6 @@ function CooldownIcons:UpdateIconState(frame, db)
         -- For shared CD abilities (Reck/Retal/SWall), also check player buffs directly
         -- since AuraTracker may not track non-displayed spells
         -- Skip if spell has ignoreAura set (e.g., Bloodthirst buff is longer than CD)
-        local spellData = frame.spellData
         local shouldCheckBuff = not (spellData and spellData.ignoreAura)
         
         if shouldCheckBuff then
@@ -1093,9 +1386,22 @@ function CooldownIcons:UpdateIconState(frame, db)
     -- Get cooldown info (including actual start time for accurate spiral)
     local remaining, duration, cdEnabled, cdStartTime = self.Utils:GetSpellCooldown(spellID)
     
+    -- Calculate "actionable time" for dynamic sorting
+    -- This is when the ability will need attention: max(cooldown_remaining, aura_remaining)
+    -- If both are 0, the ability is ready to be cast now
+    -- Permanent buffs (Shadowform, Stealth, etc.) get very high actionableTime to sort right
+    local GCD_THRESHOLD = 1.5
+    local effectiveCooldownRemaining = (remaining > 0 and duration > GCD_THRESHOLD) and remaining or 0
+    local isPermanentBuffActive = auraActive and auraDuration == 0 and auraRemaining == 0
+    if isPermanentBuffActive then
+        -- Permanent buff active - sort to the right (doesn't need attention)
+        frame.actionableTime = 999999
+    else
+        frame.actionableTime = math.max(effectiveCooldownRemaining, auraRemaining or 0)
+    end
+    
     -- Check for target lockout debuff (e.g., Weakened Soul for PWS)
     -- This acts as a per-target cooldown, overriding actual spell cooldown
-    local spellData = frame.spellData
     local targetLockoutActive = false
     local targetLockoutRemaining, targetLockoutDuration, targetLockoutExpiration = 0, 0, 0
     
@@ -1136,7 +1442,9 @@ function CooldownIcons:UpdateIconState(frame, db)
     -- Determine if GCD should be shown for this row based on settings
     local showGCDOn = db.showGCDOn or "primary"
     local showGCDForThisRow = false
-    if showGCDOn == "primary" then
+    if showGCDOn == "none" then
+        showGCDForThisRow = false
+    elseif showGCDOn == "primary" then
         showGCDForThisRow = (rowIndex == 1)
     elseif showGCDOn == "primary_secondary" then
         showGCDForThisRow = (rowIndex == 1 or rowIndex == 2)
@@ -1291,9 +1599,10 @@ function CooldownIcons:UpdateIconState(frame, db)
         end
     end
 
-    -- Show/hide cooldown spiral
-    local showSpiral = db.showCooldownSpiral ~= false
-    if showSpinner and showSpiral then
+    -- Show/hide cooldown spiral (row-based setting)
+    local showSpiralOn = db.showCooldownSpiralOn or "all"
+    local showSpiralForRow = IsSettingEnabledForRow(showSpiralOn, rowIndex)
+    if showSpinner and showSpiralForRow then
         frame.cooldown:SetAlpha(1)
         frame.cooldown:SetSwipeColor(0, 0, 0, 0.8)
         
@@ -1330,13 +1639,16 @@ function CooldownIcons:UpdateIconState(frame, db)
         frame.lastCdDuration = nil
     end
 
-    -- Show/hide cooldown text (or aura duration text)
-    if showAuraActive and auraDisplayRemaining > 0 then
+    -- Show/hide cooldown text (or aura duration text) - row-based setting
+    local showTextOn = db.showCooldownTextOn or "all"
+    local showTextForRow = IsSettingEnabledForRow(showTextOn, rowIndex)
+    
+    if showAuraActive and auraDisplayRemaining > 0 and showTextForRow then
         -- Show aura remaining time in #ffe7be color
         -- Always show our own text for aura duration (OmniCC doesn't track this)
         frame.text:SetText(self.Utils:FormatCooldown(auraDisplayRemaining))
         frame.text:SetTextColor(self.C.COLORS.TEXT.r, self.C.COLORS.TEXT.g, self.C.COLORS.TEXT.b)
-    elseif showText and db.showCooldownText and remaining > 0 then
+    elseif showText and showTextForRow and remaining > 0 then
         -- For cooldowns, respect useOwnCooldownText setting
         local useOwnText = db.useOwnCooldownText ~= false  -- Default true
         if useOwnText then
@@ -1402,19 +1714,25 @@ end
 
 -- Update resource cost display (horizontal bar or vertical fill)
 function CooldownIcons:UpdateResourceDisplay(frame, spellID, cooldownRemaining, hasResourceCost, resourcePercent, powerColor, db)
-    local displayMode = db.resourceDisplayMode or "bar"
+    local displayMode = db.resourceDisplayMode or "fill"
+    local displayRows = db.resourceDisplayRows or "all"
+    local rowIndex = frame.rowIndex or 1
+    
+    -- Check if resource display is enabled for this row
+    local enabledForRow = IsSettingEnabledForRow(displayRows, rowIndex)
     
     -- Only show resource indicator if:
     -- 1. Not resting and out of combat (show in PvP/world even if combat drops)
     -- 2. The spell has a resource cost
     -- 3. We don't have enough resources (resourcePercent < 1)
     -- 4. The ability is off cooldown (cooldown takes visual priority)
+    -- 5. Resource display is enabled for this row
     local inCombat = UnitAffectingCombat("player")
     local isResting = IsResting()
     local showUsability = inCombat or not isResting
-    local showResource = showUsability and hasResourceCost and resourcePercent < 1 and cooldownRemaining <= 0
+    local showResource = showUsability and hasResourceCost and resourcePercent < 1 and cooldownRemaining <= 0 and enabledForRow
     
-    if not showResource or displayMode == "none" then
+    if not showResource then
         -- Hide and reset
         if frame.resourceBar then frame.resourceBar:Hide() end
         if frame.resourceFill then frame.resourceFill:Hide() end
@@ -1602,12 +1920,18 @@ end
 --   - "once": only glow once per cooldown cycle (default)
 --   - "always": glow every time ability becomes ready
 --   - "disabled": no glow
+-- readyGlowRows controls which rows show the glow
 -- Reactive abilities (Execute, Overpower) always behave as "always" regardless of mode
 function CooldownIcons:UpdateReadyGlow(frame, spellID, remaining, duration, isUsable, isReactive, db)
     local glowMode = db.readyGlowMode or "once"
+    local glowRows = db.readyGlowRows or "all"
+    local rowIndex = frame.rowIndex or 1
     
-    -- Disabled mode: hide any active glow and return (unless reactive)
-    if glowMode == "disabled" and not isReactive then
+    -- Check row-based setting first
+    local enabledForRow = IsSettingEnabledForRow(glowRows, rowIndex)
+    
+    -- Disabled mode or not enabled for this row: hide any active glow and return (unless reactive)
+    if (glowMode == "disabled" or not enabledForRow) and not isReactive then
         if frame.readyGlowActive then
             self:HideReadyGlow(frame)
             frame.readyGlowActive = false
@@ -1907,7 +2231,7 @@ function CooldownIcons:Refresh()
             icon.iconHeight = iconHeight
             
             if icon.cooldown then
-                self:ConfigureCooldownText(icon.cooldown)
+                self:ConfigureCooldownText(icon.cooldown, icon.rowIndex)
                 -- Clear cached cooldown values to force re-apply of spiral settings
                 icon.lastCdStart = nil
                 icon.lastCdDuration = nil

@@ -323,16 +323,28 @@ function Options:CreatePanelContent(container)
         },
     })
     
-    yOffset = self:CreateCheckbox(container, yOffset, {
-        path = "icons.showCooldownText",
+    yOffset = self:CreateDropdown(container, yOffset, {
+        path = "icons.showCooldownTextOn",
         label = "Show Cooldown Text",
-        tooltip = "Displays the remaining cooldown time as numbers on top of each icon (e.g., '5s', '1.2'). When enabled, VeevHUD shows its own text and hides text from addons like OmniCC. When disabled, OmniCC or similar addons can display their cooldown text instead.",
+        tooltip = "Displays the remaining cooldown time as numbers on top of each icon (e.g., '5s', '1.2'). When enabled, VeevHUD shows its own text and hides text from addons like OmniCC. Select which rows display cooldown text.",
+        options = {
+            { value = "none", label = "None" },
+            { value = "primary", label = "Primary Row Only" },
+            { value = "primary_secondary", label = "Primary + Secondary" },
+            { value = "all", label = "All Rows" },
+        },
     })
     
-    yOffset = self:CreateCheckbox(container, yOffset, {
-        path = "icons.showCooldownSpiral",
+    yOffset = self:CreateDropdown(container, yOffset, {
+        path = "icons.showCooldownSpiralOn",
         label = "Show Cooldown Spiral",
-        tooltip = "Shows the dark 'clock sweep' overlay on abilities that are on cooldown. This visual helps you see at a glance how much time remains. Disable if you prefer text-only cooldowns.",
+        tooltip = "Shows the dark 'clock sweep' overlay on abilities that are on cooldown. This visual helps you see at a glance how much time remains. Select which rows display the cooldown spiral.",
+        options = {
+            { value = "none", label = "None" },
+            { value = "primary", label = "Primary Row Only" },
+            { value = "primary_secondary", label = "Primary + Secondary" },
+            { value = "all", label = "All Rows" },
+        },
     })
     
     yOffset = self:CreateDropdown(container, yOffset, {
@@ -340,6 +352,7 @@ function Options:CreatePanelContent(container)
         label = "Show GCD On",
         tooltip = "Controls which rows display the Global Cooldown (GCD) spinner. The GCD is the brief ~1.5 second lockout after using most abilities. Showing GCD helps you see when you can press your next ability.",
         options = {
+            { value = "none", label = "None" },
             { value = "primary", label = "Primary Row Only" },
             { value = "primary_secondary", label = "Primary + Secondary" },
             { value = "all", label = "All Rows" },
@@ -352,10 +365,16 @@ function Options:CreatePanelContent(container)
         tooltip = "Turns ability icons grey when they can't be used - whether due to insufficient resources, wrong stance, target requirements, or other conditions. This mimics how the default action bars work and helps you instantly see what's usable.",
     })
     
-    yOffset = self:CreateCheckbox(container, yOffset, {
-        path = "icons.castFeedback",
+    yOffset = self:CreateDropdown(container, yOffset, {
+        path = "icons.castFeedbackRows",
         label = "Cast Feedback Animation",
-        tooltip = "Plays a brief 'pop' animation (the icon scales up slightly then back down) whenever you successfully cast an ability. Gives satisfying visual feedback that your spell went off.",
+        tooltip = "Plays a brief 'pop' animation (the icon scales up slightly then back down) whenever you successfully cast an ability. Gives satisfying visual feedback that your spell went off. Select which rows show this animation.",
+        options = {
+            { value = "none", label = "None" },
+            { value = "primary", label = "Primary Row Only" },
+            { value = "primary_secondary", label = "Primary + Secondary" },
+            { value = "all", label = "All Rows" },
+        },
     })
     
     yOffset = self:CreateSlider(container, yOffset, {
@@ -364,7 +383,8 @@ function Options:CreatePanelContent(container)
         tooltip = "How much the icon grows during the cast feedback animation. 110% is a subtle pop, 150%+ is more dramatic. Only applies if Cast Feedback Animation is enabled.",
         min = 1.05, max = 2.0, step = 0.05,
         isPercent = true,
-        dependsOn = "icons.castFeedback",
+        dependsOn = "icons.castFeedbackRows",
+        dependsOnNotValue = "none",
     })
     
     yOffset = self:CreateCheckbox(container, yOffset, {
@@ -375,7 +395,7 @@ function Options:CreatePanelContent(container)
     
     yOffset = self:CreateDropdown(container, yOffset, {
         path = "icons.readyGlowMode",
-        label = "Ready Glow",
+        label = "Ready Glow Mode",
         tooltip = "Shows a proc-style glowing border when an ability becomes ready. 'Once Per Cooldown' prevents re-triggering if your resources fluctuate. 'Every Time Ready' glows each time conditions are met. Note: Reactive abilities (Execute, Overpower, etc.) always glow every time they become usable, regardless of this setting.",
         options = {
             { value = "once", label = "Once Per Cooldown" },
@@ -385,14 +405,60 @@ function Options:CreatePanelContent(container)
     })
     
     yOffset = self:CreateDropdown(container, yOffset, {
-        path = "icons.resourceDisplayMode",
-        label = "Resource Cost Display",
-        tooltip = "Shows your progress toward affording an ability. 'Vertical Fill' darkens the icon from top down until you have enough resources. 'Bottom Bar' shows a small horizontal bar at the bottom of the icon. 'None' disables this feature.",
+        path = "icons.readyGlowRows",
+        label = "Ready Glow Rows",
+        tooltip = "Controls which rows show the ready glow effect. Only applies if Ready Glow Mode is not set to 'Disabled'.",
         options = {
             { value = "none", label = "None" },
+            { value = "primary", label = "Primary Row Only" },
+            { value = "primary_secondary", label = "Primary + Secondary" },
+            { value = "all", label = "All Rows" },
+        },
+        dependsOn = "icons.readyGlowMode",
+        dependsOnNotValue = "disabled",
+    })
+    
+    yOffset = self:CreateDropdown(container, yOffset, {
+        path = "icons.dynamicSortRows",
+        label = "Dynamic Sort (Time Remaining)",
+        tooltip = "Controls which rows dynamically reorder icons by 'actionable time' (least time remaining first).\n\n'None' uses a static order. Icons never move positions.\n\nWhen enabled, the ability needing attention soonest is always on the left. Useful for:\n- DOT classes: see which debuff is closest to expiring\n- Cooldown-heavy classes: see which ability is ready next\n\nTie-breaker: When multiple abilities are ready (or have equal time), they sort by their original row position. This means you can arrange your row as a priority order and the leftmost icon is always the next best spell to cast.\n\nThe 'actionable time' is max(cooldown remaining, buff/debuff remaining). Permanent buffs like Shadowform sort to the far right since they don't need attention.",
+        options = {
+            { value = "none", label = "None (Static)" },
+            { value = "primary", label = "Primary Row Only" },
+            { value = "primary_secondary", label = "Primary + Secondary" },
+        },
+    })
+    
+    yOffset = self:CreateCheckbox(container, yOffset, {
+        path = "icons.dynamicSortAnimation",
+        label = "Animate Sort Transitions",
+        tooltip = "When dynamic sorting is enabled, icons slide smoothly to their new positions instead of snapping instantly. The animation is quick and snappy to avoid being distracting during combat. Disable for instant repositioning.",
+        dependsOn = "icons.dynamicSortRows",
+        dependsOnNotValue = "none",  -- Enable when dynamic sorting is active (any row selected)
+    })
+    
+    yOffset = self:CreateDropdown(container, yOffset, {
+        path = "icons.resourceDisplayRows",
+        label = "Resource Cost Display",
+        tooltip = "Shows your progress toward affording an ability on selected rows. The display style fills or overlays the icon until you have enough resources.",
+        options = {
+            { value = "none", label = "None" },
+            { value = "primary", label = "Primary Row Only" },
+            { value = "primary_secondary", label = "Primary + Secondary" },
+            { value = "all", label = "All Rows" },
+        },
+    })
+    
+    yOffset = self:CreateDropdown(container, yOffset, {
+        path = "icons.resourceDisplayMode",
+        label = "Resource Cost Style",
+        tooltip = "'Vertical Fill' darkens the icon from top down until you have enough resources. 'Bottom Bar' shows a small horizontal bar at the bottom of the icon.",
+        options = {
             { value = "fill", label = "Vertical Fill" },
             { value = "bar", label = "Bottom Bar" },
         },
+        dependsOn = "icons.resourceDisplayRows",
+        dependsOnNotValue = "none",
     })
     
     -- === HEALTH BAR SECTION ===
@@ -612,17 +678,45 @@ function Options:UpdateDependentWidgets(parentPath)
     local dependents = self.dependencies[parentPath]
     if not dependents then return end
     
-    local parentEnabled = addon:GetSettingValue(parentPath) == true
-    
     for _, childPath in ipairs(dependents) do
         local widget = self.widgets[childPath]
         if widget then
-            -- Check if this widget should be enabled
-            -- It needs its direct parent enabled AND all ancestors enabled
-            local shouldEnable = parentEnabled and self:IsParentChainEnabled(widget.config.dependsOn)
+            -- Check if this widget should be enabled based on its dependency config
+            local shouldEnable = self:IsWidgetDependencySatisfied(widget.config)
             self:SetWidgetEnabled(widget, shouldEnable, childPath)
         end
     end
+end
+
+-- Check if a widget's dependency is satisfied
+-- Supports:
+--   - Boolean dependencies (dependsOn only): parent must be true
+--   - Value-based (dependsOn + dependsOnValue): parent must equal specific value
+--   - Negated value (dependsOn + dependsOnNotValue): parent must NOT equal specific value
+function Options:IsWidgetDependencySatisfied(config)
+    if not config.dependsOn then return true end
+    
+    local parentValue = addon:GetSettingValue(config.dependsOn)
+    
+    if config.dependsOnNotValue ~= nil then
+        -- Negated value dependency: parent must NOT equal specific value
+        if parentValue == config.dependsOnNotValue then
+            return false
+        end
+    elseif config.dependsOnValue ~= nil then
+        -- Value-based dependency: parent must equal specific value
+        if parentValue ~= config.dependsOnValue then
+            return false
+        end
+    else
+        -- Boolean dependency: parent must be true
+        if parentValue ~= true then
+            return false
+        end
+    end
+    
+    -- Also check parent's parent chain
+    return self:IsParentChainEnabled(config.dependsOn)
 end
 
 function Options:IsParentChainEnabled(parentPath)
@@ -630,13 +724,14 @@ function Options:IsParentChainEnabled(parentPath)
     
     local parentWidget = self.widgets[parentPath]
     if not parentWidget then
-        -- Parent widget not registered, check value directly
+        -- Parent widget not registered, check value directly (assume boolean)
         return addon:GetSettingValue(parentPath) == true
     end
     
-    -- Check if parent is enabled and its parent chain is enabled
-    local parentEnabled = addon:GetSettingValue(parentPath) == true
-    if not parentEnabled then return false end
+    -- Check if parent's own dependency is satisfied
+    if not self:IsWidgetDependencySatisfied(parentWidget.config) then
+        return false
+    end
     
     -- Recursively check parent's parent
     if parentWidget.config.dependsOn then
@@ -1004,6 +1099,7 @@ function Options:CreateDropdown(parent, yOffset, config)
                     label:SetText(config.label)
                 end
                 Options:RefreshModuleIfNeeded(config.path)
+                Options:UpdateDependentWidgets(config.path)
             end
             UIDropDownMenu_AddButton(info, level)
         end
@@ -1048,6 +1144,7 @@ function Options:CreateDropdown(parent, yOffset, config)
             UIDropDownMenu_SetText(dropdown, GetLabelForValue(defaultValue))
             label:SetText(config.label)  -- Remove * indicator
             Options:RefreshModuleIfNeeded(config.path)
+            Options:UpdateDependentWidgets(config.path)
         end
     end)
     
@@ -1062,6 +1159,7 @@ function Options:CreateDropdown(parent, yOffset, config)
                 UIDropDownMenu_SetText(dropdown, GetLabelForValue(defaultValue))
                 label:SetText(config.label)  -- Remove * indicator
                 Options:RefreshModuleIfNeeded(config.path)
+                Options:UpdateDependentWidgets(config.path)
                 CloseDropDownMenus()  -- Close any open menus
             end
         end)

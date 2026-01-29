@@ -167,11 +167,16 @@ C.DEFAULTS = {
             desaturateNoResources = true,
             
             -- Cooldown display
-            showCooldownText = true,
-            showCooldownSpiral = true,  -- Show the cooldown spiral overlay
+            -- Row selection: "none" = disabled, "primary" = Primary only,
+            -- "primary_secondary" = Primary + Secondary, "all" = all rows
+            showCooldownText = true,      -- Master toggle (legacy)
+            showCooldownTextOn = "all",   -- Which rows show cooldown text
+            showCooldownSpiral = true,    -- Master toggle (legacy)
+            showCooldownSpiralOn = "all", -- Which rows show cooldown spiral
             
             -- GCD display: which rows show the global cooldown spinner
-            -- "primary" = Primary Row only, "primary_secondary" = Primary + Secondary, "all" = everywhere
+            -- "none" = disabled, "primary" = Primary Row only, 
+            -- "primary_secondary" = Primary + Secondary, "all" = everywhere
             showGCDOn = "primary",
             
             -- Dim on cooldown: which rows fade to cooldownAlpha when on cooldown
@@ -180,14 +185,18 @@ C.DEFAULTS = {
             dimOnCooldown = "secondary_utility",
             
             -- Resource cost display (for rage/energy classes)
-            -- "none" = disabled, "bar" = horizontal bar at bottom, "fill" = vertical fill from bottom
+            -- Mode: "fill" = vertical fill from top, "bar" = horizontal bar at bottom
+            -- Rows: "none" = disabled, "primary"/"primary_secondary"/"all" = which rows show it
             resourceDisplayMode = "fill",
+            resourceDisplayRows = "all", -- Which rows show resource cost display
             resourceBarHeight = 4,       -- Height of horizontal bar (Option A)
             resourceFillAlpha = 0.6,     -- Alpha of fill overlay (Option B)
             
             -- Cast feedback: scale punch when ability is used
-            castFeedback = true,
-            castFeedbackScale = 1.1,  -- How much to scale up (1.1 = 110%)
+            -- Rows: "none" = disabled, "primary"/"primary_secondary"/"all" = which rows show it
+            castFeedback = true,          -- Master toggle (legacy)
+            castFeedbackRows = "all",     -- Which rows show cast feedback animation
+            castFeedbackScale = 1.1,      -- How much to scale up (1.1 = 110%)
             
             -- Aura tracking: show buff/debuff active state on icons
             -- When enabled, icons show the active aura (with duration) before showing cooldown
@@ -197,8 +206,19 @@ C.DEFAULTS = {
             -- Triggers: 1) <1s remaining on CD with enough resources
             --           2) Just got enough resources after CD finished
             -- Mode: "once" = once per cooldown, "always" = every time ready, "disabled" = off
+            -- Rows: "none" = disabled, "primary"/"primary_secondary"/"all" = which rows show it
             readyGlowMode = "once",
-            readyGlowDuration = 1.0,     -- Duration to show glow when triggered
+            readyGlowRows = "all",        -- Which rows show ready glow
+            readyGlowDuration = 1.0,      -- Duration to show glow when triggered
+            
+            -- Dynamic sorting by time remaining: which rows dynamically reorder by actionable time
+            -- "none" = static order (priority-based, icons don't move)
+            -- "primary" = Primary Row only, "primary_secondary" = Primary + Secondary
+            -- Note: Utility rows are not supported (they can span multiple sub-rows)
+            -- The "actionable time" is max(cooldown_remaining, aura_remaining)
+            -- Ready abilities (actionable time = 0) are sorted to the left
+            dynamicSortRows = "none",
+            dynamicSortAnimation = true,  -- Smooth sliding animation when icons reorder
             
             -- Per-spell overrides for icons (legacy, use top-level spellOverrides)
             spellOverrides = {},
