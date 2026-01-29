@@ -202,6 +202,11 @@ C.DEFAULTS = {
             -- When enabled, icons show the active aura (with duration) before showing cooldown
             showAuraTracking = true,
             
+            -- Targettarget support: when targeting enemy, check their target for helpful effects
+            -- Useful for healers with targettarget macros (e.g., targeting boss, healing tank)
+            -- Default OFF since most players don't use targettarget workflows
+            auraTargettargetSupport = false,
+            
             -- Ready glow: shows a proc-style glow when ability becomes ready
             -- Triggers: 1) <1s remaining on CD with enough resources
             --           2) Just got enough resources after CD finished

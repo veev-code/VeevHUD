@@ -393,6 +393,13 @@ function Options:CreatePanelContent(container)
         tooltip = "When enabled, abilities that apply buffs or debuffs (like Intimidating Shout, Rend, Renew) will show the active duration with a glow while the effect is on a target. After it expires, the cooldown is shown. Disable this if you only want to see cooldowns.",
     })
     
+    yOffset = self:CreateCheckbox(container, yOffset, {
+        path = "icons.auraTargettargetSupport",
+        label = "Targettarget Aura Support",
+        tooltip = "When targeting an enemy, shows your helpful effects (heals, buffs) on their target instead of yourself. Useful for healers using targettarget macros - target the boss, see your HOTs on the tank.\n\nDisable this if you don't use targettarget workflows.",
+        dependsOn = "icons.showAuraTracking",
+    })
+    
     yOffset = self:CreateDropdown(container, yOffset, {
         path = "icons.readyGlowMode",
         label = "Ready Glow Mode",

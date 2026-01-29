@@ -1,5 +1,24 @@
 # VeevHUD Changelog
 
+## [1.0.17] - 2026-01-29
+
+### Added
+- **Smart Aura Target Resolution**: Aura tracking now intelligently selects the most relevant target
+  - Hard CC (Polymorph, Fear, stuns) tracks across all targets
+  - Hostile debuffs (DoTs) track only your current target
+  - Helpful effects (buffs, heals) track appropriate friendly target
+  - Soft CC (snares like Hamstring) follows normal debuff rules, not CC rules
+- **Targettarget Aura Support** option: When targeting an enemy, shows your helpful effects on their target instead of yourself (useful for healers with targettarget macros)
+- Completely rewrote README with improved structure and comprehensive documentation
+
+### Fixed
+- Lockout debuffs (Weakened Soul, Forbearance) now check the same target as the spell they restrict
+- Fixed "permanent buff" glow appearing on debuffs (like Vampiric Embrace) when target was removed
+- Fixed ready glow persisting after removing target while aura was active
+
+### LibSpellDB Updates
+- Vampiric Embrace now correctly tagged as debuff (was incorrectly tagged as buff)
+
 ## [1.0.16] - 2026-01-28
 
 ### Changed

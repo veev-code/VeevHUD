@@ -256,28 +256,45 @@ function CooldownIcons:GetPlayerBuff(spellID)
     return false, 0, 0, 0
 end
 
--- Check for target lockout debuff (e.g., Weakened Soul for PWS)
--- Priority: friendly target -> friendly targettarget -> self
+-- Check for target lockout debuff (e.g., Weakened Soul for PWS, Forbearance for Paladin spells)
+-- Follows the same targeting logic as helpful effects (since lockouts restrict helpful spells)
 -- Returns: isActive, remaining, duration, expirationTime
--- Uses cached debuff lookup to avoid scanning 40 debuffs per icon per update
-function CooldownIcons:GetTargetLockoutDebuff(debuffSpellID)
+-- Note: Lockout debuffs are checked regardless of who applied them (any priest's Weakened Soul blocks your PWS)
+function CooldownIcons:GetTargetLockoutDebuff(debuffSpellID, isSelfOnly)
     if not debuffSpellID then return false, 0, 0, 0 end
     
     local debuffName = GetSpellInfo(debuffSpellID)
     if not debuffName then return false, 0, 0, 0 end
     
-    -- Determine which unit to check (priority order)
+    -- Determine which unit to check using the same logic as helpful effects
+    -- Self-only spells (Divine Shield, Avenging Wrath) -> always check self
+    -- Targeting enemy: targettarget if friendly (and setting enabled), else self
+    -- Targeting ally: that ally
+    -- No target: self
     local unit = "player"
-    if UnitExists("target") and UnitIsFriend("player", "target") then
-        -- Friendly target - check them
-        unit = "target"
-    elseif UnitExists("targettarget") and UnitIsFriend("player", "targettarget") then
-        -- Enemy target but their target is friendly (e.g., tank) - check them
-        unit = "targettarget"
-    end
-    -- else: fallback to self
     
-    -- Use cached debuff lookup
+    if not isSelfOnly then
+        local db = addon.db and addon.db.profile or {}
+        local useTargettarget = db.auraTargettargetSupport or false
+        
+        local targetExists = UnitExists("target")
+        local targetIsEnemy = targetExists and UnitIsEnemy("player", "target")
+        local targetIsFriend = targetExists and UnitIsFriend("player", "target")
+        
+        if targetIsFriend then
+            -- Targeting an ally - check them for the lockout
+            unit = "target"
+        elseif targetIsEnemy then
+            -- Targeting an enemy - check targettarget if friendly (and enabled), else self
+            if useTargettarget and UnitExists("targettarget") and UnitIsFriend("player", "targettarget") then
+                unit = "targettarget"
+            end
+            -- else: fallback to self (already set)
+        end
+        -- No target or neutral: fallback to self (already set)
+    end
+    
+    -- Use cached debuff lookup (checks any debuff with this ID, not just player's)
     local aura = self.Utils:GetCachedDebuff(unit, debuffSpellID, debuffName)
     
     if aura then
@@ -1408,8 +1425,24 @@ function CooldownIcons:UpdateIconState(frame, db)
     local targetLockoutRemaining, targetLockoutDuration, targetLockoutExpiration = 0, 0, 0
     
     if spellData and spellData.targetLockoutDebuff then
+        -- Determine if this spell only affects self (Divine Shield, Avenging Wrath)
+        -- vs. can target others (Blessing of Protection, Power Word: Shield)
+        local isSelfOnly = false
+        if spellData.appliesAura then
+            isSelfOnly = spellData.appliesAura.onTarget == false
+        elseif spellData.tags then
+            -- Infer from tags: EXTERNAL_DEFENSIVE means targets others, otherwise self-only
+            local isExternal = false
+            for _, tag in ipairs(spellData.tags) do
+                if tag == "EXTERNAL_DEFENSIVE" then
+                    isExternal = true
+                    break
+                end
+            end
+            isSelfOnly = not isExternal
+        end
         targetLockoutActive, targetLockoutRemaining, targetLockoutDuration, targetLockoutExpiration = 
-            self:GetTargetLockoutDebuff(spellData.targetLockoutDebuff)
+            self:GetTargetLockoutDebuff(spellData.targetLockoutDebuff, isSelfOnly)
         
         if targetLockoutActive and targetLockoutRemaining > 0 then
             -- Use whichever is more restrictive (longer remaining time)
@@ -1725,10 +1758,14 @@ function CooldownIcons:UpdateIconState(frame, db)
     if not showAuraActive then
         local isReactive = frame.isReactive or false
         self:UpdateReadyGlow(frame, spellID, remaining, duration, isUsable, isReactive, db)
-    elseif frame.readyGlowActive then
-        -- Hide ready glow if aura became active
-        self:HideReadyGlow(frame)
-        frame.readyGlowActive = false
+    else
+        -- Aura is active - hide ready glow but keep wasUsable updated
+        -- This prevents false "just became usable" triggers when aura ends
+        frame.wasUsable = isUsable
+        if frame.readyGlowActive then
+            self:HideReadyGlow(frame)
+            frame.readyGlowActive = false
+        end
     end
 end
 
