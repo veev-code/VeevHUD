@@ -1,5 +1,15 @@
 # VeevHUD Changelog
 
+## [1.0.16] - 2026-01-28
+
+### Changed
+- Dynamic Sort now deprioritizes conditional spells (Execute, Victory Rush, etc.) when they're not usable
+- Unusable conditional spells sort after spells with cooldowns up to 60s, rather than always appearing first
+- Welcome popup now shows `/vh` command earlier for faster onboarding
+
+### Fixed
+- Spell Configuration panel now correctly detects current spec when opened after a dual spec switch
+
 ## [1.0.15] - 2026-01-28
 
 ### Changed

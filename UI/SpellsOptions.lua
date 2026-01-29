@@ -197,6 +197,13 @@ function SpellsOptions:CreatePanel()
             else
                 scrollChild:SetWidth(500)
             end
+            
+            -- Re-detect spec when panel opens (in case user switched specs since last open)
+            if addon.LibSpellDB then
+                local newSpec = addon.LibSpellDB:DetectPlayerSpec()
+                addon.playerSpec = newSpec
+            end
+            
             SpellsOptions:RefreshSpellList()
         elseif not self:IsVisible() then
             hasRefreshed = false  -- Reset so we refresh again next time shown

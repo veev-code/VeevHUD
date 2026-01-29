@@ -1466,6 +1466,15 @@ function CooldownIcons:UpdateIconState(frame, db)
     -- Get usability info (uses spell NAME which correctly handles Execute, Revenge, etc.)
     local isUsable, notEnoughMana = self:IsSpellUsable(spellID)
     
+    -- Update actionableTime for conditional spells (Execute, Victory Rush, etc.)
+    -- If spell is off cooldown but not usable, sort it after short-cooldown spells
+    -- This prevents Execute from always sorting left when target is >20% HP
+    if not isPermanentBuffActive and frame.actionableTime == 0 and not isUsable then
+        -- Spell is "ready" but not usable due to conditions
+        -- Give it low priority (after most cooldowns, before permanent buffs)
+        frame.actionableTime = 60
+    end
+    
     -- Check for spell activation overlay (for proc glow display)
     local hasOverlay = self:HasSpellActivationOverlay(spellID)
     
