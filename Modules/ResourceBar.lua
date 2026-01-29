@@ -46,14 +46,29 @@ end
 -- Frame Creation
 -------------------------------------------------------------------------------
 
+-- Get the Y offset needed to account for combo point space
+-- Returns 0 if combo points not used/visible
+function ResourceBar:GetComboPointLift()
+    local comboPoints = addon:GetModule("ComboPoints")
+    if comboPoints and comboPoints.GetTotalHeight then
+        return comboPoints:GetTotalHeight()
+    end
+    return 0
+end
+
 function ResourceBar:CreateFrames(parent)
     local db = addon.db.profile.resourceBar
 
     if not db.enabled then return end
 
-    -- Main bar frame (resource bar is anchor at Y=0)
+    -- Calculate Y offset - resource bar moves UP when combo points are present
+    -- Combo points fill the space between resource bar and primary row (icons)
+    local comboPointLift = self:GetComboPointLift()
+    local barY = comboPointLift
+
+    -- Main bar frame (resource bar is anchor at Y=0, lifted when combo points present)
     local bar = self.Utils:CreateStatusBar(parent, db.width, db.height)
-    bar:SetPoint("CENTER", parent, "CENTER", 0, 0)
+    bar:SetPoint("CENTER", parent, "CENTER", 0, barY)
     self.bar = bar
 
     -- Border/backdrop
@@ -232,9 +247,10 @@ function ResourceBar:Refresh()
         -- Update size
         self.bar:SetSize(db.width, db.height)
         
-        -- Resource bar is the anchor at Y=0
+        -- Resource bar moves UP when combo points are present
+        local comboPointLift = self:GetComboPointLift()
         self.bar:ClearAllPoints()
-        self.bar:SetPoint("CENTER", self.bar:GetParent(), "CENTER", 0, 0)
+        self.bar:SetPoint("CENTER", self.bar:GetParent(), "CENTER", 0, comboPointLift)
         
         -- Update spark visibility and size
         if db.showSpark == false then

@@ -716,7 +716,7 @@ function Utils:ShouldShowHUD()
 
     return true, alpha
 end
-
+                                                                    
 -------------------------------------------------------------------------------
 -- Bar Utilities (shared by HealthBar and ResourceBar)
 -------------------------------------------------------------------------------

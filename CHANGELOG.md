@@ -1,5 +1,22 @@
 # VeevHUD Changelog
 
+## [1.0.19] - 2026-01-29
+
+### Added
+- **Combo Points Display** for Rogues and Feral Druids
+  - 5 horizontal bars displayed below the resource bar
+  - Rogues: Always visible when you have a target
+  - Druids: Only visible while in Cat Form
+  - Subtle scale animation when gaining combo points
+  - Configurable width, bar height, and spacing in Options panel
+- Shared bar utilities (CreateBarBorder, CreateBarGradient, FormatBarText, SmoothBarValue) extracted to Utils
+- Shared glow utilities (GetLibCustomGlow, ShowButtonGlow, HideButtonGlow, ShowPixelGlow, HidePixelGlow) for cleaner module code
+- Shared ConfigureCooldownText helper for OmniCC/ElvUI compatibility
+
+### Changed
+- Health bar, resource bar, and proc tracker now shift upward when combo points are visible
+- Code consolidation reduces duplicate code across modules
+
 ## [1.0.18] - 2026-01-29
 
 ### Fixed

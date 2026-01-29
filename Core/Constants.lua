@@ -52,6 +52,12 @@ C.POWER_TYPE = {
     ENERGY  = 3,
 }
 
+-- Combo point color (yellow-gold to match energy theme)
+C.COMBO_POINT_COLOR = { r = 1.0, g = 0.82, b = 0.0 }
+
+-- Max combo points (TBC Classic = 5)
+C.MAX_COMBO_POINTS = 5
+
 -------------------------------------------------------------------------------
 -- UI Colors
 -------------------------------------------------------------------------------
@@ -129,6 +135,16 @@ C.DEFAULTS = {
             textFormat = "percent",
             smoothing = true,
             classColored = true,
+            showGradient = true,
+        },
+
+        -- Combo points settings (for Rogues and Feral Druids)
+        comboPoints = {
+            enabled = true,  -- Auto-enabled only for classes that use combo points
+            width = 230,     -- Total width (matches resource bar by default)
+            barHeight = 6,
+            barSpacing = 2,  -- Horizontal spacing between bars
+            offsetY = 2,     -- Gap between resource bar bottom and combo points top
             showGradient = true,
         },
 

@@ -43,6 +43,16 @@ function HealthBar:CreateFrames(parent)
     self:CreatePlayerBar(parent)
 end
 
+-- Get the Y offset needed to account for combo point space
+-- Returns 0 if combo points not used/visible
+function HealthBar:GetComboPointLift()
+    local comboPoints = addon:GetModule("ComboPoints")
+    if comboPoints and comboPoints.GetTotalHeight then
+        return comboPoints:GetTotalHeight()
+    end
+    return 0
+end
+
 function HealthBar:CreatePlayerBar(parent)
     local db = addon.db.profile.healthBar
 
@@ -50,14 +60,16 @@ function HealthBar:CreatePlayerBar(parent)
 
     -- Calculate position relative to resource bar (health bar is ABOVE resource bar)
     -- If resource bar is disabled, health bar takes its place at Y=0
+    -- Also account for combo point lift (everything moves UP when combo points present)
     local resourceDb = addon.db.profile.resourceBar
+    local comboPointLift = self:GetComboPointLift()
     local healthBarOffset
     if resourceDb.enabled then
         local resourceBarTop = resourceDb.height / 2
-        healthBarOffset = resourceBarTop + db.height / 2
+        healthBarOffset = resourceBarTop + db.height / 2 + comboPointLift
     else
         -- Resource bar disabled: health bar takes its place at center (Y=0)
-        healthBarOffset = 0
+        healthBarOffset = comboPointLift
     end
     
     local bar = self.Utils:CreateStatusBar(parent, db.width, db.height)
@@ -180,13 +192,15 @@ function HealthBar:Refresh()
         -- Calculate position relative to resource bar (health bar is ABOVE resource bar)
         -- Resource bar center is at Y=0, top edge at resourceBar.height/2
         -- If resource bar is disabled, health bar takes its place at Y=0
+        -- Also account for combo point lift (everything moves UP when combo points present)
+        local comboPointLift = self:GetComboPointLift()
         local healthBarOffset
         if resourceDb.enabled then
             local resourceBarTop = resourceDb.height / 2
-            healthBarOffset = resourceBarTop + db.height / 2
+            healthBarOffset = resourceBarTop + db.height / 2 + comboPointLift
         else
             -- Resource bar disabled: health bar takes its place at center (Y=0)
-            healthBarOffset = 0
+            healthBarOffset = comboPointLift
         end
         
         self.playerBar:ClearAllPoints()

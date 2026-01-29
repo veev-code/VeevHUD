@@ -564,6 +564,34 @@ function Options:CreatePanelContent(container)
         dependsOn = "resourceBar.enabled",
     })
     
+    -- === COMBO POINTS SECTION (only for Rogues and Druids) ===
+    if addon.playerClass == "ROGUE" or addon.playerClass == "DRUID" then
+        yOffset = yOffset - 8
+        yOffset = self:CreateSectionHeader(container, "Combo Points", yOffset)
+        
+        yOffset = self:CreateCheckbox(container, yOffset, {
+            path = "comboPoints.enabled",
+            label = "Enable Combo Points",
+            tooltip = "Shows combo point bars below the resource bar. For Druids, this only appears while in Cat Form.",
+        })
+        
+        yOffset = self:CreateSlider(container, yOffset, {
+            path = "comboPoints.width",
+            label = "Width",
+            tooltip = "The total width of the combo points bar in pixels. By default this matches the resource bar width.",
+            min = 100, max = 400, step = 10,
+            dependsOn = "comboPoints.enabled",
+        })
+        
+        yOffset = self:CreateSlider(container, yOffset, {
+            path = "comboPoints.barHeight",
+            label = "Bar Height",
+            tooltip = "The height of each combo point bar in pixels. Smaller values create a more subtle display.",
+            min = 4, max = 16, step = 1,
+            dependsOn = "comboPoints.enabled",
+        })
+    end
+    
     -- === PROC TRACKER SECTION ===
     yOffset = yOffset - 8
     yOffset = self:CreateSectionHeader(container, "Proc Tracker", yOffset)
@@ -1224,6 +1252,12 @@ function Options:RefreshModuleIfNeeded(path)
         if path:match("height") or path:match("enabled") then
             Options:RefreshAllBarPositions()
         end
+    elseif path:match("^comboPoints%.") then
+        moduleName = "ComboPoints"
+        -- Height/enabled/width changes affect relative positioning of other bars
+        if path:match("barHeight") or path:match("enabled") or path:match("width") then
+            Options:RefreshAllBarPositions()
+        end
     elseif path:match("^procTracker%.") then
         moduleName = "ProcTracker"
         -- Size changes affect relative positioning
@@ -1250,10 +1284,12 @@ end
 function Options:RefreshAllBarPositions()
     local resourceBar = addon:GetModule("ResourceBar")
     local healthBar = addon:GetModule("HealthBar")
+    local comboPoints = addon:GetModule("ComboPoints")
     local procTracker = addon:GetModule("ProcTracker")
     
     if resourceBar and resourceBar.Refresh then resourceBar:Refresh() end
     if healthBar and healthBar.Refresh then healthBar:Refresh() end
+    if comboPoints and comboPoints.Refresh then comboPoints:Refresh() end
     if procTracker and procTracker.Refresh then procTracker:Refresh() end
 end
 

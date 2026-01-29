@@ -74,6 +74,16 @@ end
 -- Frame Creation
 -------------------------------------------------------------------------------
 
+-- Get the Y offset needed to account for combo point space
+-- Returns 0 if combo points not used/visible
+function ProcTracker:GetComboPointLift()
+    local comboPoints = addon:GetModule("ComboPoints")
+    if comboPoints and comboPoints.GetTotalHeight then
+        return comboPoints:GetTotalHeight()
+    end
+    return 0
+end
+
 function ProcTracker:CreateFrames(parent)
     local db = addon.db.profile.procTracker
     
@@ -95,8 +105,10 @@ function ProcTracker:CreateFrames(parent)
     
     -- Calculate position relative to health bar (proc tracker is ABOVE health bar)
     -- Use iconHeight (not iconSize) since icons may be shorter with aspect ratio
+    -- Also account for combo point lift (everything moves UP when combo points present)
     local healthDb = addon.db.profile.healthBar
     local resourceDb = addon.db.profile.resourceBar
+    local comboPointLift = self:GetComboPointLift()
     local procGap = db.gapAboveHealthBar
     local procOffset
     
@@ -109,14 +121,14 @@ function ProcTracker:CreateFrames(parent)
             healthBarOffset = 0
         end
         local healthBarTop = healthBarOffset + healthDb.height / 2
-        procOffset = healthBarTop + procGap + iconHeight / 2
+        procOffset = healthBarTop + procGap + iconHeight / 2 + comboPointLift
     elseif resourceDb.enabled then
         -- Only resource bar shown - position above it
         local resourceBarTop = resourceDb.height / 2
-        procOffset = resourceBarTop + procGap + iconHeight / 2
+        procOffset = resourceBarTop + procGap + iconHeight / 2 + comboPointLift
     else
         -- No bars shown - position at center
-        procOffset = procGap + iconHeight / 2
+        procOffset = procGap + iconHeight / 2 + comboPointLift
     end
     
     -- Container frame (anonymous - named frames can't be recreated properly)
@@ -624,6 +636,8 @@ function ProcTracker:Refresh()
         
         -- Calculate position relative to health bar (proc tracker is ABOVE health bar)
         -- Use iconHeight (not iconSize) since icons may be shorter with aspect ratio
+        -- Also account for combo point lift (everything moves UP when combo points present)
+        local comboPointLift = self:GetComboPointLift()
         local procGap = db.gapAboveHealthBar
         local procOffset
         
@@ -636,14 +650,14 @@ function ProcTracker:Refresh()
                 healthBarOffset = 0
             end
             local healthBarTop = healthBarOffset + healthDb.height / 2
-            procOffset = healthBarTop + procGap + iconHeight / 2
+            procOffset = healthBarTop + procGap + iconHeight / 2 + comboPointLift
         elseif resourceDb.enabled then
             -- Only resource bar shown - position above it
             local resourceBarTop = resourceDb.height / 2
-            procOffset = resourceBarTop + procGap + iconHeight / 2
+            procOffset = resourceBarTop + procGap + iconHeight / 2 + comboPointLift
         else
             -- No bars shown - position at center
-            procOffset = procGap + iconHeight / 2
+            procOffset = procGap + iconHeight / 2 + comboPointLift
         end
         
         self.container:ClearAllPoints()
