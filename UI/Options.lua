@@ -564,6 +564,21 @@ function Options:CreatePanelContent(container)
         dependsOn = "resourceBar.enabled",
     })
     
+    -- Energy ticker (only for Rogues and Druids - energy users)
+    if addon.playerClass == "ROGUE" or addon.playerClass == "DRUID" then
+        yOffset = self:CreateDropdown(container, yOffset, {
+            path = "resourceBar.energyTicker.style",
+            label = "Energy Tick Indicator",
+            tooltip = "Shows progress toward the next energy tick (energy regenerates every 2 seconds).\n\n'Ticker Bar' shows a separate thin bar below the resource bar.\n\n'Spark' shows a moving spark overlay on the resource bar itself.\n\n'Disabled' hides the indicator.",
+            options = {
+                { value = "disabled", label = "Disabled" },
+                { value = "bar", label = "Ticker Bar" },
+                { value = "spark", label = "Spark" },
+            },
+            dependsOn = "resourceBar.enabled",
+        })
+    end
+    
     -- === COMBO POINTS SECTION (only for Rogues and Druids) ===
     if addon.playerClass == "ROGUE" or addon.playerClass == "DRUID" then
         yOffset = yOffset - 8
@@ -1243,7 +1258,8 @@ function Options:RefreshModuleIfNeeded(path)
     elseif path:match("^resourceBar%.") then
         moduleName = "ResourceBar"
         -- Size/enabled changes affect relative positioning of other bars
-        if path:match("height") or path:match("enabled") then
+        -- Energy ticker style changes also affect layout (bar style takes space, spark doesn't)
+        if path:match("height") or path:match("enabled") or path:match("energyTicker") then
             Options:RefreshAllBarPositions()
         end
     elseif path:match("^healthBar%.") then

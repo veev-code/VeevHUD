@@ -224,6 +224,13 @@ function SpellsOptions:CreatePanel()
     if addon.Utils then
         addon.Utils:LogInfo("Spells options panel registered")
     end
+    
+    -- If panel is already visible (opened before CreatePanel finished), refresh now
+    if panel:IsVisible() then
+        C_Timer.After(0.1, function()
+            DoRefresh()
+        end)
+    end
 end
 
 -------------------------------------------------------------------------------

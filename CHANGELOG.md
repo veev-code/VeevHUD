@@ -1,5 +1,17 @@
 # VeevHUD Changelog
 
+## [1.0.21] - 2026-01-29
+
+### Added
+- **Energy Tick Indicator** for Rogues and Druids
+  - Shows progress toward the next energy tick (energy regenerates every 2 seconds)
+  - Three styles: "Ticker Bar" (thin bar below resource bar), "Spark" (overlay on resource bar), or "Disabled"
+  - Configurable in Options under Resource Bar section
+
+### Fixed
+- Spells Configuration panel now refreshes correctly when opened before initialization completes
+- GitHub release workflow now correctly extracts changelog for v-prefixed tags
+
 ## [1.0.20] - 2026-01-30
 
 ### Added

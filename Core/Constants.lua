@@ -122,6 +122,18 @@ C.DEFAULTS = {
             sparkWidth = 12,
             sparkOverflow = 8,  -- How much taller than bar (for glow effect)
             sparkHideFullEmpty = true,
+            -- Energy ticker settings (shows progress to next energy tick)
+            -- style: "disabled" = off, "bar" = separate bar below resource bar, "spark" = large spark overlay on resource bar
+            energyTicker = {
+                style = "bar",        -- "disabled", "bar", or "spark"
+                -- Bar style settings
+                height = 3,           -- Height of the ticker bar
+                offsetY = -1,         -- Gap between resource bar bottom and ticker top (negative = below)
+                showGradient = true,  -- Match resource bar gradient style
+                -- Spark style settings
+                sparkWidth = 6,       -- Width of the spark overlay (thinner = more elegant)
+                sparkHeight = 1.8,    -- Height multiplier relative to bar height
+            },
         },
 
         -- Health bar settings
