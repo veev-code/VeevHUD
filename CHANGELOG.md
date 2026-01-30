@@ -1,5 +1,27 @@
 # VeevHUD Changelog
 
+## [1.0.20] - 2026-01-30
+
+### Added
+- Discord release notifications now include changelog summary
+
+### Changed
+- **Refactored aura tracking** for LibSpellDB's new `triggersAuras` array structure
+- Aura priority system: CC_HARD > CC_SOFT/ROOT > array order for abilities with multiple effects
+- All spell lookups now normalize to canonical ID for consistent tracking across ranks
+
+### Fixed
+- Rampage stack count now displays correctly (was broken due to rank ID mismatch)
+- Hamstring debuff tracking (same-ID auras now handled properly)
+- Removed dead code (`GetLongestAuraRemaining`)
+
+### LibSpellDB Updates
+- **New `triggersAuras` array** for multi-aura spells (Pounce stun + bleed, Wyvern Sting sleep + DoT, etc.)
+- **Comprehensive TBC spell ranks** added for all 9 classes from wago.tools data
+- New trigger mappings: Scatter Shot, Wyvern Sting DoTs, Pounce Bleeds, Nature's Grasp roots, Misdirection
+- New spells: Mage Cone of Cold, Dragon's Breath, Flamestrike, Blizzard, Slow; Rogue Backstab
+- New APIs: `GetAuraInfo()`, `GetAuraSourceSpellID()`, `GetAuraTags()`, `AuraHasTag()`
+
 ## [1.0.19] - 2026-01-29
 
 ### Added
