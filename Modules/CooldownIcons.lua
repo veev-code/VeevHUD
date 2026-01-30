@@ -1400,8 +1400,8 @@ function CooldownIcons:UpdateIconState(frame, db)
         -- Determine if this spell only affects self (Divine Shield, Avenging Wrath)
         -- vs. can target others (Blessing of Protection, Power Word: Shield)
         local isSelfOnly = false
-        if spellData.appliesAura then
-            isSelfOnly = spellData.appliesAura.onTarget == false
+        if spellData.triggersAuras and spellData.triggersAuras[1] then
+            isSelfOnly = spellData.triggersAuras[1].onTarget == false
         elseif spellData.tags then
             -- Infer from tags: EXTERNAL_DEFENSIVE means targets others, otherwise self-only
             local isExternal = false

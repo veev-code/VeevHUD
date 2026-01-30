@@ -67,34 +67,49 @@ function AuraTracker:BuildAuraMappings()
     for spellID, data in pairs(trackedSpells) do
         local spellData = data.spellData
         
+        -- Get canonical (base) spell ID for consistent keying
+        local canonicalID = spellID
+        if self.LibSpellDB then
+            canonicalID = self.LibSpellDB:GetCanonicalSpellID(spellID) or spellID
+        end
+        
         -- Build rank-to-base mapping for all tracked spells
         -- This allows us to look up tracked spell from any rank ID in combat log
-        self.rankToBaseMap[spellID] = spellID  -- Base ID maps to itself
+        self.rankToBaseMap[spellID] = canonicalID  -- Map tracked ID to canonical
+        self.rankToBaseMap[canonicalID] = canonicalID  -- Canonical maps to itself
         if spellData.ranks then
             for _, rankID in ipairs(spellData.ranks) do
-                self.rankToBaseMap[rankID] = spellID
+                self.rankToBaseMap[rankID] = canonicalID
                 rankCount = rankCount + 1
             end
         end
         
-        -- Only pre-map spells with explicit appliesAura definition (different aura ID than spell ID)
+        -- Only pre-map spells with explicit triggersAuras definition (different aura ID than spell ID)
         -- Same-ID auras are detected dynamically in OnAuraEvent
-        if spellData.appliesAura then
-            local auraInfo = {
-                spellID = spellData.appliesAura.spellID,
-                type = spellData.appliesAura.type or "DEBUFF",
-                onTarget = spellData.appliesAura.onTarget,
-                duration = spellData.appliesAura.duration,  -- Can be nil, will detect dynamically
-            }
-            
-            local auraID = auraInfo.spellID
-            self.auraToSpellMap[auraID] = spellID
-            self.spellToAuraMap[spellID] = auraInfo
-            self.activeAuras[auraID] = self.activeAuras[auraID] or {}
-            
-            local spellName = GetSpellInfo(spellID) or tostring(spellID)
-            self.Utils:LogInfo("AuraTracker: Pre-mapped aura for", spellName, "->", auraID, auraInfo.type)
-            count = count + 1
+        if spellData.triggersAuras then
+            for _, triggeredAura in ipairs(spellData.triggersAuras) do
+                if triggeredAura.spellID then
+                    local auraType = triggeredAura.type or "DEBUFF"
+                    local auraInfo = {
+                        spellID = triggeredAura.spellID,
+                        type = auraType,
+                        onTarget = triggeredAura.onTarget,
+                        isBuff = (auraType == "BUFF"),  -- Explicit flag for buff scanning
+                        duration = triggeredAura.duration,  -- Can be nil, will detect dynamically
+                        tags = triggeredAura.tags or {},    -- Tags specific to this triggered aura
+                    }
+                    
+                    local auraID = auraInfo.spellID
+                    self.auraToSpellMap[auraID] = canonicalID  -- Map to canonical ID
+                    self.spellToAuraMap[canonicalID] = self.spellToAuraMap[canonicalID] or {}
+                    table.insert(self.spellToAuraMap[canonicalID], auraInfo)
+                    self.activeAuras[auraID] = self.activeAuras[auraID] or {}
+                    
+                    local spellName = GetSpellInfo(spellID) or tostring(spellID)
+                    self.Utils:LogInfo("AuraTracker: Pre-mapped aura for", spellName, "->", auraID, auraInfo.type)
+                    count = count + 1
+                end
+            end
         end
     end
     
@@ -134,7 +149,20 @@ function AuraTracker:OnAuraEvent(subEvent, data)
     
     -- Check if this aura is explicitly mapped (different aura ID than spell ID)
     local sourceSpellID = self.auraToSpellMap[spellID]
-    local auraInfo = sourceSpellID and self.spellToAuraMap[sourceSpellID]
+    local auraInfo = nil
+    
+    -- spellToAuraMap is an array of aura infos - find the one matching this aura spell ID
+    if sourceSpellID then
+        local auraInfos = self.spellToAuraMap[sourceSpellID]
+        if auraInfos then
+            for _, info in ipairs(auraInfos) do
+                if info.spellID == spellID then
+                    auraInfo = info
+                    break
+                end
+            end
+        end
+    end
     
     -- If not explicitly mapped, check if this spell ID (or its base spell) is one we're tracking
     -- This enables auto-detection for spells where aura ID = spell ID (including ranks)
@@ -192,9 +220,10 @@ function AuraTracker:OnAuraEvent(subEvent, data)
     
     -- All auras we track must be from us (already checked above via sourceGUID)
     
-    -- Use the base spell ID for storage so icon lookups work correctly
-    -- (e.g., Hamstring rank 3 is stored under base ID 1715, not rank ID 7373)
-    local storageID = sourceSpellID
+    -- Store by AURA spell ID so multiple triggered auras from same source don't overwrite each other
+    -- (e.g., Pounce triggers both a stun and a bleed - they need separate storage)
+    -- Also store sourceSpellID in the data for icon overlay lookups
+    local storageID = spellID  -- Use actual aura spell ID for storage
     
     -- Process the event
     if subEvent == "SPELL_AURA_APPLIED" or subEvent == "SPELL_AURA_REFRESH" then
@@ -235,11 +264,12 @@ function AuraTracker:OnAuraEvent(subEvent, data)
         if not self.activeAuras[storageID] then
             self.activeAuras[storageID] = {}
         end
-        -- Store expiration, duration, and stacks for display
+        -- Store expiration, duration, stacks, and source spell ID for icon lookup
         self.activeAuras[storageID][destGUID] = {
             expiration = expiration,
             duration = duration,
             stacks = stacks,
+            sourceSpellID = sourceSpellID,  -- For icon overlay lookup
         }
         
         local stackInfo = stacks > 0 and (" (" .. stacks .. " stacks)") or ""
@@ -249,15 +279,15 @@ function AuraTracker:OnAuraEvent(subEvent, data)
         self:NotifyAuraChange(sourceSpellID, true)
         
     elseif subEvent == "SPELL_AURA_REMOVED" then
-        -- Aura removed
+        -- Aura removed (storageID is the aura spell ID)
         if self.activeAuras[storageID] then
             self.activeAuras[storageID][destGUID] = nil
         end
         
         self.Utils:LogDebug("AuraTracker: Aura removed", spellName, "from", destName)
         
-        -- Notify CooldownIcons
-        self:NotifyAuraChange(sourceSpellID, self:IsAuraActive(sourceSpellID))
+        -- Notify CooldownIcons - check if ANY aura for this source spell is still active
+        self:NotifyAuraChange(sourceSpellID, self:IsAuraActiveForSourceSpell(sourceSpellID))
     end
 end
 
@@ -272,7 +302,7 @@ function AuraTracker:OnAuraStackEvent(subEvent, data)
     -- Must be from us
     if sourceGUID ~= self.playerGUID then return end
     
-    -- Find the source spell ID
+    -- Find the source spell ID (canonical)
     local sourceSpellID = self.auraToSpellMap[spellID]
     if not sourceSpellID then
         local baseSpellID = self.rankToBaseMap[spellID]
@@ -283,7 +313,9 @@ function AuraTracker:OnAuraStackEvent(subEvent, data)
     
     if not sourceSpellID then return end
     
-    local storageID = sourceSpellID
+    -- Storage is keyed by AURA spell ID (not source spell ID)
+    -- This matches OnAuraEvent storage
+    local storageID = spellID
     
     -- Determine if this is a buff based on spell data
     local isBuff = (destGUID == self.playerGUID)  -- Default: self = buff
@@ -407,7 +439,7 @@ end
 -- Target Resolution
 -------------------------------------------------------------------------------
 
--- Determine the aura type for targeting logic
+-- Determine the aura type for targeting logic based on the SOURCE spell ID
 -- Returns: isHelpful, isSelfOnly, isCC
 -- isHelpful: true for buffs/heals, false for hostile debuffs
 -- isSelfOnly: true for self-only buffs (Recklessness, etc.)
@@ -417,23 +449,25 @@ function AuraTracker:GetAuraType(spellID)
     local isSelfOnly = false
     local isCC = false
     
-    -- Check spellToAuraMap first (has explicit type info)
-    local auraInfo = self.spellToAuraMap[spellID]
-    if auraInfo then
-        isHelpful = auraInfo.isBuff or auraInfo.type == "BUFF"
+    -- Resolve to canonical ID for consistent lookup
+    local canonicalID = spellID
+    if self.LibSpellDB then
+        canonicalID = self.LibSpellDB:GetCanonicalSpellID(spellID) or spellID
+    end
+    
+    -- Check spellToAuraMap first (has explicit type info from triggersAuras)
+    -- Note: spellToAuraMap[canonicalID] is now an array of aura infos
+    local auraInfos = self.spellToAuraMap[canonicalID]
+    if auraInfos and auraInfos[1] then
+        local auraInfo = auraInfos[1]  -- Use first aura for type determination
+        isHelpful = auraInfo.type == "BUFF"
         isSelfOnly = auraInfo.onTarget == false
     end
     
-    -- Check LibSpellDB for spell data and tags
+    -- Check LibSpellDB for spell data and tags (using canonical ID)
     if self.LibSpellDB then
-        local spellData = self.LibSpellDB:GetSpellInfo(spellID)
+        local spellData = self.LibSpellDB:GetSpellInfo(canonicalID)
         if spellData then
-            -- Check appliesAura config (if not already determined)
-            if not auraInfo and spellData.appliesAura then
-                isHelpful = spellData.appliesAura.type == "BUFF"
-                isSelfOnly = spellData.appliesAura.onTarget == false
-            end
-            
             -- Check tags for CC and helpful indicators
             if spellData.tags then
                 for _, tag in ipairs(spellData.tags) do
@@ -443,7 +477,7 @@ function AuraTracker:GetAuraType(spellID)
                         isCC = true
                     end
                     -- Helpful tags (if not already determined)
-                    if not auraInfo then
+                    if not auraInfos then
                         if tag == "HOT" or tag == "HAS_HOT" or tag == "HEAL_SINGLE" or tag == "HEAL_AOE" 
                            or tag == "BUFF" or tag == "HAS_BUFF" or tag == "EXTERNAL_DEFENSIVE" then
                             isHelpful = true
@@ -455,6 +489,59 @@ function AuraTracker:GetAuraType(spellID)
     end
     
     return isHelpful, isSelfOnly, isCC
+end
+
+-- Determine the aura type for targeting logic based on the AURA spell ID
+-- This is used when we have the aura ID from combat log and need to check its specific tags
+-- Returns: isHelpful, isSelfOnly, isCC, sourceSpellID
+function AuraTracker:GetAuraTypeForAuraID(auraSpellID)
+    local isHelpful = false
+    local isSelfOnly = false
+    local isCC = false
+    local sourceSpellID = nil
+    
+    -- First, check if this aura ID has specific tag info from LibSpellDB
+    if self.LibSpellDB and self.LibSpellDB.GetAuraInfo then
+        local auraInfo = self.LibSpellDB:GetAuraInfo(auraSpellID)
+        if auraInfo then
+            sourceSpellID = auraInfo.sourceSpellID
+            isHelpful = auraInfo.type == "BUFF"
+            isSelfOnly = auraInfo.onTarget == false
+            
+            -- Check aura-specific tags (this is the key addition)
+            if auraInfo.tags then
+                for _, tag in ipairs(auraInfo.tags) do
+                    if tag == "CC_HARD" then
+                        isCC = true
+                    end
+                    if tag == "HOT" or tag == "HAS_HOT" or tag == "HEAL_SINGLE" or tag == "HEAL_AOE" 
+                       or tag == "BUFF" or tag == "HAS_BUFF" or tag == "EXTERNAL_DEFENSIVE" then
+                        isHelpful = true
+                    end
+                end
+            end
+            
+            return isHelpful, isSelfOnly, isCC, sourceSpellID
+        end
+    end
+    
+    -- Fall back to checking auraToSpellMap (local cache)
+    sourceSpellID = self.auraToSpellMap[auraSpellID]
+    if sourceSpellID then
+        -- Get the source spell's aura type
+        isHelpful, isSelfOnly, isCC = self:GetAuraType(sourceSpellID)
+        return isHelpful, isSelfOnly, isCC, sourceSpellID
+    end
+    
+    -- If not found as a triggered aura, try as a regular spell (same-ID aura)
+    -- First check if this is a rank ID and get the canonical spell
+    local canonicalID = auraSpellID
+    if self.LibSpellDB then
+        canonicalID = self.LibSpellDB:GetCanonicalSpellID(auraSpellID) or auraSpellID
+    end
+    
+    isHelpful, isSelfOnly, isCC = self:GetAuraType(canonicalID)
+    return isHelpful, isSelfOnly, isCC, canonicalID
 end
 
 -- Get the appropriate GUID to check for an aura based on targeting logic
@@ -471,7 +558,12 @@ end
 --    - Helpful effects -> that ally
 -- 5. No target: same as targeting self
 function AuraTracker:GetRelevantTargetGUID(spellID)
-    local isHelpful, isSelfOnly, isCC = self:GetAuraType(spellID)
+    -- Resolve to canonical ID for consistent lookup
+    local canonicalID = spellID
+    if self.LibSpellDB then
+        canonicalID = self.LibSpellDB:GetCanonicalSpellID(spellID) or spellID
+    end
+    local isHelpful, isSelfOnly, isCC = self:GetAuraType(canonicalID)
     local playerGUID = self.playerGUID
     
     -- CC spells track across all targets - return nil to signal this
@@ -538,122 +630,260 @@ function AuraTracker:GetRelevantTargetGUID(spellID)
     end
 end
 
--- Get the longest aura duration across all targets (for CC spells)
-function AuraTracker:GetLongestAuraRemaining(spellID)
-    local targets = self.activeAuras[spellID]
-    if not targets then return 0, 0, 0 end
-    
-    local now = GetTime()
-    local maxRemaining = 0
-    local maxDuration = 0
-    local maxStacks = 0
-    
-    for guid, auraData in pairs(targets) do
-        local expiration = type(auraData) == "table" and auraData.expiration or auraData
-        local duration = type(auraData) == "table" and auraData.duration or 0
-        local stacks = type(auraData) == "table" and auraData.stacks or 0
-        local remaining = expiration - now
-        if remaining > maxRemaining then
-            maxRemaining = remaining
-            maxDuration = duration
-            maxStacks = stacks
-        end
-    end
-    
-    return maxRemaining, maxDuration, maxStacks
-end
-
 -------------------------------------------------------------------------------
 -- Public API
 -------------------------------------------------------------------------------
 
--- Check if a spell's aura is currently active
--- Uses same smart target resolution as GetAuraRemaining for consistency
-function AuraTracker:IsAuraActive(spellID)
-    local targets = self.activeAuras[spellID]
-    if not targets then return false end
+-- Get all triggered aura IDs for a source spell (cached lookup)
+-- Returns array of aura spell IDs
+-- For spells with triggersAuras: returns the triggered aura IDs
+-- For same-ID auras: returns base + all rank IDs (since aura could be stored under any rank)
+function AuraTracker:GetTriggeredAuraIDs(sourceSpellID)
+    -- First resolve to canonical (base) spell ID for lookup
+    local canonicalID = sourceSpellID
+    if self.LibSpellDB then
+        canonicalID = self.LibSpellDB:GetCanonicalSpellID(sourceSpellID) or sourceSpellID
+    end
     
-    -- Get the relevant target based on aura type and current targeting
-    local relevantGUID, isCC = self:GetRelevantTargetGUID(spellID)
-    local now = GetTime()
+    -- Check our local spellToAuraMap first (built from triggersAuras)
+    -- Use canonical ID since that's what BuildAuraMappings uses
+    local auraInfos = self.spellToAuraMap[canonicalID]
+    if auraInfos and #auraInfos > 0 then
+        local ids = {}
+        for _, info in ipairs(auraInfos) do
+            table.insert(ids, info.spellID)
+        end
+        return ids
+    end
     
-    -- CC spells: check any target
-    if isCC then
-        for targetGUID, auraData in pairs(targets) do
-            local expiration = type(auraData) == "table" and auraData.expiration or auraData
-            if expiration > now then
-                return true
+    -- Same-ID aura: check all rank IDs since the aura could be stored under any of them
+    -- (e.g., Hamstring Rank 3 cast creates aura with spellID 7373, not base 1715)
+    local ids = {sourceSpellID}
+    
+    -- Get all rank IDs from LibSpellDB
+    if self.LibSpellDB then
+        local spellData = self.LibSpellDB:GetSpellInfo(sourceSpellID)
+        if spellData and spellData.ranks then
+            for _, rankID in ipairs(spellData.ranks) do
+                if rankID ~= sourceSpellID then
+                    table.insert(ids, rankID)
+                end
             end
         end
-        return false
     end
     
-    -- Non-CC: check only the relevant target
-    if not relevantGUID then
-        return false
-    end
+    return ids
+end
+
+-- Check if ANY of a source spell's auras is currently active
+-- Used by icon overlay to know if any effect is up
+function AuraTracker:IsAuraActiveForSourceSpell(sourceSpellID)
+    local auraIDs = self:GetTriggeredAuraIDs(sourceSpellID)
+    local now = GetTime()
     
-    if targets[relevantGUID] then
-        local auraData = targets[relevantGUID]
-        local expiration = type(auraData) == "table" and auraData.expiration or auraData
-        if expiration > now then
-            return true
+    for _, auraID in ipairs(auraIDs) do
+        local targets = self.activeAuras[auraID]
+        if targets then
+            -- Get targeting logic for THIS specific aura
+            local isHelpful, isSelfOnly, isCC = self:GetAuraTypeForAuraID(auraID)
+            
+            if isCC then
+                -- CC auras: check any target
+                for targetGUID, auraData in pairs(targets) do
+                    local expiration = type(auraData) == "table" and auraData.expiration or auraData
+                    if expiration > now then
+                        return true
+                    end
+                end
+            else
+                -- Non-CC: check relevant target
+                local relevantGUID = self:GetRelevantTargetGUIDForAura(auraID)
+                if relevantGUID and targets[relevantGUID] then
+                    local auraData = targets[relevantGUID]
+                    local expiration = type(auraData) == "table" and auraData.expiration or auraData
+                    if expiration > now then
+                        return true
+                    end
+                end
+            end
         end
     end
     
     return false
 end
 
--- Get the remaining duration, total duration, and stacks of a spell's aura
--- Uses smart target resolution based on aura type and current targeting
-function AuraTracker:GetAuraRemaining(spellID)
-    -- Active auras are stored by sourceSpellID
-    local targets = self.activeAuras[spellID]
-    if not targets then return 0, 0, 0 end
+-- Get relevant target GUID for a specific AURA (using aura-specific tags)
+function AuraTracker:GetRelevantTargetGUIDForAura(auraSpellID)
+    local isHelpful, isSelfOnly, isCC = self:GetAuraTypeForAuraID(auraSpellID)
+    local playerGUID = self.playerGUID
     
-    -- Get the relevant target based on aura type and current targeting
-    local relevantGUID, isCC = self:GetRelevantTargetGUID(spellID)
-    
-    -- CC spells: track across all targets (longest duration)
+    -- CC spells track across all targets - return nil to signal this
     if isCC then
-        return self:GetLongestAuraRemaining(spellID)
+        return nil, true  -- nil GUID, isCC = true
     end
     
-    -- No valid target for this aura type
-    if not relevantGUID then
-        return 0, 0, 0
+    -- Self-only buffs always check self
+    if isSelfOnly then
+        return playerGUID, false
     end
     
-    -- Check specific target
-    local now = GetTime()
-    if targets[relevantGUID] then
-        local auraData = targets[relevantGUID]
-        local expiration = type(auraData) == "table" and auraData.expiration or auraData
-        local remaining = expiration - now
-        if remaining > 0 then
-            local duration = type(auraData) == "table" and auraData.duration or 0
-            local stacks = type(auraData) == "table" and auraData.stacks or 0
-            return remaining, duration, stacks
+    -- Check if targettarget support is enabled
+    local db = addon.db and addon.db.profile and addon.db.profile.icons or {}
+    local useTargettarget = db.auraTargettargetSupport or false
+    
+    local targetGUID = UnitGUID("target")
+    local targetExists = UnitExists("target")
+    local targetIsEnemy = targetExists and UnitIsEnemy("player", "target")
+    local targetIsFriend = targetExists and UnitIsFriend("player", "target")
+    
+    -- Only check targettarget if the setting is enabled
+    local targettargetGUID, targettargetIsEnemy, targettargetIsFriend = nil, false, false
+    if useTargettarget then
+        targettargetGUID = UnitGUID("targettarget")
+        local targettargetExists = UnitExists("targettarget")
+        targettargetIsEnemy = targettargetExists and UnitIsEnemy("player", "targettarget")
+        targettargetIsFriend = targettargetExists and UnitIsFriend("player", "targettarget")
+    end
+    
+    if targetIsEnemy then
+        if isHelpful then
+            if useTargettarget and targettargetIsFriend then
+                return targettargetGUID, false
+            else
+                return playerGUID, false
+            end
+        else
+            return targetGUID, false
+        end
+    elseif targetIsFriend then
+        if isHelpful then
+            return targetGUID, false
+        else
+            if useTargettarget and targettargetIsEnemy then
+                return targettargetGUID, false
+            else
+                return nil, false
+            end
+        end
+    else
+        return playerGUID, false
+    end
+end
+
+-- Check if a spell's aura is currently active (legacy API - uses source spell ID)
+-- Uses same smart target resolution as GetAuraRemaining for consistency
+function AuraTracker:IsAuraActive(spellID)
+    return self:IsAuraActiveForSourceSpell(spellID)
+end
+
+-- Get aura priority for sorting (higher = more important)
+-- CC_HARD > CC_SOFT > other auras, then by array order
+function AuraTracker:GetAuraPriority(auraSpellID, arrayIndex)
+    local basePriority = 1000 - (arrayIndex or 0)  -- Array order as tiebreaker
+    
+    if self.LibSpellDB and self.LibSpellDB.GetAuraInfo then
+        local auraInfo = self.LibSpellDB:GetAuraInfo(auraSpellID)
+        if auraInfo and auraInfo.tags then
+            for _, tag in ipairs(auraInfo.tags) do
+                if tag == "CC_HARD" then
+                    return 3000 + basePriority  -- Highest priority
+                elseif tag == "CC_SOFT" or tag == "ROOT" then
+                    return 2000 + basePriority  -- Medium priority
+                end
+            end
         end
     end
     
-    -- No valid aura on relevant target
-    return 0, 0, 0
+    return basePriority  -- Default priority (DOTs, buffs, etc.)
+end
+
+-- Get the remaining duration for a SOURCE spell (checks all its triggered auras)
+-- Priority: CC_HARD > CC_SOFT > array order. Among same priority, uses longest duration.
+function AuraTracker:GetAuraRemaining(sourceSpellID)
+    local auraIDs = self:GetTriggeredAuraIDs(sourceSpellID)
+    local now = GetTime()
+    
+    -- Collect all active auras with their priority and remaining time
+    local activeAuras = {}
+    
+    for arrayIndex, auraID in ipairs(auraIDs) do
+        local targets = self.activeAuras[auraID]
+        if targets then
+            -- Get targeting logic for THIS specific aura
+            local isHelpful, isSelfOnly, isCC = self:GetAuraTypeForAuraID(auraID)
+            local priority = self:GetAuraPriority(auraID, arrayIndex)
+            
+            if isCC then
+                -- CC auras: check all targets, use longest remaining
+                for targetGUID, auraData in pairs(targets) do
+                    local expiration = type(auraData) == "table" and auraData.expiration or auraData
+                    local remaining = expiration - now
+                    if remaining > 0 then
+                        table.insert(activeAuras, {
+                            priority = priority,
+                            remaining = remaining,
+                            duration = type(auraData) == "table" and auraData.duration or 0,
+                            stacks = type(auraData) == "table" and auraData.stacks or 0,
+                        })
+                    end
+                end
+            else
+                -- Non-CC: check only relevant target for this aura
+                local relevantGUID = self:GetRelevantTargetGUIDForAura(auraID)
+                if relevantGUID and targets[relevantGUID] then
+                    local auraData = targets[relevantGUID]
+                    local expiration = type(auraData) == "table" and auraData.expiration or auraData
+                    local remaining = expiration - now
+                    if remaining > 0 then
+                        table.insert(activeAuras, {
+                            priority = priority,
+                            remaining = remaining,
+                            duration = type(auraData) == "table" and auraData.duration or 0,
+                            stacks = type(auraData) == "table" and auraData.stacks or 0,
+                        })
+                    end
+                end
+            end
+        end
+    end
+    
+    -- No active auras
+    if #activeAuras == 0 then
+        return 0, 0, 0
+    end
+    
+    -- Sort by priority (desc), then by remaining time (desc)
+    table.sort(activeAuras, function(a, b)
+        if a.priority ~= b.priority then
+            return a.priority > b.priority
+        end
+        return a.remaining > b.remaining
+    end)
+    
+    -- Return the highest priority aura's info
+    local best = activeAuras[1]
+    return best.remaining, best.duration, best.stacks
 end
 
 -- Get count of targets with this aura active
-function AuraTracker:GetAuraTargetCount(spellID)
-    -- Active auras are stored by sourceSpellID
-    local targets = self.activeAuras[spellID]
-    if not targets then return 0 end
-    
+function AuraTracker:GetAuraTargetCount(sourceSpellID)
+    local auraIDs = self:GetTriggeredAuraIDs(sourceSpellID)
     local now = GetTime()
     local count = 0
+    local countedGUIDs = {}  -- Avoid counting same target twice
     
-    for targetGUID, auraData in pairs(targets) do
-        local expiration = type(auraData) == "table" and auraData.expiration or auraData
-        if expiration > now then
-            count = count + 1
+    for _, auraID in ipairs(auraIDs) do
+        local targets = self.activeAuras[auraID]
+        if targets then
+            for targetGUID, auraData in pairs(targets) do
+                if not countedGUIDs[targetGUID] then
+                    local expiration = type(auraData) == "table" and auraData.expiration or auraData
+                    if expiration > now then
+                        count = count + 1
+                        countedGUIDs[targetGUID] = true
+                    end
+                end
+            end
         end
     end
     
@@ -662,38 +892,49 @@ end
 
 -- Get stack count for a spell's aura
 -- Uses smart target resolution based on aura type and current targeting
-function AuraTracker:GetAuraStacks(spellID)
-    local targets = self.activeAuras[spellID]
-    if not targets then return 0 end
-    
-    -- Get the relevant target based on aura type and current targeting
-    local relevantGUID, isCC = self:GetRelevantTargetGUID(spellID)
-    
-    -- CC spells: get stacks from longest aura
-    if isCC then
-        local _, _, stacks = self:GetLongestAuraRemaining(spellID)
-        return stacks
-    end
-    
-    -- No valid target for this aura type
-    if not relevantGUID then
-        return 0
-    end
-    
-    -- Check specific target
+function AuraTracker:GetAuraStacks(sourceSpellID)
+    local auraIDs = self:GetTriggeredAuraIDs(sourceSpellID)
     local now = GetTime()
-    if targets[relevantGUID] then
-        local auraData = targets[relevantGUID]
-        if type(auraData) == "table" then
-            local expiration = auraData.expiration or 0
-            if expiration > now then
-                return auraData.stacks or 0
+    local maxStacks = 0
+    
+    for _, auraID in ipairs(auraIDs) do
+        local targets = self.activeAuras[auraID]
+        if targets then
+            local isHelpful, isSelfOnly, isCC = self:GetAuraTypeForAuraID(auraID)
+            
+            if isCC then
+                -- CC: get max stacks across all targets
+                for targetGUID, auraData in pairs(targets) do
+                    if type(auraData) == "table" then
+                        local expiration = auraData.expiration or 0
+                        if expiration > now then
+                            local stacks = auraData.stacks or 0
+                            if stacks > maxStacks then
+                                maxStacks = stacks
+                            end
+                        end
+                    end
+                end
+            else
+                -- Non-CC: check relevant target
+                local relevantGUID = self:GetRelevantTargetGUIDForAura(auraID)
+                if relevantGUID and targets[relevantGUID] then
+                    local auraData = targets[relevantGUID]
+                    if type(auraData) == "table" then
+                        local expiration = auraData.expiration or 0
+                        if expiration > now then
+                            local stacks = auraData.stacks or 0
+                            if stacks > maxStacks then
+                                maxStacks = stacks
+                            end
+                        end
+                    end
+                end
             end
         end
     end
     
-    -- No valid aura on relevant target
-    return 0
+    return maxStacks
 end
 
 -- Notify that an aura changed (for icon updates)
