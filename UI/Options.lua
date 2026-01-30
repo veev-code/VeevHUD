@@ -459,10 +459,11 @@ function Options:CreatePanelContent(container)
     yOffset = self:CreateDropdown(container, yOffset, {
         path = "icons.resourceDisplayMode",
         label = "Resource Cost Style",
-        tooltip = "'Vertical Fill' darkens the icon from top down until you have enough resources. 'Bottom Bar' shows a small horizontal bar at the bottom of the icon.",
+        tooltip = "'Vertical Fill' darkens the icon from top down until you have enough resources.\n\n'Bottom Bar' shows a small horizontal bar at the bottom of the icon.\n\n'Resource Timer' extends the cooldown spiral to show when you'll actually be able to cast — factoring in both cooldown AND resource regeneration. The icon shows max(cooldown, time_until_affordable).\n\nResource-specific behavior:\n- Energy: Highly accurate. Tick-aware (2-second ticks), accounts for Adrenaline Rush.\n- Mana: Tick-aware with 5-second rule tracking. Measures in-combat vs passive regen rates separately.\n- Rage: Falls back to Vertical Fill (rage generation is unpredictable).\n\nIf any prediction is wrong, it falls back to vertical fill.",
         options = {
             { value = "fill", label = "Vertical Fill" },
             { value = "bar", label = "Bottom Bar" },
+            { value = "prediction", label = "Resource Timer" },
         },
         dependsOn = "icons.resourceDisplayRows",
         dependsOnNotValue = "none",
@@ -574,6 +575,22 @@ function Options:CreatePanelContent(container)
                 { value = "disabled", label = "Disabled" },
                 { value = "bar", label = "Ticker Bar" },
                 { value = "spark", label = "Spark" },
+            },
+            dependsOn = "resourceBar.enabled",
+        })
+    end
+    
+    -- Mana ticker (only for mana-using classes)
+    local manaClasses = { MAGE = true, PRIEST = true, WARLOCK = true, PALADIN = true, DRUID = true, SHAMAN = true, HUNTER = true }
+    if manaClasses[addon.playerClass] then
+        yOffset = self:CreateDropdown(container, yOffset, {
+            path = "resourceBar.manaTicker.style",
+            label = "Mana Tick Indicator",
+            tooltip = "Shows a spark overlay indicating progress toward the next mana tick.\n\n'Outside 5SR' shows the 2-second tick cycle, but only when already regenerating at full spirit rate.\n\n'Next Full Tick' (recommended) intelligently combines the 5-second rule AND tick timing. After you cast, it calculates exactly when your first full-rate tick will arrive and shows a seamless countdown. Cast right after it completes to maximize mana efficiency — you'll never accidentally clip a big tick again.\n\nThis helps you time casts to avoid clipping mana regeneration ticks.",
+            options = {
+                { value = "disabled", label = "Disabled" },
+                { value = "outside5sr", label = "Outside 5 Second Rule" },
+                { value = "nextfulltick", label = "Next Full Tick" },
             },
             dependsOn = "resourceBar.enabled",
         })

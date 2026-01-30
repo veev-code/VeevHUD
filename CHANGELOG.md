@@ -1,5 +1,26 @@
 # VeevHUD Changelog
 
+## [1.0.22] - 2026-01-30
+
+### Added
+- **Resource Timer** — A new resource cost display mode that extends the cooldown spiral to show when you'll actually be able to cast, factoring in both cooldown AND resource regeneration
+  - Icons show `max(cooldown_remaining, time_until_affordable)` as a unified countdown
+  - **Energy**: Highly accurate tick-aware predictions (2-second ticks), accounts for Adrenaline Rush
+  - **Mana**: Tick-aware with 5-second rule tracking, measures in-combat vs passive regen rates separately
+  - **Rage**: Falls back to vertical fill (rage generation is unpredictable)
+  - If prediction is wrong (resources spent mid-countdown), automatically falls back to deterministic vertical fill
+  - Configure via "Resource Cost Style" → "Resource Timer" in settings
+- **Mana Tick Indicator** for mana classes (Mage, Priest, Warlock, Paladin, Druid, Shaman, Hunter)
+  - Shows a spark overlay on the resource bar indicating progress toward the next mana tick
+  - **"Outside 5SR"** mode: Shows the 2-second tick cycle only when regenerating at full spirit rate
+  - **"Next Full Tick"** mode (recommended): Intelligently combines 5-second rule AND tick timing — calculates exactly when your first full-rate tick will arrive and shows a seamless countdown. Cast right after it completes to maximize mana efficiency.
+- New core modules: `TickTracker.lua`, `FiveSecondRule.lua`, `ResourcePrediction.lua`
+
+### Changed
+- Default energy ticker style changed to "Spark" (overlay on resource bar)
+- Default resource cost display changed to "Resource Timer" (prediction mode)
+- Increased debug log buffer from 200 to 500 entries
+
 ## [1.0.21] - 2026-01-29
 
 ### Added

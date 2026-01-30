@@ -1487,6 +1487,113 @@ function CooldownIcons:UpdateIconState(frame, db)
     local powerCost, currentPower, maxPower, powerType, powerColor = self.Utils:GetSpellPowerInfo(spellID)
     local hasResourceCost = powerCost and powerCost > 0
     local resourcePercent = hasResourceCost and math.min(1, currentPower / powerCost) or 1
+    local canAfford = resourcePercent >= 1
+
+    -- Prediction mode: extend cooldown to show when spell will be affordable
+    -- Track state on frame for fallback handling
+    local displayMode = db.resourceDisplayMode or "fill"
+    local displayRows = db.resourceDisplayRows or "all"
+    local rowIndex = frame.rowIndex or 1
+    local isPredictionMode = displayMode == "prediction"
+    local resourceEnabledForRow = IsSettingEnabledForRow(displayRows, rowIndex)
+    local timeUntilAffordable = 0
+    local predictionRemaining = 0
+    local predictionDuration = 0
+    local predictionStartTime = 0
+    local showPredictionSpiral = false
+    local inPredictionFallback = false
+    
+    -- Skip prediction if aura is active - aura display takes precedence
+    -- (e.g., Power Word: Shield active - show buff duration, not mana prediction)
+    -- Also skip if resource display is not enabled for this row
+    local skipPrediction = (auraActive and auraRemaining > 0) or not resourceEnabledForRow
+    
+    if isPredictionMode and hasResourceCost and not skipPrediction then
+        if canAfford then
+            -- Can afford now - clear any prediction state
+            -- Reset ready glow tracking so it can trigger on this transition
+            if frame.predictionActive then
+                frame.readyGlowShown = false  -- Allow ready glow to show
+            end
+            frame.predictionActive = false
+            frame.predictionStartTime = nil
+            frame.predictionDuration = nil
+            frame.predictionFallback = false
+            frame.predictionLastPower = nil
+        else
+            -- Can't afford - calculate time until affordable
+            local ResourcePrediction = addon.ResourcePrediction
+            if ResourcePrediction then
+                timeUntilAffordable = ResourcePrediction:GetTimeUntilAffordable(spellID)
+            end
+            
+            -- Ensure timeUntilAffordable is reasonable (at least 0.1s to avoid flicker)
+            -- This handles race conditions where tick tracking hasn't updated yet
+            if timeUntilAffordable > 0 and timeUntilAffordable < 0.1 then
+                timeUntilAffordable = 0.1
+            end
+            
+            -- Determine what to show
+            local isOffCooldown = remaining <= 0 or duration <= GCD_THRESHOLD
+            local cdRemaining = isOffCooldown and 0 or remaining
+            
+            -- Use max of cooldown and resource prediction
+            local effectiveWait = math.max(cdRemaining, timeUntilAffordable)
+            
+            -- Detect if resources were spent (need to restart prediction)
+            -- This handles the case where user casts something else mid-prediction
+            local resourcesSpent = frame.predictionActive and frame.predictionLastPower and currentPower < frame.predictionLastPower
+            
+            -- If prediction is already active and in fallback mode, stay in fallback
+            -- (don't restart prediction spiral after fallback was triggered)
+            if frame.predictionFallback and not resourcesSpent then
+                inPredictionFallback = true
+            elseif effectiveWait > 0 then
+                if not frame.predictionActive or resourcesSpent then
+                    -- Start new prediction (or restart because resources were spent)
+                    frame.predictionActive = true
+                    frame.predictionStartTime = GetTime()
+                    frame.predictionDuration = effectiveWait
+                    frame.predictionFallback = false
+                    -- Reset ready glow so it can trigger when prediction completes
+                    if not resourcesSpent then
+                        frame.readyGlowShown = false
+                    end
+                end
+                
+                -- Track current power to detect spending
+                frame.predictionLastPower = currentPower
+                
+                -- Calculate remaining time from when prediction started
+                -- Use stored values to ensure smooth countdown (no recalculation mid-prediction)
+                local elapsed = GetTime() - frame.predictionStartTime
+                predictionRemaining = math.max(0, frame.predictionDuration - elapsed)
+                predictionDuration = frame.predictionDuration
+                predictionStartTime = frame.predictionStartTime
+                
+                -- Check if prediction expired but still can't afford (fallback case)
+                -- Use small threshold to avoid floating point issues
+                if predictionRemaining < 0.05 then
+                    -- Prediction was wrong - switch to deterministic fallback
+                    frame.predictionFallback = true
+                    inPredictionFallback = true
+                else
+                    showPredictionSpiral = true
+                end
+            else
+                -- effectiveWait is 0 but we can't afford - use fallback
+                -- This happens for rage (unpredictable) or if tick tracking isn't ready
+                frame.predictionFallback = true
+                inPredictionFallback = true
+            end
+        end
+    elseif not isPredictionMode then
+        -- Not in prediction mode - clear any state
+        frame.predictionActive = false
+        frame.predictionStartTime = nil
+        frame.predictionDuration = nil
+        frame.predictionFallback = false
+    end
 
     -- Get charges
     local charges, maxCharges = self:GetSpellCharges(spellID)
@@ -1627,11 +1734,26 @@ function CooldownIcons:UpdateIconState(frame, db)
     -- Show/hide cooldown spiral (row-based setting)
     local showSpiralOn = db.showCooldownSpiralOn or "all"
     local showSpiralForRow = IsSettingEnabledForRow(showSpiralOn, rowIndex)
-    if showSpinner and showSpiralForRow then
+    
+    -- Prediction mode can show spiral even when spell is off cooldown
+    local shouldShowSpiral = showSpinner or showPredictionSpiral
+    
+    if shouldShowSpiral and showSpiralForRow then
         frame.cooldown:SetAlpha(1)
         frame.cooldown:SetSwipeColor(0, 0, 0, 0.8)
         
-        if showAuraActive and auraDisplayDuration > 0 then
+        if showPredictionSpiral and predictionDuration > 0 then
+            -- Show prediction spiral (waiting for resources)
+            -- Uses same visual as cooldown: remaining = dark, elapsed = bright
+            frame.cooldown:SetReverse(false)
+            -- Only update if prediction changed to avoid visual glitches
+            if frame.lastCdStart ~= predictionStartTime or frame.lastCdDuration ~= predictionDuration then
+                frame.cooldown:SetCooldown(predictionStartTime, predictionDuration)
+                frame.lastCdStart = predictionStartTime
+                frame.lastCdDuration = predictionDuration
+            end
+            frame.cooldown:Show()
+        elseif showAuraActive and auraDisplayDuration > 0 then
             -- Show aura duration spiral (remaining = bright, elapsed = dark)
             frame.cooldown:SetReverse(true)  -- Swipe fills as time passes (elapsed = dark)
             local start = GetTime() - (auraDisplayDuration - auraDisplayRemaining)
@@ -1668,7 +1790,12 @@ function CooldownIcons:UpdateIconState(frame, db)
     local showTextOn = db.showCooldownTextOn or "all"
     local showTextForRow = IsSettingEnabledForRow(showTextOn, rowIndex)
     
-    if showAuraActive and auraDisplayRemaining > 0 and showTextForRow then
+    if showPredictionSpiral and predictionRemaining > 0 and showTextForRow then
+        -- Show prediction remaining time (waiting for resources)
+        -- Use same color as cooldown text for consistency
+        frame.text:SetText(self.Utils:FormatCooldown(predictionRemaining))
+        frame.text:SetTextColor(self.C.COLORS.TEXT.r, self.C.COLORS.TEXT.g, self.C.COLORS.TEXT.b)
+    elseif showAuraActive and auraDisplayRemaining > 0 and showTextForRow then
         -- Show aura remaining time in #ffe7be color
         -- Always show our own text for aura duration (OmniCC doesn't track this)
         frame.text:SetText(self.Utils:FormatCooldown(auraDisplayRemaining))
@@ -1719,7 +1846,8 @@ function CooldownIcons:UpdateIconState(frame, db)
     end
 
     -- Update resource display (only show when ability is ready but lacking resources)
-    self:UpdateResourceDisplay(frame, spellID, remaining, hasResourceCost, resourcePercent, powerColor, db)
+    -- In prediction mode: hide during active prediction, show vertical fill as fallback
+    self:UpdateResourceDisplay(frame, spellID, remaining, hasResourceCost, resourcePercent, powerColor, db, showPredictionSpiral, inPredictionFallback)
 
     -- Handle glow effect (aura active / permanent buff / normal almost-ready glow)
     self:UpdateIconGlow(frame, showGlow, showAuraActive, isPermanentBuffActive)
@@ -1742,24 +1870,39 @@ function CooldownIcons:UpdateIconState(frame, db)
 end
 
 -- Update resource cost display (horizontal bar or vertical fill)
-function CooldownIcons:UpdateResourceDisplay(frame, spellID, cooldownRemaining, hasResourceCost, resourcePercent, powerColor, db)
+-- In prediction mode:
+--   - While prediction spiral is active: hide resource display (spiral is the indicator)
+--   - When prediction failed (fallback): show vertical fill as deterministic feedback
+function CooldownIcons:UpdateResourceDisplay(frame, spellID, cooldownRemaining, hasResourceCost, resourcePercent, powerColor, db, showPredictionSpiral, inPredictionFallback)
     local displayMode = db.resourceDisplayMode or "fill"
     local displayRows = db.resourceDisplayRows or "all"
     local rowIndex = frame.rowIndex or 1
+    local isPredictionMode = displayMode == "prediction"
     
     -- Check if resource display is enabled for this row
     local enabledForRow = IsSettingEnabledForRow(displayRows, rowIndex)
+    
+    -- Prediction mode: hide display while spiral is active
+    if isPredictionMode and showPredictionSpiral then
+        if frame.resourceBar then frame.resourceBar:Hide() end
+        if frame.resourceFill then frame.resourceFill:Hide() end
+        frame.resourceTarget = nil
+        return
+    end
     
     -- Only show resource indicator if:
     -- 1. Not resting and out of combat (show in PvP/world even if combat drops)
     -- 2. The spell has a resource cost
     -- 3. We don't have enough resources (resourcePercent < 1)
-    -- 4. The ability is off cooldown (cooldown takes visual priority)
+    -- 4. The ability is off cooldown (cooldown takes visual priority) - unless in prediction fallback
     -- 5. Resource display is enabled for this row
     local inCombat = UnitAffectingCombat("player")
     local isResting = IsResting()
     local showUsability = inCombat or not isResting
-    local showResource = showUsability and hasResourceCost and resourcePercent < 1 and cooldownRemaining <= 0 and enabledForRow
+    
+    -- In prediction fallback, show resource display regardless of cooldown
+    local cooldownCheck = inPredictionFallback or cooldownRemaining <= 0
+    local showResource = showUsability and hasResourceCost and resourcePercent < 1 and cooldownCheck and enabledForRow
     
     if not showResource then
         -- Hide and reset
@@ -1782,7 +1925,10 @@ function CooldownIcons:UpdateResourceDisplay(frame, spellID, cooldownRemaining, 
     frame.resourceIconSize = iconSize
     frame.resourceIconWidth = iconWidth
     frame.resourceIconHeight = iconHeight
-    frame.resourceDisplayMode = displayMode  -- Store mode on frame for animation
+    
+    -- In prediction fallback, always use vertical fill regardless of configured mode
+    local effectiveMode = inPredictionFallback and "fill" or displayMode
+    frame.resourceDisplayMode = effectiveMode
     
     -- Set up OnUpdate for smooth animation if not already
     if not frame.resourceOnUpdate then
@@ -1794,11 +1940,11 @@ function CooldownIcons:UpdateResourceDisplay(frame, spellID, cooldownRemaining, 
         end)
     end
     
-    if displayMode == "bar" and frame.resourceBar then
+    if effectiveMode == "bar" and frame.resourceBar then
         frame.resourceBar:SetHeight(db.resourceBarHeight or 4)
         frame.resourceBar:Show()
         if frame.resourceFill then frame.resourceFill:Hide() end
-    elseif displayMode == "fill" and frame.resourceFill then
+    elseif effectiveMode == "fill" and frame.resourceFill then
         -- Frame alpha already handles visibility, just set the resource fill's own alpha
         frame.resourceFill:SetVertexColor(0, 0, 0, db.resourceFillAlpha or 0.6)
         frame.resourceFill:Show()

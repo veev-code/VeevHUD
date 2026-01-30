@@ -12,7 +12,7 @@ local C = addon.Constants
 -- Logging System (only saves to SavedVariables when debug mode is enabled)
 -------------------------------------------------------------------------------
 
-local MAX_LOG_ENTRIES = 200
+local MAX_LOG_ENTRIES = 500
 
 -- Check if debug mode is enabled
 local function IsDebugMode()
@@ -716,7 +716,7 @@ function Utils:ShouldShowHUD()
 
     return true, alpha
 end
-                                                                    
+
 -------------------------------------------------------------------------------
 -- Bar Utilities (shared by HealthBar and ResourceBar)
 -------------------------------------------------------------------------------

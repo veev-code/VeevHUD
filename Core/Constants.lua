@@ -125,7 +125,7 @@ C.DEFAULTS = {
             -- Energy ticker settings (shows progress to next energy tick)
             -- style: "disabled" = off, "bar" = separate bar below resource bar, "spark" = large spark overlay on resource bar
             energyTicker = {
-                style = "bar",        -- "disabled", "bar", or "spark"
+                style = "spark",      -- "disabled", "bar", or "spark"
                 -- Bar style settings
                 height = 3,           -- Height of the ticker bar
                 offsetY = -1,         -- Gap between resource bar bottom and ticker top (negative = below)
@@ -133,6 +133,12 @@ C.DEFAULTS = {
                 -- Spark style settings
                 sparkWidth = 6,       -- Width of the spark overlay (thinner = more elegant)
                 sparkHeight = 1.8,    -- Height multiplier relative to bar height
+            },
+            -- Mana tick indicator (shows progress to next mana tick)
+            manaTicker = {
+                style = "nextfulltick", -- "disabled", "outside5sr", or "nextfulltick"
+                sparkWidth = 12,      -- Width of the spark overlay (larger for visibility)
+                sparkHeight = 2.0,    -- Height multiplier relative to bar height
             },
         },
 
@@ -213,9 +219,11 @@ C.DEFAULTS = {
             dimOnCooldown = "secondary_utility",
             
             -- Resource cost display (for rage/energy classes)
-            -- Mode: "fill" = vertical fill from top, "bar" = horizontal bar at bottom
+            -- Mode: "fill" = vertical fill from top, "bar" = horizontal bar at bottom,
+            --       "prediction" = extends cooldown spiral to show max(cd, time_until_affordable),
+            --                      falls back to vertical fill if prediction was wrong
             -- Rows: "none" = disabled, "primary"/"primary_secondary"/"all" = which rows show it
-            resourceDisplayMode = "fill",
+            resourceDisplayMode = "prediction",
             resourceDisplayRows = "all", -- Which rows show resource cost display
             resourceBarHeight = 4,       -- Height of horizontal bar (Option A)
             resourceFillAlpha = 0.6,     -- Alpha of fill overlay (Option B)

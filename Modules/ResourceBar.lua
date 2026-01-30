@@ -17,12 +17,6 @@ function ResourceBar:Initialize()
     self.Utils = addon.Utils
     self.C = addon.Constants
 
-    -- Energy ticker state
-    self.ENERGY_TICK_RATE = 2.0  -- Energy ticks every 2 seconds in WoW
-    self.lastEnergy = 0
-    self.tickTimer = 0
-    self.lastTickTime = GetTime()
-
     -- Register events
     self.Events:RegisterEvent(self, "UNIT_POWER_UPDATE", self.OnPowerUpdate)
     self.Events:RegisterEvent(self, "UNIT_MAXPOWER", self.OnPowerUpdate)
@@ -106,6 +100,9 @@ function ResourceBar:CreateFrames(parent)
     -- Energy ticker bar (shows progress to next energy tick)
     self:CreateEnergyTicker(bar, db)
 
+    -- Mana ticker (shows progress to next mana tick, only in 5SR)
+    self:CreateManaTicker(bar, db)
+
     -- Initialize
     self:UpdatePowerType()
     self:UpdateBar()
@@ -120,14 +117,23 @@ function ResourceBar:RegisterUpdateIfNeeded()
     local animDb = addon.db.profile.animations or {}
     local db = addon.db.profile.resourceBar
     local tickerDb = db.energyTicker
+    local manaTickerDb = db.manaTicker
+    local iconsDb = addon.db.profile.icons or {}
     
-    -- Need updates if smooth bars enabled OR if ticker is enabled and we have energy
+    -- Need updates if smooth bars enabled OR if ticker is enabled and we have energy/mana
     local needsSmoothUpdate = animDb.smoothBars
     local isEnergy = self.powerType == self.C.POWER_TYPE.ENERGY
-    local tickerStyle = tickerDb and tickerDb.style or "disabled"
-    local needsTickerUpdate = tickerStyle ~= "disabled" and isEnergy
+    local isMana = self.powerType == self.C.POWER_TYPE.MANA
+    local energyTickerStyle = tickerDb and tickerDb.style or "disabled"
+    local manaTickerStyle = manaTickerDb and manaTickerDb.style or "disabled"
+    local needsEnergyTicker = energyTickerStyle ~= "disabled" and isEnergy
+    local needsManaTicker = manaTickerStyle ~= "disabled" and isMana
     
-    if needsSmoothUpdate or needsTickerUpdate then
+    -- Also need updates for mana rate tracking when prediction mode is enabled
+    local isPredictionMode = iconsDb.resourceDisplayMode == "prediction"
+    local needsManaTracking = isPredictionMode and isMana
+    
+    if needsSmoothUpdate or needsEnergyTicker or needsManaTicker or needsManaTracking then
         self.Events:RegisterUpdate(self, 0.02, self.OnUpdate)
         self.updateRegistered = true
     elseif self.updateRegistered then
@@ -238,6 +244,37 @@ function ResourceBar:CreateEnergyTickerSpark(bar, db, tickerDb)
     spark:Hide()
 end
 
+-------------------------------------------------------------------------------
+-- Mana Ticker (5-Second Rule Indicator)
+-- Shows progress to next mana tick when inside 5SR (not at full spirit regen)
+-------------------------------------------------------------------------------
+
+function ResourceBar:CreateManaTicker(bar, db)
+    local manaTickerDb = db.manaTicker
+    local style = manaTickerDb and manaTickerDb.style or "disabled"
+    if style == "disabled" then return end
+
+    local sparkWidth = manaTickerDb.sparkWidth or 12
+    local sparkHeightMult = manaTickerDb.sparkHeight or 2.0
+    local sparkHeight = db.height * sparkHeightMult
+
+    -- Create the spark overlay (similar to energy ticker spark style)
+    local spark = bar:CreateTexture(nil, "OVERLAY", nil, 3)  -- Higher sublevel for visibility
+    spark:SetTexture([[Interface\CastingBar\UI-CastingBar-Spark]])
+    spark:SetBlendMode("ADD")
+    spark:SetSize(sparkWidth, sparkHeight)
+    spark:SetPoint("CENTER", bar, "LEFT", 0, 0)
+    spark:SetAlpha(1.0)
+    
+    -- Use bright white/cyan color for contrast against blue mana bar
+    spark:SetVertexColor(0.8, 1.0, 1.0)
+    
+    self.manaTickerSpark = spark
+    
+    -- Hide initially
+    spark:Hide()
+end
+
 -- Get the height of the energy ticker (for other modules to offset)
 -- Returns 0 if ticker is not visible or using spark style (which doesn't take space)
 function ResourceBar:GetTickerHeight()
@@ -334,8 +371,13 @@ function ResourceBar:UpdateTickerVisibility()
 
     -- Initialize energy tracking when becoming visible
     if shouldShow then
-        self.lastEnergy = UnitPower("player", self.C.POWER_TYPE.ENERGY)
-        self.lastTickTime = GetTime()
+        local TickTracker = addon.TickTracker
+        if TickTracker then
+            TickTracker.lastSampleEnergy = UnitPower("player", self.C.POWER_TYPE.ENERGY)
+            if TickTracker.lastEnergyTickTime == 0 then
+                TickTracker.lastEnergyTickTime = GetTime()
+            end
+        end
     end
 
     -- Re-evaluate if we need the update ticker
@@ -420,7 +462,7 @@ function ResourceBar:UpdateText(power, maxPower, percent, format)
     self.text:SetText(self.Utils:FormatBarText(power, maxPower, percent, format))
 end
 
--- Combined update function for smooth bars and energy ticker
+-- Combined update function for smooth bars, energy ticker, and mana tracking
 function ResourceBar:OnUpdate()
     -- Smooth bar updates
     if self.bar and self.targetValue then
@@ -434,6 +476,17 @@ function ResourceBar:OnUpdate()
 
     -- Energy ticker updates
     self:UpdateEnergyTicker()
+    
+    -- Mana rate tracking (for prediction mode) and mana ticker
+    if self.powerType == self.C.POWER_TYPE.MANA then
+        local ResourcePrediction = addon.ResourcePrediction
+        if ResourcePrediction then
+            ResourcePrediction:RecordManaSample()
+        end
+        
+        -- Mana ticker updates (shows tick progress when in 5SR)
+        self:UpdateManaTicker()
+    end
 end
 
 function ResourceBar:UpdateEnergyTicker()
@@ -445,32 +498,24 @@ function ResourceBar:UpdateEnergyTicker()
 
     local currentEnergy = UnitPower("player", self.C.POWER_TYPE.ENERGY)
     local maxEnergy = UnitPowerMax("player", self.C.POWER_TYPE.ENERGY)
-    local currentTime = GetTime()
 
-    -- Detect energy tick (energy increased naturally, not from abilities)
-    -- Energy ticks give +20 energy per tick in Classic
-    if currentEnergy > self.lastEnergy then
-        -- Energy increased, a tick just happened - reset timer
-        self.lastTickTime = currentTime
-    end
-
-    -- Update stored energy value
-    self.lastEnergy = currentEnergy
-
-    -- Calculate progress toward next tick
-    local tickProgress = 0
-    if currentEnergy < maxEnergy then
-        local timeSinceTick = currentTime - self.lastTickTime
-        tickProgress = timeSinceTick / self.ENERGY_TICK_RATE
-        -- Clamp to 0-1 range
-        tickProgress = math.min(1, math.max(0, tickProgress))
-    end
-
-    -- Update based on style
-    if style == "bar" then
-        self:UpdateTickerBar(tickProgress, currentEnergy >= maxEnergy)
-    elseif style == "spark" then
-        self:UpdateTickerOverlaySpark(tickProgress, currentEnergy >= maxEnergy)
+    -- Use centralized tick tracking from TickTracker
+    -- This ensures consistency between the ticker UI and spell predictions
+    local TickTracker = addon.TickTracker
+    if TickTracker then
+        -- Record the energy sample (handles tick detection and phantom ticks)
+        TickTracker:RecordEnergySample()
+        
+        -- Get tick progress from the centralized tracker
+        local tickProgress = TickTracker:GetEnergyTickProgress()
+        local isMaxEnergy = currentEnergy >= maxEnergy
+        
+        -- Update based on style
+        if style == "bar" then
+            self:UpdateTickerBar(tickProgress, isMaxEnergy)
+        elseif style == "spark" then
+            self:UpdateTickerOverlaySpark(tickProgress, isMaxEnergy)
+        end
     end
 end
 
@@ -528,6 +573,77 @@ function ResourceBar:UpdateTickerOverlaySpark(progress, isMaxEnergy)
     local sparkX = barWidth * progress
     self.tickerOverlaySpark:ClearAllPoints()
     self.tickerOverlaySpark:SetPoint("CENTER", self.bar, "LEFT", sparkX, 0)
+end
+
+-------------------------------------------------------------------------------
+-- Mana Ticker Updates
+-------------------------------------------------------------------------------
+
+function ResourceBar:UpdateManaTicker()
+    if not self.manaTickerSpark then return end
+    if not self.bar then return end
+    
+    local db = addon.db.profile.resourceBar
+    local manaTickerDb = db.manaTicker
+    local style = manaTickerDb and manaTickerDb.style or "disabled"
+    
+    if style == "disabled" then
+        self.manaTickerSpark:Hide()
+        return
+    end
+    
+    local currentMana = UnitPower("player", self.C.POWER_TYPE.MANA)
+    local maxMana = UnitPowerMax("player", self.C.POWER_TYPE.MANA)
+    
+    -- Hide when at max mana
+    if currentMana >= maxMana then
+        self.manaTickerSpark:Hide()
+        return
+    end
+    
+    -- Check visibility based on style
+    if style == "outside5sr" then
+        -- Only show when OUTSIDE the 5-second rule (full spirit regen)
+        local FSR = addon.FiveSecondRule
+        if FSR and FSR:IsActive() then
+            self.manaTickerSpark:Hide()
+            return
+        end
+    end
+    -- style == "nextfreetick": show progress toward first free tick (works inside or outside 5SR)
+    
+    -- Get tick progress from TickTracker
+    local TickTracker = addon.TickTracker
+    if not TickTracker then
+        self.manaTickerSpark:Hide()
+        return
+    end
+    
+    -- Record mana sample for tick detection
+    TickTracker:RecordManaSample()
+    
+    -- Use appropriate progress function based on style
+    local tickProgress
+    if style == "nextfulltick" then
+        -- Shows progress toward first full-rate tick after 5SR ends
+        tickProgress = TickTracker:GetFullTickProgress()
+    else
+        -- Normal 2-second tick cycle progress
+        tickProgress = TickTracker:GetManaTickProgress()
+    end
+    
+    -- Hide when no progress
+    if tickProgress <= 0 then
+        self.manaTickerSpark:Hide()
+        return
+    end
+    
+    -- Show and position spark on resource bar
+    self.manaTickerSpark:Show()
+    local barWidth = self.bar:GetWidth()
+    local sparkX = barWidth * tickProgress
+    self.manaTickerSpark:ClearAllPoints()
+    self.manaTickerSpark:SetPoint("CENTER", self.bar, "LEFT", sparkX, 0)
 end
 
 -------------------------------------------------------------------------------
