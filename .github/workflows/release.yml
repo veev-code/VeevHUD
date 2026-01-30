@@ -34,6 +34,24 @@ jobs:
           # Extract version from tag
           VERSION="${GITHUB_REF#refs/tags/}"
           
+          # Extract changelog for this version only (between current version header and next version header)
+          CHANGELOG=$(awk -v ver="$VERSION" '
+            /^## \[/ {
+              if (found) exit
+              if (index($0, ver)) found=1
+              next
+            }
+            found { print }
+          ' CHANGELOG.md | head -30)
+          
+          # Escape special characters for JSON
+          CHANGELOG_ESCAPED=$(echo "$CHANGELOG" | sed 's/\\/\\\\/g' | sed 's/"/\\"/g' | sed ':a;N;$!ba;s/\n/\\n/g')
+          
+          # Truncate if too long for Discord (1024 char limit for field values)
+          if [ ${#CHANGELOG_ESCAPED} -gt 900 ]; then
+            CHANGELOG_ESCAPED="${CHANGELOG_ESCAPED:0:900}...\\n\\n*See GitHub for full changelog*"
+          fi
+          
           # Post to Discord
           curl -H "Content-Type: application/json" \
             -d "{
@@ -45,6 +63,11 @@ jobs:
                   {
                     \"name\": \"Download\",
                     \"value\": \"[GitHub](https://github.com/veev-code/VeevHUD/releases/tag/${VERSION}) (available now)\\n[CurseForge](https://www.curseforge.com/wow/addons/veevhud) (may take time for approval)\",
+                    \"inline\": false
+                  },
+                  {
+                    \"name\": \"What's New\",
+                    \"value\": \"${CHANGELOG_ESCAPED}\",
                     \"inline\": false
                   }
                 ],
