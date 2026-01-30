@@ -76,10 +76,7 @@ jobs:
                     \"value\": \"${CHANGELOG_ESCAPED}\",
                     \"inline\": false
                   }
-                ],
-                \"footer\": {
-                  \"text\": \"VeevHUD\"
-                }
+                ]
               }]
             }" \
             "$DISCORD_WEBHOOK"
