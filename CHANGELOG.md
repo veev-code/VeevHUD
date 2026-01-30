@@ -1,5 +1,10 @@
 # VeevHUD Changelog
 
+## [1.0.23] - 2026-01-30
+
+### LibSpellDB Updates
+- Hemorrhage now shows cooldown display instead of debuff tracking (more useful for rotation)
+
 ## [1.0.22] - 2026-01-30
 
 ### Added
