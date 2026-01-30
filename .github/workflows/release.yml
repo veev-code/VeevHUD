@@ -31,11 +31,12 @@ jobs:
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
         run: |
-          # Extract version from tag
+          # Extract version from tag (strip 'v' prefix if present for changelog matching)
           VERSION="${GITHUB_REF#refs/tags/}"
+          VERSION_NUM="${VERSION#v}"
           
           # Extract changelog for this version only (between current version header and next version header)
-          CHANGELOG=$(awk -v ver="$VERSION" '
+          CHANGELOG=$(awk -v ver="$VERSION_NUM" '
             /^## \[/ {
               if (found) exit
               if (index($0, ver)) found=1
@@ -46,6 +47,11 @@ jobs:
           
           # Escape special characters for JSON
           CHANGELOG_ESCAPED=$(echo "$CHANGELOG" | sed 's/\\/\\\\/g' | sed 's/"/\\"/g' | sed ':a;N;$!ba;s/\n/\\n/g')
+          
+          # Fallback if changelog extraction failed
+          if [ -z "$CHANGELOG_ESCAPED" ]; then
+            CHANGELOG_ESCAPED="See [GitHub release](https://github.com/veev-code/VeevHUD/releases/tag/${VERSION}) for details."
+          fi
           
           # Truncate if too long for Discord (1024 char limit for field values)
           if [ ${#CHANGELOG_ESCAPED} -gt 900 ]; then
