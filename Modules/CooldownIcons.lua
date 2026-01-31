@@ -23,6 +23,9 @@ CooldownIcons.iconsByRow = {}
 -- Spell to row assignment cache
 CooldownIcons.spellAssignments = {}
 
+-- Icon naming counter for Masque
+CooldownIcons.iconCounter = 0
+
 -- Masque support
 CooldownIcons.Masque = nil
 CooldownIcons.MasqueGroup = nil
@@ -1337,7 +1340,6 @@ function CooldownIcons:UpdateIconState(frame, db)
     -- Only if aura tracking is enabled in settings
     local auraActive = false
     local auraRemaining, auraDuration, auraStacks = 0, 0, 0
-    local auraTargetCount = 0
     local spellData = frame.spellData
     
     if db.showAuraTracking ~= false then
@@ -1346,7 +1348,6 @@ function CooldownIcons:UpdateIconState(frame, db)
         if auraTracker then
             auraRemaining, auraDuration, auraStacks = auraTracker:GetAuraRemaining(spellID)
         end
-        auraTargetCount = auraTracker and auraTracker:GetAuraTargetCount(spellID) or 0
         
         -- For shared CD abilities (Reck/Retal/SWall), also check player buffs directly
         -- since AuraTracker may not track non-displayed spells

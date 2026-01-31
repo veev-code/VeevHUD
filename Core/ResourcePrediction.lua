@@ -42,6 +42,10 @@ local ADRENALINE_RUSH_SPELL_ID = 13750
 -- Prediction-specific state (SYNC fix for multi-icon predictions)
 ResourcePrediction.lastPredictionEnergy = 0
 
+-- Debug log deduplication keys
+ResourcePrediction.lastPredLogKey = ""
+ResourcePrediction.lastCostLogKey = ""
+
 -- Get energy regeneration rate per tick, accounting for Adrenaline Rush
 -- Returns: energyPerTick, tickRate
 function ResourcePrediction:GetEnergyRegenRate()

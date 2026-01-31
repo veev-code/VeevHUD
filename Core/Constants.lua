@@ -67,17 +67,6 @@ C.COLORS = {
 }
 
 -------------------------------------------------------------------------------
--- Default Icon Sizes
--------------------------------------------------------------------------------
-
-C.ICON_SIZE = {
-    LARGE   = 40,
-    MEDIUM  = 32,
-    SMALL   = 24,
-    TINY    = 20,
-}
-
--------------------------------------------------------------------------------
 -- Default Settings
 -------------------------------------------------------------------------------
 
@@ -216,9 +205,7 @@ C.DEFAULTS = {
             -- Cooldown display
             -- Row selection: "none" = disabled, "primary" = Primary only,
             -- "primary_secondary" = Primary + Secondary, "all" = all rows
-            showCooldownText = true,      -- Master toggle (legacy)
             showCooldownTextOn = "all",   -- Which rows show cooldown text
-            showCooldownSpiral = true,    -- Master toggle (legacy)
             showCooldownSpiralOn = "all", -- Which rows show cooldown spiral
             
             -- GCD display: which rows show the global cooldown spinner
@@ -243,7 +230,6 @@ C.DEFAULTS = {
             
             -- Cast feedback: scale punch when ability is used
             -- Rows: "none" = disabled, "primary"/"primary_secondary"/"all" = which rows show it
-            castFeedback = true,          -- Master toggle (legacy)
             castFeedbackRows = "all",     -- Which rows show cast feedback animation
             castFeedbackScale = 1.1,      -- How much to scale up (1.1 = 110%)
             
@@ -288,12 +274,7 @@ C.DEFAULTS = {
             {
                 name = "Primary Row",
                 -- Primary: ROTATIONAL abilities for DPS/Healing/Tanking
-                -- Uses composite tag matching: must have ROTATIONAL + (DPS or HEAL or TANK)
-                tags = {"ROTATIONAL", "CORE_ROTATION"},  -- CORE_ROTATION for legacy compat
-                compositeTags = {  -- New: requires ROTATIONAL + at least one role tag
-                    required = {"ROTATIONAL"},
-                    anyOf = {"DPS", "HEAL", "TANK"},
-                },
+                tags = {"ROTATIONAL", "CORE_ROTATION"},
                 maxIcons = 20,       -- No practical limit, grows horizontally
                 enabled = true,
                 iconSize = 56,       -- Larger core icons (like retail)
@@ -333,12 +314,7 @@ C.DEFAULTS = {
 -------------------------------------------------------------------------------
 
 C.TEXTURES = {
-    STATUSBAR       = "Interface\\AddOns\\VeevHUD\\Media\\Statusbar_Clean",
-    STATUSBAR_FLAT  = "Interface\\Buttons\\WHITE8X8",
-    STATUSBAR_DEFAULT = "Interface\\TargetingFrame\\UI-StatusBar",
-    BORDER          = "Interface\\Tooltips\\UI-Tooltip-Border",
-    BACKDROP        = "Interface\\Tooltips\\UI-Tooltip-Background",
-    GLOW            = "Interface\\SpellActivationOverlay\\IconAlert",
+    STATUSBAR = "Interface\\AddOns\\VeevHUD\\Media\\Statusbar_Clean",
 }
 
 -------------------------------------------------------------------------------

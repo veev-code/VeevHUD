@@ -770,31 +770,6 @@ function AuraTracker:GetAuraRemaining(sourceSpellID)
     return best.remaining, best.duration, best.stacks
 end
 
--- Get count of targets with this aura active
-function AuraTracker:GetAuraTargetCount(sourceSpellID)
-    local auraIDs = self:GetTriggeredAuraIDs(sourceSpellID)
-    local now = GetTime()
-    local count = 0
-    local countedGUIDs = {}  -- Avoid counting same target twice
-    
-    for _, auraID in ipairs(auraIDs) do
-        local targets = self.activeAuras[auraID]
-        if targets then
-            for targetGUID, auraData in pairs(targets) do
-                if not countedGUIDs[targetGUID] then
-                    local expiration = type(auraData) == "table" and auraData.expiration or auraData
-                    if expiration > now then
-                        count = count + 1
-                        countedGUIDs[targetGUID] = true
-                    end
-                end
-            end
-        end
-    end
-    
-    return count
-end
-
 -- Notify that an aura changed (for icon updates)
 function AuraTracker:NotifyAuraChange(spellID, isActive)
     local cooldownIcons = addon:GetModule("CooldownIcons")

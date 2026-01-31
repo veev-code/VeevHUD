@@ -703,7 +703,7 @@ function Utils:CreateBarGradient(bar)
 end
 
 -- Format bar text based on format type
--- Supported formats: "current", "percent", "both", "deficit", "full"
+-- Supported formats: "current", "percent", "both"
 function Utils:FormatBarText(value, maxValue, percent, format)
     if format == "current" then
         return self:FormatNumber(value)
@@ -711,15 +711,6 @@ function Utils:FormatBarText(value, maxValue, percent, format)
         return string.format("%d%%", percent * 100)
     elseif format == "both" then
         return string.format("%s (%d%%)", self:FormatNumber(value), percent * 100)
-    elseif format == "deficit" then
-        local deficit = maxValue - value
-        if deficit > 0 then
-            return "-" .. self:FormatNumber(deficit)
-        else
-            return ""
-        end
-    elseif format == "full" then
-        return string.format("%s / %s", self:FormatNumber(value), self:FormatNumber(maxValue))
     else
         return ""
     end
