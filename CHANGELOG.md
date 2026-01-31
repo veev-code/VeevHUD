@@ -1,5 +1,18 @@
 # VeevHUD Changelog
 
+## [1.0.24] - 2026-01-30
+
+### Fixed
+- **Blood Fury GCD tracking bug** — Orc racial spell power variants (33697, 33702) no longer briefly show as "ready" when triggering a GCD while on cooldown
+- **Spell ID discovery** — Now correctly tracks the actual spell ID from your spellbook instead of the library spell ID (fixes issues where class-specific spell variants weren't tracked properly)
+
+### Changed
+- Options UI consistency improvements and better user-friendliness
+
+### LibSpellDB Updates
+- Added all Orc Blood Fury variants (20572, 33697, 33702) for proper class-specific tracking
+- Added Fire Nova Totem (all ranks)
+
 ## [1.0.23] - 2026-01-30
 
 ### LibSpellDB Updates
