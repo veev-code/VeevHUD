@@ -152,6 +152,15 @@ function SpellsOptions:CreatePanel()
                     spellTracker:FullRescan()
                 end
                 
+                -- Force reposition rows after spell changes
+                -- (delayed slightly to ensure all icon updates are complete)
+                C_Timer.After(0.05, function()
+                    local cooldownIcons = addon:GetModule("CooldownIcons")
+                    if cooldownIcons and cooldownIcons.RepositionRows then
+                        cooldownIcons:RepositionRows()
+                    end
+                end)
+                
                 SpellsOptions:RefreshSpellList()
             end,
             timeout = 0,
@@ -254,8 +263,6 @@ end
 -------------------------------------------------------------------------------
 
 function SpellsOptions:SetSpellOverride(spellID, field, value)
-    local Utils = addon.Utils
-    
     -- Get default value to compare - if value matches default, clear the override
     local defaultValue = self:GetDefaultValue(spellID, field)
     
@@ -270,6 +277,15 @@ function SpellsOptions:SetSpellOverride(spellID, field, value)
     if spellTracker then
         spellTracker:FullRescan()
     end
+    
+    -- Force reposition rows after spell changes
+    -- (delayed slightly to ensure all icon updates are complete)
+    C_Timer.After(0.05, function()
+        local cooldownIcons = addon:GetModule("CooldownIcons")
+        if cooldownIcons and cooldownIcons.RepositionRows then
+            cooldownIcons:RepositionRows()
+        end
+    end)
 end
 
 function SpellsOptions:ResetSpell(spellID)
@@ -288,13 +304,23 @@ function SpellsOptions:GetDefaultValue(spellID, field)
     -- Get the INHERENT default (without considering user overrides)
     -- This should NOT change based on current tracked state
     if field == "enabled" then
-        -- A spell is enabled by default if it has a default row assignment
-        -- (meaning it's spec-relevant and passes tag filtering)
+        -- A spell is enabled by default if:
+        -- 1. It has a default row assignment (spec-relevant and matches row tags)
+        -- 2. It would NOT be excluded by SpellTracker (not FILLER, OUT_OF_COMBAT, etc.)
         local cooldownIcons = addon:GetModule("CooldownIcons")
         if cooldownIcons and cooldownIcons.GetDefaultRowForSpell then
             local defaultRow = cooldownIcons:GetDefaultRowForSpell(spellID)
             if defaultRow then
-                return true  -- Spec-relevant spell, enabled by default
+                -- Also check if spell would be excluded by SpellTracker
+                -- (FILLER spells with no CD, OUT_OF_COMBAT, LONG_BUFF, etc.)
+                local spellTracker = addon:GetModule("SpellTracker")
+                if spellTracker and spellTracker.ShouldExcludeSpell then
+                    local spellData = addon.LibSpellDB and addon.LibSpellDB:GetSpellInfo(spellID)
+                    if spellData and spellTracker:ShouldExcludeSpell(spellData) then
+                        return false  -- Would be excluded by default, so default enabled = false
+                    end
+                end
+                return true  -- Spec-relevant spell and not excluded, enabled by default
             end
         end
         return false  -- Not spec-relevant, disabled by default (Available section)

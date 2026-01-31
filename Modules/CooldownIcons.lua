@@ -745,6 +745,26 @@ end
 function CooldownIcons:OnTrackedSpellsChanged()
     self:RebuildAllRows()
     self:UpdateAllIcons()
+    -- Ensure rows are repositioned after icon count changes
+    -- (RebuildAllRows already calls this, but call again to be safe after UpdateAllIcons)
+    self:RepositionRows()
+    -- Force icon repositioning within rows after row frames are repositioned
+    self:RefreshIconPositions()
+end
+
+-- Force all icons to be repositioned within their row frames
+-- Called after RepositionRows to ensure icons are in correct positions
+function CooldownIcons:RefreshIconPositions()
+    local db = addon.db.profile.icons
+    for rowIndex, rowFrame in pairs(self.rows or {}) do
+        if rowFrame then
+            local spells = self.iconsByRow[rowIndex] or {}
+            local iconCount = #spells
+            if iconCount > 0 then
+                self:PositionRowIcons(rowFrame, iconCount, db)
+            end
+        end
+    end
 end
 
 
@@ -900,12 +920,86 @@ function CooldownIcons:RebuildAllRows()
 
     -- Update icons to show assigned spells
     self:UpdateRowIcons()
+    
+    -- Reposition rows based on actual icon counts (important for flow layout rows)
+    self:RepositionRows()
 
     self.Utils:LogInfo("CooldownIcons: Rebuilt rows")
     for rowIndex, spells in pairs(self.iconsByRow) do
         if #spells > 0 then
             local rowConfig = rowConfigs[rowIndex]
             self.Utils:LogDebug("  Row", rowIndex, "(" .. (rowConfig and rowConfig.name or "?") .. "):", #spells, "spells")
+        end
+    end
+end
+
+-- Reposition row frames based on actual icon counts
+-- This is called after RebuildAllRows to ensure flow layout rows are positioned correctly
+-- when the number of icons changes (e.g., after reset or enabling/disabling spells)
+function CooldownIcons:RepositionRows()
+    if not self.rows or not self.container then return end
+    
+    local rowConfigs = addon.db.profile.rows or {}
+    local iconDb = addon.db.profile.icons or {}
+    
+    -- Get sorted list of row indices (to handle sparse tables)
+    local sortedRowIndices = {}
+    for rowIndex in pairs(self.rows) do
+        table.insert(sortedRowIndices, rowIndex)
+    end
+    table.sort(sortedRowIndices)
+    
+    local yOffset = 0
+    
+    for _, rowIndex in ipairs(sortedRowIndices) do
+        local rowFrame = self.rows[rowIndex]
+        if rowFrame then
+            local rowConfig = rowConfigs[rowIndex] or {}
+            local iconHeight = rowFrame.iconHeight or rowFrame.iconSize or 40
+            local iconsPerRow = rowFrame.iconsPerRow or rowConfig.iconsPerRow or rowConfig.maxIcons or 6
+            local rowSpacing = iconDb.rowSpacing or 1
+            
+            -- Get actual icon count for this row
+            local actualIconCount = 0
+            local spells = self.iconsByRow[rowIndex]
+            if spells then
+                actualIconCount = #spells
+            end
+            
+            -- Add extra gap between primary and secondary rows
+            if rowIndex == 2 then
+                local psGap = iconDb.primarySecondaryGap or 0
+                yOffset = yOffset - psGap
+            end
+            
+            -- Add section gap before utility rows (row 3+)
+            if rowIndex >= 3 then
+                local sectionGap = iconDb.sectionGap or 16
+                yOffset = yOffset - sectionGap
+            end
+            
+            -- Position row frame
+            rowFrame:ClearAllPoints()
+            rowFrame:SetPoint("TOP", self.container, "TOP", 0, yOffset)
+            
+            -- Reset row frame height to match actual content height
+            -- This ensures icons are positioned correctly when using TOP anchor
+            rowFrame:SetHeight(iconHeight)
+            
+            -- Calculate height based on ACTUAL icon count (not maxIcons)
+            local actualHeight = iconHeight
+            if rowFrame.flowLayout and iconsPerRow and actualIconCount > 0 then
+                local actualRows = math.ceil(actualIconCount / iconsPerRow)
+                actualHeight = actualRows * (iconHeight + rowSpacing) - rowSpacing
+            elseif actualIconCount == 0 then
+                -- Empty row takes no vertical space
+                actualHeight = 0
+            end
+            
+            -- Only add row spacing if this row has icons
+            if actualIconCount > 0 then
+                yOffset = yOffset - actualHeight - rowSpacing
+            end
         end
     end
 end
@@ -966,11 +1060,29 @@ function CooldownIcons:PositionRowIcons(rowFrame, count, db)
     local flowLayout = rowFrame.flowLayout or false
     local rowSpacing = db.rowSpacing or 1  -- Vertical spacing between wrapped rows
 
-    if flowLayout and count > iconsPerRow then
-        -- Multi-row flow layout
-        self:PositionFlowLayout(rowFrame, count, iconWidth, iconHeight, spacing, iconsPerRow, rowSpacing)
+    if flowLayout then
+        -- Flow layout rows always use TOP anchor for consistency
+        -- This ensures position doesn't jump when transitioning between 1 row and multiple rows
+        if count > iconsPerRow then
+            -- Multi-row flow layout
+            self:PositionFlowLayout(rowFrame, count, iconWidth, iconHeight, spacing, iconsPerRow, rowSpacing)
+        else
+            -- Single row but still flow layout - use TOP anchor like multi-row
+            local totalWidth = count * iconWidth + (count - 1) * spacing
+            local startX = -totalWidth / 2 + iconWidth / 2
+
+            for i = 1, count do
+                local frame = rowFrame.icons[i]
+                if frame and frame:IsShown() then
+                    local x = startX + (i - 1) * (iconWidth + spacing)
+                    frame:ClearAllPoints()
+                    -- Use TOP anchor to match PositionFlowLayout behavior
+                    frame:SetPoint("TOP", rowFrame, "TOP", x, 0)
+                end
+            end
+        end
     else
-        -- Single row layout (centered) - use width for horizontal positioning
+        -- Non-flow layout rows use CENTER anchor
         local totalWidth = count * iconWidth + (count - 1) * spacing
         local startX = -totalWidth / 2 + iconWidth / 2
 
@@ -2438,6 +2550,9 @@ function CooldownIcons:Refresh()
     
     -- Reapply texcoords (ensures aspect ratio cropping is applied)
     self:ApplyIconTexCoords()
+    
+    -- Final repositioning based on actual icon counts (overrides the estimated positions above)
+    self:RepositionRows()
 end
 
 function CooldownIcons:RefreshFonts(fontPath)
