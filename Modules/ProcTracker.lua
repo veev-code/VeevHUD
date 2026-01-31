@@ -239,7 +239,7 @@ function ProcTracker:CreateProcIcon(parent, procData, index, size, iconWidth, ic
     -- Duration text (center)
     local durationFontSize = math.max(10, math.floor(size * 0.5))
     local text = textContainer:CreateFontString(nil, "OVERLAY", nil, 7)
-    text:SetFont(self.C.FONTS.NUMBER, durationFontSize, "OUTLINE")
+    text:SetFont(addon:GetFont(), durationFontSize, "OUTLINE")
     text:SetPoint("CENTER", frame, "CENTER", 0, 0)
     text:SetTextColor(self.C.COLORS.TEXT.r, self.C.COLORS.TEXT.g, self.C.COLORS.TEXT.b)
     frame.text = text
@@ -247,7 +247,7 @@ function ProcTracker:CreateProcIcon(parent, procData, index, size, iconWidth, ic
     -- Stack count (top right corner, slightly larger font)
     local stacksFontSize = math.max(11, math.floor(size * 0.55))
     local stacks = textContainer:CreateFontString(nil, "OVERLAY", nil, 7)
-    stacks:SetFont(self.C.FONTS.NUMBER, stacksFontSize, "OUTLINE")
+    stacks:SetFont(addon:GetFont(), stacksFontSize, "OUTLINE")
     stacks:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 4, 4)
     stacks:SetJustifyH("RIGHT")
     stacks:SetJustifyV("TOP")
@@ -715,4 +715,24 @@ function ProcTracker:Refresh()
     self:RepositionIcons()
     
     self:UpdateAllProcs()
+end
+
+function ProcTracker:RefreshFonts(fontPath)
+    -- Update fonts on all proc icon text elements
+    local db = addon.db.profile.procTracker
+    local iconSize = db.iconSize
+    
+    for _, frame in ipairs(self.icons or {}) do
+        -- Duration text
+        if frame.text then
+            local durationFontSize = math.max(10, math.floor(iconSize * 0.5))
+            frame.text:SetFont(fontPath, durationFontSize, "OUTLINE")
+        end
+        
+        -- Stacks text
+        if frame.stacks then
+            local stacksFontSize = math.max(11, math.floor(iconSize * 0.55))
+            frame.stacks:SetFont(fontPath, stacksFontSize, "OUTLINE")
+        end
+    end
 end

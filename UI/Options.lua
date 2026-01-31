@@ -214,6 +214,12 @@ function Options:CreatePanelContent(container)
         min = -500, max = 500, step = 1,
     })
     
+    yOffset = self:CreateFontDropdown(container, yOffset, {
+        path = "appearance.font",
+        label = "Font",
+        tooltip = "The font used for all text in the HUD: cooldown timers, stack counts, health/resource values, and proc durations.\n\nWith LibSharedMedia-3.0 installed, you'll see all built-in WoW fonts plus any custom fonts from other addons.",
+    })
+    
     -- === VISIBILITY SECTION ===
     yOffset = yOffset - 8
     yOffset = self:CreateSectionHeader(container, "Visibility", yOffset)
@@ -522,10 +528,16 @@ function Options:CreatePanelContent(container)
         dependsOn = "healthBar.enabled",
     })
     
-    yOffset = self:CreateCheckbox(container, yOffset, {
-        path = "healthBar.showText",
-        label = "Show Text",
-        tooltip = "Displays your health percentage as text on the bar (e.g., '85%'). Useful for knowing exactly when you're in execute range or need to use a defensive.",
+    yOffset = self:CreateDropdown(container, yOffset, {
+        path = "healthBar.textFormat",
+        label = "Text Display",
+        tooltip = "Controls what text is shown on the health bar.\n\n'Current Value' shows your actual health (e.g., '3256').\n'Percent' shows your health percentage (e.g., '71%').\n'Both' shows both (e.g., '3256 (71%)').\n'None' hides the text entirely.",
+        options = {
+            { value = "current", label = "Current Value" },
+            { value = "percent", label = "Percent" },
+            { value = "both", label = "Both" },
+            { value = "none", label = "None" },
+        },
         dependsOn = "healthBar.enabled",
     })
     
@@ -534,7 +546,8 @@ function Options:CreatePanelContent(container)
         label = "Text Size",
         tooltip = "The font size in pixels for the health text. Larger sizes are easier to read but may overflow small bars.",
         min = 6, max = 18, step = 1,
-        dependsOn = "healthBar.showText",
+        dependsOn = "healthBar.textFormat",
+        dependsOnNotValue = "none",
     })
     
     yOffset = self:CreateCheckbox(container, yOffset, {
@@ -570,10 +583,16 @@ function Options:CreatePanelContent(container)
         dependsOn = "resourceBar.enabled",
     })
     
-    yOffset = self:CreateCheckbox(container, yOffset, {
-        path = "resourceBar.showText",
-        label = "Show Text",
-        tooltip = "Displays your current resource amount as text on the bar (e.g., '4523' for mana or '67' for rage). Helpful if you need exact numbers rather than just the bar visual.",
+    yOffset = self:CreateDropdown(container, yOffset, {
+        path = "resourceBar.textFormat",
+        label = "Text Display",
+        tooltip = "Controls what text is shown on the resource bar.\n\n'Current Value' shows your actual resource (e.g., '4523' for mana, '67' for energy).\n'Percent' shows your resource percentage (e.g., '85%').\n'Both' shows both (e.g., '4523 (85%)').\n'None' hides the text entirely.",
+        options = {
+            { value = "current", label = "Current Value" },
+            { value = "percent", label = "Percent" },
+            { value = "both", label = "Both" },
+            { value = "none", label = "None" },
+        },
         dependsOn = "resourceBar.enabled",
     })
     
@@ -582,7 +601,8 @@ function Options:CreatePanelContent(container)
         label = "Text Size",
         tooltip = "The font size in pixels for the resource text. Larger sizes are easier to read but may overflow small bars.",
         min = 6, max = 18, step = 1,
-        dependsOn = "resourceBar.showText",
+        dependsOn = "resourceBar.textFormat",
+        dependsOnNotValue = "none",
     })
     
     yOffset = self:CreateCheckbox(container, yOffset, {
@@ -1312,6 +1332,304 @@ function Options:CreateDropdown(parent, yOffset, config)
     return yOffset - 50
 end
 
+function Options:CreateFontDropdown(parent, yOffset, config)
+    -- Font dropdown with preview and scrolling support
+    local frame = CreateFrame("Frame", nil, parent)
+    frame:SetPoint("TOPLEFT", 0, yOffset)
+    frame:SetSize(400, 45)
+    
+    local isModified = addon:IsSettingOverridden(config.path)
+    
+    -- Label with modified indicator
+    local labelText = config.label
+    if isModified then
+        labelText = "|cffffd200*|r " .. config.label
+    end
+    
+    local label = frame:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+    label:SetPoint("TOPLEFT", 0, 0)
+    label:SetText(labelText)
+    
+    -- Use FontManager for font list and path lookups
+    local FM = addon.FontManager
+    local function GetFontList()
+        return FM:GetFontList()
+    end
+    
+    local function GetFontPath(fontName)
+        return FM:GetFontPath(fontName)
+    end
+    
+    local currentValue = addon:GetSettingValue(config.path) or addon.Constants.BUNDLED_FONT_NAME
+    
+    -- Create custom dropdown button (styled like UIDropDownMenu)
+    local dropdownFrame = CreateFrame("Frame", nil, frame, BackdropTemplateMixin and "BackdropTemplate" or nil)
+    dropdownFrame:SetPoint("TOPLEFT", label, "BOTTOMLEFT", 0, -4)
+    dropdownFrame:SetSize(200, 24)
+    
+    -- Dropdown background
+    local DLeft = dropdownFrame:CreateTexture(nil, "ARTWORK")
+    DLeft:SetSize(25, 64)
+    DLeft:SetPoint("TOPLEFT", -17, 20)
+    DLeft:SetTexture([[Interface\Glues\CharacterCreate\CharacterCreate-LabelFrame]])
+    DLeft:SetTexCoord(0, 0.1953125, 0, 1)
+    
+    local DRight = dropdownFrame:CreateTexture(nil, "ARTWORK")
+    DRight:SetSize(25, 64)
+    DRight:SetPoint("TOPRIGHT", 17, 20)
+    DRight:SetTexture([[Interface\Glues\CharacterCreate\CharacterCreate-LabelFrame]])
+    DRight:SetTexCoord(0.8046875, 1, 0, 1)
+    
+    local DMiddle = dropdownFrame:CreateTexture(nil, "ARTWORK")
+    DMiddle:SetHeight(64)
+    DMiddle:SetPoint("LEFT", DLeft, "RIGHT")
+    DMiddle:SetPoint("RIGHT", DRight, "LEFT")
+    DMiddle:SetTexture([[Interface\Glues\CharacterCreate\CharacterCreate-LabelFrame]])
+    DMiddle:SetTexCoord(0.1953125, 0.8046875, 0, 1)
+    
+    -- Selected font text (shows current font in its own typeface)
+    local selectedText = dropdownFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    selectedText:SetPoint("LEFT", 8, 2)
+    selectedText:SetPoint("RIGHT", -28, 2)
+    selectedText:SetJustifyH("LEFT")
+    selectedText:SetText(currentValue)
+    pcall(function()
+        selectedText:SetFont(GetFontPath(currentValue), 12, "")
+    end)
+    
+    -- Dropdown arrow button
+    local dropButton = CreateFrame("Button", nil, dropdownFrame)
+    dropButton:SetSize(24, 24)
+    dropButton:SetPoint("RIGHT", 4, 2)
+    dropButton:SetNormalTexture([[Interface\ChatFrame\UI-ChatIcon-ScrollDown-Up]])
+    dropButton:SetPushedTexture([[Interface\ChatFrame\UI-ChatIcon-ScrollDown-Down]])
+    dropButton:SetHighlightTexture([[Interface\Buttons\UI-Common-MouseHilight]], "ADD")
+    
+    -- Scrollable dropdown list frame
+    local listFrame = CreateFrame("Frame", nil, UIParent, BackdropTemplateMixin and "BackdropTemplate" or nil)
+    listFrame:SetFrameStrata("FULLSCREEN_DIALOG")
+    listFrame:SetSize(220, 200)
+    listFrame:SetBackdrop({
+        bgFile = [[Interface\DialogFrame\UI-DialogBox-Background-Dark]],
+        edgeFile = [[Interface\DialogFrame\UI-DialogBox-Border]],
+        tile = true, tileSize = 32, edgeSize = 16,
+        insets = { left = 4, right = 4, top = 4, bottom = 4 },
+    })
+    listFrame:SetBackdropColor(0, 0, 0, 0.9)
+    listFrame:Hide()
+    listFrame:EnableMouseWheel(true)
+    
+    -- Scroll frame inside list
+    local scrollFrame = CreateFrame("ScrollFrame", nil, listFrame, "UIPanelScrollFrameTemplate")
+    scrollFrame:SetPoint("TOPLEFT", 8, -8)
+    scrollFrame:SetPoint("BOTTOMRIGHT", -28, 8)
+    
+    -- Content frame for scroll child
+    local contentFrame = CreateFrame("Frame", nil, scrollFrame)
+    contentFrame:SetSize(180, 1)  -- Height will be set dynamically
+    scrollFrame:SetScrollChild(contentFrame)
+    
+    -- Font item buttons (created on demand)
+    local fontButtons = {}
+    local BUTTON_HEIGHT = 20
+    
+    local function UpdateList()
+        local fonts = GetFontList()
+        local currentSelection = addon:GetSettingValue(config.path) or addon.Constants.BUNDLED_FONT_NAME
+        
+        -- Create/update buttons
+        for i, fontName in ipairs(fonts) do
+            local btn = fontButtons[i]
+            if not btn then
+                btn = CreateFrame("Button", nil, contentFrame)
+                btn:SetHeight(BUTTON_HEIGHT)
+                btn:SetPoint("TOPLEFT", 0, -(i-1) * BUTTON_HEIGHT)
+                btn:SetPoint("TOPRIGHT", 0, -(i-1) * BUTTON_HEIGHT)
+                
+                btn:SetHighlightTexture([[Interface\QuestFrame\UI-QuestTitleHighlight]], "ADD")
+                
+                local check = btn:CreateTexture(nil, "OVERLAY")
+                check:SetSize(14, 14)
+                check:SetPoint("LEFT", 2, 0)
+                check:SetTexture([[Interface\Buttons\UI-CheckBox-Check]])
+                btn.check = check
+                
+                local text = btn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+                text:SetPoint("LEFT", check, "RIGHT", 4, 0)
+                text:SetPoint("RIGHT", -4, 0)
+                text:SetJustifyH("LEFT")
+                btn.text = text
+                
+                fontButtons[i] = btn
+            end
+            
+            btn.fontName = fontName
+            btn.text:SetText(fontName)
+            
+            -- Set font for preview
+            local fontPath = GetFontPath(fontName)
+            pcall(function()
+                btn.text:SetFont(fontPath, 12, "")
+            end)
+            
+            -- Show/hide check
+            if fontName == currentSelection then
+                btn.check:Show()
+            else
+                btn.check:Hide()
+            end
+            
+            btn:SetScript("OnClick", function()
+                addon:SetOverride(config.path, fontName)
+                selectedText:SetText(fontName)
+                pcall(function()
+                    selectedText:SetFont(GetFontPath(fontName), 12, "")
+                end)
+                -- Update modified indicator
+                local defaultValue = addon:GetDefaultValue(config.path)
+                if fontName ~= defaultValue then
+                    label:SetText("|cffffd200*|r " .. config.label)
+                else
+                    label:SetText(config.label)
+                end
+                listFrame:Hide()
+                Options:RefreshModuleIfNeeded(config.path)
+            end)
+            
+            btn:Show()
+        end
+        
+        -- Hide extra buttons
+        for i = #fonts + 1, #fontButtons do
+            fontButtons[i]:Hide()
+        end
+        
+        -- Set content height
+        contentFrame:SetHeight(#fonts * BUTTON_HEIGHT)
+        
+        -- Adjust list frame height (max 300px)
+        local listHeight = math.min(#fonts * BUTTON_HEIGHT + 16, 300)
+        listFrame:SetHeight(listHeight)
+    end
+    
+    -- Toggle dropdown list
+    local function ToggleList()
+        if listFrame:IsShown() then
+            listFrame:Hide()
+        else
+            UpdateList()
+            listFrame:ClearAllPoints()
+            listFrame:SetPoint("TOPLEFT", dropdownFrame, "BOTTOMLEFT", -4, 2)
+            listFrame:Show()
+        end
+    end
+    
+    dropButton:SetScript("OnClick", ToggleList)
+    dropdownFrame:EnableMouse(true)
+    dropdownFrame:SetScript("OnMouseDown", ToggleList)
+    
+    -- Mouse wheel scrolling
+    listFrame:SetScript("OnMouseWheel", function(self, delta)
+        local scrollBar = _G[scrollFrame:GetName() .. "ScrollBar"]
+        if scrollBar then
+            local current = scrollBar:GetValue()
+            local min, max = scrollBar:GetMinMaxValues()
+            local step = BUTTON_HEIGHT * 3
+            scrollBar:SetValue(math.max(min, math.min(max, current - delta * step)))
+        end
+    end)
+    
+    -- Close list when clicking elsewhere
+    listFrame:SetScript("OnShow", function()
+        -- Close on escape
+        listFrame:SetPropagateKeyboardInput(true)
+    end)
+    
+    listFrame:SetScript("OnKeyDown", function(self, key)
+        if key == "ESCAPE" then
+            self:Hide()
+            self:SetPropagateKeyboardInput(false)
+        else
+            self:SetPropagateKeyboardInput(true)
+        end
+    end)
+    
+    -- Close when settings panel hides
+    frame:SetScript("OnHide", function()
+        listFrame:Hide()
+    end)
+    
+    -- Tooltip helper function
+    local function ShowTooltip(anchor)
+        GameTooltip:SetOwner(anchor, "ANCHOR_RIGHT")
+        GameTooltip:AddLine(config.label, 1, 1, 1)
+        GameTooltip:AddLine(config.tooltip, 1, 0.82, 0, true)
+        local defaultValue = addon:GetDefaultValue(config.path)
+        if defaultValue then
+            GameTooltip:AddLine(" ")
+            GameTooltip:AddLine("Default: " .. defaultValue, 0.5, 0.5, 0.5)
+        end
+        if FM:HasLSM() then
+            GameTooltip:AddLine(" ")
+            GameTooltip:AddLine("Fonts from LibSharedMedia are available.", 0.5, 0.7, 0.5)
+        else
+            GameTooltip:AddLine(" ")
+            GameTooltip:AddLine("Install LibSharedMedia-3.0 for more fonts.", 0.7, 0.7, 0.5)
+        end
+        GameTooltip:AddLine(" ")
+        GameTooltip:AddLine("Right-click to reset to default", 0.6, 0.6, 0.6)
+        GameTooltip:Show()
+    end
+    
+    -- Tooltip and right-click reset for label
+    local labelHitbox = CreateFrame("Button", nil, frame)
+    labelHitbox:SetPoint("LEFT", label, "LEFT", 0, 0)
+    labelHitbox:SetPoint("RIGHT", label, "RIGHT", 0, 0)
+    labelHitbox:SetHeight(16)
+    labelHitbox:EnableMouse(true)
+    labelHitbox:RegisterForClicks("RightButtonUp")
+    labelHitbox:SetScript("OnEnter", function(self) ShowTooltip(dropdownFrame) end)
+    labelHitbox:SetScript("OnLeave", function(self) GameTooltip:Hide() end)
+    labelHitbox:SetScript("OnClick", function(self, button)
+        if button == "RightButton" then
+            addon:ClearOverride(config.path)
+            local defaultValue = addon:GetSettingValue(config.path)
+            selectedText:SetText(defaultValue)
+            pcall(function()
+                selectedText:SetFont(GetFontPath(defaultValue), 12, "")
+            end)
+            label:SetText(config.label)
+            listFrame:Hide()
+            Options:RefreshModuleIfNeeded(config.path)
+        end
+    end)
+    
+    -- Right-click on dropdown to reset
+    dropButton:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    dropButton:HookScript("OnClick", function(self, button)
+        if button == "RightButton" then
+            addon:ClearOverride(config.path)
+            local defaultValue = addon:GetSettingValue(config.path)
+            selectedText:SetText(defaultValue)
+            pcall(function()
+                selectedText:SetFont(GetFontPath(defaultValue), 12, "")
+            end)
+            label:SetText(config.label)
+            listFrame:Hide()
+            Options:RefreshModuleIfNeeded(config.path)
+        end
+    end)
+    
+    frame.label = label
+    frame.dropdown = dropdownFrame
+    frame.listFrame = listFrame
+    
+    -- Register widget for dependency management
+    Options:RegisterWidget(config.path, frame, dropdownFrame, config)
+    
+    return yOffset - 50
+end
+
 -------------------------------------------------------------------------------
 -- Refresh Helpers
 -------------------------------------------------------------------------------
@@ -1319,6 +1637,12 @@ end
 function Options:RefreshModuleIfNeeded(path)
     -- Determine which module needs refreshing based on path
     local moduleName = nil
+    
+    -- Font changes: refresh all fonts dynamically
+    if path == "appearance.font" then
+        addon.FontManager:RefreshAllFonts()
+        return
+    end
     
     if path:match("^icons%.") or path:match("^rows") then
         moduleName = "CooldownIcons"

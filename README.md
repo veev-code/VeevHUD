@@ -162,5 +162,3 @@ Since VeevHUD is new, there may be:
 *   Spells missing or not properly categorized
 *   Buffs/debuffs using different spellIds than the casting spell
 *   Edge cases not yet encountered
-
-Your feedback helps shape the addon's future!

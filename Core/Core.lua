@@ -157,6 +157,12 @@ function addon:OnAddonLoaded()
         if not self.LibSpellDB then
             self.Utils:Print("|cffff0000Warning:|r LibSpellDB not found. Some features may not work.")
         end
+        
+    end
+    
+    -- Initialize FontManager (handles LibSharedMedia integration)
+    if self.FontManager then
+        self.FontManager:Initialize()
     end
 end
 

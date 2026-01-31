@@ -85,6 +85,11 @@ C.DEFAULTS = {
     profile = {
         enabled = true,
 
+        -- Global appearance settings
+        appearance = {
+            font = "Expressway, Bold",  -- Font name (registered with LibSharedMedia)
+        },
+
         -- Global positioning anchor (centered, below character)
         -- Note: x is always 0 (centered), y is configurable via settings
         anchor = {
@@ -111,9 +116,8 @@ C.DEFAULTS = {
             width = 230,  -- Width of 4 core icons (4×56 + 3×2 spacing)
             height = 14,
             offsetY = 0,
-            showText = true,
-            textSize = 11,
             textFormat = "current",  -- "current", "percent", "both", "none"
+            textSize = 11,
             smoothing = true,
             classColored = false,  -- Use power color by default
             showGradient = true,  -- Gradient overlay (darker at bottom)
@@ -153,9 +157,8 @@ C.DEFAULTS = {
             width = 230,  -- Width of 4 core icons (4×56 + 3×2 spacing)
             height = 10,
             offsetY = 12,  -- Position so bars touch (resourceBar.height/2 + healthBar.height/2)
-            showText = true,
+            textFormat = "percent",  -- "current", "percent", "both", "none"
             textSize = 10,
-            textFormat = "percent",
             smoothing = true,
             classColored = true,
             showGradient = true,
@@ -354,8 +357,7 @@ C.TEXTURES = {
 -- Fonts
 -------------------------------------------------------------------------------
 
-C.FONTS = {
-    DEFAULT     = "Fonts\\FRIZQT__.TTF",
-    NUMBER      = "Interface\\AddOns\\VeevHUD\\Fonts\\Expressway-Bold.ttf",
-    BOLD        = "Interface\\AddOns\\VeevHUD\\Fonts\\Expressway-Bold.ttf",
-}
+-- Bundled font path (used as fallback when LibSharedMedia is unavailable)
+-- Name matches SharedMediaAdditionalFonts convention to avoid duplicates
+C.BUNDLED_FONT = "Interface\\AddOns\\VeevHUD\\Fonts\\Expressway-Bold.ttf"
+C.BUNDLED_FONT_NAME = "Expressway, Bold"

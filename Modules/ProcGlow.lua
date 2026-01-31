@@ -160,7 +160,7 @@ function ProcGlow:CreateProcIcon(parent, index)
 
     -- Duration text
     local text = frame:CreateFontString(nil, "OVERLAY")
-    text:SetFont(self.C.FONTS.NUMBER, 11, "OUTLINE")
+    text:SetFont(addon:GetFont(), 11, "OUTLINE")
     text:SetPoint("CENTER", 0, 0)
     text:SetTextColor(1, 1, 0)
     frame.text = text
@@ -292,4 +292,13 @@ end
 
 function ProcGlow:Refresh()
     self:UpdateDisplay()
+end
+
+function ProcGlow:RefreshFonts(fontPath)
+    -- Update fonts on all proc icon text elements
+    for _, frame in ipairs(self.iconPool or {}) do
+        if frame.text then
+            frame.text:SetFont(fontPath, 11, "OUTLINE")
+        end
+    end
 end

@@ -1,5 +1,24 @@
 # VeevHUD Changelog
 
+## [1.0.25] - 2026-01-31
+
+### Added
+- **Font customization** — New global font setting lets you change the font used for all HUD text (cooldowns, stack counts, health/resource values, proc durations)
+  - Integrates with LibSharedMedia-3.0 to discover fonts from other addons
+  - Scrollable dropdown with font preview (each font rendered in its own typeface)
+  - Fonts update instantly without requiring a UI reload
+  - Default: Expressway, Bold (bundled with VeevHUD)
+- **New FontManager module** (`Core/FontManager.lua`) — Centralizes font registration and utilities
+
+### Changed
+- **Text display options** — Replaced "Show Text" checkbox with a "Text Display" dropdown for Health Bar and Resource Bar
+  - Options: Current Value, Percent, Both, None
+  - More intuitive than separate toggle + format settings
+- Font setting placed in Position & Scale section (after Vertical Offset)
+
+### Removed
+- Cleaned up unused font constants (`FONTS.DEFAULT`, `FONTS.BOLD`)
+
 ## [1.0.24] - 2026-01-30
 
 ### Fixed

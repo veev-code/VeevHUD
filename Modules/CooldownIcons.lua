@@ -551,7 +551,7 @@ function CooldownIcons:CreateIcon(parent, index, size)
     -- Cooldown text (on top of everything) - scale font with icon size
     local fontSize = math.max(14, math.floor(size * 0.38))  -- Larger cooldown text
     local text = textFrame:CreateFontString(nil, "OVERLAY", nil, 7)
-    text:SetFont(self.C.FONTS.NUMBER, fontSize, "OUTLINE")  -- Lighter outline
+    text:SetFont(addon:GetFont(), fontSize, "OUTLINE")  -- Lighter outline
     text:SetPoint("CENTER", frame, "CENTER", 0, 0)
     text:SetTextColor(self.C.COLORS.TEXT.r, self.C.COLORS.TEXT.g, self.C.COLORS.TEXT.b)
     text:SetShadowOffset(0.5, -0.5)  -- Subtle shadow
@@ -562,7 +562,7 @@ function CooldownIcons:CreateIcon(parent, index, size)
     -- Charges text (bottom right)
     local chargesFontSize = math.max(9, math.floor(size * 0.24))
     local charges = frame:CreateFontString(nil, "OVERLAY")
-    charges:SetFont(self.C.FONTS.NUMBER, chargesFontSize, "OUTLINE")
+    charges:SetFont(addon:GetFont(), chargesFontSize, "OUTLINE")
     charges:SetPoint("BOTTOMRIGHT", -2, 2)
     charges:SetTextColor(1, 1, 1)
     frame.charges = charges
@@ -572,7 +572,7 @@ function CooldownIcons:CreateIcon(parent, index, size)
     -- Parented to textFrame so it renders above cooldown spiral
     local stacksFontSize = math.max(10, math.floor(size * 0.26))
     local stacks = textFrame:CreateFontString(nil, "OVERLAY", nil, 7)
-    stacks:SetFont(self.C.FONTS.NUMBER, stacksFontSize, "OUTLINE")
+    stacks:SetFont(addon:GetFont(), stacksFontSize, "OUTLINE")
     stacks:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 2, 2)
     stacks:SetJustifyH("RIGHT")
     stacks:SetJustifyV("TOP")
@@ -2453,4 +2453,31 @@ function CooldownIcons:Refresh()
     
     -- Reapply texcoords (ensures aspect ratio cropping is applied)
     self:ApplyIconTexCoords()
+end
+
+function CooldownIcons:RefreshFonts(fontPath)
+    -- Update fonts on all icon text elements
+    for _, rowFrame in ipairs(self.rows or {}) do
+        for _, iconFrame in ipairs(rowFrame.icons or {}) do
+            local size = iconFrame:GetWidth()
+            
+            -- Cooldown text
+            if iconFrame.text then
+                local fontSize = math.max(14, math.floor(size * 0.38))
+                iconFrame.text:SetFont(fontPath, fontSize, "OUTLINE")
+            end
+            
+            -- Charges text
+            if iconFrame.charges then
+                local chargesFontSize = math.max(9, math.floor(size * 0.24))
+                iconFrame.charges:SetFont(fontPath, chargesFontSize, "OUTLINE")
+            end
+            
+            -- Stacks text
+            if iconFrame.stacks then
+                local stacksFontSize = math.max(10, math.floor(size * 0.26))
+                iconFrame.stacks:SetFont(fontPath, stacksFontSize, "OUTLINE")
+            end
+        end
+    end
 end
