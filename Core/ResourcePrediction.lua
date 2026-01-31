@@ -38,7 +38,6 @@ local PREDICTION_BUFFER = 0.15
 -------------------------------------------------------------------------------
 
 local ADRENALINE_RUSH_SPELL_ID = 13750
-local ENERGY_TICK_RATE = 2.0  -- Energy ticks every 2 seconds
 
 -- Prediction-specific state (SYNC fix for multi-icon predictions)
 ResourcePrediction.lastPredictionEnergy = 0
@@ -122,7 +121,6 @@ end
 -------------------------------------------------------------------------------
 
 local MANA_TICK_RATE = 2.0  -- Mana ticks every 2 seconds
-local FIVE_SECOND_RULE = 5.0  -- Time after casting before full spirit regen kicks in
 
 -- Conservative buffer for 5SR transitions
 -- UNIT_SPELLCAST_SUCCEEDED may fire slightly after the actual cast, and there can be
@@ -306,41 +304,6 @@ function ResourcePrediction:CalculateObservedManaPerTick(in5SR)
         self.manaPerTickOut5SR = conservativeRate
         self.lastGoodManaPerTickOut5SR = conservativeRate
     end
-end
-
--- Get observed mana per tick for current 5SR state
--- Returns: manaPerTick (or nil if no data)
-function ResourcePrediction:GetObservedManaPerTick()
-    local in5SR = self:IsInFiveSecondRule()
-    
-    if in5SR then
-        -- Currently inside 5SR - use 5SR rate
-        if self.manaPerTickIn5SR then
-            return self.manaPerTickIn5SR
-        end
-        if self.lastGoodManaPerTickIn5SR then
-            return self.lastGoodManaPerTickIn5SR
-        end
-        -- Fall through to out-of-5SR rate as backup
-    end
-    
-    -- Outside 5SR (or no 5SR data available)
-    if self.manaPerTickOut5SR then
-        return self.manaPerTickOut5SR
-    end
-    if self.lastGoodManaPerTickOut5SR then
-        return self.lastGoodManaPerTickOut5SR
-    end
-    
-    -- Try 5SR rate as last resort
-    if self.manaPerTickIn5SR then
-        return self.manaPerTickIn5SR
-    end
-    if self.lastGoodManaPerTickIn5SR then
-        return self.lastGoodManaPerTickIn5SR
-    end
-    
-    return nil
 end
 
 -- Track mana for prediction-time tick detection

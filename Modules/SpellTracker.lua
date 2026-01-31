@@ -205,15 +205,7 @@ function SpellTracker:FullRescan()
 end
 
 function SpellTracker:ShouldTrackSpell(spellID, spellData, enabledTags)
-    -- Check user override first (legacy spellOverrides)
-    local override = self:GetOverride(spellID)
-    if override == true then
-        return true, "override_show"
-    elseif override == false then
-        return false, "override_hide"
-    end
-    
-    -- Check new per-spec spellConfig
+    -- Check per-spec spellConfig
     local spellCfgEnabled = self:GetSpellConfigEnabled(spellID)
     if spellCfgEnabled == false then
         return false, "disabled_by_user"
@@ -453,16 +445,8 @@ function SpellTracker:GetEnabledTags()
 end
 
 -------------------------------------------------------------------------------
--- User Overrides
+-- Spell Config API
 -------------------------------------------------------------------------------
-
-function SpellTracker:GetOverride(spellID)
-    local overrides = addon.db and addon.db.profile and addon.db.profile.spellOverrides
-    if overrides and overrides[spellID] ~= nil then
-        return overrides[spellID]
-    end
-    return nil
-end
 
 -- Get enabled state from per-spec spellConfig
 function SpellTracker:GetSpellConfigEnabled(spellID)
@@ -471,27 +455,6 @@ function SpellTracker:GetSpellConfigEnabled(spellID)
         return cfg.enabled
     end
     return nil  -- No override, use default
-end
-
--- Get current spec key for spellConfig lookup
-function SpellTracker:GetSpecKey()
-    return addon:GetSpecKey()
-end
-
-function SpellTracker:SetOverride(spellID, enabled)
-    if not addon.db or not addon.db.profile then return end
-    
-    if not addon.db.profile.spellOverrides then
-        addon.db.profile.spellOverrides = {}
-    end
-
-    if enabled == nil then
-        addon.db.profile.spellOverrides[spellID] = nil
-    else
-        addon.db.profile.spellOverrides[spellID] = enabled
-    end
-
-    self:FullRescan()
 end
 
 -------------------------------------------------------------------------------
@@ -506,10 +469,6 @@ function SpellTracker:IsSpellTracked(spellID)
     return self.trackedSpells[spellID] ~= nil
 end
 
-function SpellTracker:GetTrackedCount()
-    return self:TableCount(self.trackedSpells)
-end
-
 -------------------------------------------------------------------------------
 -- Utilities
 -------------------------------------------------------------------------------
@@ -521,16 +480,8 @@ function SpellTracker:TableCount(tbl)
 end
 
 -------------------------------------------------------------------------------
--- Enable/Disable
+-- Refresh
 -------------------------------------------------------------------------------
-
-function SpellTracker:Enable()
-    self:FullRescan()
-end
-
-function SpellTracker:Disable()
-    wipe(self.trackedSpells)
-end
 
 function SpellTracker:Refresh()
     self:FullRescan()

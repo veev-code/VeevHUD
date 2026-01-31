@@ -30,8 +30,9 @@ Core\ResourcePrediction.lua
 Core\Events.lua
 Core\FontManager.lua
 Core\Layout.lua
+Core\Database.lua
 Core\Core.lua
-Core\Config.lua
+Core\SlashCommands.lua
 
 # Modules
 Modules\SpellTracker.lua
@@ -40,10 +41,10 @@ Modules\ResourceBar.lua
 Modules\HealthBar.lua
 Modules\ComboPoints.lua
 Modules\CooldownIcons.lua
-Modules\ProcGlow.lua
 Modules\ProcTracker.lua
 
 # UI
 UI\Templates.xml
+UI\WelcomePopup.lua
 UI\Options.lua
 UI\SpellsOptions.lua

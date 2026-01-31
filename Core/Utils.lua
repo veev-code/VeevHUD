@@ -107,6 +107,12 @@ end
 -- General Utilities
 -------------------------------------------------------------------------------
 
+-- Convert a key to number if it looks like one (for array tables like rows)
+function Utils:ToKeyType(key)
+    local num = tonumber(key)
+    return num or key
+end
+
 -- Safe print with addon prefix
 function Utils:Print(...)
     print("|cff00ccffVeevHUD:|r", ...)
@@ -128,21 +134,6 @@ function Utils:FormatNumber(num)
         return string.format("%.1fk", num / 1000)
     else
         return tostring(math.floor(num))
-    end
-end
-
--- Format time (seconds -> mm:ss or just seconds)
-function Utils:FormatTime(seconds)
-    if seconds >= 3600 then
-        return string.format("%d:%02d:%02d", seconds / 3600, (seconds % 3600) / 60, seconds % 60)
-    elseif seconds >= 60 then
-        return string.format("%d:%02d", seconds / 60, seconds % 60)
-    elseif seconds >= 10 then
-        return string.format("%d", seconds)
-    elseif seconds >= 1 then
-        return string.format("%.1f", seconds)
-    else
-        return string.format("%.1f", seconds)
     end
 end
 
@@ -230,12 +221,6 @@ function Utils:GetClassColor(classToken)
     return 1, 1, 1  -- White fallback
 end
 
--- Get class color as hex string
-function Utils:GetClassColorHex(classToken)
-    local r, g, b = self:GetClassColor(classToken)
-    return string.format("%02x%02x%02x", r * 255, g * 255, b * 255)
-end
-
 -------------------------------------------------------------------------------
 -- Power/Resource Utilities
 -------------------------------------------------------------------------------
@@ -299,19 +284,6 @@ function Utils:GetSpellCooldown(spellID)
     end
 
     return 0, 0, enabled ~= 0, 0
-end
-
--- Get spell info
-function Utils:GetSpellInfo(spellID)
-    if C_Spell and C_Spell.GetSpellInfo then
-        local info = C_Spell.GetSpellInfo(spellID)
-        if info then
-            return info.name, nil, info.iconID, info.castTime, info.minRange, info.maxRange, info.spellID
-        end
-    elseif GetSpellInfo then
-        return GetSpellInfo(spellID)
-    end
-    return nil
 end
 
 -- Get spell texture/icon
@@ -640,41 +612,8 @@ function Utils:GetSpellPowerInfo(spellID)
 end
 
 -------------------------------------------------------------------------------
--- Buff/Debuff Utilities (using cache)
--------------------------------------------------------------------------------
-
--- Find a buff on unit by spell ID (uses cache)
-function Utils:FindBuffBySpellID(unit, spellID)
-    self:EnsureAuraCacheInitialized()
-    return self:GetCachedBuff(unit, spellID)
-end
-
--- Find a debuff on unit by spell ID (uses cache)
-function Utils:FindDebuffBySpellID(unit, spellID)
-    self:EnsureAuraCacheInitialized()
-    return self:GetCachedDebuff(unit, spellID)
-end
-
--------------------------------------------------------------------------------
 -- Frame Utilities
 -------------------------------------------------------------------------------
-
--- Create a simple backdrop
-function Utils:CreateBackdrop(frame, bgColor, borderColor)
-    bgColor = bgColor or {0, 0, 0, 0.7}
-    borderColor = borderColor or {0.3, 0.3, 0.3, 1}
-
-    if frame.SetBackdrop then
-        frame:SetBackdrop({
-            bgFile = C.TEXTURES.BACKDROP,
-            edgeFile = C.TEXTURES.BORDER,
-            tile = true, tileSize = 16, edgeSize = 16,
-            insets = {left = 4, right = 4, top = 4, bottom = 4}
-        })
-        frame:SetBackdropColor(unpack(bgColor))
-        frame:SetBackdropBorderColor(unpack(borderColor))
-    end
-end
 
 -- Create a status bar
 function Utils:CreateStatusBar(parent, width, height, texture)

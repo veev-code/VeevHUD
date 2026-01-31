@@ -145,7 +145,7 @@ function SpellsOptions:CreatePanel()
                 end
                 
                 -- Rebuild live profile and refresh
-                addon:RebuildLiveProfile()
+                addon.Database:RebuildLiveProfile()
                 
                 local spellTracker = addon:GetModule("SpellTracker")
                 if spellTracker then
@@ -238,22 +238,7 @@ end
 -------------------------------------------------------------------------------
 
 function SpellsOptions:GetSpecKey()
-    -- Try to get class/spec from addon global
-    local class = addon.playerClass
-    local spec = addon.playerSpec
-    
-    -- Fallback: get class from UnitClass
-    if not class then
-        local _, englishClass = UnitClass("player")
-        class = englishClass or "UNKNOWN"
-    end
-    
-    -- Fallback: get spec from LibSpellDB if available
-    if not spec and addon.LibSpellDB then
-        spec = addon.LibSpellDB:GetPlayerSpec() or "UNKNOWN"
-    end
-    
-    return class .. "_" .. (spec or "UNKNOWN")
+    return addon:GetSpecKey()
 end
 
 function SpellsOptions:GetSpellConfig(spellID)
@@ -1021,12 +1006,6 @@ end
 -------------------------------------------------------------------------------
 -- Utilities
 -------------------------------------------------------------------------------
-
-function SpellsOptions:TableCount(tbl)
-    local count = 0
-    for _ in pairs(tbl or {}) do count = count + 1 end
-    return count
-end
 
 -- Check if a spell is blocked by shared cooldown (another spell in its group is already enabled)
 -- Returns: isBlocked, blockingSpellName

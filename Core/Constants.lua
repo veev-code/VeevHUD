@@ -273,14 +273,7 @@ C.DEFAULTS = {
             -- Ready abilities (actionable time = 0) are sorted to the left
             dynamicSortRows = "none",
             dynamicSortAnimation = true,  -- Smooth sliding animation when icons reorder
-            
-            -- Per-spell overrides for icons (legacy, use top-level spellOverrides)
-            spellOverrides = {},
         },
-
-        -- Global spell overrides: spellID -> true (force show) / false (force hide)
-        -- Legacy - prefer spellConfig for new overrides
-        spellOverrides = {},
         
         -- Per-spec spell configuration (sparse storage)
         -- Format: spellConfig[specKey][spellID] = { enabled, rowIndex, order }
@@ -331,16 +324,6 @@ C.DEFAULTS = {
                 iconSize = 42,
                 flowLayout = true,   -- Enable multi-row flow layout
             },
-        },
-
-        -- Proc/buff tracking row (glowing when active)
-        procIcons = {
-            enabled = true,
-            iconSize = 32,
-            iconSpacing = 3,
-            maxIcons = 6,
-            offsetY = 40,  -- Above the resource bar
-            glowEnabled = true,
         },
     },
 }

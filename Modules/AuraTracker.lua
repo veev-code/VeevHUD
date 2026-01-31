@@ -122,15 +122,6 @@ function AuraTracker:BuildAuraMappings()
     self.Utils:LogInfo("AuraTracker: Same-ID auras will be detected dynamically from combat log")
 end
 
-function AuraTracker:HasTag(tags, tagName)
-    for _, tag in ipairs(tags) do
-        if tag == tagName then
-            return true
-        end
-    end
-    return false
-end
-
 -------------------------------------------------------------------------------
 -- Combat Log Processing
 -------------------------------------------------------------------------------
@@ -544,92 +535,6 @@ function AuraTracker:GetAuraTypeForAuraID(auraSpellID)
     return isHelpful, isSelfOnly, isCC, canonicalID
 end
 
--- Get the appropriate GUID to check for an aura based on targeting logic
--- Returns: GUID to check, or nil for "check all targets" (CC spells)
---
--- Rules:
--- 1. CC spells (CC_HARD, CC_SOFT): return nil to signal "check all targets"
--- 2. Self-only buffs (Recklessness): always check self
--- 3. Targeting enemy:
---    - Hostile effects -> only that enemy
---    - Helpful effects -> targettarget if friendly (and setting enabled), else self
--- 4. Targeting ally:
---    - Hostile effects -> targettarget if hostile (and setting enabled)
---    - Helpful effects -> that ally
--- 5. No target: same as targeting self
-function AuraTracker:GetRelevantTargetGUID(spellID)
-    -- Resolve to canonical ID for consistent lookup
-    local canonicalID = spellID
-    if self.LibSpellDB then
-        canonicalID = self.LibSpellDB:GetCanonicalSpellID(spellID) or spellID
-    end
-    local isHelpful, isSelfOnly, isCC = self:GetAuraType(canonicalID)
-    local playerGUID = self.playerGUID
-    
-    -- CC spells track across all targets - return nil to signal this
-    if isCC then
-        return nil, true  -- nil GUID, isCC = true
-    end
-    
-    -- Self-only buffs always check self
-    if isSelfOnly then
-        return playerGUID, false
-    end
-    
-    -- Check if targettarget support is enabled
-    local db = addon.db and addon.db.profile and addon.db.profile.icons or {}
-    local useTargettarget = db.auraTargettargetSupport or false
-    
-    local targetGUID = UnitGUID("target")
-    local targetExists = UnitExists("target")
-    local targetIsEnemy = targetExists and UnitIsEnemy("player", "target")
-    local targetIsFriend = targetExists and UnitIsFriend("player", "target")
-    
-    -- Only check targettarget if the setting is enabled
-    local targettargetGUID, targettargetIsEnemy, targettargetIsFriend = nil, false, false
-    if useTargettarget then
-        targettargetGUID = UnitGUID("targettarget")
-        local targettargetExists = UnitExists("targettarget")
-        targettargetIsEnemy = targettargetExists and UnitIsEnemy("player", "targettarget")
-        targettargetIsFriend = targettargetExists and UnitIsFriend("player", "targettarget")
-    end
-    
-    if targetIsEnemy then
-        -- Targeting an enemy
-        if isHelpful then
-            -- Helpful effect: check targettarget if friendly (and enabled), else self
-            if useTargettarget and targettargetIsFriend then
-                return targettargetGUID, false
-            else
-                return playerGUID, false
-            end
-        else
-            -- Hostile effect: only check this enemy
-            return targetGUID, false
-        end
-    elseif targetIsFriend then
-        -- Targeting an ally
-        if isHelpful then
-            -- Helpful effect: check this ally
-            return targetGUID, false
-        else
-            -- Hostile effect: check targettarget if hostile (and enabled)
-            if useTargettarget and targettargetIsEnemy then
-                return targettargetGUID, false
-            else
-                return nil, false  -- No valid hostile target
-            end
-        end
-    else
-        -- No target: same as targeting self
-        if isHelpful then
-            return playerGUID, false
-        else
-            return nil, false  -- No valid hostile target
-        end
-    end
-end
-
 -------------------------------------------------------------------------------
 -- Public API
 -------------------------------------------------------------------------------
@@ -890,53 +795,6 @@ function AuraTracker:GetAuraTargetCount(sourceSpellID)
     return count
 end
 
--- Get stack count for a spell's aura
--- Uses smart target resolution based on aura type and current targeting
-function AuraTracker:GetAuraStacks(sourceSpellID)
-    local auraIDs = self:GetTriggeredAuraIDs(sourceSpellID)
-    local now = GetTime()
-    local maxStacks = 0
-    
-    for _, auraID in ipairs(auraIDs) do
-        local targets = self.activeAuras[auraID]
-        if targets then
-            local isHelpful, isSelfOnly, isCC = self:GetAuraTypeForAuraID(auraID)
-            
-            if isCC then
-                -- CC: get max stacks across all targets
-                for targetGUID, auraData in pairs(targets) do
-                    if type(auraData) == "table" then
-                        local expiration = auraData.expiration or 0
-                        if expiration > now then
-                            local stacks = auraData.stacks or 0
-                            if stacks > maxStacks then
-                                maxStacks = stacks
-                            end
-                        end
-                    end
-                end
-            else
-                -- Non-CC: check relevant target
-                local relevantGUID = self:GetRelevantTargetGUIDForAura(auraID)
-                if relevantGUID and targets[relevantGUID] then
-                    local auraData = targets[relevantGUID]
-                    if type(auraData) == "table" then
-                        local expiration = auraData.expiration or 0
-                        if expiration > now then
-                            local stacks = auraData.stacks or 0
-                            if stacks > maxStacks then
-                                maxStacks = stacks
-                            end
-                        end
-                    end
-                end
-            end
-        end
-    end
-    
-    return maxStacks
-end
-
 -- Notify that an aura changed (for icon updates)
 function AuraTracker:NotifyAuraChange(spellID, isActive)
     local cooldownIcons = addon:GetModule("CooldownIcons")
@@ -951,17 +809,8 @@ function AuraTracker:OnTrackedSpellsChanged()
 end
 
 -------------------------------------------------------------------------------
--- Enable/Disable
+-- Refresh
 -------------------------------------------------------------------------------
-
-function AuraTracker:Enable()
-    self.playerGUID = UnitGUID("player")
-    self:BuildAuraMappings()
-end
-
-function AuraTracker:Disable()
-    wipe(self.activeAuras)
-end
 
 function AuraTracker:Refresh()
     self:BuildAuraMappings()

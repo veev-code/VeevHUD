@@ -326,20 +326,8 @@ function ComboPoints:PlayActivateAnimation(bar)
 end
 
 -------------------------------------------------------------------------------
--- Enable/Disable
+-- Refresh
 -------------------------------------------------------------------------------
-
-function ComboPoints:Enable()
-    if self.container then
-        self:UpdateVisibility()
-    end
-end
-
-function ComboPoints:Disable()
-    if self.container then
-        self.container:Hide()
-    end
-end
 
 function ComboPoints:Refresh()
     local db = addon.db and addon.db.profile and addon.db.profile.comboPoints

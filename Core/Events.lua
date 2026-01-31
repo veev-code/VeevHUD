@@ -44,14 +44,6 @@ function Events:UnregisterEvent(owner, eventName)
     end
 end
 
-function Events:UnregisterAllEvents(owner)
-    for eventName, owners in pairs(callbacks) do
-        if owners[owner] then
-            self:UnregisterEvent(owner, eventName)
-        end
-    end
-end
-
 -------------------------------------------------------------------------------
 -- Event Dispatch
 -------------------------------------------------------------------------------
@@ -88,36 +80,7 @@ function Events:RegisterCLEU(owner, subEvent, callback)
     end
 end
 
-function Events:UnregisterCLEU(owner, subEvent)
-    if cleuCallbacks[subEvent] then
-        cleuCallbacks[subEvent][owner] = nil
-
-        local hasCallbacks = false
-        for _ in pairs(cleuCallbacks[subEvent]) do
-            hasCallbacks = true
-            break
-        end
-
-        if not hasCallbacks then
-            cleuCallbacks[subEvent] = nil
-        end
-    end
-
-    -- Check if any CLEU callbacks remain
-    local anyCallbacks = false
-    for _ in pairs(cleuCallbacks) do
-        anyCallbacks = true
-        break
-    end
-
-    if not anyCallbacks and cleuRegistered then
-        eventFrame:UnregisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
-        cleuRegistered = false
-    end
-end
-
--- Override the event handler to include CLEU dispatch
-local originalOnEvent = eventFrame:GetScript("OnEvent")
+-- Event handler includes CLEU dispatch
 eventFrame:SetScript("OnEvent", function(self, event, ...)
     if event == "COMBAT_LOG_EVENT_UNFILTERED" then
         local timestamp, subEvent, hideCaster, sourceGUID, sourceName, sourceFlags, sourceRaidFlags,

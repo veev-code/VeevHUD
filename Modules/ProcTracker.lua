@@ -603,20 +603,8 @@ function ProcTracker:HideProcGlow(frame)
 end
 
 -------------------------------------------------------------------------------
--- Enable/Disable
+-- Refresh
 -------------------------------------------------------------------------------
-
-function ProcTracker:Enable()
-    if self.container then
-        self.container:Show()
-    end
-end
-
-function ProcTracker:Disable()
-    if self.container then
-        self.container:Hide()
-    end
-end
 
 function ProcTracker:Refresh()
     -- Re-apply config settings to existing frames

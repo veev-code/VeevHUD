@@ -124,11 +124,6 @@ function FontManager:RefreshAllFonts()
     if procTracker and procTracker.RefreshFonts then
         procTracker:RefreshFonts(fontPath)
     end
-    
-    local procGlow = addon:GetModule("ProcGlow")
-    if procGlow and procGlow.RefreshFonts then
-        procGlow:RefreshFonts(fontPath)
-    end
 end
 
 -------------------------------------------------------------------------------

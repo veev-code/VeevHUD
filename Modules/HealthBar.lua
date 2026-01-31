@@ -175,16 +175,8 @@ function HealthBar:UpdateText(fontString, health, maxHealth, percent, format)
 end
 
 -------------------------------------------------------------------------------
--- Enable/Disable
+-- Refresh
 -------------------------------------------------------------------------------
-
-function HealthBar:Enable()
-    if self.playerBar then self.playerBar:Show() end
-end
-
-function HealthBar:Disable()
-    if self.playerBar then self.playerBar:Hide() end
-end
 
 function HealthBar:Refresh()
     -- Re-apply config settings to existing frames

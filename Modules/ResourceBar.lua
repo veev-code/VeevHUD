@@ -335,9 +335,6 @@ function ResourceBar:UpdatePowerType()
 
         self.bar:SetStatusBarColor(r, g, b)
         self.bar.bg:SetVertexColor(r * 0.2, g * 0.2, b * 0.2)
-
-        -- Store colors for gradient
-        self.barColor = {r = r, g = g, b = b}
     end
 
     -- Show/hide energy ticker based on power type
@@ -647,20 +644,8 @@ function ResourceBar:UpdateManaTicker()
 end
 
 -------------------------------------------------------------------------------
--- Enable/Disable
+-- Refresh
 -------------------------------------------------------------------------------
-
-function ResourceBar:Enable()
-    if self.bar then
-        self.bar:Show()
-    end
-end
-
-function ResourceBar:Disable()
-    if self.bar then
-        self.bar:Hide()
-    end
-end
 
 function ResourceBar:Refresh()
     -- Re-apply config settings to existing frames

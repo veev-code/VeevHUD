@@ -61,15 +61,6 @@ function Layout:RegisterElement(name, module, priority, gap)
 end
 
 --[[
-    Unregister a layout element.
-    @param name The element name to unregister
-]]
-function Layout:UnregisterElement(name)
-    self.elements[name] = nil
-    addon.Utils:LogDebug("Layout: Unregistered element", name)
-end
-
---[[
     Update the gap for an existing element.
     Useful when element spacing changes based on settings.
     @param name The element name
@@ -156,50 +147,8 @@ function Layout:Refresh()
 end
 
 -------------------------------------------------------------------------------
--- Utility Functions
+-- Debug
 -------------------------------------------------------------------------------
-
---[[
-    Get the current top Y position (useful for elements that need to know
-    where the stack ends, like positioning elements above the entire HUD).
-    
-    @return The Y offset of the topmost element's top edge
-]]
-function Layout:GetStackTop()
-    local currentY = self.baseOffset
-    
-    -- Collect and sort visible elements
-    local visibleElements = {}
-    for _, element in pairs(self.elements) do
-        local module = element.module
-        if module and module.GetLayoutHeight then
-            local height = module:GetLayoutHeight()
-            if height > 0 then
-                table.insert(visibleElements, element)
-            end
-        end
-    end
-    table.sort(visibleElements, function(a, b) return a.priority < b.priority end)
-    
-    -- Get configurable icon row gap (default 2)
-    local iconRowGap = 2
-    if addon.db and addon.db.profile and addon.db.profile.layout then
-        iconRowGap = addon.db.profile.layout.iconRowGap or 2
-    end
-    
-    -- Stack upward (same logic as Refresh)
-    for i, element in ipairs(visibleElements) do
-        local height = element.module:GetLayoutHeight()
-        local gap = element.gap
-        if i == 1 and gap < iconRowGap then
-            gap = iconRowGap
-        end
-        local bottom = currentY + gap
-        currentY = bottom + height  -- top of this element
-    end
-    
-    return currentY
-end
 
 --[[
     Debug function to print current layout state.

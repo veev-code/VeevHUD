@@ -101,16 +101,3 @@ function FiveSecondRule:GetTimeRemaining()
     local remaining = FIVE_SECOND_DURATION - (GetTime() - self.lastManaCastTime)
     return math.max(0, remaining)
 end
-
--- Get time since last mana-costing spell was cast
-function FiveSecondRule:GetTimeSinceLastCast()
-    if self.lastManaCastTime == 0 then
-        return 999  -- Never cast
-    end
-    return GetTime() - self.lastManaCastTime
-end
-
--- Get the 5SR duration constant
-function FiveSecondRule:GetDuration()
-    return FIVE_SECOND_DURATION
-end

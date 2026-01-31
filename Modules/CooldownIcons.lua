@@ -744,10 +744,6 @@ function CooldownIcons:OnTrackedSpellsChanged()
     self:UpdateAllIcons()
 end
 
--- Get current spec key for spellConfig lookup
-function CooldownIcons:GetSpecKey()
-    return addon:GetSpecKey()
-end
 
 -- Get the default row for a spell based on tag matching (used by SpellsOptions)
 function CooldownIcons:GetDefaultRowForSpell(spellID)
@@ -2357,20 +2353,8 @@ function CooldownIcons:GetSpellCharges(spellID)
 end
 
 -------------------------------------------------------------------------------
--- Enable/Disable
+-- Refresh
 -------------------------------------------------------------------------------
-
-function CooldownIcons:Enable()
-    if self.container then
-        self.container:Show()
-    end
-end
-
-function CooldownIcons:Disable()
-    if self.container then
-        self.container:Hide()
-    end
-end
 
 function CooldownIcons:Refresh()
     -- Update cached row settings from current config before rebuilding

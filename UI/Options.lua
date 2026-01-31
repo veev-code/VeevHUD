@@ -32,57 +32,6 @@ StaticPopupDialogs["VEEVHUD_RELOAD_UI"] = {
 }
 
 -------------------------------------------------------------------------------
--- Helper: Check if a setting path is overridden by user
--------------------------------------------------------------------------------
-
-function addon:IsSettingOverridden(path)
-    -- Check if the current value differs from the default value
-    local currentValue = self:GetSettingValue(path)
-    local defaultValue = self:GetDefaultValue(path)
-    
-    -- Compare values (handles booleans, numbers, strings)
-    return currentValue ~= defaultValue
-end
-
--- Helper to convert a key to number if it looks like one (for array tables like rows)
-local function ToKeyType(key)
-    local num = tonumber(key)
-    return num or key
-end
-
--- Get the default value for a path
-function addon:GetDefaultValue(path)
-    local defaults = self.Constants.DEFAULTS.profile
-    local keys = {strsplit(".", path)}
-    
-    local current = defaults
-    for i, key in ipairs(keys) do
-        if type(current) ~= "table" then
-            return nil
-        end
-        current = current[ToKeyType(key)]
-    end
-    
-    return current
-end
-
--- Get the current value for a path
-function addon:GetSettingValue(path)
-    local profile = self.db and self.db.profile or {}
-    local keys = {strsplit(".", path)}
-    
-    local current = profile
-    for i, key in ipairs(keys) do
-        if type(current) ~= "table" then
-            return nil
-        end
-        current = current[ToKeyType(key)]
-    end
-    
-    return current
-end
-
--------------------------------------------------------------------------------
 -- Options Initialization
 -------------------------------------------------------------------------------
 
@@ -261,7 +210,7 @@ function Options:CreatePanelContent(container)
     yOffset = self:CreateDropdown(container, yOffset, {
         path = "icons.iconAspectRatio",
         label = "Icon Aspect Ratio",
-        tooltip = "Makes icons shorter to create a more vertically compact HUD. Width stays the same while height shrinks, cropping the top/bottom of icon textures. The health and resource bars stay in place; proc icons shift down and ability rows shift up to fill the space. Affects both HUD icons and proc icons.",
+        tooltip = "Makes icons shorter to create a more vertically compact HUD. Width stays the same while height shrinks, cropping the top/bottom of icon textures. The health and resource bars stay in place; ability rows shift up to fill the space. Affects both HUD icons and proc icons.",
         options = {
             { value = 1.0, label = "1:1 (Square)" },
             { value = 1.33, label = "4:3 (Compact)" },
