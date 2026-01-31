@@ -1375,6 +1375,35 @@ function CooldownIcons:UpdateIconState(frame, db)
     -- Get cooldown info (including actual start time for accurate spiral)
     local remaining, duration, cdEnabled, cdStartTime = self.Utils:GetSpellCooldown(spellID)
     
+    -- GCD override protection: The WoW API can briefly return GCD info (1.5s duration)
+    -- instead of the actual cooldown for certain spells (e.g., Blood Fury variants 33697, 33702).
+    -- This causes the icon to briefly show as "ready" during GCD when it's actually on cooldown.
+    -- Fix: Track real cooldowns and don't let GCD override them.
+    local GCD_DURATION = 1.5
+    if duration > GCD_DURATION and cdStartTime > 0 then
+        -- Store real cooldown info for this spell
+        frame.actualCdStart = cdStartTime
+        frame.actualCdDuration = duration
+    elseif duration > 0 and duration <= GCD_DURATION and frame.actualCdStart and frame.actualCdDuration then
+        -- API returned GCD-like duration, but we have a tracked real cooldown
+        -- Check if the tracked cooldown should still be active
+        local trackedRemaining = (frame.actualCdStart + frame.actualCdDuration) - GetTime()
+        if trackedRemaining > GCD_DURATION then
+            -- Real cooldown is still active and longer than GCD - use tracked values
+            cdStartTime = frame.actualCdStart
+            duration = frame.actualCdDuration
+            remaining = trackedRemaining
+        else
+            -- Tracked cooldown has expired or is about to - clear tracking
+            frame.actualCdStart = nil
+            frame.actualCdDuration = nil
+        end
+    elseif remaining <= 0 then
+        -- Spell is off cooldown - clear tracking
+        frame.actualCdStart = nil
+        frame.actualCdDuration = nil
+    end
+    
     -- Calculate "actionable time" for dynamic sorting
     -- This is when the ability will need attention: max(cooldown_remaining, aura_remaining)
     -- If both are 0, the ability is ready to be cast now

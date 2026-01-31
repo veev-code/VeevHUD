@@ -153,8 +153,13 @@ function SpellTracker:FullRescan()
         local shouldTrack, reason = self:ShouldTrackSpell(spellID, spellData, enabledTags)
         
         if shouldTrack then
-            self.trackedSpells[spellID] = {
+            -- Get the ACTUAL spell ID the player knows (may differ from LibSpellDB ID)
+            -- e.g., LibSpellDB has Blood Fury 20572, but Shaman knows 33697
+            local actualSpellID = self:GetActualSpellID(spellID, spellData)
+            
+            self.trackedSpells[actualSpellID] = {
                 spellData = spellData,
+                librarySpellID = spellID,  -- Keep reference to original for tag lookups
                 reason = reason,
             }
             tracked = tracked + 1
@@ -355,6 +360,7 @@ function SpellTracker:CheckSpellKnown(spellID)
 end
 
 -- Build a cache of all spells in the player's spellbook
+-- Stores spell name -> actual spell ID (not just boolean)
 function SpellTracker:BuildSpellbookCache()
     self.spellbookCache = {}
     
@@ -363,13 +369,63 @@ function SpellTracker:BuildSpellbookCache()
         local spellName, spellRank = GetSpellBookItemName(i, BOOKTYPE_SPELL)
         if not spellName then break end
         
-        -- Store by name (handles all ranks)
-        self.spellbookCache[spellName] = true
+        -- Get the actual spell ID from the spellbook slot
+        local skillType, spellID = GetSpellBookItemInfo(i, BOOKTYPE_SPELL)
+        
+        if spellID and skillType == "SPELL" then
+            -- Store by name -> actual spell ID
+            -- For spells with multiple ranks, this will store the last one scanned
+            -- (which is typically the highest rank in the spellbook order)
+            self.spellbookCache[spellName] = spellID
+        end
         
         i = i + 1
     end
     
     self.Utils:LogDebug("SpellTracker: Built spellbook cache with", i - 1, "entries")
+end
+
+-- Get the actual spell ID the player knows for a given library spell ID
+-- This handles cases where LibSpellDB has spell ID 20572 but the player knows 33697
+-- (both are "Blood Fury" but different class-specific versions)
+function SpellTracker:GetActualSpellID(librarySpellID, spellData)
+    -- First, check if the exact library spell ID is known
+    if IsSpellKnown and IsSpellKnown(librarySpellID) then
+        return librarySpellID
+    end
+    if IsPlayerSpell and IsPlayerSpell(librarySpellID) then
+        return librarySpellID
+    end
+    
+    -- Check ranks - if any rank is known, return that rank ID
+    if spellData and spellData.ranks then
+        for _, rankID in ipairs(spellData.ranks) do
+            if IsSpellKnown and IsSpellKnown(rankID) then
+                return rankID
+            end
+            if IsPlayerSpell and IsPlayerSpell(rankID) then
+                return rankID
+            end
+        end
+    end
+    
+    -- Fallback: Look up by name in spellbook cache
+    -- This returns the ACTUAL spell ID the player knows, not the library ID
+    if not self.spellbookCache then
+        self:BuildSpellbookCache()
+    end
+    
+    local name = GetSpellInfo(librarySpellID)
+    if name and self.spellbookCache[name] then
+        local actualID = self.spellbookCache[name]
+        if actualID ~= librarySpellID then
+            self.Utils:LogInfo("SpellTracker: Mapped library spell", librarySpellID, "(" .. name .. ") to actual spell ID", actualID)
+        end
+        return actualID
+    end
+    
+    -- Not found - return original ID (will likely fail IsSpellKnown check)
+    return librarySpellID
 end
 
 -- Invalidate cache when spells change
