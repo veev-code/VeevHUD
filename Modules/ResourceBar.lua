@@ -124,10 +124,10 @@ function ResourceBar:RegisterUpdateIfNeeded()
     local needsSmoothUpdate = animDb.smoothBars
     local isEnergy = self.powerType == self.C.POWER_TYPE.ENERGY
     local isMana = self.powerType == self.C.POWER_TYPE.MANA
-    local energyTickerStyle = tickerDb and tickerDb.style or "disabled"
-    local manaTickerStyle = manaTickerDb and manaTickerDb.style or "disabled"
-    local needsEnergyTicker = energyTickerStyle ~= "disabled" and isEnergy
-    local needsManaTicker = manaTickerStyle ~= "disabled" and isMana
+    local energyTickerEnabled = tickerDb and tickerDb.enabled ~= false  -- Default true for backwards compat
+    local manaTickerEnabled = manaTickerDb and manaTickerDb.enabled ~= false  -- Default true for backwards compat
+    local needsEnergyTicker = energyTickerEnabled and isEnergy
+    local needsManaTicker = manaTickerEnabled and isMana
     
     -- Also need updates for mana rate tracking when prediction mode is enabled
     local isPredictionMode = iconsDb.resourceDisplayMode == "prediction"
@@ -167,7 +167,7 @@ end
 
 function ResourceBar:CreateEnergyTicker(bar, db)
     local tickerDb = db.energyTicker
-    if not tickerDb or tickerDb.style == "disabled" then return end
+    if not tickerDb or tickerDb.enabled == false then return end
 
     if tickerDb.style == "bar" then
         self:CreateEnergyTickerBar(bar, db, tickerDb)
@@ -251,8 +251,8 @@ end
 
 function ResourceBar:CreateManaTicker(bar, db)
     local manaTickerDb = db.manaTicker
-    local style = manaTickerDb and manaTickerDb.style or "disabled"
-    if style == "disabled" then return end
+    if not manaTickerDb or manaTickerDb.enabled == false then return end
+    local style = manaTickerDb.style or "nextfulltick"
 
     local sparkWidth = manaTickerDb.sparkWidth or 12
     local sparkHeightMult = manaTickerDb.sparkHeight or 2.0
@@ -342,10 +342,11 @@ function ResourceBar:UpdateTickerVisibility()
     local db = addon.db.profile.resourceBar
     local tickerDb = db.energyTicker
 
-    -- Only show ticker for energy users when not disabled
+    -- Only show ticker for energy users when enabled
     local isEnergy = self.powerType == self.C.POWER_TYPE.ENERGY
-    local style = tickerDb and tickerDb.style or "disabled"
-    local shouldShow = style ~= "disabled" and isEnergy
+    local tickerEnabled = tickerDb and tickerDb.enabled ~= false
+    local style = tickerDb and tickerDb.style or "spark"
+    local shouldShow = tickerEnabled and isEnergy
     
     -- Track previous visibility state for layout changes
     local wasBarVisible = self.ticker and self.ticker:IsShown()
@@ -492,9 +493,9 @@ end
 function ResourceBar:UpdateEnergyTicker()
     local db = addon.db.profile.resourceBar
     local tickerDb = db.energyTicker
-    local style = tickerDb and tickerDb.style or "disabled"
     
-    if style == "disabled" then return end
+    if not tickerDb or tickerDb.enabled == false then return end
+    local style = tickerDb.style or "spark"
 
     local currentEnergy = UnitPower("player", self.C.POWER_TYPE.ENERGY)
     local maxEnergy = UnitPowerMax("player", self.C.POWER_TYPE.ENERGY)
@@ -585,12 +586,12 @@ function ResourceBar:UpdateManaTicker()
     
     local db = addon.db.profile.resourceBar
     local manaTickerDb = db.manaTicker
-    local style = manaTickerDb and manaTickerDb.style or "disabled"
     
-    if style == "disabled" then
+    if not manaTickerDb or manaTickerDb.enabled == false then
         self.manaTickerSpark:Hide()
         return
     end
+    local style = manaTickerDb.style or "nextfulltick"
     
     local currentMana = UnitPower("player", self.C.POWER_TYPE.MANA)
     local maxMana = UnitPowerMax("player", self.C.POWER_TYPE.MANA)
@@ -720,10 +721,11 @@ end
 function ResourceBar:RefreshEnergyTicker()
     local db = addon.db.profile.resourceBar
     local tickerDb = db.energyTicker
-    local style = tickerDb and tickerDb.style or "disabled"
+    local tickerEnabled = tickerDb and tickerDb.enabled ~= false
+    local style = tickerDb and tickerDb.style or "spark"
     
     -- Handle "bar" style
-    if style == "bar" then
+    if tickerEnabled and style == "bar" then
         -- Create bar if it doesn't exist
         if not self.ticker then
             self:CreateEnergyTickerBar(self.bar, db, tickerDb)
@@ -741,7 +743,7 @@ function ResourceBar:RefreshEnergyTicker()
         if self.tickerOverlaySpark then
             self.tickerOverlaySpark:Hide()
         end
-    elseif style == "spark" then
+    elseif tickerEnabled and style == "spark" then
         -- Create spark if it doesn't exist
         if not self.tickerOverlaySpark then
             self:CreateEnergyTickerSpark(self.bar, db, tickerDb)
@@ -758,7 +760,7 @@ function ResourceBar:RefreshEnergyTicker()
             self.ticker:Hide()
         end
     else
-        -- Disabled - hide both
+        -- Not enabled - hide both
         if self.ticker then
             self.ticker:Hide()
         end

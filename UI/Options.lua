@@ -198,13 +198,7 @@ function Options:CreatePanelContent(container)
     -- === POSITION & SCALE SECTION ===
     yOffset = self:CreateSectionHeader(container, "Position & Scale", yOffset)
     
-    yOffset = self:CreateSlider(container, yOffset, {
-        path = "anchor.y",
-        label = "Vertical Offset",
-        tooltip = "Moves the entire HUD up or down on your screen. Use negative numbers to move it below the center of your screen, positive to move it above. Default is -84 (slightly below center).",
-        min = -500, max = 500, step = 1,
-    })
-    
+    -- Global Scale first - most commonly adjusted setting
     yOffset = self:CreateSlider(container, yOffset, {
         path = "icons.scale",
         label = "Global Scale",
@@ -213,22 +207,29 @@ function Options:CreatePanelContent(container)
         isPercent = true,
     })
     
+    yOffset = self:CreateSlider(container, yOffset, {
+        path = "anchor.y",
+        label = "Vertical Offset",
+        tooltip = "Moves the entire HUD up or down on your screen. Use negative numbers to move it below the center of your screen, positive to move it above. Default is -84 (slightly below center).",
+        min = -500, max = 500, step = 1,
+    })
+    
     -- === VISIBILITY SECTION ===
     yOffset = yOffset - 8
     yOffset = self:CreateSectionHeader(container, "Visibility", yOffset)
+    
+    yOffset = self:CreateSlider(container, yOffset, {
+        path = "visibility.outOfCombatAlpha",
+        label = "Out of Combat Opacity",
+        tooltip = "Controls the HUD's visibility when not in combat. Use this to fade the HUD when out of combat so it's less distracting. 100% = fully visible, 50% = half transparent, 0% = invisible.",
+        min = 0, max = 1.0, step = 0.05,
+        isPercent = true,
+    })
     
     yOffset = self:CreateCheckbox(container, yOffset, {
         path = "visibility.hideOnFlightPath",
         label = "Hide on Flight Path",
         tooltip = "Automatically hides the HUD when you're on a flight path (taxi). The HUD will reappear when you land. Useful to keep your screen clean while traveling.",
-    })
-    
-    yOffset = self:CreateSlider(container, yOffset, {
-        path = "visibility.outOfCombatAlpha",
-        label = "Out of Combat Alpha",
-        tooltip = "Multiplies the entire HUD's transparency when not in combat. Use this to fade the HUD when out of combat so it's less distracting. 100% = fully visible, 50% = half transparent, 0% = invisible.",
-        min = 0, max = 1.0, step = 0.05,
-        isPercent = true,
     })
     
     yOffset = self:CreateCheckbox(container, yOffset, {
@@ -246,7 +247,10 @@ function Options:CreatePanelContent(container)
     masqueNote:SetPoint("TOPLEFT", 0, yOffset)
     masqueNote:SetText("|cff888888Tip: Install the Masque addon to reskin ability icons with custom button styles.|r")
     masqueNote:SetJustifyH("LEFT")
-    yOffset = yOffset - 16
+    yOffset = yOffset - 20
+    
+    -- ─── Icons: Appearance ───
+    yOffset = self:CreateSubsectionHeader(container, "Appearance", yOffset)
     
     yOffset = self:CreateDropdown(container, yOffset, {
         path = "icons.iconAspectRatio",
@@ -255,7 +259,7 @@ function Options:CreatePanelContent(container)
         options = {
             { value = 1.0, label = "1:1 (Square)" },
             { value = 1.33, label = "4:3 (Compact)" },
-            { value = 2.0, label = "4:2 (Ultra Compact)" },
+            { value = 2.0, label = "2:1 (Ultra Compact)" },
         },
     })
     
@@ -266,6 +270,32 @@ function Options:CreatePanelContent(container)
         min = 0, max = 0.5, step = 0.02,
         isPercent = true,
     })
+    
+    yOffset = self:CreateSlider(container, yOffset, {
+        path = "icons.readyAlpha",
+        label = "Ready Opacity",
+        tooltip = "How visible icons are when the ability is ready to use. 100% means fully visible, lower values make ready abilities slightly transparent. Most people want this at 100%.",
+        min = 0, max = 1.0, step = 0.05,
+        isPercent = true,
+    })
+    
+    yOffset = self:CreateSlider(container, yOffset, {
+        path = "icons.cooldownAlpha",
+        label = "Cooldown Opacity",
+        tooltip = "How visible icons are when the ability is on cooldown (for rows with fading enabled). A lower value (like 30%) makes cooldown abilities fade out so you can focus on what's ready. Higher values keep them visible.",
+        min = 0, max = 1.0, step = 0.05,
+        isPercent = true,
+    })
+    
+    yOffset = self:CreateCheckbox(container, yOffset, {
+        path = "icons.desaturateNoResources",
+        label = "Grey Out Unusable",
+        tooltip = "Turns ability icons grey when they can't be used - whether due to insufficient resources, wrong stance, target requirements, or other conditions. This mimics how the default action bars work and helps you instantly see what's usable.\n\nNote: This effect is suppressed while resting in cities/inns to keep the UI clean when you're not actively playing.",
+    })
+    
+    -- ─── Icons: Spacing ───
+    yOffset = yOffset - 10
+    yOffset = self:CreateSubsectionHeader(container, "Spacing", yOffset)
     
     yOffset = self:CreateSlider(container, yOffset, {
         path = "icons.iconSpacing",
@@ -295,37 +325,13 @@ function Options:CreatePanelContent(container)
         min = -10, max = 30, step = 1,
     })
     
-    yOffset = self:CreateSlider(container, yOffset, {
-        path = "icons.readyAlpha",
-        label = "Ready Alpha",
-        tooltip = "How visible icons are when the ability is ready to use. 100% means fully visible, lower values make ready abilities slightly transparent. Most people want this at 100%.",
-        min = 0, max = 1.0, step = 0.05,
-        isPercent = true,
-    })
-    
-    yOffset = self:CreateSlider(container, yOffset, {
-        path = "icons.cooldownAlpha",
-        label = "Cooldown Alpha",
-        tooltip = "How visible icons are when the ability is on cooldown (for rows with dimming enabled). A lower value (like 30%) makes cooldown abilities fade out so you can focus on what's ready. Higher values keep them visible.",
-        min = 0, max = 1.0, step = 0.05,
-        isPercent = true,
-    })
-    
-    yOffset = self:CreateDropdown(container, yOffset, {
-        path = "icons.dimOnCooldown",
-        label = "Dim on Cooldown",
-        tooltip = "Controls which rows fade to Cooldown Alpha when abilities are on cooldown. Rows that don't dim stay at full brightness and use desaturation to show unavailability instead. Primary row typically stays bright to keep your core rotation visually prominent.",
-        options = {
-            { value = "none", label = "None (All Rows Full Alpha)" },
-            { value = "utility", label = "Utility Only" },
-            { value = "secondary_utility", label = "Secondary + Utility" },
-            { value = "all", label = "All Rows" },
-        },
-    })
+    -- ─── Icons: Cooldown Display ───
+    yOffset = yOffset - 10
+    yOffset = self:CreateSubsectionHeader(container, "Cooldown Display", yOffset)
     
     yOffset = self:CreateDropdown(container, yOffset, {
         path = "icons.showCooldownTextOn",
-        label = "Show Cooldown Text",
+        label = "Cooldown Text",
         tooltip = "Displays the remaining cooldown time as numbers on top of each icon (e.g., '5s', '1.2'). When enabled, VeevHUD shows its own text and hides text from addons like OmniCC. Select which rows display cooldown text.",
         options = {
             { value = "none", label = "None" },
@@ -337,7 +343,7 @@ function Options:CreatePanelContent(container)
     
     yOffset = self:CreateDropdown(container, yOffset, {
         path = "icons.showCooldownSpiralOn",
-        label = "Show Cooldown Spiral",
+        label = "Cooldown Spiral",
         tooltip = "Shows the dark 'clock sweep' overlay on abilities that are on cooldown. This visual helps you see at a glance how much time remains. Select which rows display the cooldown spiral.",
         options = {
             { value = "none", label = "None" },
@@ -349,7 +355,7 @@ function Options:CreatePanelContent(container)
     
     yOffset = self:CreateDropdown(container, yOffset, {
         path = "icons.showGCDOn",
-        label = "Show GCD On",
+        label = "GCD Indicator",
         tooltip = "Controls which rows display the Global Cooldown (GCD) spinner. The GCD is the brief ~1.5 second lockout after using most abilities. Showing GCD helps you see when you can press your next ability.",
         options = {
             { value = "none", label = "None" },
@@ -359,94 +365,25 @@ function Options:CreatePanelContent(container)
         },
     })
     
-    yOffset = self:CreateCheckbox(container, yOffset, {
-        path = "icons.desaturateNoResources",
-        label = "Desaturate When Unusable",
-        tooltip = "Turns ability icons grey when they can't be used - whether due to insufficient resources, wrong stance, target requirements, or other conditions. This mimics how the default action bars work and helps you instantly see what's usable.",
-    })
-    
     yOffset = self:CreateDropdown(container, yOffset, {
-        path = "icons.castFeedbackRows",
-        label = "Cast Feedback Animation",
-        tooltip = "Plays a brief 'pop' animation (the icon scales up slightly then back down) whenever you successfully cast an ability. Gives satisfying visual feedback that your spell went off. Select which rows show this animation.",
+        path = "icons.dimOnCooldown",
+        label = "Fade on Cooldown",
+        tooltip = "Controls which rows fade to Cooldown Opacity when abilities are on cooldown. Rows that don't fade stay at full brightness and use desaturation to show unavailability instead. Primary row typically stays bright to keep your core rotation visually prominent.",
         options = {
-            { value = "none", label = "None" },
-            { value = "primary", label = "Primary Row Only" },
-            { value = "primary_secondary", label = "Primary + Secondary" },
+            { value = "none", label = "None (All Rows Full Opacity)" },
+            { value = "utility", label = "Utility Only" },
+            { value = "secondary_utility", label = "Secondary + Utility" },
             { value = "all", label = "All Rows" },
         },
     })
     
-    yOffset = self:CreateSlider(container, yOffset, {
-        path = "icons.castFeedbackScale",
-        label = "Cast Feedback Scale",
-        tooltip = "How much the icon grows during the cast feedback animation. 110% is a subtle pop, 150%+ is more dramatic. Only applies if Cast Feedback Animation is enabled.",
-        min = 1.05, max = 2.0, step = 0.05,
-        isPercent = true,
-        dependsOn = "icons.castFeedbackRows",
-        dependsOnNotValue = "none",
-    })
-    
-    yOffset = self:CreateCheckbox(container, yOffset, {
-        path = "icons.showAuraTracking",
-        label = "Show Buff/Debuff Active State",
-        tooltip = "When enabled, abilities that apply buffs or debuffs (like Intimidating Shout, Rend, Renew) will show the active duration with a glow while the effect is on a target. After it expires, the cooldown is shown. Disable this if you only want to see cooldowns.",
-    })
-    
-    yOffset = self:CreateCheckbox(container, yOffset, {
-        path = "icons.auraTargettargetSupport",
-        label = "Targettarget Aura Support",
-        tooltip = "Enables targettarget-aware aura tracking. Helpful if you use @targettarget macros:\n\n- Target the boss, see your HOTs on the tank\n- Target the tank, see your DoTs on the boss\n\nExample macros:\n/cast [@target,help] [@targettarget,help] [@player] Renew\n/cast [@target,harm] [@targettarget,harm] [] Shadow Word: Pain",
-        dependsOn = "icons.showAuraTracking",
-    })
-    
-    yOffset = self:CreateDropdown(container, yOffset, {
-        path = "icons.readyGlowMode",
-        label = "Ready Glow Mode",
-        tooltip = "Shows a proc-style glowing border when an ability becomes ready. 'Once Per Cooldown' prevents re-triggering if your resources fluctuate. 'Every Time Ready' glows each time conditions are met. Note: Reactive abilities (Execute, Overpower, etc.) always glow every time they become usable, regardless of this setting.",
-        options = {
-            { value = "once", label = "Once Per Cooldown" },
-            { value = "always", label = "Every Time Ready" },
-            { value = "disabled", label = "Disabled" },
-        },
-    })
-    
-    yOffset = self:CreateDropdown(container, yOffset, {
-        path = "icons.readyGlowRows",
-        label = "Ready Glow Rows",
-        tooltip = "Controls which rows show the ready glow effect. Only applies if Ready Glow Mode is not set to 'Disabled'.",
-        options = {
-            { value = "none", label = "None" },
-            { value = "primary", label = "Primary Row Only" },
-            { value = "primary_secondary", label = "Primary + Secondary" },
-            { value = "all", label = "All Rows" },
-        },
-        dependsOn = "icons.readyGlowMode",
-        dependsOnNotValue = "disabled",
-    })
-    
-    yOffset = self:CreateDropdown(container, yOffset, {
-        path = "icons.dynamicSortRows",
-        label = "Dynamic Sort (Time Remaining)",
-        tooltip = "Controls which rows dynamically reorder icons by 'actionable time' (least time remaining first).\n\n'None' uses a static order. Icons never move positions.\n\nWhen enabled, the ability needing attention soonest is always on the left. Useful for:\n- DOT classes: see which debuff is closest to expiring\n- Cooldown-heavy classes: see which ability is ready next\n\nTie-breaker: When multiple abilities are ready (or have equal time), they sort by their original row position. This means you can arrange your row as a priority order and the leftmost icon is always the next best spell to cast.\n\nThe 'actionable time' is max(cooldown remaining, buff/debuff remaining).",
-        options = {
-            { value = "none", label = "None (Static)" },
-            { value = "primary", label = "Primary Row Only" },
-            { value = "primary_secondary", label = "Primary + Secondary" },
-        },
-    })
-    
-    yOffset = self:CreateCheckbox(container, yOffset, {
-        path = "icons.dynamicSortAnimation",
-        label = "Animate Sort Transitions",
-        tooltip = "When dynamic sorting is enabled, icons slide smoothly to their new positions instead of snapping instantly. The animation is quick and snappy to avoid being distracting during combat. Disable for instant repositioning.",
-        dependsOn = "icons.dynamicSortRows",
-        dependsOnNotValue = "none",  -- Enable when dynamic sorting is active (any row selected)
-    })
+    -- ─── Icons: Resource Cost ───
+    yOffset = yOffset - 10
+    yOffset = self:CreateSubsectionHeader(container, "Resource Cost", yOffset)
     
     yOffset = self:CreateDropdown(container, yOffset, {
         path = "icons.resourceDisplayRows",
-        label = "Resource Cost Display",
+        label = "Show Resource Cost",
         tooltip = "Shows your progress toward affording an ability on selected rows. The display style fills or overlays the icon until you have enough resources.",
         options = {
             { value = "none", label = "None" },
@@ -466,6 +403,96 @@ function Options:CreatePanelContent(container)
             { value = "prediction", label = "Resource Timer" },
         },
         dependsOn = "icons.resourceDisplayRows",
+        dependsOnNotValue = "none",
+    })
+    
+    -- ─── Icons: Feedback & Glow ───
+    yOffset = yOffset - 10
+    yOffset = self:CreateSubsectionHeader(container, "Feedback & Glow", yOffset)
+    
+    yOffset = self:CreateDropdown(container, yOffset, {
+        path = "icons.castFeedbackRows",
+        label = "Cast Feedback Animation",
+        tooltip = "Plays a brief 'pop' animation (the icon scales up slightly then back down) whenever you successfully cast an ability. Gives satisfying visual feedback that your spell went off. Select which rows show this animation.",
+        options = {
+            { value = "none", label = "None" },
+            { value = "primary", label = "Primary Row Only" },
+            { value = "primary_secondary", label = "Primary + Secondary" },
+            { value = "all", label = "All Rows" },
+        },
+    })
+    
+    yOffset = self:CreateSlider(container, yOffset, {
+        path = "icons.castFeedbackScale",
+        label = "Feedback Scale",
+        tooltip = "How much the icon grows during the cast feedback animation. 110% is a subtle pop, 150%+ is more dramatic. Only applies if Cast Feedback Animation is enabled.",
+        min = 1.05, max = 2.0, step = 0.05,
+        isPercent = true,
+        dependsOn = "icons.castFeedbackRows",
+        dependsOnNotValue = "none",
+    })
+    
+    yOffset = self:CreateDropdown(container, yOffset, {
+        path = "icons.readyGlowRows",
+        label = "Usable Glow",
+        tooltip = "Shows a proc-style glowing border when an ability becomes ready. Controls which rows show the effect.\n\nNote: Reactive abilities (Execute, Overpower, etc.) always glow every time they become usable, regardless of this setting.",
+        options = {
+            { value = "none", label = "None" },
+            { value = "primary", label = "Primary Row Only" },
+            { value = "primary_secondary", label = "Primary + Secondary" },
+            { value = "all", label = "All Rows" },
+        },
+    })
+    
+    yOffset = self:CreateDropdown(container, yOffset, {
+        path = "icons.readyGlowMode",
+        label = "Glow Behavior",
+        tooltip = "'Once Per Cooldown' glows when an ability first becomes ready and won't re-trigger if your resources fluctuate. 'Every Time Usable' glows each time all conditions are met (off cooldown + enough resources).",
+        options = {
+            { value = "once", label = "Once Per Cooldown" },
+            { value = "always", label = "Every Time Usable" },
+        },
+        dependsOn = "icons.readyGlowRows",
+        dependsOnNotValue = "none",
+    })
+    
+    -- ─── Icons: Aura Tracking ───
+    yOffset = yOffset - 10
+    yOffset = self:CreateSubsectionHeader(container, "Aura Tracking", yOffset)
+    
+    yOffset = self:CreateCheckbox(container, yOffset, {
+        path = "icons.showAuraTracking",
+        label = "Show Buff/Debuff Duration",
+        tooltip = "When enabled, abilities that apply buffs or debuffs (like Intimidating Shout, Rend, Renew) will show the active duration with a glow while the effect is on a target. After it expires, the cooldown is shown. Disable this if you only want to see cooldowns.",
+    })
+    
+    yOffset = self:CreateCheckbox(container, yOffset, {
+        path = "icons.auraTargettargetSupport",
+        label = "Include Target-of-Target",
+        tooltip = "Enables targettarget-aware aura tracking. Helpful if you use @targettarget macros:\n\n- Target the boss, see your HOTs on the tank\n- Target the tank, see your DoTs on the boss\n\nExample macros:\n/cast [@target,help] [@targettarget,help] [@player] Renew\n/cast [@target,harm] [@targettarget,harm] [] Shadow Word: Pain",
+        dependsOn = "icons.showAuraTracking",
+    })
+    
+    -- ─── Icons: Dynamic Sorting ───
+    yOffset = yOffset - 10
+    yOffset = self:CreateSubsectionHeader(container, "Dynamic Sorting", yOffset)
+    
+    yOffset = self:CreateDropdown(container, yOffset, {
+        path = "icons.dynamicSortRows",
+        label = "Sort by Time Remaining",
+        tooltip = "Controls which rows dynamically reorder icons by 'actionable time' (least time remaining first).\n\n'None' uses a static order. Icons never move positions.\n\nWhen enabled, the ability needing attention soonest is always on the left. Useful for:\n- DOT classes: see which debuff is closest to expiring\n- Cooldown-heavy classes: see which ability is ready next\n\nTie-breaker: When multiple abilities are ready (or have equal time), they sort by their original row position. This means you can arrange your row as a priority order and the leftmost icon is always the next best spell to cast.\n\nThe 'actionable time' is max(cooldown remaining, buff/debuff remaining).",
+        options = {
+            { value = "none", label = "None (Static Order)" },
+            { value = "primary", label = "Primary Row Only" },
+            { value = "primary_secondary", label = "Primary + Secondary" },
+        },
+    })
+    
+    yOffset = self:CreateCheckbox(container, yOffset, {
+        path = "icons.dynamicSortAnimation",
+        label = "Animate Sorting",
+        tooltip = "When dynamic sorting is enabled, icons slide smoothly to their new positions instead of snapping instantly. The animation is quick and snappy to avoid being distracting during combat. Disable for instant repositioning.",
+        dependsOn = "icons.dynamicSortRows",
         dependsOnNotValue = "none",
     })
     
@@ -567,32 +594,44 @@ function Options:CreatePanelContent(container)
     
     -- Energy ticker (only for Rogues and Druids - energy users)
     if addon.playerClass == "ROGUE" or addon.playerClass == "DRUID" then
+        yOffset = self:CreateCheckbox(container, yOffset, {
+            path = "resourceBar.energyTicker.enabled",
+            label = "Energy Tick Indicator",
+            tooltip = "Shows progress toward the next energy tick (energy regenerates every 2 seconds). Helps you time abilities to maximize energy efficiency.",
+            dependsOn = "resourceBar.enabled",
+        })
+        
         yOffset = self:CreateDropdown(container, yOffset, {
             path = "resourceBar.energyTicker.style",
-            label = "Energy Tick Indicator",
-            tooltip = "Shows progress toward the next energy tick (energy regenerates every 2 seconds).\n\n'Ticker Bar' shows a separate thin bar below the resource bar.\n\n'Spark' shows a moving spark overlay on the resource bar itself.\n\n'Disabled' hides the indicator.",
+            label = "Tick Indicator Style",
+            tooltip = "'Ticker Bar' shows a separate thin bar below the resource bar that fills as the next tick approaches.\n\n'Spark' shows a moving spark overlay on the resource bar itself, which is more subtle.",
             options = {
-                { value = "disabled", label = "Disabled" },
                 { value = "bar", label = "Ticker Bar" },
                 { value = "spark", label = "Spark" },
             },
-            dependsOn = "resourceBar.enabled",
+            dependsOn = "resourceBar.energyTicker.enabled",
         })
     end
     
     -- Mana ticker (only for mana-using classes)
     local manaClasses = { MAGE = true, PRIEST = true, WARLOCK = true, PALADIN = true, DRUID = true, SHAMAN = true, HUNTER = true }
     if manaClasses[addon.playerClass] then
+        yOffset = self:CreateCheckbox(container, yOffset, {
+            path = "resourceBar.manaTicker.enabled",
+            label = "Mana Tick Indicator",
+            tooltip = "Shows a spark overlay indicating progress toward the next mana tick. Helps you time casts to avoid clipping mana regeneration.",
+            dependsOn = "resourceBar.enabled",
+        })
+        
         yOffset = self:CreateDropdown(container, yOffset, {
             path = "resourceBar.manaTicker.style",
-            label = "Mana Tick Indicator",
-            tooltip = "Shows a spark overlay indicating progress toward the next mana tick.\n\n'Outside 5SR' shows the 2-second tick cycle, but only when already regenerating at full spirit rate.\n\n'Next Full Tick' (recommended) intelligently combines the 5-second rule AND tick timing. After you cast, it calculates exactly when your first full-rate tick will arrive and shows a seamless countdown. Cast right after it completes to maximize mana efficiency — you'll never accidentally clip a big tick again.\n\nThis helps you time casts to avoid clipping mana regeneration ticks.",
+            label = "Tick Indicator Mode",
+            tooltip = "'Outside 5 Second Rule' shows the 2-second tick cycle, but only when already regenerating at full spirit rate.\n\n'Next Full Tick' (recommended) intelligently combines the 5-second rule AND tick timing. After you cast, it calculates exactly when your first full-rate tick will arrive and shows a seamless countdown. Cast right after it completes to maximize mana efficiency — you'll never accidentally clip a big tick again.",
             options = {
-                { value = "disabled", label = "Disabled" },
                 { value = "outside5sr", label = "Outside 5 Second Rule" },
                 { value = "nextfulltick", label = "Next Full Tick" },
             },
-            dependsOn = "resourceBar.enabled",
+            dependsOn = "resourceBar.manaTicker.enabled",
         })
     end
     
@@ -880,10 +919,35 @@ function Options:CreateSectionHeader(parent, text, yOffset)
     return yOffset - 24
 end
 
-function Options:CreateCheckbox(parent, yOffset, config)
+function Options:CreateSubsectionHeader(parent, text, yOffset)
+    -- Lighter-weight header for sub-sections within a main section
     local frame = CreateFrame("Frame", nil, parent)
     frame:SetPoint("TOPLEFT", 0, yOffset)
-    frame:SetSize(400, 22)
+    frame:SetSize(400, 16)
+    
+    -- Header text (left-aligned, smaller, dimmer)
+    local header = frame:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+    header:SetPoint("LEFT", 4, 0)
+    header:SetText(text)
+    header:SetTextColor(0.8, 0.7, 0.5)  -- Muted gold
+    
+    -- Subtle line after text
+    local line = frame:CreateTexture(nil, "ARTWORK")
+    line:SetHeight(1)
+    line:SetPoint("LEFT", header, "RIGHT", 8, 0)
+    line:SetPoint("RIGHT", frame, "RIGHT", -20, 0)
+    line:SetColorTexture(0.4, 0.35, 0.2, 0.5)  -- Very subtle
+    
+    return yOffset - 18
+end
+
+function Options:CreateCheckbox(parent, yOffset, config)
+    -- Indent dependent settings for visual hierarchy
+    local indent = config.dependsOn and 28 or 0
+    
+    local frame = CreateFrame("Frame", nil, parent)
+    frame:SetPoint("TOPLEFT", indent, yOffset)
+    frame:SetSize(400 - indent, 22)
     
     local checkbox = CreateFrame("CheckButton", nil, frame, "InterfaceOptionsCheckButtonTemplate")
     checkbox:SetPoint("LEFT", 0, 0)
@@ -893,7 +957,7 @@ function Options:CreateCheckbox(parent, yOffset, config)
     -- Label with modified indicator
     local labelText = config.label
     if isModified then
-        labelText = "|cffffd200*|r " .. labelText
+        labelText = "|cffffd200*|r " .. config.label
     end
     checkbox.Text:SetText(labelText)
     checkbox.Text:SetFontObject("GameFontHighlight")
@@ -976,16 +1040,19 @@ function Options:CreateCheckbox(parent, yOffset, config)
 end
 
 function Options:CreateSlider(parent, yOffset, config)
+    -- Indent dependent settings for visual hierarchy
+    local indent = config.dependsOn and 28 or 0
+    
     local frame = CreateFrame("Frame", nil, parent)
-    frame:SetPoint("TOPLEFT", 0, yOffset)
-    frame:SetSize(450, 50)
+    frame:SetPoint("TOPLEFT", indent, yOffset)
+    frame:SetSize(450 - indent, 50)
     
     local isModified = addon:IsSettingOverridden(config.path)
     
     -- Label with modified indicator
     local labelText = config.label
     if isModified then
-        labelText = "|cffffd200*|r " .. labelText
+        labelText = "|cffffd200*|r " .. config.label
     end
     
     local label = frame:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
@@ -1115,16 +1182,19 @@ function Options:CreateSlider(parent, yOffset, config)
 end
 
 function Options:CreateDropdown(parent, yOffset, config)
+    -- Indent dependent settings for visual hierarchy
+    local indent = config.dependsOn and 28 or 0
+    
     local frame = CreateFrame("Frame", nil, parent)
-    frame:SetPoint("TOPLEFT", 0, yOffset)
-    frame:SetSize(400, 45)
+    frame:SetPoint("TOPLEFT", indent, yOffset)
+    frame:SetSize(400 - indent, 45)
     
     local isModified = addon:IsSettingOverridden(config.path)
     
     -- Label with modified indicator
     local labelText = config.label
     if isModified then
-        labelText = "|cffffd200*|r " .. labelText
+        labelText = "|cffffd200*|r " .. config.label
     end
     
     local label = frame:CreateFontString(nil, "ARTWORK", "GameFontHighlight")

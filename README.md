@@ -42,8 +42,8 @@ Icons don't just show cooldowns — they show your **applied effects**. Cast a s
 Every visual element is designed to give you instant feedback:
 
 *   **Resource cost display** — Icons show what percentage of required resources you have via a fill overlay, bottom bar, or resource timer (see below)
-*   **Ready glow** — A proc-style glow when abilities become usable (off cooldown + enough resources)
-*   **Desaturation** — Unusable abilities turn grey, mimicking default action bar behavior
+*   **Usable glow** — A proc-style glow when abilities become usable (off cooldown + enough resources)
+*   **Grey out** — Unusable abilities turn grey, mimicking default action bar behavior
 *   **Cast feedback** — A satisfying "pop" animation when you successfully cast
 *   **GCD display** — Global cooldown shown on primary abilities
 
@@ -84,8 +84,8 @@ Small icons above the health bar display important temporary buffs: Enrage, Flur
 Compact bars positioned with your HUD show health and mana/rage/energy at a glance. Class-colored options, text overlays, and smooth animations included.
 
 *   **Combo Points** — Rogues and Feral Druids see 5 horizontal bars below the resource bar
-*   **Energy Tick Indicator** — Optional spark or bar showing progress toward the next energy tick
-*   **Mana Tick Indicator** — Shows progress toward the next full-rate mana tick. Intelligently combines the 5-second rule and tick timing: after casting, it calculates exactly when your first full spirit regen tick will arrive (5SR duration + tick cycle position) and shows a seamless countdown. Helps you time casts to maximize mana efficiency.
+*   **Energy Tick Indicator** — Shows progress toward the next energy tick via a spark overlay or separate ticker bar
+*   **Mana Tick Indicator** — Shows progress toward the next full-rate mana tick. Two modes: "Outside 5 Second Rule" shows the basic tick cycle, while "Next Full Tick" intelligently combines the 5-second rule and tick timing, calculating exactly when your first full spirit regen tick will arrive. Helps you time casts to maximize mana efficiency.
 
 ---
 
@@ -94,23 +94,24 @@ Compact bars positioned with your HUD show health and mana/rage/energy at a glan
 VeevHUD works great with defaults, but nearly everything is configurable:
 
 **Icon Appearance**
-*   Size, aspect ratio (square, 4:3, 4:2), spacing, zoom level
-*   Alpha levels for ready vs. on-cooldown states
+*   Size, aspect ratio (square, 4:3, 2:1), spacing, zoom level
+*   Opacity levels for ready vs. on-cooldown states
+*   Grey out unusable abilities
 *   Cooldown text and spiral display (per-row control)
 
 **Visual Feedback**
-*   Ready glow mode (once per cooldown, always, or disabled)
+*   Usable glow (per-row control, once per cooldown or every time usable)
 *   Cast feedback animation scale
-*   Dim on cooldown (control which rows fade)
-*   GCD display (control which rows show it)
+*   Fade on cooldown (control which rows dim)
+*   GCD indicator (control which rows show it)
 
 **Aura Tracking**
-*   Toggle buff/debuff display on icons
-*   Targettarget support for healers (target the boss, see your HOTs on the tank)
+*   Show buff/debuff duration on icons
+*   Include target-of-target for healers (target the boss, see your HOTs on the tank)
 
-**Dynamic Sort**
-*   Enable for Primary, Primary + Secondary, or keep static
-*   Smooth animation or instant snap
+**Dynamic Sorting**
+*   Sort by time remaining for Primary, Primary + Secondary, or keep static order
+*   Animate sorting transitions or instant snap
 
 **Resource Display**
 *   Three styles: Vertical fill, bottom bar, or resource timer
@@ -131,7 +132,7 @@ VeevHUD works great with defaults, but nearly everything is configurable:
 *   Adjust priority order within rows
 
 **General**
-*   Out of combat fade (adjustable alpha)
+*   Out of combat opacity (adjustable fade when not in combat)
 *   Hide on flight paths
 *   Masque support for button themes
 

@@ -152,7 +152,7 @@
 ## [1.0.11] - 2026-01-28
 
 ### Added
-- Icon Aspect Ratio setting for more compact HUD (Square, Compact 4:3, Ultra Compact 4:2)
+- Icon Aspect Ratio setting for more compact HUD (Square, Compact 4:3, Ultra Compact 2:1)
 - Icons shrink vertically while width stays the same, cropping textures proportionally
 - Proc Tracker now supports tracking target debuffs (e.g., Deep Wounds)
 

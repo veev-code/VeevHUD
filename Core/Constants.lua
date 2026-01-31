@@ -123,9 +123,11 @@ C.DEFAULTS = {
             sparkOverflow = 8,  -- How much taller than bar (for glow effect)
             sparkHideFullEmpty = true,
             -- Energy ticker settings (shows progress to next energy tick)
-            -- style: "disabled" = off, "bar" = separate bar below resource bar, "spark" = large spark overlay on resource bar
+            -- enabled: master toggle for the feature
+            -- style: "bar" = separate bar below resource bar, "spark" = large spark overlay on resource bar
             energyTicker = {
-                style = "spark",      -- "disabled", "bar", or "spark"
+                enabled = true,
+                style = "spark",      -- "bar" or "spark"
                 -- Bar style settings
                 height = 3,           -- Height of the ticker bar
                 offsetY = -1,         -- Gap between resource bar bottom and ticker top (negative = below)
@@ -135,8 +137,11 @@ C.DEFAULTS = {
                 sparkHeight = 1.8,    -- Height multiplier relative to bar height
             },
             -- Mana tick indicator (shows progress to next mana tick)
+            -- enabled: master toggle for the feature
+            -- style: "outside5sr" = only outside 5-second rule, "nextfulltick" = intelligent countdown
             manaTicker = {
-                style = "nextfulltick", -- "disabled", "outside5sr", or "nextfulltick"
+                enabled = true,
+                style = "nextfulltick", -- "outside5sr" or "nextfulltick"
                 sparkWidth = 12,      -- Width of the spark overlay (larger for visibility)
                 sparkHeight = 2.0,    -- Height multiplier relative to bar height
             },
@@ -246,10 +251,10 @@ C.DEFAULTS = {
             -- Ready glow: shows a proc-style glow when ability becomes ready
             -- Triggers: 1) <1s remaining on CD with enough resources
             --           2) Just got enough resources after CD finished
-            -- Mode: "once" = once per cooldown, "always" = every time ready, "disabled" = off
             -- Rows: "none" = disabled, "primary"/"primary_secondary"/"all" = which rows show it
+            -- Mode: "once" = once per cooldown, "always" = every time ready
+            readyGlowRows = "all",        -- Which rows show ready glow (none = disabled)
             readyGlowMode = "once",
-            readyGlowRows = "all",        -- Which rows show ready glow
             readyGlowDuration = 1.0,      -- Duration to show glow when triggered
             
             -- Dynamic sorting by time remaining: which rows dynamically reorder by actionable time

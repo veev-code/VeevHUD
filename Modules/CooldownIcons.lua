@@ -2091,22 +2091,21 @@ end
 --   1. <1s remaining on CD AND usable -> show for remaining duration
 --   2. Was not usable, just became usable (while off CD) -> show for configured duration
 -- For Execute: "usable" means target < 20% AND enough rage
+-- readyGlowRows controls which rows show the glow ("none" = disabled)
 -- readyGlowMode controls behavior:
 --   - "once": only glow once per cooldown cycle (default)
 --   - "always": glow every time ability becomes ready
---   - "disabled": no glow
--- readyGlowRows controls which rows show the glow
 -- Reactive abilities (Execute, Overpower) always behave as "always" regardless of mode
 function CooldownIcons:UpdateReadyGlow(frame, spellID, remaining, duration, isUsable, isReactive, db)
-    local glowMode = db.readyGlowMode or "once"
     local glowRows = db.readyGlowRows or "all"
+    local glowMode = db.readyGlowMode or "once"
     local rowIndex = frame.rowIndex or 1
     
     -- Check row-based setting first
     local enabledForRow = IsSettingEnabledForRow(glowRows, rowIndex)
     
-    -- Disabled mode or not enabled for this row: hide any active glow and return (unless reactive)
-    if (glowMode == "disabled" or not enabledForRow) and not isReactive then
+    -- Disabled or not enabled for this row: hide any active glow and return (unless reactive)
+    if not enabledForRow and not isReactive then
         if frame.readyGlowActive then
             self:HideReadyGlow(frame)
             frame.readyGlowActive = false
