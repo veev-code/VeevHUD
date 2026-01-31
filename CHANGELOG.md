@@ -1,5 +1,18 @@
 # VeevHUD Changelog
 
+## [1.0.26] - 2026-01-31
+
+### Changed
+- **New Layout System** — Completely refactored how HUD elements (combo points, resource bar, health bar, proc tracker) are positioned
+  - Elements now register with a central layout manager instead of calculating positions based on other modules
+  - Automatic repositioning when any element's visibility changes (e.g., Druid entering/leaving Cat Form)
+  - Cleaner architecture: modules no longer need to know about each other's positions
+  - New `/vh layout` debug command to inspect element positions
+- **Icon Row Gap setting** — New slider in Appearance section to control the gap between the icon row and the first bar above it
+
+### Fixed
+- Discord release notifications now use the description field (supports up to 3500 characters) instead of embed fields (which had a 1024 character limit)
+
 ## [1.0.25] - 2026-01-31
 
 ### Added
@@ -14,7 +27,7 @@
 - **Text display options** — Replaced "Show Text" checkbox with a "Text Display" dropdown for Health Bar and Resource Bar
   - Options: Current Value, Percent, Both, None
   - More intuitive than separate toggle + format settings
-- Font setting placed in Position & Scale section (after Vertical Offset)
+- Font setting placed in Appearance section (after Vertical Offset)
 
 ### Removed
 - Cleaned up unused font constants (`FONTS.DEFAULT`, `FONTS.BOLD`)

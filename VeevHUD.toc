@@ -2,7 +2,7 @@
 ## Title: VeevHUD
 ## Notes: WeakAuras-inspired cooldown, buff/debuff, and resource HUD. Works out-of-the-box for all classes with zero config required.
 ## Author: Veev
-## Version: 1.0.25
+## Version: 1.0.26
 ## IconTexture: Interface\Icons\Spell_Nature_Reincarnation
 ## SavedVariables: VeevHUDDB, VeevHUDLog
 ## OptionalDeps: Ace3, LibSharedMedia-3.0, Masque, LibSpellDB
@@ -29,6 +29,7 @@ Core\FiveSecondRule.lua
 Core\ResourcePrediction.lua
 Core\Events.lua
 Core\FontManager.lua
+Core\Layout.lua
 Core\Core.lua
 Core\Config.lua
 

@@ -558,6 +558,11 @@ function addon:CreateModuleFrames()
             module:CreateFrames(self.hudFrame)
         end
     end
+    
+    -- Trigger initial layout to position all elements
+    if self.Layout then
+        self.Layout:Refresh()
+    end
 end
 
 function addon:StartVisibilityUpdates()
@@ -657,6 +662,7 @@ function addon:RegisterSlashCommands()
             print("  /vh hide <id> - Force hide a spell")
             print("  /vh clear <id> - Remove spell override")
             print("  /vh check <id> - Diagnose why a spell isn't showing")
+            print("  /vh layout - Debug layout system positions")
             print("  /vh log [n] - Show log entries")
             print("  /vh debug - Toggle debug mode")
 
@@ -1050,6 +1056,14 @@ function addon:RegisterSlashCommands()
                 end
             else
                 self.Utils:Print("Usage: /vh check <spellID>")
+            end
+
+        elseif cmd == "layout" then
+            -- Debug layout system: /vh layout
+            if self.Layout and self.Layout.PrintDebug then
+                self.Layout:PrintDebug()
+            else
+                self.Utils:Print("Layout system not available.")
             end
 
         else

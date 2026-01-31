@@ -38,22 +38,6 @@ function ComboPoints:UsesComboPoints()
     return false
 end
 
--- Get the total height this module needs (for other modules to offset)
--- Returns 0 if combo points are not used by this class
-function ComboPoints:GetTotalHeight()
-    if not self:UsesComboPoints() then
-        return 0
-    end
-    
-    local db = addon.db and addon.db.profile and addon.db.profile.comboPoints
-    if not db or not db.enabled then
-        return 0
-    end
-    
-    -- Height = bar height + gap between resource bar and combo points
-    return db.barHeight + db.offsetY
-end
-
 -- Calculate individual bar width based on total width setting
 function ComboPoints:GetBarWidth()
     local comboDb = addon.db and addon.db.profile and addon.db.profile.comboPoints
@@ -69,6 +53,38 @@ function ComboPoints:GetBarWidth()
 end
 
 -------------------------------------------------------------------------------
+-- Layout System Integration
+-------------------------------------------------------------------------------
+
+-- Returns the height this element needs in the layout stack
+-- Returns 0 if hidden (element won't take any space)
+function ComboPoints:GetLayoutHeight()
+    if not self:UsesComboPoints() then
+        return 0
+    end
+    
+    local db = addon.db and addon.db.profile and addon.db.profile.comboPoints
+    if not db or not db.enabled then
+        return 0
+    end
+    
+    if not self.container or not self.container:IsShown() then
+        return 0
+    end
+    
+    -- Include border in visual height (1px top + 1px bottom = 2px total)
+    return db.barHeight + 2
+end
+
+-- Position this element at the given Y offset (center of element)
+function ComboPoints:SetLayoutPosition(centerY)
+    if not self.container then return end
+    
+    self.container:ClearAllPoints()
+    self.container:SetPoint("CENTER", self.container:GetParent(), "CENTER", 0, centerY)
+end
+
+-------------------------------------------------------------------------------
 -- Initialization
 -------------------------------------------------------------------------------
 
@@ -79,6 +95,11 @@ function ComboPoints:Initialize()
     
     -- Combo point bar frames
     self.bars = {}
+    
+    -- Register with layout system (priority 10 = closest to icons, gap from settings)
+    local db = addon.db and addon.db.profile and addon.db.profile.comboPoints
+    local gap = db and db.offsetY or 2
+    addon.Layout:RegisterElement("comboPoints", self, 10, gap)
     
     -- Register events
     -- UNIT_POWER_UPDATE fires when combo points change (powerType = "COMBO_POINTS")
@@ -114,27 +135,8 @@ function ComboPoints:OnShapeshiftChange()
     self:UpdateVisibility()
     self:UpdateComboPoints(false)  -- Form change, no animation
     
-    -- Notify other modules that they may need to reposition
-    self:NotifyPositionChange()
-end
-
--- Notify other modules that combo point visibility changed
-function ComboPoints:NotifyPositionChange()
-    -- Refresh modules that need to account for combo point space
-    local resourceBar = addon:GetModule("ResourceBar")
-    if resourceBar and resourceBar.Refresh then
-        resourceBar:Refresh()
-    end
-    
-    local healthBar = addon:GetModule("HealthBar")
-    if healthBar and healthBar.Refresh then
-        healthBar:Refresh()
-    end
-    
-    local procTracker = addon:GetModule("ProcTracker")
-    if procTracker and procTracker.Refresh then
-        procTracker:Refresh()
-    end
+    -- Notify layout system to reposition all elements
+    addon.Layout:Refresh()
 end
 
 -------------------------------------------------------------------------------
@@ -155,18 +157,11 @@ function ComboPoints:CreateFrames(parent)
     -- Calculate bar width based on combo points width setting
     local barWidth = self:GetBarWidth()
     local totalWidth = db.width or 230
-    local resourceDb = addon.db.profile.resourceBar
     
-    -- Position combo points between the (lifted) resource bar and the (fixed) icon row
-    -- Icons TOP edge is at: -(resourceDb.height / 2) - 2 (2px below default resource bar bottom)
-    -- Combo points sit just above the icons with a small gap
-    local iconRowTop = -(resourceDb.height / 2) - 2  -- Fixed icon position (Y = -9 with default 14px bar)
-    local gapAboveIcons = 2  -- Gap between combo points BOTTOM and icons TOP
-    local containerY = iconRowTop + gapAboveIcons + (db.barHeight / 2)
-    
+    -- Create container (position will be set by layout system)
     local container = CreateFrame("Frame", "VeevHUDComboPoints", parent)
     container:SetSize(totalWidth, db.barHeight)
-    container:SetPoint("CENTER", parent, "CENTER", 0, containerY)
+    container:SetPoint("CENTER", parent, "CENTER", 0, 0)  -- Temporary, layout will reposition
     container:EnableMouse(false)  -- Click-through
     self.container = container
     
@@ -350,22 +345,23 @@ function ComboPoints:Refresh()
     local db = addon.db and addon.db.profile and addon.db.profile.comboPoints
     if not db then return end
     
+    -- Update layout gap from settings
+    addon.Layout:SetElementGap("comboPoints", db.offsetY or 2)
+    
+    -- Create frames if they don't exist and we should have them
+    if not self.container and db.enabled and addon.hudFrame then
+        self:CreateFrames(addon.hudFrame)
+    end
+    
     if self.container then
         -- Recalculate bar width based on combo points width setting
         local barWidth = self:GetBarWidth()
         local totalWidth = db.width or 230
-        local resourceDb = addon.db.profile.resourceBar
         
-        -- Position combo points between resource bar and icons
-        local iconRowTop = -(resourceDb.height / 2) - 2  -- Fixed icon position
-        local gapAboveIcons = 2  -- Gap between combo points BOTTOM and icons TOP
-        local containerY = iconRowTop + gapAboveIcons + (db.barHeight / 2)
-        
-        self.container:ClearAllPoints()
-        self.container:SetPoint("CENTER", self.container:GetParent(), "CENTER", 0, containerY)
+        -- Update container size (position handled by layout system)
         self.container:SetSize(totalWidth, db.barHeight)
         
-        -- Update bar sizes and positions
+        -- Update bar sizes and positions within container
         local spacing = db.barSpacing
         local startX = -totalWidth / 2 + barWidth / 2
         
@@ -380,4 +376,7 @@ function ComboPoints:Refresh()
     end
     
     self:UpdateComboPoints(false)  -- Refresh, no animation
+    
+    -- Notify layout system (our height may have changed)
+    addon.Layout:Refresh()
 end

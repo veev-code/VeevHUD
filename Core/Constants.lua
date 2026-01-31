@@ -110,6 +110,11 @@ C.DEFAULTS = {
             smoothBars = true,  -- Smooth animation for health bar, resource bar, and resource cost display
         },
 
+        -- Layout settings (spacing between stacked bars)
+        layout = {
+            iconRowGap = 2,  -- Gap between icon row top and first bar's bottom
+        },
+
         -- Resource bar settings (mana/rage/energy)
         resourceBar = {
             enabled = true,

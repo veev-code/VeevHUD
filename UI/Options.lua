@@ -195,8 +195,8 @@ function Options:CreatePanelContent(container)
     -- Track Y offset for positioning
     local yOffset = 0
     
-    -- === POSITION & SCALE SECTION ===
-    yOffset = self:CreateSectionHeader(container, "Position & Scale", yOffset)
+    -- === APPEARANCE SECTION ===
+    yOffset = self:CreateSectionHeader(container, "Appearance", yOffset)
     
     -- Global Scale first - most commonly adjusted setting
     yOffset = self:CreateSlider(container, yOffset, {
@@ -315,6 +315,13 @@ function Options:CreatePanelContent(container)
         label = "Vertical Row Spacing",
         tooltip = "The vertical gap in pixels between rows of icons (e.g., between Primary and Secondary rows). Set to 0 for rows to touch. Negative values allow overlap, which may look better with certain skins.",
         min = -10, max = 20, step = 1,
+    })
+    
+    yOffset = self:CreateSlider(container, yOffset, {
+        path = "layout.iconRowGap",
+        label = "Icon Row to Bars Gap",
+        tooltip = "The vertical gap in pixels between the top of the icon row and the bottom of the first bar (combo points, resource bar, or health bar). This controls how close the bars sit to your ability icons.",
+        min = -10, max = 30, step = 1,
     })
     
     yOffset = self:CreateSlider(container, yOffset, {
@@ -1539,21 +1546,6 @@ function Options:CreateFontDropdown(parent, yOffset, config)
         end
     end)
     
-    -- Close list when clicking elsewhere
-    listFrame:SetScript("OnShow", function()
-        -- Close on escape
-        listFrame:SetPropagateKeyboardInput(true)
-    end)
-    
-    listFrame:SetScript("OnKeyDown", function(self, key)
-        if key == "ESCAPE" then
-            self:Hide()
-            self:SetPropagateKeyboardInput(false)
-        else
-            self:SetPropagateKeyboardInput(true)
-        end
-    end)
-    
     -- Close when settings panel hides
     frame:SetScript("OnHide", function()
         listFrame:Hide()
@@ -1691,6 +1683,9 @@ function Options:RefreshModuleIfNeeded(path)
         if path:match("iconSize") then
             Options:RefreshAllBarPositions()
         end
+    elseif path:match("^layout%.") then
+        -- Layout changes affect all bar positions
+        addon.Layout:Refresh()
     elseif path:match("^anchor%.") then
         -- Update HUD position
         Options:UpdateHUDPosition()

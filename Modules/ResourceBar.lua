@@ -17,6 +17,10 @@ function ResourceBar:Initialize()
     self.Utils = addon.Utils
     self.C = addon.Constants
 
+    -- Register with layout system (priority 30)
+    -- Gap is 0 by default, increases when energy ticker is visible (hangs below bar)
+    addon.Layout:RegisterElement("resourceBar", self, 30, 0)
+
     -- Register events
     self.Events:RegisterEvent(self, "UNIT_POWER_UPDATE", self.OnPowerUpdate)
     self.Events:RegisterEvent(self, "UNIT_MAXPOWER", self.OnPowerUpdate)
@@ -43,41 +47,43 @@ function ResourceBar:OnShapeshiftChange()
 end
 
 -------------------------------------------------------------------------------
--- Frame Creation
+-- Layout System Integration
 -------------------------------------------------------------------------------
 
--- Get the Y offset needed to account for combo point space
--- Returns 0 if combo points not used/visible
-function ResourceBar:GetComboPointLift()
-    local comboPoints = addon:GetModule("ComboPoints")
-    if comboPoints and comboPoints.GetTotalHeight then
-        return comboPoints:GetTotalHeight()
+-- Returns the height this element needs in the layout stack
+function ResourceBar:GetLayoutHeight()
+    local db = addon.db.profile.resourceBar
+    if not db or not db.enabled then
+        return 0
     end
-    return 0
+    if not self.bar or not self.bar:IsShown() then
+        return 0
+    end
+    
+    -- Include border in visual height (1px top + 1px bottom = 2px total)
+    return db.height + 2
 end
 
--- Get total lift for resource bar (combo points + ticker)
--- Resource bar moves UP to make room for both ticker and combo points below it
-function ResourceBar:GetTotalLift()
-    local comboPointLift = self:GetComboPointLift()
-    local tickerLift = self:GetTickerHeight()
-    return comboPointLift + tickerLift
+-- Position this element at the given Y offset (center of element)
+function ResourceBar:SetLayoutPosition(centerY)
+    if not self.bar then return end
+    
+    self.bar:ClearAllPoints()
+    self.bar:SetPoint("CENTER", self.bar:GetParent(), "CENTER", 0, centerY)
 end
+
+-------------------------------------------------------------------------------
+-- Frame Creation
+-------------------------------------------------------------------------------
 
 function ResourceBar:CreateFrames(parent)
     local db = addon.db.profile.resourceBar
 
     if not db.enabled then return end
 
-    -- Calculate Y offset - resource bar moves UP when combo points and/or ticker are present
-    -- Combo points and ticker fill the space between resource bar and primary row (icons)
-    -- Note: GetTotalLift() may return 0 initially since powerType isn't set yet
-    -- UpdateTickerVisibility will trigger a refresh when power type is determined
-    local totalLift = self:GetTotalLift()
-
-    -- Main bar frame (resource bar is anchor at Y=0, lifted when combo points/ticker present)
+    -- Main bar frame (position will be set by layout system)
     local bar = self.Utils:CreateStatusBar(parent, db.width, db.height)
-    bar:SetPoint("CENTER", parent, "CENTER", 0, totalLift)
+    bar:SetPoint("CENTER", parent, "CENTER", 0, 0)  -- Temporary, layout will reposition
     self.bar = bar
 
     -- Border/backdrop
@@ -176,13 +182,13 @@ function ResourceBar:CreateEnergyTicker(bar, db)
     end
 end
 
--- "bar" style: Separate bar below resource bar
+-- "bar" style: Separate bar below resource bar (attached sub-element)
 function ResourceBar:CreateEnergyTickerBar(bar, db, tickerDb)
     local tickerHeight = tickerDb.height or 3
     local tickerOffsetY = tickerDb.offsetY or -1
 
-    -- Create ticker bar using same utility as resource bar
-    -- Position BELOW the resource bar (between resource bar and combo points)
+    -- Create ticker bar as child of resource bar, positioned below it
+    -- The layout system accounts for this via ResourceBar's gap
     local ticker = self.Utils:CreateStatusBar(bar, db.width, tickerHeight)
     ticker:SetPoint("TOP", bar, "BOTTOM", 0, tickerOffsetY)
     ticker:SetMinMaxValues(0, 1)
@@ -339,6 +345,8 @@ function ResourceBar:UpdatePowerType()
 end
 
 function ResourceBar:UpdateTickerVisibility()
+    if not self.bar then return end
+    
     local db = addon.db.profile.resourceBar
     local tickerDb = db.energyTicker
 
@@ -387,18 +395,9 @@ function ResourceBar:UpdateTickerVisibility()
     -- Check if bar-style visibility changed (affects layout)
     local isBarVisible = self.ticker and self.ticker:IsShown()
     if wasBarVisible ~= isBarVisible then
-        -- Reposition resource bar (needs to move up/down to accommodate ticker bar)
-        if self.bar then
-            local totalLift = self:GetTotalLift()
-            self.bar:ClearAllPoints()
-            self.bar:SetPoint("CENTER", self.bar:GetParent(), "CENTER", 0, totalLift)
-        end
-        
-        -- Notify HealthBar to reposition (it's above the resource bar)
-        local healthBar = addon:GetModule("HealthBar")
-        if healthBar and healthBar.Refresh then
-            healthBar:Refresh()
-        end
+        -- Update our gap in the layout system (ticker space only)
+        addon.Layout:SetElementGap("resourceBar", self:GetTickerHeight())
+        addon.Layout:Refresh()
     end
 end
 
@@ -667,14 +666,14 @@ function ResourceBar:Refresh()
     -- Re-apply config settings to existing frames
     local db = addon.db.profile.resourceBar
     
+    -- Create frames if they don't exist and we should have them
+    if not self.bar and db.enabled and addon.hudFrame then
+        self:CreateFrames(addon.hudFrame)
+    end
+    
     if self.bar then
-        -- Update size
+        -- Update size (position handled by layout system)
         self.bar:SetSize(db.width, db.height)
-        
-        -- Resource bar moves UP when combo points and/or ticker are present
-        local totalLift = self:GetTotalLift()
-        self.bar:ClearAllPoints()
-        self.bar:SetPoint("CENTER", self.bar:GetParent(), "CENTER", 0, totalLift)
         
         -- Update spark visibility and size
         if db.showSpark == false then
@@ -716,6 +715,10 @@ function ResourceBar:Refresh()
     
     self:UpdatePowerType()
     self:UpdateBar()
+    
+    -- Update layout gap (ticker space only) and refresh positions
+    addon.Layout:SetElementGap("resourceBar", self:GetTickerHeight())
+    addon.Layout:Refresh()
 end
 
 function ResourceBar:RefreshEnergyTicker()
@@ -730,7 +733,7 @@ function ResourceBar:RefreshEnergyTicker()
         if not self.ticker then
             self:CreateEnergyTickerBar(self.bar, db, tickerDb)
         end
-        -- Update bar size and position
+        -- Update bar size and position (attached to resource bar)
         if self.ticker then
             local tickerHeight = tickerDb.height or 3
             local tickerOffsetY = tickerDb.offsetY or -1

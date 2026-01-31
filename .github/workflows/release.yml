@@ -53,9 +53,9 @@ jobs:
             CHANGELOG_ESCAPED="See [GitHub release](https://github.com/veev-code/VeevHUD/releases/tag/${VERSION}) for details."
           fi
           
-          # Truncate if too long for Discord (1024 char limit for field values)
-          if [ ${#CHANGELOG_ESCAPED} -gt 900 ]; then
-            CHANGELOG_ESCAPED="${CHANGELOG_ESCAPED:0:900}...\\n\\n*See GitHub for full changelog*"
+          # Truncate if too long for Discord (4096 char limit for description, minus ~300 for intro/links)
+          if [ ${#CHANGELOG_ESCAPED} -gt 3500 ]; then
+            CHANGELOG_ESCAPED="${CHANGELOG_ESCAPED:0:3500}..."
           fi
           
           # Post to Discord
@@ -63,20 +63,8 @@ jobs:
             -d "{
               \"embeds\": [{
                 \"title\": \"VeevHUD ${VERSION} Released!\",
-                \"description\": \"A new version of VeevHUD has been submitted for release.\",
-                \"color\": 5814783,
-                \"fields\": [
-                  {
-                    \"name\": \"Download\",
-                    \"value\": \"[GitHub](https://github.com/veev-code/VeevHUD/releases/tag/${VERSION}) (available now)\\n[CurseForge](https://www.curseforge.com/wow/addons/veevhud) (may take time for approval)\",
-                    \"inline\": false
-                  },
-                  {
-                    \"name\": \"What's New\",
-                    \"value\": \"${CHANGELOG_ESCAPED}\",
-                    \"inline\": false
-                  }
-                ]
+                \"description\": \"A new version of VeevHUD has been submitted for release.\\n\\n**Download**\\n[GitHub](https://github.com/veev-code/VeevHUD/releases/tag/${VERSION}) (available now)\\n[CurseForge](https://www.curseforge.com/wow/addons/veevhud) (may take time for approval)\\n\\n**What's New**\\n${CHANGELOG_ESCAPED}\\n\\n*See GitHub for full changelog*\",
+                \"color\": 5814783
               }]
             }" \
             "$DISCORD_WEBHOOK"

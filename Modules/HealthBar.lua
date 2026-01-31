@@ -17,6 +17,9 @@ function HealthBar:Initialize()
     self.Utils = addon.Utils
     self.C = addon.Constants
 
+    -- Register with layout system (priority 40, no gap below)
+    addon.Layout:RegisterElement("healthBar", self, 40, 0)
+
     -- Register events
     self.Events:RegisterEvent(self, "UNIT_HEALTH", self.OnHealthUpdate)
     self.Events:RegisterEvent(self, "UNIT_MAXHEALTH", self.OnHealthUpdate)
@@ -36,6 +39,32 @@ function HealthBar:OnHealthUpdate(event, unit)
 end
 
 -------------------------------------------------------------------------------
+-- Layout System Integration
+-------------------------------------------------------------------------------
+
+-- Returns the height this element needs in the layout stack
+function HealthBar:GetLayoutHeight()
+    local db = addon.db.profile.healthBar
+    if not db or not db.enabled then
+        return 0
+    end
+    if not self.playerBar or not self.playerBar:IsShown() then
+        return 0
+    end
+    
+    -- Include border in visual height (1px top + 1px bottom = 2px total)
+    return db.height + 2
+end
+
+-- Position this element at the given Y offset (center of element)
+function HealthBar:SetLayoutPosition(centerY)
+    if not self.playerBar then return end
+    
+    self.playerBar:ClearAllPoints()
+    self.playerBar:SetPoint("CENTER", self.playerBar:GetParent(), "CENTER", 0, centerY)
+end
+
+-------------------------------------------------------------------------------
 -- Frame Creation
 -------------------------------------------------------------------------------
 
@@ -43,43 +72,14 @@ function HealthBar:CreateFrames(parent)
     self:CreatePlayerBar(parent)
 end
 
--- Get the Y offset needed to account for combo point and ticker space
--- Returns 0 if neither are used/visible
--- Health bar uses resource bar's total lift since it positions above the resource bar
-function HealthBar:GetResourceBarLift()
-    local resourceBar = addon:GetModule("ResourceBar")
-    if resourceBar and resourceBar.GetTotalLift then
-        return resourceBar:GetTotalLift()
-    end
-    -- Fallback to just combo points if ResourceBar not available
-    local comboPoints = addon:GetModule("ComboPoints")
-    if comboPoints and comboPoints.GetTotalHeight then
-        return comboPoints:GetTotalHeight()
-    end
-    return 0
-end
-
 function HealthBar:CreatePlayerBar(parent)
     local db = addon.db.profile.healthBar
 
     if not db.enabled then return end
 
-    -- Calculate position relative to resource bar (health bar is ABOVE resource bar)
-    -- If resource bar is disabled, health bar takes its place at Y=0
-    -- Resource bar lift accounts for both combo points and ticker
-    local resourceDb = addon.db.profile.resourceBar
-    local resourceBarLift = self:GetResourceBarLift()
-    local healthBarOffset
-    if resourceDb.enabled then
-        local resourceBarTop = resourceDb.height / 2
-        healthBarOffset = resourceBarTop + db.height / 2 + resourceBarLift
-    else
-        -- Resource bar disabled: health bar takes its place at center (Y=0)
-        healthBarOffset = resourceBarLift
-    end
-    
+    -- Create bar (position will be set by layout system)
     local bar = self.Utils:CreateStatusBar(parent, db.width, db.height)
-    bar:SetPoint("CENTER", parent, "CENTER", 0, healthBarOffset)
+    bar:SetPoint("CENTER", parent, "CENTER", 0, 0)  -- Temporary, layout will reposition
     self.playerBar = bar
 
     -- Border
@@ -189,28 +189,15 @@ end
 function HealthBar:Refresh()
     -- Re-apply config settings to existing frames
     local db = addon.db.profile.healthBar
-    local resourceDb = addon.db.profile.resourceBar
+    
+    -- Create frames if they don't exist and we should have them
+    if not self.playerBar and db.enabled and addon.hudFrame then
+        self:CreatePlayerBar(addon.hudFrame)
+    end
     
     if self.playerBar then
-        -- Update size
+        -- Update size (position handled by layout system)
         self.playerBar:SetSize(db.width, db.height)
-        
-        -- Calculate position relative to resource bar (health bar is ABOVE resource bar)
-        -- Resource bar center is at Y=0, top edge at resourceBar.height/2
-        -- If resource bar is disabled, health bar takes its place at Y=0
-        -- Resource bar lift accounts for both combo points and ticker
-        local resourceBarLift = self:GetResourceBarLift()
-        local healthBarOffset
-        if resourceDb.enabled then
-            local resourceBarTop = resourceDb.height / 2
-            healthBarOffset = resourceBarTop + db.height / 2 + resourceBarLift
-        else
-            -- Resource bar disabled: health bar takes its place at center (Y=0)
-            healthBarOffset = resourceBarLift
-        end
-        
-        self.playerBar:ClearAllPoints()
-        self.playerBar:SetPoint("CENTER", self.playerBar:GetParent(), "CENTER", 0, healthBarOffset)
         
         -- Toggle visibility based on enabled
         if db.enabled then
@@ -243,4 +230,7 @@ function HealthBar:Refresh()
     end
     
     self:UpdatePlayerBar()
+    
+    -- Notify layout system (our height/visibility may have changed)
+    addon.Layout:Refresh()
 end
