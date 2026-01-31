@@ -444,6 +444,7 @@ function SpellsOptions:GetEffectiveSpellList()
     end
     
     -- Build set of all spell IDs that are currently displayed (tracked or user-configured)
+    -- SpellTracker now stores by canonical ID, so this is straightforward
     local displayedSpellIDs = {}
     for spellID, _ in pairs(trackedSpells) do
         displayedSpellIDs[spellID] = true

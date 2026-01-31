@@ -153,13 +153,14 @@ function SpellTracker:FullRescan()
         local shouldTrack, reason = self:ShouldTrackSpell(spellID, spellData, enabledTags)
         
         if shouldTrack then
-            -- Get the ACTUAL spell ID the player knows (may differ from LibSpellDB ID)
+            -- Get the ACTUAL spell ID the player knows (may differ from LibSpellDB canonical ID)
             -- e.g., LibSpellDB has Blood Fury 20572, but Shaman knows 33697
+            -- We store by CANONICAL ID for consistency, but keep actualSpellID for WoW API calls
             local actualSpellID = self:GetActualSpellID(spellID, spellData)
             
-            self.trackedSpells[actualSpellID] = {
+            self.trackedSpells[spellID] = {
                 spellData = spellData,
-                librarySpellID = spellID,  -- Keep reference to original for tag lookups
+                actualSpellID = actualSpellID,  -- For GetSpellCooldown, IsSpellKnown, etc.
                 reason = reason,
             }
             tracked = tracked + 1

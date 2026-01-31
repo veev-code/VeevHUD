@@ -846,7 +846,8 @@ function CooldownIcons:RebuildAllRows()
                 
                 if #self.iconsByRow[rowIndex] < rowConfig.maxIcons then
                     table.insert(self.iconsByRow[rowIndex], {
-                        spellID = spellID,
+                        spellID = spellID,  -- Canonical ID for identification
+                        actualSpellID = trackedData.actualSpellID or spellID,  -- Rank ID for WoW API calls
                         spellData = spellData,
                         customOrder = cfg.order,  -- Store custom order if set
                     })
@@ -870,7 +871,8 @@ function CooldownIcons:RebuildAllRows()
                             -- Check if we have room
                             if #self.iconsByRow[rowIndex] < rowConfig.maxIcons then
                                 table.insert(self.iconsByRow[rowIndex], {
-                                    spellID = spellID,
+                                    spellID = spellID,  -- Canonical ID for identification
+                                    actualSpellID = trackedData.actualSpellID or spellID,  -- Rank ID for WoW API calls
                                     spellData = spellData,
                                     customOrder = cfg.order,  -- Store custom order if set
                                 })
@@ -1020,7 +1022,7 @@ function CooldownIcons:UpdateRowIcons()
             for i, iconFrame in ipairs(rowFrame.icons) do
                 if i <= iconCount then
                     local spellInfo = spells[i]
-                    self:SetupIcon(iconFrame, spellInfo.spellID, spellInfo.spellData, rowConfig, rowIndex)
+                    self:SetupIcon(iconFrame, spellInfo.spellID, spellInfo.actualSpellID, spellInfo.spellData, rowConfig, rowIndex)
                     -- Store default sort order for stable sorting when using dynamic sort
                     iconFrame.defaultSortOrder = spellInfo.customOrder or spellInfo.defaultOrder or i
                     iconFrame:Show()
@@ -1156,10 +1158,13 @@ end
 -- Icon Setup and Updates
 -------------------------------------------------------------------------------
 
-function CooldownIcons:SetupIcon(frame, spellID, spellData, rowConfig, rowIndex)
-    local texture = spellData.icon or self.Utils:GetSpellTexture(spellID)
+function CooldownIcons:SetupIcon(frame, spellID, actualSpellID, spellData, rowConfig, rowIndex)
+    -- spellID = canonical ID for identification and tag lookups
+    -- actualSpellID = the actual rank ID the player knows (for WoW API calls)
+    local texture = spellData.icon or self.Utils:GetSpellTexture(actualSpellID or spellID)
     frame.icon:SetTexture(texture)
-    frame.spellID = spellID
+    frame.spellID = spellID  -- Canonical ID
+    frame.actualSpellID = actualSpellID or spellID  -- For GetSpellCooldown, etc.
     frame.spellData = spellData
     frame.rowIndex = rowIndex or 1
     -- dimOnCooldown is now determined dynamically in UpdateIcon based on global setting
@@ -1445,7 +1450,8 @@ function CooldownIcons:ResetDynamicSortPositions()
 end
 
 function CooldownIcons:UpdateIconState(frame, db)
-    local spellID = frame.spellID
+    local spellID = frame.spellID  -- Canonical ID for lookups
+    local actualSpellID = frame.actualSpellID or spellID  -- Rank ID for WoW API calls
     if not spellID then return end
 
     -- Check for active aura (debuff/buff applied by this spell)
@@ -1467,7 +1473,7 @@ function CooldownIcons:UpdateIconState(frame, db)
         local shouldCheckBuff = not (spellData and spellData.ignoreAura)
         
         if shouldCheckBuff then
-            local isBuffActive, buffRemaining, buffDuration, buffStacks = self:GetPlayerBuff(spellID)
+            local isBuffActive, buffRemaining, buffDuration, buffStacks = self:GetPlayerBuff(actualSpellID)
             if isBuffActive then
                 -- Always prefer player buff data for permanent buffs (duration=0)
                 -- This handles Shadowform, Stealth, Aspects, etc. correctly
@@ -1482,7 +1488,8 @@ function CooldownIcons:UpdateIconState(frame, db)
     end
 
     -- Get cooldown info (including actual start time for accurate spiral)
-    local remaining, duration, cdEnabled, cdStartTime = self.Utils:GetSpellCooldown(spellID)
+    -- Use actualSpellID (the rank the player knows) for WoW API calls
+    local remaining, duration, cdEnabled, cdStartTime = self.Utils:GetSpellCooldown(actualSpellID)
     
     -- GCD override protection: The WoW API can briefly return GCD info (1.5s duration)
     -- instead of the actual cooldown for certain spells (e.g., Blood Fury variants 33697, 33702).
@@ -1607,7 +1614,8 @@ function CooldownIcons:UpdateIconState(frame, db)
     end
 
     -- Get usability info (uses spell NAME which correctly handles Execute, Revenge, etc.)
-    local isUsable, notEnoughMana = self:IsSpellUsable(spellID)
+    -- Uses actualSpellID since GetEffectiveSpellID handles rank conversion internally
+    local isUsable, notEnoughMana = self:IsSpellUsable(actualSpellID)
     
     -- Update actionableTime for conditional spells (Execute, Victory Rush, etc.)
     -- If spell is off cooldown but not usable, sort it after short-cooldown spells
@@ -1619,10 +1627,12 @@ function CooldownIcons:UpdateIconState(frame, db)
     end
     
     -- Check for spell activation overlay (for proc glow display)
-    local hasOverlay = self:HasSpellActivationOverlay(spellID)
+    -- Use actualSpellID since WoW overlay events use actual spell IDs
+    local hasOverlay = self:HasSpellActivationOverlay(actualSpellID)
     
     -- Get power/resource info for resource display
-    local powerCost, currentPower, maxPower, powerType, powerColor = self.Utils:GetSpellPowerInfo(spellID)
+    -- Uses actualSpellID since GetEffectiveSpellID handles rank conversion internally
+    local powerCost, currentPower, maxPower, powerType, powerColor = self.Utils:GetSpellPowerInfo(actualSpellID)
     local hasResourceCost = powerCost and powerCost > 0
     local resourcePercent = hasResourceCost and math.min(1, currentPower / powerCost) or 1
     local canAfford = resourcePercent >= 1
@@ -1821,7 +1831,8 @@ function CooldownIcons:UpdateIconState(frame, db)
         end
 
         -- Check for spell activation overlay (proc)
-        if self:HasSpellActivationOverlay(spellID) then
+        -- Use actualSpellID since WoW overlay events use actual spell IDs
+        if self:HasSpellActivationOverlay(actualSpellID) then
             showGlow = true
             desaturate = false  -- Never desaturate a proc
         end
