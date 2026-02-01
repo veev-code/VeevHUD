@@ -1,5 +1,10 @@
 # VeevHUD Changelog
 
+## [1.0.29] - 2026-02-01
+
+### Fixed
+- **Config visibility** — HUD now stays visible at full opacity when the options panel is open, so visibility settings (Out of Combat Opacity, Hide on Flight Path) don't make it hard to configure
+
 ## [1.0.28] - 2026-01-31
 
 ### Added

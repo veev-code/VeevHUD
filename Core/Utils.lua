@@ -642,6 +642,12 @@ end
 function Utils:ShouldShowHUD()
     local db = addon.db.profile.visibility
 
+    -- Always show at full opacity when config panel is open
+    local options = addon.Options
+    if options and options.isConfigOpen then
+        return true, 1.0
+    end
+
     -- Hide completely when on flight path
     if db.hideOnFlightPath and UnitOnTaxi("player") then
         return false, 0

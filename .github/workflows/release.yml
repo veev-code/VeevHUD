@@ -63,7 +63,7 @@ jobs:
             -d "{
               \"embeds\": [{
                 \"title\": \"VeevHUD ${VERSION} Released!\",
-                \"description\": \"A new version of VeevHUD has been submitted for release.\\n\\n**Download**\\n[GitHub](https://github.com/veev-code/VeevHUD/releases/tag/${VERSION}) (available now)\\n[CurseForge](https://www.curseforge.com/wow/addons/veevhud) (may take time for approval)\\n\\n**What's New**\\n${CHANGELOG_ESCAPED}\\n\\n*See GitHub for full changelog*\",
+                \"description\": \"A new version of VeevHUD has been submitted for release.\\n\\n**Download**\\n[GitHub](https://github.com/veev-code/VeevHUD/releases/tag/${VERSION}) (available now)\\n[CurseForge](https://www.curseforge.com/wow/addons/veevhud) (may take time for approval)\\n\\n**What's New**\\n${CHANGELOG_ESCAPED}\",
                 \"color\": 5814783
               }]
             }" \

@@ -18,6 +18,9 @@ addon.Options = Options
 Options.widgets = {}  -- widgets[path] = { widget = frame, control = checkbox/slider, config = config }
 Options.dependencies = {}  -- dependencies[parentPath] = { childPath1, childPath2, ... }
 
+-- Track if config panel is currently open (used to override out-of-combat opacity)
+Options.isConfigOpen = false
+
 -- Static popup for reload UI prompt (needed for Masque compatibility with aspect ratio changes)
 StaticPopupDialogs["VEEVHUD_RELOAD_UI"] = {
     text = "Changing icon aspect ratio with Masque installed requires a UI reload.\n\nReload now?",
@@ -134,9 +137,18 @@ function Options:CreateOptionsPanel()
     -- Store category ID for opening via slash command
     self.categoryID = category:GetID()
     
-    -- Update scroll child size on show
+    -- Update scroll child size on show, and track config open state
     panel:SetScript("OnShow", function()
         scrollChild:SetWidth(scrollFrame:GetWidth() - 10)
+        Options.isConfigOpen = true
+        -- Force HUD to full visibility while configuring
+        addon:RefreshModules()
+    end)
+    
+    panel:SetScript("OnHide", function()
+        Options.isConfigOpen = false
+        -- Restore normal visibility behavior
+        addon:RefreshModules()
     end)
 end
 
@@ -176,7 +188,7 @@ function Options:CreatePanelContent(container)
     yOffset = self:CreateSlider(container, yOffset, {
         path = "visibility.outOfCombatAlpha",
         label = "Out of Combat Opacity",
-        tooltip = "Controls the HUD's visibility when not in combat. Use this to fade the HUD when out of combat so it's less distracting. 100% = fully visible, 50% = half transparent, 0% = invisible.",
+        tooltip = "Controls the HUD's visibility when not in combat. Use this to fade the HUD when out of combat so it's less distracting. 100% = fully visible, 50% = half transparent, 0% = invisible.\n\nNote: This setting is ignored while the config panel is open so you can see the HUD while configuring.",
         min = 0, max = 1.0, step = 0.05,
         isPercent = true,
     })
@@ -184,7 +196,7 @@ function Options:CreatePanelContent(container)
     yOffset = self:CreateCheckbox(container, yOffset, {
         path = "visibility.hideOnFlightPath",
         label = "Hide on Flight Path",
-        tooltip = "Automatically hides the HUD when you're on a flight path (taxi). The HUD will reappear when you land. Useful to keep your screen clean while traveling.",
+        tooltip = "Automatically hides the HUD when you're on a flight path (taxi). The HUD will reappear when you land. Useful to keep your screen clean while traveling.\n\nNote: This setting is ignored while the config panel is open so you can see the HUD while configuring.",
     })
     
     yOffset = self:CreateCheckbox(container, yOffset, {
