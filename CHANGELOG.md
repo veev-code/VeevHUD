@@ -1,5 +1,18 @@
 # VeevHUD Changelog
 
+## [1.0.28] - 2026-01-31
+
+### Added
+- **Range Indicator** — Out-of-range spells now display a desaturated icon with a red range indicator at the bottom
+- Smooth fade animations for range indicator transitions
+
+### Changed
+- **Improved buff tracking** — Rotational spells now track auras on your current target, while cooldown-only spells always show in the HUD
+- Code cleanup: removed unused RangeChecker API methods
+
+### LibSpellDB Updates
+- New `IsSelfOnly()` and `IsRotational()` API functions for smarter buff tracking behavior
+
 ## [1.0.27] - 2026-01-31
 
 ### Fixed
