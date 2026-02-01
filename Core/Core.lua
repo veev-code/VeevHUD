@@ -65,6 +65,11 @@ function addon:OnAddonLoaded()
     if self.FontManager then
         self.FontManager:Initialize()
     end
+    
+    -- Initialize RangeChecker (handles spell range detection)
+    if self.RangeChecker then
+        self.RangeChecker:Initialize()
+    end
 end
 
 function addon:OnPlayerLogin()

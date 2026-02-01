@@ -87,6 +87,11 @@ function CooldownIcons:Initialize()
     -- Register for target changes (for target lockout debuff tracking like PWS/Weakened Soul)
     self.Events:RegisterEvent(self, "PLAYER_TARGET_CHANGED", self.OnSpellUpdate)
     self.Events:RegisterEvent(self, "UNIT_TARGET", self.OnUnitTarget)
+    
+    -- Register for range check updates (throttled by RangeChecker module)
+    if addon.RangeChecker then
+        addon.RangeChecker:RegisterCallback(self, self.OnRangeUpdate)
+    end
 
     self.Utils:LogInfo("CooldownIcons initialized")
 end
@@ -146,6 +151,20 @@ function CooldownIcons:OnUnitTarget(event, unit)
     if unit == "target" then
         self:UpdateAllIcons()
     end
+end
+
+function CooldownIcons:OnRangeUpdate()
+    -- Called by RangeChecker on throttled interval (0.1s) or target change
+    -- RangeChecker already handles target existence check
+    local db = addon.db and addon.db.profile.icons or {}
+    local showRangeOn = db.showRangeIndicator or "all"
+    
+    -- Skip if range indicator is completely disabled
+    if showRangeOn == "none" then
+        return
+    end
+    
+    self:UpdateAllRangeIndicators()
 end
 
 function CooldownIcons:OnOverlayShow(event, spellID)
@@ -666,6 +685,44 @@ function CooldownIcons:CreateIcon(parent, index, size)
     resourceFill:SetHeight(0)
     resourceFill:Hide()
     frame.resourceFill = resourceFill
+
+    -- Range indicator overlay (red tint when target is out of range)
+    -- Uses same approach as Blizzard action buttons (red overlay)
+    -- We use a wrapper frame for the overlay so we can animate its alpha
+    local rangeFrame = CreateFrame("Frame", nil, frame)
+    rangeFrame:SetAllPoints(icon)
+    rangeFrame:SetAlpha(0)
+    rangeFrame:Hide()
+    
+    local rangeOverlay = rangeFrame:CreateTexture(nil, "OVERLAY", nil, 2)
+    rangeOverlay:SetAllPoints()
+    rangeOverlay:SetTexture([[Interface\Buttons\WHITE8X8]])
+    rangeOverlay:SetVertexColor(177/255, 22/255, 22/255, 0.4)  -- Out-of-range red: rgb(177, 22, 22)
+    
+    -- Create fade-in animation
+    local fadeIn = rangeFrame:CreateAnimationGroup()
+    local fadeInAlpha = fadeIn:CreateAnimation("Alpha")
+    fadeInAlpha:SetFromAlpha(0)
+    fadeInAlpha:SetToAlpha(1)
+    fadeInAlpha:SetDuration(0.15)
+    fadeIn:SetScript("OnPlay", function() rangeFrame:Show() end)
+    fadeIn:SetScript("OnFinished", function() rangeFrame:SetAlpha(1) end)
+    rangeFrame.fadeIn = fadeIn
+    
+    -- Create fade-out animation
+    local fadeOut = rangeFrame:CreateAnimationGroup()
+    local fadeOutAlpha = fadeOut:CreateAnimation("Alpha")
+    fadeOutAlpha:SetFromAlpha(1)
+    fadeOutAlpha:SetToAlpha(0)
+    fadeOutAlpha:SetDuration(0.15)
+    fadeOut:SetScript("OnFinished", function() 
+        rangeFrame:SetAlpha(0)
+        rangeFrame:Hide() 
+    end)
+    rangeFrame.fadeOut = fadeOut
+    
+    frame.rangeOverlay = rangeOverlay
+    frame.rangeFrame = rangeFrame
 
     frame.index = index
     frame.spellID = nil
@@ -2072,6 +2129,10 @@ function CooldownIcons:UpdateIconState(frame, db)
             frame.readyGlowActive = false
         end
     end
+    
+    -- Handle range indicator (red overlay when target is out of range)
+    -- Only check if setting is enabled for this row and we have a target
+    self:UpdateRangeIndicator(frame, actualSpellID, db)
 end
 
 -- Update resource cost display (horizontal bar or vertical fill)
@@ -2530,6 +2591,77 @@ function CooldownIcons:GetSpellCharges(spellID)
         return charges, maxCharges, start, duration
     end
     return nil, nil
+end
+
+-------------------------------------------------------------------------------
+-- Range Indicator
+-------------------------------------------------------------------------------
+
+-- Update range indicator overlay on an icon
+-- Shows a red tint when the target is out of range of the spell
+-- Hides when an aura from this spell is active (no point showing range for something already applied)
+function CooldownIcons:UpdateRangeIndicator(frame, spellID, db)
+    if not frame.rangeFrame then return end
+    
+    -- Check if range indicator is enabled for this row
+    local showRangeOn = db.showRangeIndicator or "all"
+    local rowIndex = frame.rowIndex or 1
+    local showForRow = IsSettingEnabledForRow(showRangeOn, rowIndex)
+    
+    if not showForRow then
+        frame.rangeFrame.fadeIn:Stop()
+        frame.rangeFrame.fadeOut:Stop()
+        frame.rangeFrame:SetAlpha(0)
+        frame.rangeFrame:Hide()
+        frame.rangeWantShow = false
+        return
+    end
+    
+    -- Determine if we should show the range indicator
+    local shouldShow = false
+    
+    -- Skip if this spell has an active aura (buff/debuff already applied)
+    local auraTracker = addon:GetModule("AuraTracker")
+    local hasActiveAura = auraTracker and auraTracker:IsAuraActive(frame.spellID)
+    
+    -- Skip if player has an active buff from this spell (self-buffs, permanent buffs)
+    local actualSpellID = frame.actualSpellID or frame.spellID
+    local isBuffActive = self:GetPlayerBuff(actualSpellID)
+    
+    if not hasActiveAura and not isBuffActive then
+        -- Check range - only show if explicitly out of range (false)
+        local RangeChecker = addon.RangeChecker
+        local inRange = RangeChecker and RangeChecker:IsSpellInRange(spellID, "target")
+        shouldShow = (inRange == false)
+    end
+    
+    -- Only trigger animations on state transitions
+    local wasShowing = frame.rangeWantShow or false
+    frame.rangeWantShow = shouldShow
+    
+    if shouldShow and not wasShowing then
+        frame.rangeFrame.fadeOut:Stop()
+        frame.rangeFrame.fadeIn:Play()
+    elseif not shouldShow and wasShowing then
+        frame.rangeFrame.fadeIn:Stop()
+        frame.rangeFrame.fadeOut:Play()
+    end
+end
+
+-- Force update range for all visible icons (called on throttled timer via RangeChecker callback)
+function CooldownIcons:UpdateAllRangeIndicators()
+    local db = addon.db and addon.db.profile.icons or {}
+    
+    for _, rowFrame in ipairs(self.rows or {}) do
+        if rowFrame.icons then
+            for _, iconFrame in ipairs(rowFrame.icons) do
+                if iconFrame:IsShown() and iconFrame.spellID then
+                    local actualSpellID = iconFrame.actualSpellID or iconFrame.spellID
+                    self:UpdateRangeIndicator(iconFrame, actualSpellID, db)
+                end
+            end
+        end
+    end
 end
 
 -------------------------------------------------------------------------------

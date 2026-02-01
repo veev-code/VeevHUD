@@ -28,6 +28,7 @@ Core\TickTracker.lua
 Core\FiveSecondRule.lua
 Core\ResourcePrediction.lua
 Core\Events.lua
+Core\RangeChecker.lua
 Core\FontManager.lua
 Core\Layout.lua
 Core\Database.lua

@@ -458,6 +458,22 @@ function Options:CreatePanelContent(container)
         dependsOnNotValue = "none",
     })
     
+    -- ─── Icons: Range Indicator ───
+    yOffset = yOffset - 10
+    yOffset = self:CreateSubsectionHeader(container, "Range Indicator", yOffset)
+    
+    yOffset = self:CreateDropdown(container, yOffset, {
+        path = "icons.showRangeIndicator",
+        label = "Out of Range Indicator",
+        tooltip = "Shows a red overlay on spell icons when your current target is out of range. This mirrors the behavior of the default action bars which turn red when out of range.\n\nThe range check runs every 0.1 seconds for responsive feedback.\n\nNote: Only shows when you have a target. Spells without a range component (self-buffs, etc.) are not affected.",
+        options = {
+            { value = "none", label = "None" },
+            { value = "primary", label = "Primary Row Only" },
+            { value = "primary_secondary", label = "Primary + Secondary" },
+            { value = "all", label = "All Rows" },
+        },
+    })
+    
     -- === HEALTH BAR SECTION ===
     yOffset = yOffset - 8
     yOffset = self:CreateSectionHeader(container, "Health Bar", yOffset)

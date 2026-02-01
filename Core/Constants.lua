@@ -259,6 +259,11 @@ C.DEFAULTS = {
             -- Ready abilities (actionable time = 0) are sorted to the left
             dynamicSortRows = "none",
             dynamicSortAnimation = true,  -- Smooth sliding animation when icons reorder
+            
+            -- Range indicator: red overlay when target is out of spell range
+            -- "none" = disabled, "primary" = Primary only, "primary_secondary" = Primary + Secondary, "all" = all rows
+            -- Uses throttled updates (0.1s) to minimize performance impact
+            showRangeIndicator = "all",
         },
         
         -- Per-spec spell configuration (sparse storage)
