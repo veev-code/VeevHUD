@@ -68,14 +68,8 @@ end
 -------------------------------------------------------------------------------
 
 -- Register a callback to be notified when range should be rechecked
--- callback: function(self) - called when range update is needed
 function RangeChecker:RegisterCallback(owner, callback)
     self.callbacks[owner] = callback
-end
-
--- Unregister a callback
-function RangeChecker:UnregisterCallback(owner)
-    self.callbacks[owner] = nil
 end
 
 -- Notify all registered callbacks
@@ -108,7 +102,6 @@ function RangeChecker:IsSpellInRange(spellID, unit)
     -- Try C_Spell.IsSpellInRange first (TWW+)
     if C_Spell and C_Spell.IsSpellInRange then
         local result = C_Spell.IsSpellInRange(effectiveSpellID, unit)
-        -- Returns true/false/nil
         return result
     end
     
@@ -128,18 +121,4 @@ function RangeChecker:IsSpellInRange(spellID, unit)
     
     -- Spell has no range component or API unavailable
     return nil
-end
-
--- Check if target is out of range for a spell (convenience wrapper)
--- Returns: true if definitely out of range, false otherwise
-function RangeChecker:IsOutOfRange(spellID, unit)
-    local inRange = self:IsSpellInRange(spellID, unit)
-    return inRange == false
-end
-
--- Check if target is in range for a spell (convenience wrapper)
--- Returns: true if definitely in range, false otherwise
-function RangeChecker:IsInRange(spellID, unit)
-    local inRange = self:IsSpellInRange(spellID, unit)
-    return inRange == true
 end
