@@ -1,5 +1,20 @@
 # VeevHUD Changelog
 
+## [1.0.27] - 2026-01-31
+
+### Fixed
+- **AoE CC tracking** — When a CC effect breaks on one target (e.g., Psychic Scream), icons now correctly continue tracking remaining affected targets
+- **Spell Configuration panel** — Utility row positioning now updates correctly when spells are reordered
+- Various bug fixes and code cleanup
+
+### Changed
+- **Major refactor** — Extracted modules and removed ~1700 lines of unused/dead code
+- All spell IDs now normalize to canonical (base) ID for consistent tracking across ranks
+
+### LibSpellDB Updates
+- Added Priest Chastise as soft CC for all specs
+- Fixed duplicate spell ID warnings and nil access bugs
+
 ## [1.0.26] - 2026-01-31
 
 ### Changed
