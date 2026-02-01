@@ -286,6 +286,42 @@ function Utils:GetSpellCooldown(spellID)
     return 0, 0, enabled ~= 0, 0
 end
 
+-- Check if ability is on a real cooldown (not just GCD)
+-- Returns true if remaining > 0 AND duration exceeds GCD threshold
+function Utils:IsOnRealCooldown(remaining, duration)
+    return remaining and remaining > 0 and duration and duration > C.GCD_THRESHOLD
+end
+
+-- Check if ability is only on GCD (not a real cooldown)
+-- Returns true if remaining > 0 but duration is at or below GCD threshold
+function Utils:IsOnGCD(remaining, duration)
+    return remaining and remaining > 0 and duration and duration <= C.GCD_THRESHOLD
+end
+
+-- Check if ability is off cooldown (ready to use, ignoring GCD)
+-- Returns true if not on cooldown, OR only on GCD
+function Utils:IsOffCooldown(remaining, duration)
+    return not remaining or remaining <= 0 or not duration or duration <= C.GCD_THRESHOLD
+end
+
+-- Convenience variants that take spellID directly (for when you only need the boolean)
+-- Use these when you don't need the remaining/duration values for other purposes
+
+function Utils:IsSpellOnRealCooldown(spellID)
+    local remaining, duration = self:GetSpellCooldown(spellID)
+    return self:IsOnRealCooldown(remaining, duration)
+end
+
+function Utils:IsSpellOnGCD(spellID)
+    local remaining, duration = self:GetSpellCooldown(spellID)
+    return self:IsOnGCD(remaining, duration)
+end
+
+function Utils:IsSpellOffCooldown(spellID)
+    local remaining, duration = self:GetSpellCooldown(spellID)
+    return self:IsOffCooldown(remaining, duration)
+end
+
 -- Get spell texture/icon
 function Utils:GetSpellTexture(spellID)
     if C_Spell and C_Spell.GetSpellTexture then

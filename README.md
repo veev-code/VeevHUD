@@ -43,7 +43,7 @@ Every visual element is designed to give you instant feedback:
 *   **Resource cost display** — Icons show what percentage of required resources you have via a fill overlay, bottom bar, or resource timer (see below)
 *   **Usable glow** — A proc-style glow when abilities become usable (off cooldown + enough resources)
 *   **Grey out** — Unusable abilities turn grey, mimicking default action bar behavior
-*   **Range indicator** — Icons show a red overlay when your target is out of range, just like the default action bars. Only shows for spells that aren't already active (no point seeing range for a buff you've already applied)
+*   **Range indicator** — Icons show a red overlay when your target is out of range
 *   **Cast feedback** — A satisfying "pop" animation when you successfully cast
 *   **GCD display** — Global cooldown shown on primary abilities
 

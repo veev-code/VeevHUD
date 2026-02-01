@@ -1630,16 +1630,16 @@ function CooldownIcons:UpdateIconState(frame, db)
     -- instead of the actual cooldown for certain spells (e.g., Blood Fury variants 33697, 33702).
     -- This causes the icon to briefly show as "ready" during GCD when it's actually on cooldown.
     -- Fix: Track real cooldowns and don't let GCD override them.
-    local GCD_DURATION = 1.5
-    if duration > GCD_DURATION and cdStartTime > 0 then
+    local GCD_THRESHOLD = self.C.GCD_THRESHOLD
+    if duration > GCD_THRESHOLD and cdStartTime > 0 then
         -- Store real cooldown info for this spell
         frame.actualCdStart = cdStartTime
         frame.actualCdDuration = duration
-    elseif duration > 0 and duration <= GCD_DURATION and frame.actualCdStart and frame.actualCdDuration then
+    elseif duration > 0 and duration <= GCD_THRESHOLD and frame.actualCdStart and frame.actualCdDuration then
         -- API returned GCD-like duration, but we have a tracked real cooldown
         -- Check if the tracked cooldown should still be active
         local trackedRemaining = (frame.actualCdStart + frame.actualCdDuration) - GetTime()
-        if trackedRemaining > GCD_DURATION then
+        if trackedRemaining > GCD_THRESHOLD then
             -- Real cooldown is still active and longer than GCD - use tracked values
             cdStartTime = frame.actualCdStart
             duration = frame.actualCdDuration
@@ -1659,8 +1659,7 @@ function CooldownIcons:UpdateIconState(frame, db)
     -- This is when the ability will need attention: max(cooldown_remaining, aura_remaining)
     -- If both are 0, the ability is ready to be cast now
     -- Permanent buffs (Shadowform, Stealth, etc.) get very high actionableTime to sort right
-    local GCD_THRESHOLD = 1.5
-    local effectiveCooldownRemaining = (remaining > 0 and duration > GCD_THRESHOLD) and remaining or 0
+    local effectiveCooldownRemaining = self.Utils:IsOnRealCooldown(remaining, duration) and remaining or 0
     local isPermanentBuffActive = auraActive and auraDuration == 0 and auraRemaining == 0
     if isPermanentBuffActive then
         -- Permanent buff active - sort to the right (doesn't need attention)
@@ -1709,10 +1708,9 @@ function CooldownIcons:UpdateIconState(frame, db)
     end
     
     -- Determine if this is GCD vs actual cooldown
-    local GCD_THRESHOLD = 1.5
-    local isOnGCD = remaining > 0 and duration <= GCD_THRESHOLD  -- Only GCD if duration is short
-    local isOnActualCooldown = remaining > 0 and duration > GCD_THRESHOLD  -- Real CD if duration exceeds GCD
-    local almostReady = remaining > 0 and remaining <= 1.0 and duration > GCD_THRESHOLD
+    local isOnGCD = self.Utils:IsOnGCD(remaining, duration)
+    local isOnActualCooldown = self.Utils:IsOnRealCooldown(remaining, duration)
+    local almostReady = remaining > 0 and remaining <= 1.0 and isOnActualCooldown
 
     -- Determine if this row dims icons on cooldown based on global setting
     -- When false: full alpha + desaturation (keeps core rotation visually prominent)
@@ -1811,7 +1809,7 @@ function CooldownIcons:UpdateIconState(frame, db)
             end
             
             -- Determine what to show
-            local isOffCooldown = remaining <= 0 or duration <= GCD_THRESHOLD
+            local isOffCooldown = self.Utils:IsOffCooldown(remaining, duration)
             local cdRemaining = isOffCooldown and 0 or remaining
             
             -- Use max of cooldown and resource prediction
@@ -1974,9 +1972,9 @@ function CooldownIcons:UpdateIconState(frame, db)
         -----------------------------------------------------------------------
         
         -- Is this a real cooldown (duration > GCD) or just the GCD?
-        local isRealCooldown = duration > GCD_THRESHOLD
+        local isRealCooldown = self.Utils:IsOnRealCooldown(remaining, duration)
         
-        if remaining > 0 and isRealCooldown then
+        if isRealCooldown then
             -- On actual cooldown (not just GCD): dim + spinner + text + desaturate
             alpha = db.cooldownAlpha
             desaturate = true
@@ -2398,10 +2396,9 @@ function CooldownIcons:UpdateReadyGlow(frame, spellID, remaining, duration, isUs
     -- Determine effective mode: reactive abilities always use "always" behavior
     local effectiveMode = isReactive and "always" or glowMode
     
-    local GCD_THRESHOLD = 1.5
-    local isOnRealCooldown = remaining > 0 and duration > GCD_THRESHOLD
-    local isAlmostReady = remaining > 0 and remaining <= 1.0 and duration > GCD_THRESHOLD
-    local isOffCooldown = remaining <= 0 or duration <= GCD_THRESHOLD  -- Off CD or only GCD
+    local isOnRealCooldown = self.Utils:IsOnRealCooldown(remaining, duration)
+    local isAlmostReady = remaining > 0 and remaining <= 1.0 and isOnRealCooldown
+    local isOffCooldown = self.Utils:IsOffCooldown(remaining, duration)
     
     -- Track previous states
     local wasOnRealCooldown = frame.wasOnRealCooldown or false
@@ -2615,7 +2612,9 @@ end
 
 -- Update range indicator overlay on an icon
 -- Shows a red tint when the target is out of range of the spell
--- Hides when an aura from this spell is active (no point showing range for something already applied)
+-- Shows when ability is usable (has resources/conditions) even if on cooldown - gives positioning heads-up
+-- Hides when: aura is active (tracking it), or ability is unusable (resource indicators take priority)
+-- Visual hierarchy: grey = unusable, red = out of range, normal = ready
 function CooldownIcons:UpdateRangeIndicator(frame, spellID, db)
     if not frame.rangeFrame then return end
     
@@ -2645,10 +2644,18 @@ function CooldownIcons:UpdateRangeIndicator(frame, spellID, db)
         local hasActiveAura = auraTracker and auraTracker:IsAuraActive(frame.spellID)
         
         -- Skip if player has an active buff from this spell (self-buffs, permanent buffs)
+        -- Respect ignoreAura flag for spells where the buff is incidental (e.g., Bloodthirst healing)
         local actualSpellID = frame.actualSpellID or frame.spellID
-        local isBuffActive = self:GetPlayerBuff(actualSpellID)
+        local spellData = frame.spellData
+        local shouldCheckBuff = not (spellData and spellData.ignoreAura)
+        local isBuffActive = shouldCheckBuff and self:GetPlayerBuff(actualSpellID)
         
-        if not hasActiveAura and not isBuffActive then
+        -- Skip if ability is not usable (resources, conditions, etc.)
+        -- This ensures range doesn't compete with resource indicators
+        -- Note: We DO show range during cooldown if otherwise usable (gives heads-up on positioning)
+        local isUsable = self:IsSpellUsable(actualSpellID)
+        
+        if not hasActiveAura and not isBuffActive and isUsable then
             -- Check range - only show if explicitly out of range (false)
             local RangeChecker = addon.RangeChecker
             local inRange = RangeChecker and RangeChecker:IsSpellInRange(spellID, "target")
@@ -2661,11 +2668,18 @@ function CooldownIcons:UpdateRangeIndicator(frame, spellID, db)
     frame.rangeWantShow = shouldShow
     
     if shouldShow and not wasShowing then
-        -- Fade in
+        -- Fade in - stop any existing animation first to ensure clean state
+        frame.rangeFrame.fadeOut:Stop()
+        frame.rangeFrame.fadeIn:Stop()
+        frame.rangeFrame:Show()
+        frame.rangeFrame:SetAlpha(0)
         frame.rangeFrame.fadeIn:Play()
     elseif not shouldShow and wasShowing then
         if hasTarget then
             -- Target exists but we're now in range: fade out smoothly
+            frame.rangeFrame.fadeIn:Stop()
+            frame.rangeFrame.fadeOut:Stop()
+            frame.rangeFrame:SetAlpha(1)
             frame.rangeFrame.fadeOut:Play()
         else
             -- No target: instant hide (no animation) to avoid flicker

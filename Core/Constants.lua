@@ -67,6 +67,14 @@ C.COLORS = {
 }
 
 -------------------------------------------------------------------------------
+-- Timing Constants
+-------------------------------------------------------------------------------
+
+-- Global Cooldown threshold - cooldowns at or below this duration are considered GCD
+-- Used to distinguish between "on GCD" (brief lockout) vs "on real cooldown" (ability CD)
+C.GCD_THRESHOLD = 1.5
+
+-------------------------------------------------------------------------------
 -- Default Settings
 -------------------------------------------------------------------------------
 

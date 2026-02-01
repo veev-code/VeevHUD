@@ -1,5 +1,14 @@
 # VeevHUD Changelog
 
+## [1.0.30] - 2026-02-01
+
+### Changed
+- **Range indicator during cooldown** — The out-of-range indicator now shows while abilities are on cooldown, as long as you have the resources to use them. This gives you a heads-up on positioning while waiting for the cooldown to finish.
+- **Cleaner visual priority** — When you lack resources for an ability, the grey/resource indicators take priority and the range indicator is hidden. This prevents overlapping visual states and keeps feedback clear.
+
+### Fixed
+- **Range indicator after cooldown ends** — Fixed an issue where the range indicator wouldn't appear immediately when a spell like Bloodthirst came off cooldown (was incorrectly suppressed by the spell's healing buff)
+
 ## [1.0.29] - 2026-02-01
 
 ### Fixed
