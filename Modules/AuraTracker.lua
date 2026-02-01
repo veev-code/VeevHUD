@@ -541,8 +541,10 @@ end
 
 -- Get all triggered aura IDs for a source spell (cached lookup)
 -- Returns array of aura spell IDs
--- For spells with triggersAuras: returns the triggered aura IDs
--- For same-ID auras: returns base + all rank IDs (since aura could be stored under any rank)
+-- Includes BOTH explicitly triggered auras (from triggersAuras) AND same-ID auras (source + ranks)
+-- This is important for spells like Intimidating Shout that apply:
+--   - A different aura ID (20511 Cower) on the main target
+--   - The same spell ID (5246 Fear) on secondary targets
 function AuraTracker:GetTriggeredAuraIDs(sourceSpellID)
     -- First resolve to canonical (base) spell ID for lookup
     local canonicalID = sourceSpellID
@@ -550,29 +552,38 @@ function AuraTracker:GetTriggeredAuraIDs(sourceSpellID)
         canonicalID = self.LibSpellDB:GetCanonicalSpellID(sourceSpellID) or sourceSpellID
     end
     
-    -- Check our local spellToAuraMap first (built from triggersAuras)
-    -- Use canonical ID since that's what BuildAuraMappings uses
-    local auraInfos = self.spellToAuraMap[canonicalID]
-    if auraInfos and #auraInfos > 0 then
-        local ids = {}
-        for _, info in ipairs(auraInfos) do
-            table.insert(ids, info.spellID)
+    -- Use a set to avoid duplicates
+    local idSet = {}
+    local ids = {}
+    
+    local function addID(id)
+        if not idSet[id] then
+            idSet[id] = true
+            table.insert(ids, id)
         end
-        return ids
     end
     
-    -- Same-ID aura: check all rank IDs since the aura could be stored under any of them
-    -- (e.g., Hamstring Rank 3 cast creates aura with spellID 7373, not base 1715)
-    local ids = {sourceSpellID}
+    -- Add explicitly triggered auras (different IDs from triggersAuras)
+    local auraInfos = self.spellToAuraMap[canonicalID]
+    if auraInfos then
+        for _, info in ipairs(auraInfos) do
+            addID(info.spellID)
+        end
+    end
+    
+    -- Also add source spell ID and all ranks for same-ID auras
+    -- A spell can trigger BOTH explicit auras AND same-ID auras
+    addID(sourceSpellID)
+    if canonicalID ~= sourceSpellID then
+        addID(canonicalID)
+    end
     
     -- Get all rank IDs from LibSpellDB
     if self.LibSpellDB then
         local spellData = self.LibSpellDB:GetSpellInfo(sourceSpellID)
         if spellData and spellData.ranks then
             for _, rankID in ipairs(spellData.ranks) do
-                if rankID ~= sourceSpellID then
-                    table.insert(ids, rankID)
-                end
+                addID(rankID)
             end
         end
     end
