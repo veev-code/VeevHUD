@@ -231,6 +231,55 @@ function CooldownIcons:GetPlayerBuff(spellID)
     return false, 0, 0, 0
 end
 
+-- Check if a buff is active on the relevant unit (fallback for when AuraTracker doesn't track)
+-- Used for shared CD abilities and other buffs that need direct scanning
+-- 
+-- When checkSelfOnly is true: always checks player
+-- When checkSelfOnly is false: follows target context (ally if targeting ally, else self)
+--
+-- Returns: isActive, remaining, duration, stacks
+function CooldownIcons:GetRelevantBuff(spellID, checkSelfOnly)
+    local spellName = GetSpellInfo(spellID)
+    if not spellName then return false, 0, 0, 0 end
+    
+    -- Determine which unit to check
+    local unit = "player"
+    
+    if not checkSelfOnly then
+        local db = addon.db and addon.db.profile and addon.db.profile.icons or {}
+        local useTargettarget = db.auraTargettargetSupport or false
+        
+        local targetExists = UnitExists("target")
+        local targetIsEnemy = targetExists and UnitIsEnemy("player", "target")
+        local targetIsFriend = targetExists and UnitIsFriend("player", "target")
+        
+        if targetIsFriend then
+            -- Targeting an ally - check them for the buff
+            unit = "target"
+        elseif targetIsEnemy then
+            -- Targeting an enemy - check targettarget if friendly (and enabled), else self
+            if useTargettarget and UnitExists("targettarget") and UnitIsFriend("player", "targettarget") then
+                unit = "targettarget"
+            end
+            -- else: fallback to self (already set)
+        end
+        -- No target or neutral: fallback to self (already set)
+    end
+    
+    local aura = self.Utils:GetCachedBuff(unit, spellID, spellName)
+    
+    if aura then
+        local remaining = 0
+        if aura.expirationTime and aura.expirationTime > 0 then
+            remaining = aura.expirationTime - GetTime()
+            if remaining < 0 then remaining = 0 end
+        end
+        return true, remaining, aura.duration or 0, aura.count or 0
+    end
+    
+    return false, 0, 0, 0
+end
+
 -- Check for target lockout debuff (e.g., Weakened Soul for PWS, Forbearance for Paladin spells)
 -- Follows the same targeting logic as helpful effects (since lockouts restrict helpful spells)
 -- Returns: isActive, remaining, duration, expirationTime
@@ -1467,15 +1516,28 @@ function CooldownIcons:UpdateIconState(frame, db)
             auraRemaining, auraDuration, auraStacks = auraTracker:GetAuraRemaining(spellID)
         end
         
-        -- For shared CD abilities (Reck/Retal/SWall), also check player buffs directly
+        -- For shared CD abilities (Reck/Retal/SWall), also check buffs directly
         -- since AuraTracker may not track non-displayed spells
         -- Skip if spell has ignoreAura set (e.g., Bloodthirst buff is longer than CD)
+        -- Respects target context: heals/external buffs check the relevant target
         local shouldCheckBuff = not (spellData and spellData.ignoreAura)
         
         if shouldCheckBuff then
-            local isBuffActive, buffRemaining, buffDuration, buffStacks = self:GetPlayerBuff(actualSpellID)
+            -- Determine buff tracking behavior:
+            -- - Self-only spells: always check self
+            -- - Rotational spells that can target others: check relevant target (ally if targeting ally)
+            -- - Non-rotational spells that can target others: check self (always track behavior)
+            local checkSelfOnly = true
+            if addon.LibSpellDB then
+                local isSelfOnly = addon.LibSpellDB:IsSelfOnly(spellData)
+                local isRotational = addon.LibSpellDB:IsRotational(spellData)
+                -- Only follow target context for rotational spells that can target others
+                checkSelfOnly = isSelfOnly or not isRotational
+            end
+            
+            local isBuffActive, buffRemaining, buffDuration, buffStacks = self:GetRelevantBuff(actualSpellID, checkSelfOnly)
             if isBuffActive then
-                -- Always prefer player buff data for permanent buffs (duration=0)
+                -- Always prefer buff data for permanent buffs (duration=0)
                 -- This handles Shadowform, Stealth, Aspects, etc. correctly
                 if buffDuration == 0 or not auraActive then
                     auraActive = true
@@ -1542,24 +1604,18 @@ function CooldownIcons:UpdateIconState(frame, db)
     local targetLockoutRemaining, targetLockoutDuration, targetLockoutExpiration = 0, 0, 0
     
     if spellData and spellData.targetLockoutDebuff then
-        -- Determine if this spell only affects self (Divine Shield, Avenging Wrath)
-        -- vs. can target others (Blessing of Protection, Power Word: Shield)
-        local isSelfOnly = false
-        if spellData.triggersAuras and spellData.triggersAuras[1] then
-            isSelfOnly = spellData.triggersAuras[1].onTarget == false
-        elseif spellData.tags then
-            -- Infer from tags: EXTERNAL_DEFENSIVE means targets others, otherwise self-only
-            local isExternal = false
-            for _, tag in ipairs(spellData.tags) do
-                if tag == "EXTERNAL_DEFENSIVE" then
-                    isExternal = true
-                    break
-                end
-            end
-            isSelfOnly = not isExternal
+        -- Determine lockout checking behavior (same logic as buff tracking):
+        -- - Self-only spells: always check self
+        -- - Rotational spells that can target others: check relevant target
+        -- - Non-rotational spells: check self (major cooldowns, always track)
+        local checkSelfOnly = true
+        if addon.LibSpellDB then
+            local isSelfOnly = addon.LibSpellDB:IsSelfOnly(spellData)
+            local isRotational = addon.LibSpellDB:IsRotational(spellData)
+            checkSelfOnly = isSelfOnly or not isRotational
         end
         targetLockoutActive, targetLockoutRemaining, targetLockoutDuration, targetLockoutExpiration = 
-            self:GetTargetLockoutDebuff(spellData.targetLockoutDebuff, isSelfOnly)
+            self:GetTargetLockoutDebuff(spellData.targetLockoutDebuff, checkSelfOnly)
         
         if targetLockoutActive and targetLockoutRemaining > 0 then
             -- Use whichever is more restrictive (longer remaining time)

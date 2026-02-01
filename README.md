@@ -32,9 +32,8 @@ Above the ability rows, you'll find **Health & Resource Bars** and a **Proc Trac
 
 Icons don't just show cooldowns — they show your **applied effects**. Cast a stun? The icon displays the stun duration on your target, then transitions to the cooldown after it expires.
 
-*   **Hard CC** (Polymorph, Fear, stuns) tracks the longest duration across all targets — important since these have cooldowns or limits
-*   **Damage effects** (DoTs, debuffs) track only your current target, avoiding confusion with multi-dotting
-*   **Buffs and heals** track the appropriate friendly target — yourself, or your ally if you're targeting them
+*   **Rotational abilities** follow your current target — DoTs track your enemy, heals track your friendly target (or yourself by default)
+*   **Cooldowns and CC** always show when active, regardless of your current target
 *   **Lockout awareness** — Abilities like Power Word: Shield (Weakened Soul) and Paladin immunities (Forbearance) show whichever restriction is longer, so you always know when you can cast again
 
 ### At-a-Glance Readability
