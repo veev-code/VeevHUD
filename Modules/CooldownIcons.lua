@@ -701,20 +701,36 @@ function CooldownIcons:CreateIcon(parent, index, size)
     
     -- Create fade-in animation
     local fadeIn = rangeFrame:CreateAnimationGroup()
+    fadeIn:SetToFinalAlpha(true)  -- Ensures clean final state even if stopped
     local fadeInAlpha = fadeIn:CreateAnimation("Alpha")
     fadeInAlpha:SetFromAlpha(0)
     fadeInAlpha:SetToAlpha(1)
     fadeInAlpha:SetDuration(0.15)
-    fadeIn:SetScript("OnPlay", function() rangeFrame:Show() end)
-    fadeIn:SetScript("OnFinished", function() rangeFrame:SetAlpha(1) end)
+    fadeIn:SetScript("OnPlay", function()
+        if rangeFrame.fadeOut:IsPlaying() then
+            rangeFrame.fadeOut:Stop()
+        end
+        rangeFrame:SetAlpha(0)  -- Ensure clean starting state
+        rangeFrame:Show()
+    end)
+    fadeIn:SetScript("OnFinished", function()
+        rangeFrame:SetAlpha(1)
+    end)
     rangeFrame.fadeIn = fadeIn
     
     -- Create fade-out animation
     local fadeOut = rangeFrame:CreateAnimationGroup()
+    fadeOut:SetToFinalAlpha(true)  -- Ensures clean final state even if stopped
     local fadeOutAlpha = fadeOut:CreateAnimation("Alpha")
     fadeOutAlpha:SetFromAlpha(1)
     fadeOutAlpha:SetToAlpha(0)
     fadeOutAlpha:SetDuration(0.15)
+    fadeOut:SetScript("OnPlay", function()
+        if rangeFrame.fadeIn:IsPlaying() then
+            rangeFrame.fadeIn:Stop()
+        end
+        rangeFrame:SetAlpha(1)  -- Ensure clean starting state
+    end)
     fadeOut:SetScript("OnFinished", function() 
         rangeFrame:SetAlpha(0)
         rangeFrame:Hide() 
@@ -2617,34 +2633,47 @@ function CooldownIcons:UpdateRangeIndicator(frame, spellID, db)
         return
     end
     
+    -- Check if we have a target at all
+    local hasTarget = UnitExists("target")
+    
     -- Determine if we should show the range indicator
     local shouldShow = false
     
-    -- Skip if this spell has an active aura (buff/debuff already applied)
-    local auraTracker = addon:GetModule("AuraTracker")
-    local hasActiveAura = auraTracker and auraTracker:IsAuraActive(frame.spellID)
-    
-    -- Skip if player has an active buff from this spell (self-buffs, permanent buffs)
-    local actualSpellID = frame.actualSpellID or frame.spellID
-    local isBuffActive = self:GetPlayerBuff(actualSpellID)
-    
-    if not hasActiveAura and not isBuffActive then
-        -- Check range - only show if explicitly out of range (false)
-        local RangeChecker = addon.RangeChecker
-        local inRange = RangeChecker and RangeChecker:IsSpellInRange(spellID, "target")
-        shouldShow = (inRange == false)
+    if hasTarget then
+        -- Skip if this spell has an active aura (buff/debuff already applied)
+        local auraTracker = addon:GetModule("AuraTracker")
+        local hasActiveAura = auraTracker and auraTracker:IsAuraActive(frame.spellID)
+        
+        -- Skip if player has an active buff from this spell (self-buffs, permanent buffs)
+        local actualSpellID = frame.actualSpellID or frame.spellID
+        local isBuffActive = self:GetPlayerBuff(actualSpellID)
+        
+        if not hasActiveAura and not isBuffActive then
+            -- Check range - only show if explicitly out of range (false)
+            local RangeChecker = addon.RangeChecker
+            local inRange = RangeChecker and RangeChecker:IsSpellInRange(spellID, "target")
+            shouldShow = (inRange == false)
+        end
     end
     
-    -- Only trigger animations on state transitions
+    -- Track state transitions
     local wasShowing = frame.rangeWantShow or false
     frame.rangeWantShow = shouldShow
     
     if shouldShow and not wasShowing then
-        frame.rangeFrame.fadeOut:Stop()
+        -- Fade in
         frame.rangeFrame.fadeIn:Play()
     elseif not shouldShow and wasShowing then
-        frame.rangeFrame.fadeIn:Stop()
-        frame.rangeFrame.fadeOut:Play()
+        if hasTarget then
+            -- Target exists but we're now in range: fade out smoothly
+            frame.rangeFrame.fadeOut:Play()
+        else
+            -- No target: instant hide (no animation) to avoid flicker
+            frame.rangeFrame.fadeIn:Stop()
+            frame.rangeFrame.fadeOut:Stop()
+            frame.rangeFrame:SetAlpha(0)
+            frame.rangeFrame:Hide()
+        end
     end
 end
 
