@@ -3,7 +3,7 @@
     Centralized tracking of energy and mana regeneration ticks
     
     Both the Energy Tick Indicator UI and Resource Prediction features
-    depend on accurate tick timing. This module provides that shared state.
+    depend on accurate tick timing. This service provides that shared state.
     
     Key concepts:
     - Energy/mana regenerate in "ticks" every 2 seconds
@@ -13,23 +13,10 @@
 ]]
 
 local ADDON_NAME, addon = ...
+local C = addon.Constants
 
 local TickTracker = {}
 addon.TickTracker = TickTracker
-
--------------------------------------------------------------------------------
--- Constants
--------------------------------------------------------------------------------
-
-local POWER_TYPE = {
-    MANA = 0,
-    ENERGY = 3,
-}
-
-local TICK_RATE = 2.0  -- Both energy and mana tick every 2 seconds
-
--- Adrenaline Rush spell ID for energy doubling detection
-local ADRENALINE_RUSH_SPELL_ID = 13750
 
 -------------------------------------------------------------------------------
 -- State
@@ -45,7 +32,7 @@ TickTracker.lastSampleMana = 0
 TickTracker.prevSampleMana = 0  -- For detecting passive vs active regen
 
 -- Mana spike filtering (potions, life tap, etc.)
-TickTracker.manaSpikeThreshold = 0.10  -- Ignore gains > 10% of max mana
+TickTracker.manaSpikeThreshold = C.MANA_SPIKE_THRESHOLD
 
 -- Full tick countdown state (for seamless "next full tick" progress)
 TickTracker.fullTickTargetTime = 0     -- When the first full tick will arrive
@@ -58,12 +45,12 @@ TickTracker.fullTickDuration = 0       -- Total duration of the countdown
 
 -- Get expected energy per tick (20 normally, 40 with Adrenaline Rush)
 function TickTracker:GetExpectedEnergyPerTick()
-    local baseEnergyPerTick = 20
+    local baseEnergyPerTick = C.ENERGY_PER_TICK
     
     -- Check for Adrenaline Rush
     local Utils = addon.Utils
     if Utils and Utils.GetCachedBuff then
-        local adrenalineRush = Utils:GetCachedBuff("player", ADRENALINE_RUSH_SPELL_ID, "Adrenaline Rush")
+        local adrenalineRush = Utils:GetCachedBuff("player", C.SPELL_ID_ADRENALINE_RUSH, "Adrenaline Rush")
         if adrenalineRush then
             return baseEnergyPerTick * 2
         end
@@ -75,8 +62,8 @@ end
 -- Record an energy sample for tick detection
 -- Call this periodically (e.g., from OnUpdate)
 function TickTracker:RecordEnergySample()
-    local currentEnergy = UnitPower("player", POWER_TYPE.ENERGY)
-    local maxEnergy = UnitPowerMax("player", POWER_TYPE.ENERGY)
+    local currentEnergy = UnitPower("player", C.POWER_TYPE.ENERGY)
+    local maxEnergy = UnitPowerMax("player", C.POWER_TYPE.ENERGY)
     local now = GetTime()
     local expectedTick = self:GetExpectedEnergyPerTick()
     local tickObserved = false
@@ -95,7 +82,7 @@ function TickTracker:RecordEnergySample()
         local isTooSoon = (self.lastEnergyTickTime > 0 and timeSinceLastTick < minTickInterval)
         
         -- Amount check: 15-25 normally, 35-45 with Adrenaline Rush
-        local hasAdrenalineRush = (expectedTick == 40)
+        local hasAdrenalineRush = (expectedTick == C.ENERGY_PER_TICK_ADRENALINE)
         local isValidAmount
         if hasAdrenalineRush then
             isValidAmount = (gained >= 35 and gained <= 45)
@@ -117,10 +104,10 @@ function TickTracker:RecordEnergySample()
     -- (e.g., at full energy, or spending faster than regenerating)
     if not tickObserved and self.lastEnergyTickTime > 0 then
         local timeSinceLastTick = now - self.lastEnergyTickTime
-        if timeSinceLastTick >= TICK_RATE then
+        if timeSinceLastTick >= C.TICK_RATE then
             -- Advance by whole tick intervals to stay synchronized
-            local ticksMissed = math.floor(timeSinceLastTick / TICK_RATE)
-            self.lastEnergyTickTime = self.lastEnergyTickTime + (ticksMissed * TICK_RATE)
+            local ticksMissed = math.floor(timeSinceLastTick / C.TICK_RATE)
+            self.lastEnergyTickTime = self.lastEnergyTickTime + (ticksMissed * C.TICK_RATE)
         end
     end
     
@@ -129,8 +116,8 @@ end
 
 -- Get the progress (0-1) toward the next energy tick
 function TickTracker:GetEnergyTickProgress()
-    local currentEnergy = UnitPower("player", POWER_TYPE.ENERGY)
-    local maxEnergy = UnitPowerMax("player", POWER_TYPE.ENERGY)
+    local currentEnergy = UnitPower("player", C.POWER_TYPE.ENERGY)
+    local maxEnergy = UnitPowerMax("player", C.POWER_TYPE.ENERGY)
     
     if currentEnergy >= maxEnergy then
         return 0  -- At max, no progress to show
@@ -141,15 +128,15 @@ function TickTracker:GetEnergyTickProgress()
     end
     
     local timeSinceTick = GetTime() - self.lastEnergyTickTime
-    local progress = timeSinceTick / TICK_RATE
+    local progress = timeSinceTick / C.TICK_RATE
     
     return math.min(1, math.max(0, progress))
 end
 
 -- Get time until next energy tick (for predictions)
 function TickTracker:GetTimeUntilNextEnergyTick()
-    local currentEnergy = UnitPower("player", POWER_TYPE.ENERGY)
-    local maxEnergy = UnitPowerMax("player", POWER_TYPE.ENERGY)
+    local currentEnergy = UnitPower("player", C.POWER_TYPE.ENERGY)
+    local maxEnergy = UnitPowerMax("player", C.POWER_TYPE.ENERGY)
     
     if currentEnergy >= maxEnergy then
         return 0
@@ -157,16 +144,16 @@ function TickTracker:GetTimeUntilNextEnergyTick()
     
     if self.lastEnergyTickTime > 0 then
         local timeSinceTick = GetTime() - self.lastEnergyTickTime
-        local timeUntilTick = TICK_RATE - timeSinceTick
+        local timeUntilTick = C.TICK_RATE - timeSinceTick
         
         if timeUntilTick <= 0 then
             return 0.1  -- Tick is imminent
         end
-        return math.min(TICK_RATE, timeUntilTick)
+        return math.min(C.TICK_RATE, timeUntilTick)
     end
     
     -- Fallback: assume worst case
-    return TICK_RATE
+    return C.TICK_RATE
 end
 
 -------------------------------------------------------------------------------
@@ -176,8 +163,8 @@ end
 -- Record a mana sample for tick detection
 -- Call this periodically (e.g., from OnUpdate)
 function TickTracker:RecordManaSample()
-    local currentMana = UnitPower("player", POWER_TYPE.MANA)
-    local maxMana = UnitPowerMax("player", POWER_TYPE.MANA)
+    local currentMana = UnitPower("player", C.POWER_TYPE.MANA)
+    local maxMana = UnitPowerMax("player", C.POWER_TYPE.MANA)
     local now = GetTime()
     local tickObserved = false
     
@@ -200,10 +187,10 @@ function TickTracker:RecordManaSample()
     -- (e.g., at full mana, or during 5SR with minimal regen)
     if not tickObserved and self.lastManaTickTime > 0 then
         local timeSinceLastTick = now - self.lastManaTickTime
-        if timeSinceLastTick >= TICK_RATE then
+        if timeSinceLastTick >= C.TICK_RATE then
             -- Advance by whole tick intervals to stay synchronized
-            local ticksMissed = math.floor(timeSinceLastTick / TICK_RATE)
-            self.lastManaTickTime = self.lastManaTickTime + (ticksMissed * TICK_RATE)
+            local ticksMissed = math.floor(timeSinceLastTick / C.TICK_RATE)
+            self.lastManaTickTime = self.lastManaTickTime + (ticksMissed * C.TICK_RATE)
         end
     end
     
@@ -214,8 +201,8 @@ end
 
 -- Get the progress (0-1) toward the next mana tick
 function TickTracker:GetManaTickProgress()
-    local currentMana = UnitPower("player", POWER_TYPE.MANA)
-    local maxMana = UnitPowerMax("player", POWER_TYPE.MANA)
+    local currentMana = UnitPower("player", C.POWER_TYPE.MANA)
+    local maxMana = UnitPowerMax("player", C.POWER_TYPE.MANA)
     
     if currentMana >= maxMana then
         return 0  -- At max, no progress to show
@@ -226,15 +213,15 @@ function TickTracker:GetManaTickProgress()
     end
     
     local timeSinceTick = GetTime() - self.lastManaTickTime
-    local progress = timeSinceTick / TICK_RATE
+    local progress = timeSinceTick / C.TICK_RATE
     
     return math.min(1, math.max(0, progress))
 end
 
 -- Get time until next mana tick (for predictions)
 function TickTracker:GetTimeUntilNextManaTick()
-    local currentMana = UnitPower("player", POWER_TYPE.MANA)
-    local maxMana = UnitPowerMax("player", POWER_TYPE.MANA)
+    local currentMana = UnitPower("player", C.POWER_TYPE.MANA)
+    local maxMana = UnitPowerMax("player", C.POWER_TYPE.MANA)
     
     if currentMana >= maxMana then
         return 0
@@ -242,16 +229,16 @@ function TickTracker:GetTimeUntilNextManaTick()
     
     if self.lastManaTickTime > 0 then
         local timeSinceTick = GetTime() - self.lastManaTickTime
-        local timeUntilTick = TICK_RATE - timeSinceTick
+        local timeUntilTick = C.TICK_RATE - timeSinceTick
         
         if timeUntilTick <= 0 then
             return 0.1  -- Tick is imminent
         end
-        return math.min(TICK_RATE, timeUntilTick)
+        return math.min(C.TICK_RATE, timeUntilTick)
     end
     
     -- Fallback: assume worst case
-    return TICK_RATE
+    return C.TICK_RATE
 end
 
 -- Get progress toward the first full-rate mana tick (after 5SR ends)
@@ -317,10 +304,10 @@ function TickTracker:GetFullTickProgress()
     -- Calculate when the first full tick will occur
     local time5SREnds = now + timeRemaining5SR
     local timeSinceLastTick = time5SREnds - self.lastManaTickTime
-    local ticksNeeded = math.ceil(timeSinceLastTick / TICK_RATE)
+    local ticksNeeded = math.ceil(timeSinceLastTick / C.TICK_RATE)
     if ticksNeeded < 1 then ticksNeeded = 1 end
     
-    local firstFullTickTime = self.lastManaTickTime + (ticksNeeded * TICK_RATE)
+    local firstFullTickTime = self.lastManaTickTime + (ticksNeeded * C.TICK_RATE)
     local duration = firstFullTickTime - now
     
     -- Store countdown state
@@ -350,14 +337,14 @@ function TickTracker:GetTimeUntilFullTick()
     local time5SREnds = now + timeRemaining5SR
     
     if self.lastManaTickTime <= 0 then
-        return timeRemaining5SR + TICK_RATE  -- Worst case
+        return timeRemaining5SR + C.TICK_RATE  -- Worst case
     end
     
     local timeSinceLastTick = time5SREnds - self.lastManaTickTime
-    local ticksNeeded = math.ceil(timeSinceLastTick / TICK_RATE)
+    local ticksNeeded = math.ceil(timeSinceLastTick / C.TICK_RATE)
     if ticksNeeded < 1 then ticksNeeded = 1 end
     
-    local firstFullTickTime = self.lastManaTickTime + (ticksNeeded * TICK_RATE)
+    local firstFullTickTime = self.lastManaTickTime + (ticksNeeded * C.TICK_RATE)
     return firstFullTickTime - now
 end
 
@@ -366,7 +353,7 @@ end
 -------------------------------------------------------------------------------
 
 function TickTracker:GetTickRate()
-    return TICK_RATE
+    return C.TICK_RATE
 end
 
 -- Sync the tick time (called when a tick is detected elsewhere, e.g., SYNC fix)

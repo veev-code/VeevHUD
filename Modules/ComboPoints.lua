@@ -11,6 +11,7 @@
 ]]
 
 local ADDON_NAME, addon = ...
+local C = addon.Constants
 
 local ComboPoints = {}
 addon:RegisterModule("ComboPoints", ComboPoints)
@@ -24,15 +25,14 @@ function ComboPoints:UsesComboPoints()
     local playerClass = addon.playerClass
     
     -- Rogues always use combo points
-    if playerClass == "ROGUE" then
+    if playerClass == C.CLASS.ROGUE then
         return true
     end
     
     -- Druids use combo points in Cat Form
-    if playerClass == "DRUID" then
-        -- Check if in Cat Form (shapeshift form 3)
+    if playerClass == C.CLASS.DRUID then
         local form = GetShapeshiftForm()
-        return form == 3  -- Cat Form
+        return form == C.DRUID_FORM.CAT
     end
     
     return false
@@ -150,7 +150,7 @@ function ComboPoints:CreateFrames(parent)
     if not db or not db.enabled then return end
     
     -- Only create frames for classes that can use combo points
-    if playerClass ~= "ROGUE" and playerClass ~= "DRUID" then
+    if playerClass ~= C.CLASS.ROGUE and playerClass ~= C.CLASS.DRUID then
         return
     end
     
