@@ -23,17 +23,23 @@ Locales\enUS.lua
 
 # Core
 Core\Constants.lua
+Core\Logger.lua
 Core\Utils.lua
-Core\TickTracker.lua
-Core\FiveSecondRule.lua
-Core\ResourcePrediction.lua
+Core\SpellUtils.lua
+Core\AuraCache.lua
 Core\Events.lua
-Core\RangeChecker.lua
 Core\FontManager.lua
 Core\Layout.lua
 Core\Database.lua
 Core\Core.lua
 Core\SlashCommands.lua
+Core\IconStyling.lua
+
+# Services
+Services\FiveSecondRule.lua
+Services\TickTracker.lua
+Services\ResourcePrediction.lua
+Services\RangeChecker.lua
 
 # Modules
 Modules\SpellTracker.lua

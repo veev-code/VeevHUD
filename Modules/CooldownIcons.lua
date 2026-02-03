@@ -10,6 +10,7 @@
 ]]
 
 local ADDON_NAME, addon = ...
+local C = addon.Constants
 
 local CooldownIcons = {}
 addon:RegisterModule("CooldownIcons", CooldownIcons)
@@ -30,26 +31,6 @@ CooldownIcons.iconCounter = 0
 CooldownIcons.Masque = nil
 CooldownIcons.MasqueGroup = nil
 
--------------------------------------------------------------------------------
--- Row-based Setting Helper
--------------------------------------------------------------------------------
-
--- Check if a row-based setting applies to a specific row index
--- settingValue: "none", "primary", "primary_secondary", or "all"
--- rowIndex: 1 = Primary, 2 = Secondary, 3+ = Utility
-local function IsSettingEnabledForRow(settingValue, rowIndex)
-    if settingValue == "none" then
-        return false
-    elseif settingValue == "primary" then
-        return rowIndex == 1
-    elseif settingValue == "primary_secondary" then
-        return rowIndex == 1 or rowIndex == 2
-    elseif settingValue == "all" then
-        return true
-    end
-    -- Default to true for backwards compatibility with boolean settings
-    return settingValue == true
-end
 
 -------------------------------------------------------------------------------
 -- Initialization
@@ -113,12 +94,11 @@ end
 -- rowIndex: 1 = Primary, 2 = Secondary, 3+ = Utility (nil = use global setting)
 function CooldownIcons:ConfigureCooldownText(cooldown, rowIndex)
     local db = addon.db and addon.db.profile.icons or {}
-    local showCooldownTextOn = db.showCooldownTextOn or "all"
     
     -- Check if VeevHUD will show its own text for this specific row
     local showOwnText
     if rowIndex then
-        showOwnText = IsSettingEnabledForRow(showCooldownTextOn, rowIndex)
+        showOwnText = addon.Database:IsRowSettingEnabled(db.showCooldownTextOn, rowIndex)
     else
         -- No row specified (initial creation) - default to allowing external addons
         -- Will be reconfigured when assigned to a row
@@ -157,7 +137,7 @@ function CooldownIcons:OnRangeUpdate()
     -- Called by RangeChecker on throttled interval (0.1s) or target change
     -- RangeChecker already handles target existence check
     local db = addon.db and addon.db.profile.icons or {}
-    local showRangeOn = db.showRangeIndicator or "all"
+    local showRangeOn = db.showRangeIndicator
     
     -- Skip if range indicator is completely disabled
     if showRangeOn == "none" then
@@ -384,11 +364,10 @@ function CooldownIcons:PlayCastFeedback(frame)
     local db = addon.db and addon.db.profile.icons or {}
     
     -- Check row-based setting
-    local feedbackRows = db.castFeedbackRows or "all"
     local rowIndex = frame.rowIndex or 1
-    if not IsSettingEnabledForRow(feedbackRows, rowIndex) then return end
+    if not addon.Database:IsRowSettingEnabled(db.castFeedbackRows, rowIndex) then return end
     
-    local scale = db.castFeedbackScale or 1.1
+    local scale = db.castFeedbackScale
     
     -- Create or update animation group
     if not frame.punchAnim or frame.punchAnimScale ~= scale then
@@ -438,7 +417,7 @@ function CooldownIcons:CreateFrames(parent)
     -- Main container for all rows
     -- Position below the resource bar (which is at CENTER with offsetY=0, height=14)
     local resourceBarDb = addon.db.profile.resourceBar
-    local resourceBarBottom = (resourceBarDb.offsetY or 0) - (resourceBarDb.height or 14) / 2
+    local resourceBarBottom = resourceBarDb.offsetY - resourceBarDb.height / 2
     
     local container = CreateFrame("Frame", "VeevHUDIconContainer", parent)
     container:SetSize(400, 400)
@@ -500,25 +479,20 @@ function CooldownIcons:CreateRowFrames()
         if rowConfig.enabled then
             -- Add extra space between primary and secondary rows
             if rowIndex == 2 then
-                local psGap = iconDb.primarySecondaryGap or 0
-                yOffset = yOffset - psGap
+                yOffset = yOffset - iconDb.primarySecondaryGap
             end
             
             -- Add extra space before utility section (row 3+)
             if rowIndex >= 3 then
-                local sectionGap = iconDb.sectionGap or 16
-                yOffset = yOffset - sectionGap
+                yOffset = yOffset - iconDb.sectionGap
             end
 
             -- Use per-row settings or fall back to global
-            local rowIconSize = rowConfig.iconSize or iconDb.iconSize or 40
+            local rowIconSize = rowConfig.iconSize or iconDb.iconSize
             -- Use explicit nil check since 0 is a valid spacing value
             local rowIconSpacing = rowConfig.iconSpacing
             if rowIconSpacing == nil then
                 rowIconSpacing = iconDb.iconSpacing
-            end
-            if rowIconSpacing == nil then
-                rowIconSpacing = 1
             end
 
             -- Get width/height based on aspect ratio
@@ -554,17 +528,16 @@ function CooldownIcons:CreateRowFrames()
             local estimatedHeight = rowIconHeight
             if rowConfig.flowLayout and rowConfig.iconsPerRow then
                 local estimatedRows = math.ceil(rowConfig.maxIcons / rowConfig.iconsPerRow)
-                local verticalSpacing = iconDb.rowSpacing or 1
-                estimatedHeight = estimatedRows * (rowIconHeight + verticalSpacing)
+                estimatedHeight = estimatedRows * (rowIconHeight + iconDb.rowSpacing)
             end
-            yOffset = yOffset - (estimatedHeight + (iconDb.rowSpacing or 1))
+            yOffset = yOffset - (estimatedHeight + iconDb.rowSpacing)
         end
     end
 end
 
 function CooldownIcons:CreateIcon(parent, index, size)
     local db = addon.db.profile.icons
-    size = size or db.iconSize or 56
+    size = size or db.iconSize
     
     -- Get width/height based on aspect ratio (width = size * ratio, height = size)
     local iconWidth, iconHeight = self.Utils:GetIconDimensions(size)
@@ -655,7 +628,7 @@ function CooldownIcons:CreateIcon(parent, index, size)
     local resourceBar = CreateFrame("Frame", nil, frame)
     resourceBar:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 0, 0)
     resourceBar:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 0, 0)
-    resourceBar:SetHeight(db.resourceBarHeight or 4)
+    resourceBar:SetHeight(db.resourceBarHeight)
     resourceBar:SetFrameLevel(frame:GetFrameLevel() + 5)
     
     local resourceBarBg = resourceBar:CreateTexture(nil, "BACKGROUND")
@@ -681,7 +654,7 @@ function CooldownIcons:CreateIcon(parent, index, size)
     resourceFill:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, 0)
     resourceFill:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 0, 0)
     resourceFill:SetTexture([[Interface\Buttons\WHITE8X8]])
-    resourceFill:SetVertexColor(0, 0, 0, db.resourceFillAlpha or 0.6)
+    resourceFill:SetVertexColor(0, 0, 0, db.resourceFillAlpha)
     resourceFill:SetHeight(0)
     resourceFill:Hide()
     frame.resourceFill = resourceFill
@@ -754,110 +727,10 @@ function CooldownIcons:CreateIcon(parent, index, size)
         })
     else
         -- Apply built-in Classic Enhanced style when Masque is not installed
-        self:ApplyBuiltInStyle(frame, size)
+        addon.IconStyling:Apply(frame, size)
     end
 
     return frame
-end
-
--------------------------------------------------------------------------------
--- Built-in Icon Styling (when Masque is not installed)
--- Uses the exact same textures as Masque's "Classic Enhanced" skin
--------------------------------------------------------------------------------
-
--- Classic Enhanced skin texture paths (built into WoW client)
--- Tweaked for a more subtle appearance while maintaining proper proportions
-local CLASSIC_ENHANCED = {
-    Normal = [[Interface\Buttons\UI-Quickslot2]],      -- The action button border frame
-    Backdrop = [[Interface\Buttons\UI-Quickslot]],     -- Empty slot background
-    IconTexCoords = {0.07, 0.93, 0.07, 0.93},          -- Icon crop (7% from each edge)
-    NormalSize = 62,                                    -- Border texture size (must be larger than icon to frame it)
-    BackdropSize = 64,                                  -- Backdrop texture size
-    NormalOffset = {0.5, -0.5},                         -- Border offset {x, y}
-    BackdropAlpha = 0.4,                                -- Subtle backdrop visibility
-    NormalAlpha = 0.8,                                  -- Slightly softer border
-}
-
-function CooldownIcons:ApplyBuiltInStyle(frame, size)
-    size = size or frame.iconSize or 40
-    
-    -- Get actual icon dimensions (may be non-square with aspect ratio)
-    local iconWidth, iconHeight = self.Utils:GetIconDimensions(size)
-    
-    -- Calculate scale factors for width and height separately
-    local scaleW = iconWidth / 36
-    local scaleH = iconHeight / 36
-    
-    -- Apply icon TexCoords with configured zoom, adjusted for aspect ratio cropping
-    -- iconZoom is total crop percentage; divide by 2 to get per-edge crop
-    if frame.icon then
-        local zoomPerEdge = addon.db.profile.icons.iconZoom / 2
-        local left, right, top, bottom = self.Utils:GetIconTexCoords(zoomPerEdge)
-        frame.icon:SetTexCoord(left, right, top, bottom)
-    end
-    
-    -- Create backdrop (empty slot background) - sits behind everything
-    if not frame.builtInBackdrop then
-        local backdrop = frame:CreateTexture(nil, "BACKGROUND", nil, -1)
-        backdrop:SetTexture(CLASSIC_ENHANCED.Backdrop)
-        frame.builtInBackdrop = backdrop
-    end
-    
-    -- Apply subtle backdrop styling
-    frame.builtInBackdrop:SetVertexColor(1, 1, 1, CLASSIC_ENHANCED.BackdropAlpha)
-    
-    -- Size and position backdrop (non-square for aspect ratio)
-    local backdropWidth = CLASSIC_ENHANCED.BackdropSize * scaleW
-    local backdropHeight = CLASSIC_ENHANCED.BackdropSize * scaleH
-    frame.builtInBackdrop:SetSize(backdropWidth, backdropHeight)
-    frame.builtInBackdrop:SetPoint("CENTER", frame, "CENTER", 0, 0)
-    frame.builtInBackdrop:Show()
-    
-    -- Create normal border (the classic action button frame)
-    if not frame.builtInNormal then
-        local normal = frame:CreateTexture(nil, "OVERLAY", nil, 1)
-        normal:SetTexture(CLASSIC_ENHANCED.Normal)
-        frame.builtInNormal = normal
-    end
-    
-    -- Apply subtle border styling
-    frame.builtInNormal:SetVertexColor(1, 1, 1, CLASSIC_ENHANCED.NormalAlpha)
-    
-    -- Size and position border (non-square for aspect ratio)
-    local normalWidth = CLASSIC_ENHANCED.NormalSize * scaleW
-    local normalHeight = CLASSIC_ENHANCED.NormalSize * scaleH
-    local offsetX, offsetY = CLASSIC_ENHANCED.NormalOffset[1], CLASSIC_ENHANCED.NormalOffset[2]
-    frame.builtInNormal:SetSize(normalWidth, normalHeight)
-    frame.builtInNormal:SetPoint("CENTER", frame, "CENTER", offsetX, offsetY)
-    frame.builtInNormal:Show()
-    
-    -- Store that we applied built-in style
-    frame.hasBuiltInStyle = true
-end
-
--- Update built-in style when icon size changes
-function CooldownIcons:UpdateBuiltInStyle(frame, size)
-    if frame.hasBuiltInStyle then
-        -- Recalculate sizes based on new icon size and aspect ratio
-        size = size or frame.iconSize or 40
-        local iconWidth, iconHeight = self.Utils:GetIconDimensions(size)
-        local scaleW = iconWidth / 36
-        local scaleH = iconHeight / 36
-        
-        if frame.builtInBackdrop then
-            local backdropWidth = CLASSIC_ENHANCED.BackdropSize * scaleW
-            local backdropHeight = CLASSIC_ENHANCED.BackdropSize * scaleH
-            frame.builtInBackdrop:SetSize(backdropWidth, backdropHeight)
-        end
-        
-        if frame.builtInNormal then
-            local normalWidth = CLASSIC_ENHANCED.NormalSize * scaleW
-            local normalHeight = CLASSIC_ENHANCED.NormalSize * scaleH
-            frame.builtInNormal:SetSize(normalWidth, normalHeight)
-        end
-    elseif not self.MasqueGroup then
-        self:ApplyBuiltInStyle(frame, size)
-    end
 end
 
 -------------------------------------------------------------------------------
@@ -1079,9 +952,9 @@ function CooldownIcons:RepositionRows()
         local rowFrame = self.rows[rowIndex]
         if rowFrame then
             local rowConfig = rowConfigs[rowIndex] or {}
-            local iconHeight = rowFrame.iconHeight or rowFrame.iconSize or 40
-            local iconsPerRow = rowFrame.iconsPerRow or rowConfig.iconsPerRow or rowConfig.maxIcons or 6
-            local rowSpacing = iconDb.rowSpacing or 1
+            local iconHeight = rowFrame.iconHeight or rowFrame.iconSize
+            local iconsPerRow = rowFrame.iconsPerRow or rowConfig.iconsPerRow or rowConfig.maxIcons
+            local rowSpacing = iconDb.rowSpacing
             
             -- Get actual icon count for this row
             local actualIconCount = 0
@@ -1092,14 +965,12 @@ function CooldownIcons:RepositionRows()
             
             -- Add extra gap between primary and secondary rows
             if rowIndex == 2 then
-                local psGap = iconDb.primarySecondaryGap or 0
-                yOffset = yOffset - psGap
+                yOffset = yOffset - iconDb.primarySecondaryGap
             end
             
             -- Add section gap before utility rows (row 3+)
             if rowIndex >= 3 then
-                local sectionGap = iconDb.sectionGap or 16
-                yOffset = yOffset - sectionGap
+                yOffset = yOffset - iconDb.sectionGap
             end
             
             -- Position row frame
@@ -1169,7 +1040,7 @@ function CooldownIcons:PositionRowIcons(rowFrame, count, db)
     rowFrame:Show()
 
     -- Use per-row settings (set during creation)
-    local size = rowFrame.iconSize or db.iconSize or 40
+    local size = rowFrame.iconSize or db.iconSize
     local iconWidth = rowFrame.iconWidth or size
     local iconHeight = rowFrame.iconHeight or size
     -- Use explicit nil check since 0 is a valid spacing value
@@ -1177,12 +1048,9 @@ function CooldownIcons:PositionRowIcons(rowFrame, count, db)
     if spacing == nil then
         spacing = db.iconSpacing
     end
-    if spacing == nil then
-        spacing = 1
-    end
     local iconsPerRow = rowFrame.iconsPerRow or count  -- Default to all on one row
     local flowLayout = rowFrame.flowLayout or false
-    local rowSpacing = db.rowSpacing or 1  -- Vertical spacing between wrapped rows
+    local rowSpacing = db.rowSpacing  -- Vertical spacing between wrapped rows
 
     if flowLayout then
         -- Flow layout rows always use TOP anchor for consistency
@@ -1232,8 +1100,8 @@ function CooldownIcons:PositionFlowLayout(rowFrame, count, iconWidth, iconHeight
         iconsPerRow = math.ceil(count / numRows)
     end
     
-    -- Use rowSpacing for vertical gap between wrapped rows (defaults to 1 if not provided)
-    local verticalSpacing = rowSpacing or 1
+    -- Use rowSpacing for vertical gap between wrapped rows
+    local verticalSpacing = rowSpacing
     local rowHeight = iconHeight + verticalSpacing
     local currentRow = 0
     local currentCol = 0
@@ -1326,7 +1194,7 @@ function CooldownIcons:UpdateAllIcons()
     end
     
     -- Apply dynamic sorting to configured rows
-    local dynamicSortRows = db.dynamicSortRows or "none"
+    local dynamicSortRows = db.dynamicSortRows
     if dynamicSortRows ~= "none" then
         self:ApplyDynamicSorting(dynamicSortRows)
     end
@@ -1334,12 +1202,7 @@ end
 
 -- Determine which rows should have dynamic sorting based on setting
 function CooldownIcons:ShouldDynamicSortRow(rowIndex, dynamicSortRows)
-    if dynamicSortRows == "primary" then
-        return rowIndex == 1
-    elseif dynamicSortRows == "primary_secondary" then
-        return rowIndex == 1 or rowIndex == 2
-    end
-    return false
+    return addon.Database:IsRowSettingEnabled(dynamicSortRows, rowIndex)
 end
 
 -- Apply dynamic sorting to all configured rows
@@ -1440,10 +1303,10 @@ function CooldownIcons:SortRowByTimeRemaining(rowFrame, rowIndex)
     end
     
     -- Use per-row settings
-    local iconWidth = rowFrame.iconWidth or db.iconSize or 40
+    local iconWidth = rowFrame.iconWidth or db.iconSize
     local spacing = rowFrame.iconSpacing
     if spacing == nil then
-        spacing = db.iconSpacing or 1
+        spacing = db.iconSpacing
     end
     
     -- Calculate centered positioning
@@ -1716,29 +1579,10 @@ function CooldownIcons:UpdateIconState(frame, db)
     -- When false: full alpha + desaturation (keeps core rotation visually prominent)
     -- When true: reduced alpha on cooldown (traditional behavior)
     local rowIndex = frame.rowIndex or 1
-    local dimSetting = db.dimOnCooldown or "secondary_utility"
-    local dimOnCooldown = false
-    if dimSetting == "all" then
-        dimOnCooldown = true
-    elseif dimSetting == "secondary_utility" then
-        dimOnCooldown = (rowIndex >= 2)  -- Secondary (2) and Utility (3+)
-    elseif dimSetting == "utility" then
-        dimOnCooldown = (rowIndex >= 3)  -- Utility only (3+)
-    end
-    -- "none" leaves dimOnCooldown = false
+    local dimOnCooldown = addon.Database:IsRowSettingEnabled(db.dimOnCooldown, rowIndex)
     
     -- Determine if GCD should be shown for this row based on settings
-    local showGCDOn = db.showGCDOn or "primary"
-    local showGCDForThisRow = false
-    if showGCDOn == "none" then
-        showGCDForThisRow = false
-    elseif showGCDOn == "primary" then
-        showGCDForThisRow = (rowIndex == 1)
-    elseif showGCDOn == "primary_secondary" then
-        showGCDForThisRow = (rowIndex == 1 or rowIndex == 2)
-    elseif showGCDOn == "all" then
-        showGCDForThisRow = true
-    end
+    local showGCDForThisRow = addon.Database:IsRowSettingEnabled(db.showGCDOn, rowIndex)
 
     -- Get usability info (uses spell NAME which correctly handles Execute, Revenge, etc.)
     -- Uses actualSpellID since GetEffectiveSpellID handles rank conversion internally
@@ -1766,11 +1610,11 @@ function CooldownIcons:UpdateIconState(frame, db)
 
     -- Prediction mode: extend cooldown to show when spell will be affordable
     -- Track state on frame for fallback handling
-    local displayMode = db.resourceDisplayMode or "fill"
-    local displayRows = db.resourceDisplayRows or "all"
+    local displayMode = db.resourceDisplayMode
+    local displayRows = db.resourceDisplayRows
     local rowIndex = frame.rowIndex or 1
-    local isPredictionMode = displayMode == "prediction"
-    local resourceEnabledForRow = IsSettingEnabledForRow(displayRows, rowIndex)
+    local isPredictionMode = displayMode == C.RESOURCE_DISPLAY_MODE.PREDICTION
+    local resourceEnabledForRow = addon.Database:IsRowSettingEnabled(displayRows, rowIndex)
     local timeUntilAffordable = 0
     local predictionRemaining = 0
     local predictionDuration = 0
@@ -2008,8 +1852,7 @@ function CooldownIcons:UpdateIconState(frame, db)
     end
 
     -- Show/hide cooldown spiral (row-based setting)
-    local showSpiralOn = db.showCooldownSpiralOn or "all"
-    local showSpiralForRow = IsSettingEnabledForRow(showSpiralOn, rowIndex)
+    local showSpiralForRow = addon.Database:IsRowSettingEnabled(db.showCooldownSpiralOn, rowIndex)
     
     -- Prediction mode can show spiral even when spell is off cooldown
     local shouldShowSpiral = showSpinner or showPredictionSpiral
@@ -2063,8 +1906,7 @@ function CooldownIcons:UpdateIconState(frame, db)
     end
 
     -- Show/hide cooldown text (or aura duration text) - row-based setting
-    local showTextOn = db.showCooldownTextOn or "all"
-    local showTextForRow = IsSettingEnabledForRow(showTextOn, rowIndex)
+    local showTextForRow = addon.Database:IsRowSettingEnabled(db.showCooldownTextOn, rowIndex)
     
     if showPredictionSpiral and predictionRemaining > 0 and showTextForRow then
         -- Show prediction remaining time (waiting for resources)
@@ -2154,13 +1996,13 @@ end
 --   - While prediction spiral is active: hide resource display (spiral is the indicator)
 --   - When prediction failed (fallback): show vertical fill as deterministic feedback
 function CooldownIcons:UpdateResourceDisplay(frame, spellID, cooldownRemaining, hasResourceCost, resourcePercent, powerColor, db, showPredictionSpiral, inPredictionFallback)
-    local displayMode = db.resourceDisplayMode or "fill"
-    local displayRows = db.resourceDisplayRows or "all"
+    local displayMode = db.resourceDisplayMode
+    local displayRows = db.resourceDisplayRows
     local rowIndex = frame.rowIndex or 1
-    local isPredictionMode = displayMode == "prediction"
+    local isPredictionMode = displayMode == C.RESOURCE_DISPLAY_MODE.PREDICTION
     
     -- Check if resource display is enabled for this row
-    local enabledForRow = IsSettingEnabledForRow(displayRows, rowIndex)
+    local enabledForRow = addon.Database:IsRowSettingEnabled(displayRows, rowIndex)
     
     -- Prediction mode: hide display while spiral is active
     if isPredictionMode and showPredictionSpiral then
@@ -2192,7 +2034,7 @@ function CooldownIcons:UpdateResourceDisplay(frame, spellID, cooldownRemaining, 
         return
     end
     
-    local iconSize = frame.iconSize or 48
+    local iconSize = frame.iconSize or db.iconSize
     local iconWidth = frame.iconWidth or iconSize
     local iconHeight = frame.iconHeight or iconSize
     
@@ -2207,7 +2049,7 @@ function CooldownIcons:UpdateResourceDisplay(frame, spellID, cooldownRemaining, 
     frame.resourceIconHeight = iconHeight
     
     -- In prediction fallback, always use vertical fill regardless of configured mode
-    local effectiveMode = inPredictionFallback and "fill" or displayMode
+    local effectiveMode = inPredictionFallback and C.RESOURCE_DISPLAY_MODE.FILL or displayMode
     frame.resourceDisplayMode = effectiveMode
     
     -- Set up OnUpdate for smooth animation if not already
@@ -2220,13 +2062,13 @@ function CooldownIcons:UpdateResourceDisplay(frame, spellID, cooldownRemaining, 
         end)
     end
     
-    if effectiveMode == "bar" and frame.resourceBar then
-        frame.resourceBar:SetHeight(db.resourceBarHeight or 4)
+    if effectiveMode == C.RESOURCE_DISPLAY_MODE.BAR and frame.resourceBar then
+        frame.resourceBar:SetHeight(db.resourceBarHeight)
         frame.resourceBar:Show()
         if frame.resourceFill then frame.resourceFill:Hide() end
-    elseif effectiveMode == "fill" and frame.resourceFill then
+    elseif effectiveMode == C.RESOURCE_DISPLAY_MODE.FILL and frame.resourceFill then
         -- Frame alpha already handles visibility, just set the resource fill's own alpha
-        frame.resourceFill:SetVertexColor(0, 0, 0, db.resourceFillAlpha or 0.6)
+        frame.resourceFill:SetVertexColor(0, 0, 0, db.resourceFillAlpha)
         frame.resourceFill:Show()
         if frame.resourceBar then frame.resourceBar:Hide() end
     end
@@ -2236,7 +2078,7 @@ end
 function CooldownIcons:AnimateResourceDisplay(frame, elapsed, db)
     if not frame.resourceTarget then return end
     
-    local displayMode = frame.resourceDisplayMode or db.resourceDisplayMode or "bar"
+    local displayMode = frame.resourceDisplayMode or db.resourceDisplayMode
     local current = frame.resourceCurrent or 0
     local target = frame.resourceTarget
     
@@ -2259,10 +2101,10 @@ function CooldownIcons:AnimateResourceDisplay(frame, elapsed, db)
     
     frame.resourceCurrent = current
     
-    local iconWidth = frame.resourceIconWidth or frame.resourceIconSize or 48
-    local iconHeight = frame.resourceIconHeight or frame.resourceIconSize or 48
+    local iconWidth = frame.resourceIconWidth or frame.resourceIconSize or db.iconSize
+    local iconHeight = frame.resourceIconHeight or frame.resourceIconSize or db.iconSize
     
-    if displayMode == "bar" and frame.resourceBar and frame.resourceBar:IsShown() then
+    if displayMode == C.RESOURCE_DISPLAY_MODE.BAR and frame.resourceBar and frame.resourceBar:IsShown() then
         -- Horizontal bar fill - use width
         local fillWidth = iconWidth * current
         frame.resourceBar.fill:SetWidth(math.max(1, fillWidth))
@@ -2272,7 +2114,7 @@ function CooldownIcons:AnimateResourceDisplay(frame, elapsed, db)
             frame.resourceBar.fill:SetVertexColor(c[1], c[2], c[3], 1)
         end
         
-    elseif displayMode == "fill" and frame.resourceFill and frame.resourceFill:IsShown() then
+    elseif displayMode == C.RESOURCE_DISPLAY_MODE.FILL and frame.resourceFill and frame.resourceFill:IsShown() then
         -- Vertical fill (dark overlay showing missing portion) - use height
         -- Frame alpha handles visibility; vertex color just controls fill darkness
         local missingPercent = 1 - current
@@ -2357,8 +2199,9 @@ function CooldownIcons:ShowPermanentBuffGlow(frame)
     
     -- Size it slightly larger than the icon for a subtle border glow
     -- Use width (larger dimension with aspect ratio) for proper coverage
-    local glowWidth = (frame.iconWidth or frame.iconSize or 40) * 1.5
-    local glowHeight = (frame.iconHeight or frame.iconSize or 40) * 1.5
+    local iconDb = addon.db.profile.icons
+    local glowWidth = (frame.iconWidth or frame.iconSize or iconDb.iconSize) * 1.5
+    local glowHeight = (frame.iconHeight or frame.iconSize or iconDb.iconSize) * 1.5
     frame.permanentGlow:SetSize(glowWidth, glowHeight)
     
     -- Golden/yellow color to match the default UI active state
@@ -2377,12 +2220,12 @@ end
 --   - "always": glow every time ability becomes ready
 -- Reactive abilities (Execute, Overpower) always behave as "always" regardless of mode
 function CooldownIcons:UpdateReadyGlow(frame, spellID, remaining, duration, isUsable, isReactive, db)
-    local glowRows = db.readyGlowRows or "all"
-    local glowMode = db.readyGlowMode or "once"
+    local glowRows = db.readyGlowRows
+    local glowMode = db.readyGlowMode
     local rowIndex = frame.rowIndex or 1
     
     -- Check row-based setting first
-    local enabledForRow = IsSettingEnabledForRow(glowRows, rowIndex)
+    local enabledForRow = addon.Database:IsRowSettingEnabled(glowRows, rowIndex)
     
     -- Disabled or not enabled for this row: hide any active glow and return (unless reactive)
     if not enabledForRow and not isReactive then
@@ -2394,7 +2237,7 @@ function CooldownIcons:UpdateReadyGlow(frame, spellID, remaining, duration, isUs
     end
     
     -- Determine effective mode: reactive abilities always use "always" behavior
-    local effectiveMode = isReactive and "always" or glowMode
+    local effectiveMode = isReactive and C.GLOW_MODE.ALWAYS or glowMode
     
     local isOnRealCooldown = self.Utils:IsOnRealCooldown(remaining, duration)
     local isAlmostReady = remaining > 0 and remaining <= 1.0 and isOnRealCooldown
@@ -2411,7 +2254,7 @@ function CooldownIcons:UpdateReadyGlow(frame, spellID, remaining, duration, isUs
     end
     
     -- Reset glow tracking based on effective mode
-    if effectiveMode == "always" then
+    if effectiveMode == C.GLOW_MODE.ALWAYS then
         -- Reset glow when usability changes (allows re-triggering)
         if isUsable and not wasUsable then
             frame.readyGlowShown = false
@@ -2423,7 +2266,7 @@ function CooldownIcons:UpdateReadyGlow(frame, spellID, remaining, duration, isUs
     local showReadyGlow = false
     
     if not frame.readyGlowShown then
-        local glowDuration = db.readyGlowDuration or 1.0
+        local glowDuration = db.readyGlowDuration
         
         -- Only initiate new glows when in combat
         local inCombat = UnitAffectingCombat("player")
@@ -2619,9 +2462,8 @@ function CooldownIcons:UpdateRangeIndicator(frame, spellID, db)
     if not frame.rangeFrame then return end
     
     -- Check if range indicator is enabled for this row
-    local showRangeOn = db.showRangeIndicator or "all"
     local rowIndex = frame.rowIndex or 1
-    local showForRow = IsSettingEnabledForRow(showRangeOn, rowIndex)
+    local showForRow = addon.Database:IsRowSettingEnabled(db.showRangeIndicator, rowIndex)
     
     if not showForRow then
         frame.rangeFrame.fadeIn:Stop()
@@ -2721,7 +2563,7 @@ function CooldownIcons:Refresh()
     
     for rowIndex, rowFrame in ipairs(self.rows or {}) do
         local rowConfig = rowConfigs[rowIndex] or {}
-        local size = rowConfig.iconSize or iconDb.iconSize or 40
+        local size = rowConfig.iconSize or iconDb.iconSize
         local iconWidth, iconHeight = self.Utils:GetIconDimensions(size)
         
         rowFrame.iconSize = size
@@ -2732,14 +2574,11 @@ function CooldownIcons:Refresh()
         if newSpacing == nil then
             newSpacing = iconDb.iconSpacing
         end
-        if newSpacing == nil then
-            newSpacing = 1
-        end
         rowFrame.iconSpacing = newSpacing
-        rowFrame.iconsPerRow = rowConfig.iconsPerRow or rowConfig.maxIcons or 6
+        rowFrame.iconsPerRow = rowConfig.iconsPerRow or rowConfig.maxIcons
         
         -- Update row frame size to match new icon dimensions
-        local maxIcons = rowConfig.maxIcons or 6
+        local maxIcons = rowConfig.maxIcons
         rowFrame:SetSize(maxIcons * (iconWidth + newSpacing), iconHeight)
         
         -- Update icon sizes and config
@@ -2757,20 +2596,18 @@ function CooldownIcons:Refresh()
             end
             
             -- Update built-in style if Masque is not installed
-            self:UpdateBuiltInStyle(icon, size)
+            addon.IconStyling:Update(icon, size, self.MasqueGroup ~= nil)
         end
         
         -- Reposition row vertically based on current settings
         -- Add extra gap between primary and secondary rows
         if rowIndex == 2 then
-            local psGap = iconDb.primarySecondaryGap or 0
-            yOffset = yOffset - psGap
+            yOffset = yOffset - iconDb.primarySecondaryGap
         end
         
         -- Add section gap before utility rows (row 3+)
         if rowIndex >= 3 then
-            local sectionGap = iconDb.sectionGap or 16
-            yOffset = yOffset - sectionGap
+            yOffset = yOffset - iconDb.sectionGap
         end
         
         rowFrame:ClearAllPoints()
@@ -2779,12 +2616,10 @@ function CooldownIcons:Refresh()
         -- Calculate height for next row offset (use iconHeight, not size)
         local estimatedHeight = iconHeight
         if rowFrame.flowLayout and rowFrame.iconsPerRow then
-            local maxIcons = rowConfig.maxIcons or 6
-            local estimatedRows = math.ceil(maxIcons / rowFrame.iconsPerRow)
-            local verticalSpacing = iconDb.rowSpacing or 1
-            estimatedHeight = estimatedRows * (iconHeight + verticalSpacing)
+            local estimatedRows = math.ceil(rowConfig.maxIcons / rowFrame.iconsPerRow)
+            estimatedHeight = estimatedRows * (iconHeight + iconDb.rowSpacing)
         end
-        yOffset = yOffset - (estimatedHeight + (iconDb.rowSpacing or 1))
+        yOffset = yOffset - (estimatedHeight + iconDb.rowSpacing)
     end
     
     self:RebuildAllRows()

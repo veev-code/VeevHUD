@@ -188,6 +188,30 @@ function Database:IsSettingOverridden(path)
     return currentValue ~= defaultValue
 end
 
+-- Check if a row-based setting is enabled for a specific row index
+-- settingValue: one of C.ROW_SETTING values ("none", "primary", "all", etc.)
+-- rowIndex: 1 = Primary, 2 = Secondary, 3+ = Utility
+function Database:IsRowSettingEnabled(settingValue, rowIndex)
+    local RS = addon.Constants.ROW_SETTING
+    
+    if settingValue == RS.NONE then
+        return false
+    elseif settingValue == RS.PRIMARY then
+        return rowIndex == 1
+    elseif settingValue == RS.PRIMARY_SECONDARY then
+        return rowIndex == 1 or rowIndex == 2
+    elseif settingValue == RS.SECONDARY_UTILITY then
+        return rowIndex >= 2
+    elseif settingValue == RS.UTILITY then
+        return rowIndex >= 3
+    elseif settingValue == RS.ALL then
+        return true
+    end
+    
+    -- Backwards compatibility: treat boolean true as "all"
+    return settingValue == true
+end
+
 -------------------------------------------------------------------------------
 -- Spell Config Helpers
 -------------------------------------------------------------------------------

@@ -136,7 +136,7 @@ function ResourceBar:RegisterUpdateIfNeeded()
     local needsManaTicker = manaTickerEnabled and isMana
     
     -- Also need updates for mana rate tracking when prediction mode is enabled
-    local isPredictionMode = iconsDb.resourceDisplayMode == "prediction"
+    local isPredictionMode = iconsDb.resourceDisplayMode == self.C.RESOURCE_DISPLAY_MODE.PREDICTION
     local needsManaTracking = isPredictionMode and isMana
     
     if needsSmoothUpdate or needsEnergyTicker or needsManaTicker or needsManaTracking then
@@ -175,9 +175,9 @@ function ResourceBar:CreateEnergyTicker(bar, db)
     local tickerDb = db.energyTicker
     if not tickerDb or tickerDb.enabled == false then return end
 
-    if tickerDb.style == "bar" then
+    if tickerDb.style == self.C.TICKER_STYLE.BAR then
         self:CreateEnergyTickerBar(bar, db, tickerDb)
-    elseif tickerDb.style == "spark" then
+    elseif tickerDb.style == self.C.TICKER_STYLE.SPARK then
         self:CreateEnergyTickerSpark(bar, db, tickerDb)
     end
 end
@@ -293,7 +293,7 @@ function ResourceBar:GetTickerHeight()
     
     -- Only the "bar" style takes up space below the resource bar
     -- "spark" style overlays on the resource bar itself
-    if tickerDb.style ~= "bar" then
+    if tickerDb.style ~= self.C.TICKER_STYLE.BAR then
         return 0
     end
     
@@ -358,7 +358,7 @@ function ResourceBar:UpdateTickerVisibility()
 
     -- Handle "bar" style visibility
     if self.ticker then
-        if shouldShow and style == "bar" then
+        if shouldShow and style == self.C.TICKER_STYLE.BAR then
             self.ticker:Show()
         else
             self.ticker:Hide()
@@ -367,7 +367,7 @@ function ResourceBar:UpdateTickerVisibility()
     
     -- Handle "spark" style visibility (initial state, actual show/hide in update)
     if self.tickerOverlaySpark then
-        if shouldShow and style == "spark" then
+        if shouldShow and style == self.C.TICKER_STYLE.SPARK then
             -- Spark visibility controlled by UpdateEnergyTicker based on energy level
             -- Just initialize tracking here
         else
@@ -421,7 +421,7 @@ function ResourceBar:UpdateBar()
     end
 
     -- Update text
-    if self.text and db.textFormat and db.textFormat ~= "none" then
+    if self.text and db.textFormat and db.textFormat ~= self.C.TEXT_FORMAT.NONE then
         self:UpdateText(power, maxPower, percent, db.textFormat)
     elseif self.text then
         self.text:SetText("")
@@ -508,9 +508,9 @@ function ResourceBar:UpdateEnergyTicker()
         local isMaxEnergy = currentEnergy >= maxEnergy
         
         -- Update based on style
-        if style == "bar" then
+        if style == self.C.TICKER_STYLE.BAR then
             self:UpdateTickerBar(tickProgress, isMaxEnergy)
-        elseif style == "spark" then
+        elseif style == self.C.TICKER_STYLE.SPARK then
             self:UpdateTickerOverlaySpark(tickProgress, isMaxEnergy)
         end
     end
@@ -687,7 +687,7 @@ function ResourceBar:Refresh()
         -- Toggle text visibility and update font size
         if self.text then
             self.text:SetFont(addon:GetFont(), db.textSize or 11, "OUTLINE")
-            if db.textFormat and db.textFormat ~= "none" then
+            if db.textFormat and db.textFormat ~= self.C.TEXT_FORMAT.NONE then
                 self.text:Show()
             else
                 self.text:Hide()
@@ -713,7 +713,7 @@ function ResourceBar:RefreshEnergyTicker()
     local style = tickerDb and tickerDb.style or "spark"
     
     -- Handle "bar" style
-    if tickerEnabled and style == "bar" then
+    if tickerEnabled and style == self.C.TICKER_STYLE.BAR then
         -- Create bar if it doesn't exist
         if not self.ticker then
             self:CreateEnergyTickerBar(self.bar, db, tickerDb)
@@ -731,7 +731,7 @@ function ResourceBar:RefreshEnergyTicker()
         if self.tickerOverlaySpark then
             self.tickerOverlaySpark:Hide()
         end
-    elseif tickerEnabled and style == "spark" then
+    elseif tickerEnabled and style == self.C.TICKER_STYLE.SPARK then
         -- Create spark if it doesn't exist
         if not self.tickerOverlaySpark then
             self:CreateEnergyTickerSpark(self.bar, db, tickerDb)

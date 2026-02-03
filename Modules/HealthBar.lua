@@ -101,7 +101,7 @@ function HealthBar:CreatePlayerBar(parent)
     bar.bg:SetVertexColor(r * 0.3, g * 0.3, b * 0.3)
 
     -- Text (create if any text format is enabled)
-    if db.textFormat and db.textFormat ~= "none" then
+    if db.textFormat and db.textFormat ~= self.C.TEXT_FORMAT.NONE then
         local text = bar:CreateFontString(nil, "OVERLAY")
         text:SetFont(addon:GetFont(), db.textSize or 10, "OUTLINE")
         text:SetPoint("CENTER")
@@ -150,7 +150,7 @@ function HealthBar:UpdatePlayerBar()
         self.playerBar:SetValue(percent)
     end
 
-    if self.playerText and db.textFormat and db.textFormat ~= "none" then
+    if self.playerText and db.textFormat and db.textFormat ~= self.C.TEXT_FORMAT.NONE then
         self:UpdateText(self.playerText, health, maxHealth, percent, db.textFormat)
     end
 end
@@ -213,7 +213,7 @@ function HealthBar:Refresh()
         -- Toggle text visibility and update font size
         if self.playerText then
             self.playerText:SetFont(addon:GetFont(), db.textSize or 10, "OUTLINE")
-            if db.textFormat and db.textFormat ~= "none" then
+            if db.textFormat and db.textFormat ~= self.C.TEXT_FORMAT.NONE then
                 self.playerText:Show()
             else
                 self.playerText:Hide()
