@@ -1,5 +1,13 @@
 # VeevHUD Changelog
 
+## [1.0.31] - 2026-02-03
+
+### Fixed
+- **Aura cache invalidation** — Fixed an issue where auras could fail to update when the same player was referenced by multiple unit tokens (e.g., "party1" and "targettarget"). Cache is now keyed by GUID for correct invalidation.
+
+### LibSpellDB Updates
+- `IsSelfOnly()` now correctly identifies `HAS_BUFF` and `CC_IMMUNITY` tagged spells as abilities that can target others
+
 ## [1.0.30] - 2026-02-01
 
 ### Changed

@@ -2,6 +2,9 @@
     VeevHUD - Aura Cache System
     Buff/Debuff caching for efficient aura lookups
     Scans all buffs/debuffs once per unit, cached until UNIT_AURA fires
+    
+    Cache is keyed by GUID for correct invalidation when UNIT_AURA fires
+    for unit tokens like "party1" that may also be "targettarget"
 ]]
 
 local ADDON_NAME, addon = ...
@@ -10,23 +13,26 @@ addon.Utils = addon.Utils or {}
 local Utils = addon.Utils
 
 -------------------------------------------------------------------------------
--- Buff/Debuff Caching
+-- Buff/Debuff Caching (by GUID)
 -------------------------------------------------------------------------------
 
--- Cache structures: buffCache[unit][spellID] = auraData, debuffCache[unit][spellID] = auraData
--- Also cache by name for fallback lookups: buffCacheByName[unit][name] = auraData
+-- Cache structures: buffCache[guid][spellID] = auraData
+-- Also cache by name for fallback lookups: buffCacheByName[guid][name] = auraData
 Utils.buffCache = {}
 Utils.debuffCache = {}
 Utils.buffCacheByName = {}
 Utils.debuffCacheByName = {}
-Utils.auraCacheValid = {}  -- auraCacheValid[unit] = true when cache is populated
+Utils.auraCacheValid = {}  -- auraCacheValid[guid] = true for buffs, auraCacheValid[guid.."_debuff"] for debuffs
 
 -- Populate buff cache for a unit (scans once, stores all buffs)
 function Utils:PopulateBuffCache(unit)
-    if self.auraCacheValid[unit] then return end
+    local guid = UnitGUID(unit)
+    if not guid then return end
     
-    self.buffCache[unit] = {}
-    self.buffCacheByName[unit] = {}
+    if self.auraCacheValid[guid] then return end
+    
+    self.buffCache[guid] = {}
+    self.buffCacheByName[guid] = {}
     
     for i = 1, 40 do
         local name, icon, count, debuffType, duration, expirationTime, source, 
@@ -48,23 +54,26 @@ function Utils:PopulateBuffCache(unit)
         }
         
         if auraSpellID then
-            self.buffCache[unit][auraSpellID] = auraData
+            self.buffCache[guid][auraSpellID] = auraData
         end
         if name then
-            self.buffCacheByName[unit][name] = auraData
+            self.buffCacheByName[guid][name] = auraData
         end
     end
     
-    self.auraCacheValid[unit] = true
+    self.auraCacheValid[guid] = true
 end
 
 -- Populate debuff cache for a unit
 function Utils:PopulateDebuffCache(unit)
-    local cacheKey = unit .. "_debuff"
+    local guid = UnitGUID(unit)
+    if not guid then return end
+    
+    local cacheKey = guid .. "_debuff"
     if self.auraCacheValid[cacheKey] then return end
     
-    self.debuffCache[unit] = {}
-    self.debuffCacheByName[unit] = {}
+    self.debuffCache[guid] = {}
+    self.debuffCacheByName[guid] = {}
     
     for i = 1, 40 do
         local name, icon, count, debuffType, duration, expirationTime, source, 
@@ -86,24 +95,31 @@ function Utils:PopulateDebuffCache(unit)
         }
         
         if auraSpellID then
-            self.debuffCache[unit][auraSpellID] = auraData
+            self.debuffCache[guid][auraSpellID] = auraData
         end
         if name then
-            self.debuffCacheByName[unit][name] = auraData
+            self.debuffCacheByName[guid][name] = auraData
         end
     end
     
     self.auraCacheValid[cacheKey] = true
 end
 
--- Invalidate aura cache for a unit
+-- Invalidate aura cache for a unit (by GUID)
+function Utils:InvalidateAuraCacheByGUID(guid)
+    if not guid then return end
+    self.auraCacheValid[guid] = nil
+    self.auraCacheValid[guid .. "_debuff"] = nil
+    self.buffCache[guid] = nil
+    self.debuffCache[guid] = nil
+    self.buffCacheByName[guid] = nil
+    self.debuffCacheByName[guid] = nil
+end
+
+-- Invalidate aura cache for a unit token (resolves to GUID)
 function Utils:InvalidateAuraCache(unit)
-    self.auraCacheValid[unit] = nil
-    self.auraCacheValid[unit .. "_debuff"] = nil
-    self.buffCache[unit] = nil
-    self.debuffCache[unit] = nil
-    self.buffCacheByName[unit] = nil
-    self.debuffCacheByName[unit] = nil
+    local guid = UnitGUID(unit)
+    self:InvalidateAuraCacheByGUID(guid)
 end
 
 -- Invalidate all aura caches
@@ -121,14 +137,17 @@ function Utils:GetCachedBuff(unit, spellID, spellName)
     self:EnsureAuraCacheInitialized()
     self:PopulateBuffCache(unit)
     
-    local cache = self.buffCache[unit]
+    local guid = UnitGUID(unit)
+    if not guid then return nil end
+    
+    local cache = self.buffCache[guid]
     if cache and cache[spellID] then
         return cache[spellID]
     end
     
     -- Fallback to name lookup
     if spellName then
-        local nameCache = self.buffCacheByName[unit]
+        local nameCache = self.buffCacheByName[guid]
         if nameCache and nameCache[spellName] then
             return nameCache[spellName]
         end
@@ -143,14 +162,17 @@ function Utils:GetCachedDebuff(unit, spellID, spellName)
     self:EnsureAuraCacheInitialized()
     self:PopulateDebuffCache(unit)
     
-    local cache = self.debuffCache[unit]
+    local guid = UnitGUID(unit)
+    if not guid then return nil end
+    
+    local cache = self.debuffCache[guid]
     if cache and cache[spellID] then
         return cache[spellID]
     end
     
     -- Fallback to name lookup
     if spellName then
-        local nameCache = self.debuffCacheByName[unit]
+        local nameCache = self.debuffCacheByName[guid]
         if nameCache and nameCache[spellName] then
             return nameCache[spellName]
         end
@@ -170,10 +192,12 @@ function Utils:EnsureAuraCacheInitialized()
     
     frame:SetScript("OnEvent", function(eventFrame, event, unit, ...)
         if event == "UNIT_AURA" then
-            Utils:InvalidateAuraCache(unit)
+            -- Invalidate by GUID - handles all unit tokens including volatile ones
+            local guid = UnitGUID(unit)
+            Utils:InvalidateAuraCacheByGUID(guid)
         elseif event == "PLAYER_TARGET_CHANGED" then
-            Utils:InvalidateAuraCache("target")
-            Utils:InvalidateAuraCache("targettarget")
+            -- No need to explicitly invalidate target/targettarget
+            -- GUID-based caching handles this automatically
         elseif event == "PLAYER_ENTERING_WORLD" then
             Utils:InvalidateAllAuraCaches()
         end
