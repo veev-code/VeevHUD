@@ -55,6 +55,28 @@ function Utils:FormatCooldown(seconds)
 end
 
 -------------------------------------------------------------------------------
+-- Scale Utilities
+-------------------------------------------------------------------------------
+
+-- Get the UI scale compensation factor
+-- VeevHUD was designed at REFERENCE_UI_SCALE (0.65). This compensates so the HUD
+-- appears the same visual size regardless of the player's UI scale setting.
+function Utils:GetUIScaleCompensation()
+    local uiScale = UIParent:GetScale()
+    return C.REFERENCE_UI_SCALE / uiScale
+end
+
+-- Get the effective HUD scale (user's Global Scale * UI scale compensation)
+-- This is what gets passed to hudFrame:SetScale()
+function Utils:GetEffectiveHUDScale()
+    local userScale = 1.0
+    if addon.db and addon.db.profile and addon.db.profile.icons then
+        userScale = addon.db.profile.icons.scale or 1.0
+    end
+    return userScale * self:GetUIScaleCompensation()
+end
+
+-------------------------------------------------------------------------------
 -- Icon Dimension Utilities
 -------------------------------------------------------------------------------
 

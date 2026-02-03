@@ -149,6 +149,11 @@ C.COLORS = {
 -- Used to distinguish between "on GCD" (brief lockout) vs "on real cooldown" (ability CD)
 C.GCD_THRESHOLD = 1.5
 
+-- Reference UI scale - the UI scale VeevHUD was designed at
+-- Used to auto-compensate so the HUD appears the same size regardless of player's UI scale
+-- At 65% UI scale, icons look as intended. At 100%, we scale down to match.
+C.REFERENCE_UI_SCALE = 0.65
+
 -- Resource regeneration tick rate (both energy and mana tick every 2 seconds)
 C.TICK_RATE = 2.0
 

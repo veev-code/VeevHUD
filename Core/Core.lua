@@ -27,6 +27,7 @@ frame:RegisterEvent("PLAYER_LOGIN")
 frame:RegisterEvent("PLAYER_LOGOUT")
 frame:RegisterEvent("PLAYER_REGEN_DISABLED")  -- Entering combat
 frame:RegisterEvent("PLAYER_REGEN_ENABLED")   -- Leaving combat
+frame:RegisterEvent("UI_SCALE_CHANGED")       -- Player changed UI scale in settings
 
 frame:SetScript("OnEvent", function(self, event, arg1)
     if event == "ADDON_LOADED" and arg1 == ADDON_NAME then
@@ -38,6 +39,9 @@ frame:SetScript("OnEvent", function(self, event, arg1)
     elseif event == "PLAYER_REGEN_DISABLED" or event == "PLAYER_REGEN_ENABLED" then
         -- Combat state changed, update HUD visibility/alpha immediately
         addon:UpdateVisibility()
+    elseif event == "UI_SCALE_CHANGED" then
+        -- Reapply HUD scale to compensate for new UI scale
+        addon:UpdateHUDScale()
     end
 end)
 
@@ -253,8 +257,8 @@ function addon:CreateHUDFrame()
     hud:SetFrameLevel(10)
     hud:EnableMouse(false)  -- Always click-through (position via settings only)
     
-    -- Apply global scale
-    local scale = self.db.profile.icons.scale or 1.0
+    -- Apply global scale (compensated for UI scale)
+    local scale = self.Utils:GetEffectiveHUDScale()
     hud:SetScale(scale)
 
     self.hudFrame = hud
@@ -285,6 +289,13 @@ function addon:StartVisibilityUpdates()
         self:UpdateVisibility()
     end)
     self.visibilityTicker = ticker
+end
+
+-- Update HUD scale (called when UI scale changes or user adjusts Global Scale)
+function addon:UpdateHUDScale()
+    if not self.hudFrame then return end
+    local scale = self.Utils:GetEffectiveHUDScale()
+    self.hudFrame:SetScale(scale)
 end
 
 function addon:UpdateVisibility()

@@ -150,6 +150,12 @@ Access settings by typing **/vh** in chat, or via **ESC → Options → AddOns �
 
 ---
 
+## Works Great With
+
+**[Clean Icons](https://www.wowinterface.com/downloads/info25064-CleanIcons-MechagnomeEdition.html)** — HD icon textures upscaled using AI. Clean Icons replaces WoW's icon textures at the game level, so VeevHUD automatically displays the higher-resolution versions with no configuration needed.
+
+---
+
 ## Current Status & Future Plans
 
 VeevHUD currently supports **TBC Anniversary** only. However, VeevHUD is designed as a core engine that pulls spell data from [LibSpellDB](https://www.curseforge.com/wow/addons/libspelldb), a separate library. This architecture means future versions can support additional WoW releases (Classic Era, Wrath, Cata, Retail) by providing a spell database for that version — the HUD engine remains the same.

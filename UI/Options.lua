@@ -1707,9 +1707,8 @@ function Options:UpdateHUDPosition()
             db.y or -84
         )
         
-        -- Apply scale (under icons config)
-        local scale = addon.db.profile.icons.scale or 1.0
-        addon.hudFrame:SetScale(scale)
+        -- Apply scale (compensated for UI scale)
+        addon:UpdateHUDScale()
     end
 end
 
