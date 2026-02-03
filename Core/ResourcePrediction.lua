@@ -8,7 +8,6 @@
 ]]
 
 local ADDON_NAME, addon = ...
-local C = addon.Constants
 
 local ResourcePrediction = {}
 addon.ResourcePrediction = ResourcePrediction
@@ -19,6 +18,13 @@ local function DebugLog(category, message, ...)
         addon.Utils:LogDebug(string.format("[%s] " .. message, category, ...))
     end
 end
+
+-- Power type constants
+local POWER_TYPE = {
+    MANA = 0,
+    RAGE = 1,
+    ENERGY = 3,
+}
 
 -- Timing buffer to add to predictions
 -- When nextTick=0 (tick imminent), the tick actually happens a few ms AFTER the prediction
@@ -31,6 +37,7 @@ local PREDICTION_BUFFER = 0.15
 -- Energy regenerates in predictable 2-second ticks
 -------------------------------------------------------------------------------
 
+local ADRENALINE_RUSH_SPELL_ID = 13750
 
 -- Prediction-specific state (SYNC fix for multi-icon predictions)
 ResourcePrediction.lastPredictionEnergy = 0
@@ -44,7 +51,7 @@ ResourcePrediction.lastCostLogKey = ""
 function ResourcePrediction:GetEnergyRegenRate()
     -- Delegate to TickTracker if available, with fallback
     local TickTracker = addon.TickTracker
-    local baseEnergyPerTick = TickTracker and TickTracker:GetExpectedEnergyPerTick() or C.ENERGY_PER_TICK
+    local baseEnergyPerTick = TickTracker and TickTracker:GetExpectedEnergyPerTick() or 20
     local tickRate = TickTracker and TickTracker:GetTickRate() or 2.0
     
     return baseEnergyPerTick, tickRate
@@ -53,8 +60,8 @@ end
 -- Get time until next energy tick
 -- Returns: secondsUntilTick (0 if at max energy or no prediction available)
 function ResourcePrediction:GetTimeUntilNextEnergyTick()
-    local currentEnergy = UnitPower("player", C.POWER_TYPE.ENERGY)
-    local maxEnergy = UnitPowerMax("player", C.POWER_TYPE.ENERGY)
+    local currentEnergy = UnitPower("player", POWER_TYPE.ENERGY)
+    local maxEnergy = UnitPowerMax("player", POWER_TYPE.ENERGY)
     local energyPerTick, tickRate = self:GetEnergyRegenRate()
     local TickTracker = addon.TickTracker
     
@@ -117,6 +124,7 @@ end
 -- Separately tracks "inside 5SR" vs "outside 5SR" regen rates
 -------------------------------------------------------------------------------
 
+local MANA_TICK_RATE = 2.0  -- Mana ticks every 2 seconds
 
 -- Conservative buffer for 5SR transitions
 -- UNIT_SPELLCAST_SUCCEEDED may fire slightly after the actual cast, and there can be
@@ -129,7 +137,7 @@ local FIVE_SECOND_RULE_BUFFER = 0.3
 ResourcePrediction.lastManaTickTime = 0  -- When the last mana tick occurred
 ResourcePrediction.lastSampleMana = 0  -- Last sample mana (to detect tick moments)
 ResourcePrediction.prevSampleMana = 0  -- Sample before last (to detect casting activity)
-ResourcePrediction.manaSpikeThreshold = C.MANA_SPIKE_THRESHOLD
+ResourcePrediction.manaSpikeThreshold = 0.10  -- Ignore gains > 10% of max mana (potions, life tap)
 
 -- 5-second rule: delegated to FiveSecondRule module
 -- ResourcePrediction no longer tracks this directly
@@ -176,8 +184,8 @@ function ResourcePrediction:RecordManaSample()
         FSR:UpdateManaSample()
     end
     
-    local currentMana = UnitPower("player", C.POWER_TYPE.MANA)
-    local maxMana = UnitPowerMax("player", C.POWER_TYPE.MANA)
+    local currentMana = UnitPower("player", POWER_TYPE.MANA)
+    local maxMana = UnitPowerMax("player", POWER_TYPE.MANA)
     local now = GetTime()
     
     -- Detect mana tick: mana increased from last sample
@@ -250,12 +258,12 @@ function ResourcePrediction:RecordManaSample()
         -- Track "phantom ticks" when at full mana
         -- The tick timer keeps running even when we can't see gains, so advance it
         -- This keeps our timing accurate for when mana drops and we start predicting again
-        if self.lastManaTickTime > 0 and (now - self.lastManaTickTime) >= C.TICK_RATE then
+        if self.lastManaTickTime > 0 and (now - self.lastManaTickTime) >= MANA_TICK_RATE then
             -- A phantom tick would have occurred - advance the tick timer
-            self.lastManaTickTime = self.lastManaTickTime + C.TICK_RATE
+            self.lastManaTickTime = self.lastManaTickTime + MANA_TICK_RATE
             -- Keep advancing if multiple ticks have passed
-            while (now - self.lastManaTickTime) >= C.TICK_RATE do
-                self.lastManaTickTime = self.lastManaTickTime + C.TICK_RATE
+            while (now - self.lastManaTickTime) >= MANA_TICK_RATE do
+                self.lastManaTickTime = self.lastManaTickTime + MANA_TICK_RATE
             end
         end
     end
@@ -308,8 +316,8 @@ ResourcePrediction.lastPredictionMana = 0
 -- Get time until next mana tick
 -- Returns: secondsUntilTick (0 if at max mana or no data)
 function ResourcePrediction:GetTimeUntilNextManaTick()
-    local currentMana = UnitPower("player", C.POWER_TYPE.MANA)
-    local maxMana = UnitPowerMax("player", C.POWER_TYPE.MANA)
+    local currentMana = UnitPower("player", POWER_TYPE.MANA)
+    local maxMana = UnitPowerMax("player", POWER_TYPE.MANA)
     
     if currentMana >= maxMana then
         self.lastPredictionMana = currentMana
@@ -335,7 +343,7 @@ function ResourcePrediction:GetTimeUntilNextManaTick()
         if TickTracker then
             TickTracker:SyncManaTickTime(GetTime())
         end
-        return C.TICK_RATE - 0.05  -- Almost exactly 2 seconds
+        return MANA_TICK_RATE - 0.05  -- Almost exactly 2 seconds
     end
     
     self.lastPredictionMana = currentMana
@@ -343,17 +351,17 @@ function ResourcePrediction:GetTimeUntilNextManaTick()
     -- If we've tracked a tick, calculate time until next
     if self.lastManaTickTime > 0 then
         local timeSinceTick = GetTime() - self.lastManaTickTime
-        local timeUntilTick = C.TICK_RATE - timeSinceTick
+        local timeUntilTick = MANA_TICK_RATE - timeSinceTick
         
         -- Clamp to valid range
         if timeUntilTick <= 0 then
             return 0.1  -- Tick is imminent
         end
-        return math.min(C.TICK_RATE, timeUntilTick)
+        return math.min(MANA_TICK_RATE, timeUntilTick)
     end
     
     -- No tick tracked yet - assume worst case
-    return C.TICK_RATE
+    return MANA_TICK_RATE
 end
 
 -- Calculate time until player can afford a spell (mana)
@@ -397,7 +405,7 @@ function ResourcePrediction:GetTimeUntilManaAffordable(needed, maxPower, spellID
         end
         
         local ticksNeeded = math.ceil(needed / estimatedPerTick)
-        local result = timeUntilFirstTick + (ticksNeeded - 1) * C.TICK_RATE + PREDICTION_BUFFER
+        local result = timeUntilFirstTick + (ticksNeeded - 1) * MANA_TICK_RATE + PREDICTION_BUFFER
         
         DebugLog("PRED", "[%s] Need %d, NO RATE DATA, fallback=%.0f/tick, ticks=%d -> %.1fs",
             spellName, needed, estimatedPerTick, ticksNeeded, result)
@@ -426,8 +434,8 @@ function ResourcePrediction:GetTimeUntilManaAffordable(needed, maxPower, spellID
             timeElapsed = timeUntilNextTick
             ticksDuring5SR = 1
             
-            while timeElapsed + C.TICK_RATE < timeLeft5SR and manaGainedIn5SR < needed do
-                timeElapsed = timeElapsed + C.TICK_RATE
+            while timeElapsed + MANA_TICK_RATE < timeLeft5SR and manaGainedIn5SR < needed do
+                timeElapsed = timeElapsed + MANA_TICK_RATE
                 manaGainedIn5SR = manaGainedIn5SR + rateIn5SR
                 ticksDuring5SR = ticksDuring5SR + 1
             end
@@ -437,7 +445,7 @@ function ResourcePrediction:GetTimeUntilManaAffordable(needed, maxPower, spellID
         if manaGainedIn5SR >= needed then
             local safetyBuffer = rateIn5SR * 0.05
             local ticksNeeded = math.ceil((needed + safetyBuffer) / rateIn5SR)
-            local result = timeUntilNextTick + (ticksNeeded - 1) * C.TICK_RATE + PREDICTION_BUFFER
+            local result = timeUntilNextTick + (ticksNeeded - 1) * MANA_TICK_RATE + PREDICTION_BUFFER
             
             local logKey = string.format("%s_%d_%d_in5sr", spellName, needed, ticksNeeded)
             if self.lastPredLogKey ~= logKey then
@@ -458,7 +466,7 @@ function ResourcePrediction:GetTimeUntilManaAffordable(needed, maxPower, spellID
     
     -- Time until we have enough mana:
     -- First full tick at timeUntilFirstFullTick, then additional ticks every 2s
-    local result = timeUntilFirstFullTick + (ticksAfter5SR - 1) * C.TICK_RATE + PREDICTION_BUFFER
+    local result = timeUntilFirstFullTick + (ticksAfter5SR - 1) * MANA_TICK_RATE + PREDICTION_BUFFER
     
     -- Logging
     local logKey
@@ -517,12 +525,12 @@ function ResourcePrediction:GetTimeUntilAffordable(spellID)
     local needed = cost - currentPower
     
     -- Energy: tick-based regeneration (highly accurate)
-    if powerType == C.POWER_TYPE.ENERGY then
+    if powerType == POWER_TYPE.ENERGY then
         return self:GetTimeUntilEnergyAffordable(needed)
     end
     
     -- Mana: observed rate (adapts to player's regen)
-    if powerType == C.POWER_TYPE.MANA then
+    if powerType == POWER_TYPE.MANA then
         -- Log spell info for debugging (only when prediction is needed)
         local spellName = C_Spell.GetSpellName(spellID) or tostring(spellID)
         local logKey = string.format("%s_%d_%d", spellName, cost, currentPower)
@@ -536,7 +544,7 @@ function ResourcePrediction:GetTimeUntilAffordable(spellID)
     
     -- Rage: not predictable (combat-generated)
     -- Return 0 to indicate "use standard display"
-    if powerType == C.POWER_TYPE.RAGE then
+    if powerType == POWER_TYPE.RAGE then
         return 0
     end
     

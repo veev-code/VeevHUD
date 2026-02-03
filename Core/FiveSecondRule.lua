@@ -5,16 +5,22 @@
     - When you spend mana, spirit-based regen is suppressed for 5 seconds
     - After 5 seconds of not spending mana, full spirit regen resumes
     
-    This service provides the 5SR state that other modules can use:
+    This module provides the 5SR state that other modules can use:
     - ResourcePrediction uses it for mana prediction rates
     - ResourceBar uses it to show/hide the mana tick indicator
 ]]
 
 local ADDON_NAME, addon = ...
-local C = addon.Constants
 
 local FiveSecondRule = {}
 addon.FiveSecondRule = FiveSecondRule
+
+-------------------------------------------------------------------------------
+-- Constants
+-------------------------------------------------------------------------------
+
+local POWER_TYPE_MANA = 0
+local FIVE_SECOND_DURATION = 5.0
 
 -------------------------------------------------------------------------------
 -- State
@@ -43,14 +49,14 @@ function FiveSecondRule:Initialize()
     end)
     
     -- Initialize mana tracking
-    self.lastSampleMana = UnitPower("player", C.POWER_TYPE.MANA)
+    self.lastSampleMana = UnitPower("player", POWER_TYPE_MANA)
     
     self.registered = true
 end
 
 function FiveSecondRule:OnSpellCastSucceeded(spellID)
     -- Only trigger 5SR if mana ACTUALLY decreased (handles free casts from procs)
-    local currentMana = UnitPower("player", C.POWER_TYPE.MANA)
+    local currentMana = UnitPower("player", POWER_TYPE_MANA)
     
     if currentMana < self.lastSampleMana then
         self.lastManaCastTime = GetTime()
@@ -60,7 +66,7 @@ end
 -- Call this periodically to keep mana sample updated
 function FiveSecondRule:UpdateManaSample()
     self:Initialize()
-    self.lastSampleMana = UnitPower("player", C.POWER_TYPE.MANA)
+    self.lastSampleMana = UnitPower("player", POWER_TYPE_MANA)
 end
 
 -------------------------------------------------------------------------------
@@ -73,7 +79,7 @@ function FiveSecondRule:IsActive()
     self:Initialize()
     
     -- Check if mana just decreased (handles race condition with UNIT_SPELLCAST_SUCCEEDED)
-    local currentMana = UnitPower("player", C.POWER_TYPE.MANA)
+    local currentMana = UnitPower("player", POWER_TYPE_MANA)
     if currentMana < self.lastSampleMana then
         -- Mana decreased since last sample - we're definitely in 5SR now
         self.lastManaCastTime = GetTime()
@@ -83,7 +89,7 @@ function FiveSecondRule:IsActive()
     if self.lastManaCastTime == 0 then
         return false  -- Never cast a mana spell
     end
-    return (GetTime() - self.lastManaCastTime) < C.FIVE_SECOND_RULE_DURATION
+    return (GetTime() - self.lastManaCastTime) < FIVE_SECOND_DURATION
 end
 
 -- Get time remaining in the 5-second rule (0 if outside)
@@ -92,6 +98,6 @@ function FiveSecondRule:GetTimeRemaining()
     if not self:IsActive() then
         return 0
     end
-    local remaining = C.FIVE_SECOND_RULE_DURATION - (GetTime() - self.lastManaCastTime)
+    local remaining = FIVE_SECOND_DURATION - (GetTime() - self.lastManaCastTime)
     return math.max(0, remaining)
 end

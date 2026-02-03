@@ -4,10 +4,15 @@
 ]]
 
 local ADDON_NAME, addon = ...
-local C = addon.Constants
 
 addon.WelcomePopup = {}
 local WelcomePopup = addon.WelcomePopup
+
+-------------------------------------------------------------------------------
+-- Constants
+-------------------------------------------------------------------------------
+
+local DISCORD_URL = "https://discord.gg/HuSXTa5XNq"
 
 -------------------------------------------------------------------------------
 -- Dialog Creation
@@ -49,7 +54,7 @@ function WelcomePopup:CreateDialog()
     editBox:SetSize(300, 20)
     editBox:SetPoint("TOP", message, "BOTTOM", 0, -12)
     editBox:SetAutoFocus(false)
-    editBox:SetText(C.DISCORD_URL)
+    editBox:SetText(DISCORD_URL)
     editBox:SetScript("OnEditFocusGained", function(self)
         self:HighlightText()
     end)
@@ -58,7 +63,7 @@ function WelcomePopup:CreateDialog()
     end)
     editBox:SetScript("OnTextChanged", function(self)
         -- Prevent editing - always reset to the URL
-        self:SetText(C.DISCORD_URL)
+        self:SetText(DISCORD_URL)
         self:HighlightText()
     end)
     

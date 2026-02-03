@@ -10,7 +10,6 @@
 ]]
 
 local ADDON_NAME, addon = ...
-local C = addon.Constants
 
 local Options = {}
 addon.Options = Options
@@ -309,10 +308,10 @@ function Options:CreatePanelContent(container)
         label = "Cooldown Text",
         tooltip = "Displays the remaining cooldown time as numbers on top of each icon (e.g., '5s', '1.2'). When enabled, VeevHUD shows its own text and hides text from addons like OmniCC. Select which rows display cooldown text.",
         options = {
-            { value = C.ROW_SETTING.NONE, label = "None" },
-            { value = C.ROW_SETTING.PRIMARY, label = "Primary Row Only" },
-            { value = C.ROW_SETTING.PRIMARY_SECONDARY, label = "Primary + Secondary" },
-            { value = C.ROW_SETTING.ALL, label = "All Rows" },
+            { value = "none", label = "None" },
+            { value = "primary", label = "Primary Row Only" },
+            { value = "primary_secondary", label = "Primary + Secondary" },
+            { value = "all", label = "All Rows" },
         },
     })
     
@@ -321,10 +320,10 @@ function Options:CreatePanelContent(container)
         label = "Cooldown Spiral",
         tooltip = "Shows the dark 'clock sweep' overlay on abilities that are on cooldown. This visual helps you see at a glance how much time remains. Select which rows display the cooldown spiral.",
         options = {
-            { value = C.ROW_SETTING.NONE, label = "None" },
-            { value = C.ROW_SETTING.PRIMARY, label = "Primary Row Only" },
-            { value = C.ROW_SETTING.PRIMARY_SECONDARY, label = "Primary + Secondary" },
-            { value = C.ROW_SETTING.ALL, label = "All Rows" },
+            { value = "none", label = "None" },
+            { value = "primary", label = "Primary Row Only" },
+            { value = "primary_secondary", label = "Primary + Secondary" },
+            { value = "all", label = "All Rows" },
         },
     })
     
@@ -333,10 +332,10 @@ function Options:CreatePanelContent(container)
         label = "GCD Indicator",
         tooltip = "Controls which rows display the Global Cooldown (GCD) spinner. The GCD is the brief ~1.5 second lockout after using most abilities. Showing GCD helps you see when you can press your next ability.",
         options = {
-            { value = C.ROW_SETTING.NONE, label = "None" },
-            { value = C.ROW_SETTING.PRIMARY, label = "Primary Row Only" },
-            { value = C.ROW_SETTING.PRIMARY_SECONDARY, label = "Primary + Secondary" },
-            { value = C.ROW_SETTING.ALL, label = "All Rows" },
+            { value = "none", label = "None" },
+            { value = "primary", label = "Primary Row Only" },
+            { value = "primary_secondary", label = "Primary + Secondary" },
+            { value = "all", label = "All Rows" },
         },
     })
     
@@ -345,10 +344,10 @@ function Options:CreatePanelContent(container)
         label = "Fade on Cooldown",
         tooltip = "Controls which rows fade to Cooldown Opacity when abilities are on cooldown. Rows that don't fade stay at full brightness and use desaturation to show unavailability instead. Primary row typically stays bright to keep your core rotation visually prominent.",
         options = {
-            { value = C.ROW_SETTING.NONE, label = "None (All Rows Full Opacity)" },
-            { value = C.ROW_SETTING.UTILITY, label = "Utility Only" },
-            { value = C.ROW_SETTING.SECONDARY_UTILITY, label = "Secondary + Utility" },
-            { value = C.ROW_SETTING.ALL, label = "All Rows" },
+            { value = "none", label = "None (All Rows Full Opacity)" },
+            { value = "utility", label = "Utility Only" },
+            { value = "secondary_utility", label = "Secondary + Utility" },
+            { value = "all", label = "All Rows" },
         },
     })
     
@@ -361,10 +360,10 @@ function Options:CreatePanelContent(container)
         label = "Show Resource Cost",
         tooltip = "Shows your progress toward affording an ability on selected rows. The display style fills or overlays the icon until you have enough resources.",
         options = {
-            { value = C.ROW_SETTING.NONE, label = "None" },
-            { value = C.ROW_SETTING.PRIMARY, label = "Primary Row Only" },
-            { value = C.ROW_SETTING.PRIMARY_SECONDARY, label = "Primary + Secondary" },
-            { value = C.ROW_SETTING.ALL, label = "All Rows" },
+            { value = "none", label = "None" },
+            { value = "primary", label = "Primary Row Only" },
+            { value = "primary_secondary", label = "Primary + Secondary" },
+            { value = "all", label = "All Rows" },
         },
     })
     
@@ -373,12 +372,12 @@ function Options:CreatePanelContent(container)
         label = "Resource Cost Style",
         tooltip = "'Vertical Fill' darkens the icon from top down until you have enough resources.\n\n'Bottom Bar' shows a small horizontal bar at the bottom of the icon.\n\n'Resource Timer' extends the cooldown spiral to show when you'll actually be able to cast — factoring in both cooldown AND resource regeneration. The icon shows max(cooldown, time_until_affordable).\n\nResource-specific behavior:\n- Energy: Highly accurate. Tick-aware (2-second ticks), accounts for Adrenaline Rush.\n- Mana: Tick-aware with 5-second rule tracking. Measures in-combat vs passive regen rates separately.\n- Rage: Falls back to Vertical Fill (rage generation is unpredictable).\n\nIf any prediction is wrong, it falls back to vertical fill.",
         options = {
-            { value = C.RESOURCE_DISPLAY_MODE.FILL, label = "Vertical Fill" },
-            { value = C.RESOURCE_DISPLAY_MODE.BAR, label = "Bottom Bar" },
-            { value = C.RESOURCE_DISPLAY_MODE.PREDICTION, label = "Resource Timer" },
+            { value = "fill", label = "Vertical Fill" },
+            { value = "bar", label = "Bottom Bar" },
+            { value = "prediction", label = "Resource Timer" },
         },
         dependsOn = "icons.resourceDisplayRows",
-        dependsOnNotValue = C.ROW_SETTING.NONE,
+        dependsOnNotValue = "none",
     })
     
     -- ─── Icons: Feedback & Glow ───
@@ -390,10 +389,10 @@ function Options:CreatePanelContent(container)
         label = "Cast Feedback Animation",
         tooltip = "Plays a brief 'pop' animation (the icon scales up slightly then back down) whenever you successfully cast an ability. Gives satisfying visual feedback that your spell went off. Select which rows show this animation.",
         options = {
-            { value = C.ROW_SETTING.NONE, label = "None" },
-            { value = C.ROW_SETTING.PRIMARY, label = "Primary Row Only" },
-            { value = C.ROW_SETTING.PRIMARY_SECONDARY, label = "Primary + Secondary" },
-            { value = C.ROW_SETTING.ALL, label = "All Rows" },
+            { value = "none", label = "None" },
+            { value = "primary", label = "Primary Row Only" },
+            { value = "primary_secondary", label = "Primary + Secondary" },
+            { value = "all", label = "All Rows" },
         },
     })
     
@@ -404,7 +403,7 @@ function Options:CreatePanelContent(container)
         min = 1.05, max = 2.0, step = 0.05,
         isPercent = true,
         dependsOn = "icons.castFeedbackRows",
-        dependsOnNotValue = C.ROW_SETTING.NONE,
+        dependsOnNotValue = "none",
     })
     
     yOffset = self:CreateDropdown(container, yOffset, {
@@ -412,10 +411,10 @@ function Options:CreatePanelContent(container)
         label = "Usable Glow",
         tooltip = "Shows a proc-style glowing border when an ability becomes ready. Controls which rows show the effect.\n\nNote: Reactive abilities (Execute, Overpower, etc.) always glow every time they become usable, regardless of this setting.",
         options = {
-            { value = C.ROW_SETTING.NONE, label = "None" },
-            { value = C.ROW_SETTING.PRIMARY, label = "Primary Row Only" },
-            { value = C.ROW_SETTING.PRIMARY_SECONDARY, label = "Primary + Secondary" },
-            { value = C.ROW_SETTING.ALL, label = "All Rows" },
+            { value = "none", label = "None" },
+            { value = "primary", label = "Primary Row Only" },
+            { value = "primary_secondary", label = "Primary + Secondary" },
+            { value = "all", label = "All Rows" },
         },
     })
     
@@ -424,11 +423,11 @@ function Options:CreatePanelContent(container)
         label = "Glow Behavior",
         tooltip = "'Once Per Cooldown' glows when an ability first becomes ready and won't re-trigger if your resources fluctuate. 'Every Time Usable' glows each time all conditions are met (off cooldown + enough resources).",
         options = {
-            { value = C.GLOW_MODE.ONCE, label = "Once Per Cooldown" },
-            { value = C.GLOW_MODE.ALWAYS, label = "Every Time Usable" },
+            { value = "once", label = "Once Per Cooldown" },
+            { value = "always", label = "Every Time Usable" },
         },
         dependsOn = "icons.readyGlowRows",
-        dependsOnNotValue = C.ROW_SETTING.NONE,
+        dependsOnNotValue = "none",
     })
     
     -- ─── Icons: Aura Tracking ───
@@ -457,9 +456,9 @@ function Options:CreatePanelContent(container)
         label = "Sort by Time Remaining",
         tooltip = "Controls which rows dynamically reorder icons by 'actionable time' (least time remaining first).\n\n'None' uses a static order. Icons never move positions.\n\nWhen enabled, the ability needing attention soonest is always on the left. Useful for:\n- DOT classes: see which debuff is closest to expiring\n- Cooldown-heavy classes: see which ability is ready next\n\nTie-breaker: When multiple abilities are ready (or have equal time), they sort by their original row position. This means you can arrange your row as a priority order and the leftmost icon is always the next best spell to cast.\n\nThe 'actionable time' is max(cooldown remaining, buff/debuff remaining).",
         options = {
-            { value = C.ROW_SETTING.NONE, label = "None (Static Order)" },
-            { value = C.ROW_SETTING.PRIMARY, label = "Primary Row Only" },
-            { value = C.ROW_SETTING.PRIMARY_SECONDARY, label = "Primary + Secondary" },
+            { value = "none", label = "None (Static Order)" },
+            { value = "primary", label = "Primary Row Only" },
+            { value = "primary_secondary", label = "Primary + Secondary" },
         },
     })
     
@@ -468,7 +467,7 @@ function Options:CreatePanelContent(container)
         label = "Animate Sorting",
         tooltip = "When dynamic sorting is enabled, icons slide smoothly to their new positions instead of snapping instantly. The animation is quick and snappy to avoid being distracting during combat. Disable for instant repositioning.",
         dependsOn = "icons.dynamicSortRows",
-        dependsOnNotValue = C.ROW_SETTING.NONE,
+        dependsOnNotValue = "none",
     })
     
     -- ─── Icons: Range Indicator ───
@@ -480,10 +479,10 @@ function Options:CreatePanelContent(container)
         label = "Out of Range Indicator",
         tooltip = "Shows a red overlay on spell icons when your current target is out of range. This mimics the behavior of the default action bars.\n\nThe range indicator shows when an ability is usable (has resources, conditions met) but out of range - even during cooldown. This gives you a heads-up on positioning while waiting. When resources are insufficient, the grey/resource indicators take priority instead.\n\nThe range check runs every 0.1 seconds.\n\nNote: Only shows when you have a target. Spells without a range component (self-buffs, etc.) are not affected.",
         options = {
-            { value = C.ROW_SETTING.NONE, label = "None" },
-            { value = C.ROW_SETTING.PRIMARY, label = "Primary Row Only" },
-            { value = C.ROW_SETTING.PRIMARY_SECONDARY, label = "Primary + Secondary" },
-            { value = C.ROW_SETTING.ALL, label = "All Rows" },
+            { value = "none", label = "None" },
+            { value = "primary", label = "Primary Row Only" },
+            { value = "primary_secondary", label = "Primary + Secondary" },
+            { value = "all", label = "All Rows" },
         },
     })
     
@@ -518,10 +517,10 @@ function Options:CreatePanelContent(container)
         label = "Text Display",
         tooltip = "Controls what text is shown on the health bar.\n\n'Current Value' shows your actual health (e.g., '3256').\n'Percent' shows your health percentage (e.g., '71%').\n'Both' shows both (e.g., '3256 (71%)').\n'None' hides the text entirely.",
         options = {
-            { value = C.TEXT_FORMAT.CURRENT, label = "Current Value" },
-            { value = C.TEXT_FORMAT.PERCENT, label = "Percent" },
-            { value = C.TEXT_FORMAT.BOTH, label = "Both" },
-            { value = C.TEXT_FORMAT.NONE, label = "None" },
+            { value = "current", label = "Current Value" },
+            { value = "percent", label = "Percent" },
+            { value = "both", label = "Both" },
+            { value = "none", label = "None" },
         },
         dependsOn = "healthBar.enabled",
     })
@@ -532,7 +531,6 @@ function Options:CreatePanelContent(container)
         tooltip = "The font size in pixels for the health text. Larger sizes are easier to read but may overflow small bars.",
         min = 6, max = 18, step = 1,
         dependsOn = "healthBar.textFormat",
-        dependsOnNotValue = C.TEXT_FORMAT.NONE,
         dependsOnNotValue = "none",
     })
     
@@ -574,10 +572,10 @@ function Options:CreatePanelContent(container)
         label = "Text Display",
         tooltip = "Controls what text is shown on the resource bar.\n\n'Current Value' shows your actual resource (e.g., '4523' for mana, '67' for energy).\n'Percent' shows your resource percentage (e.g., '85%').\n'Both' shows both (e.g., '4523 (85%)').\n'None' hides the text entirely.",
         options = {
-            { value = C.TEXT_FORMAT.CURRENT, label = "Current Value" },
-            { value = C.TEXT_FORMAT.PERCENT, label = "Percent" },
-            { value = C.TEXT_FORMAT.BOTH, label = "Both" },
-            { value = C.TEXT_FORMAT.NONE, label = "None" },
+            { value = "current", label = "Current Value" },
+            { value = "percent", label = "Percent" },
+            { value = "both", label = "Both" },
+            { value = "none", label = "None" },
         },
         dependsOn = "resourceBar.enabled",
     })
@@ -588,7 +586,6 @@ function Options:CreatePanelContent(container)
         tooltip = "The font size in pixels for the resource text. Larger sizes are easier to read but may overflow small bars.",
         min = 6, max = 18, step = 1,
         dependsOn = "resourceBar.textFormat",
-        dependsOnNotValue = C.TEXT_FORMAT.NONE,
         dependsOnNotValue = "none",
     })
     
@@ -600,7 +597,7 @@ function Options:CreatePanelContent(container)
     })
     
     -- Energy ticker (only for Rogues and Druids - energy users)
-    if addon.playerClass == C.CLASS.ROGUE or addon.playerClass == C.CLASS.DRUID then
+    if addon.playerClass == "ROGUE" or addon.playerClass == "DRUID" then
         yOffset = self:CreateCheckbox(container, yOffset, {
             path = "resourceBar.energyTicker.enabled",
             label = "Energy Tick Indicator",
@@ -613,8 +610,8 @@ function Options:CreatePanelContent(container)
             label = "Tick Indicator Style",
             tooltip = "'Ticker Bar' shows a separate thin bar below the resource bar that fills as the next tick approaches.\n\n'Spark' shows a moving spark overlay on the resource bar itself, which is more subtle.",
             options = {
-                { value = C.TICKER_STYLE.BAR, label = "Ticker Bar" },
-                { value = C.TICKER_STYLE.SPARK, label = "Spark" },
+                { value = "bar", label = "Ticker Bar" },
+                { value = "spark", label = "Spark" },
             },
             dependsOn = "resourceBar.energyTicker.enabled",
         })
@@ -643,7 +640,7 @@ function Options:CreatePanelContent(container)
     end
     
     -- === COMBO POINTS SECTION (only for Rogues and Druids) ===
-    if addon.playerClass == C.CLASS.ROGUE or addon.playerClass == C.CLASS.DRUID then
+    if addon.playerClass == "ROGUE" or addon.playerClass == "DRUID" then
         yOffset = yOffset - 8
         yOffset = self:CreateSectionHeader(container, "Combo Points", yOffset)
         
@@ -749,17 +746,17 @@ function Options:CreatePanelContent(container)
     
     local linkText = discordLink:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
     linkText:SetPoint("LEFT")
-    linkText:SetText("|cff69b8ff" .. C.DISCORD_URL .. "|r")
+    linkText:SetText("|cff69b8ffhttps://discord.gg/HuSXTa5XNq|r")
     discordLink:SetFontString(linkText)
     
     discordLink:SetScript("OnEnter", function(self)
         linkText:SetText("|cff99d1ff[Click to copy URL]|r")
     end)
     discordLink:SetScript("OnLeave", function(self)
-        linkText:SetText("|cff69b8ff" .. C.DISCORD_URL .. "|r")
+        linkText:SetText("|cff69b8ffhttps://discord.gg/HuSXTa5XNq|r")
     end)
     discordLink:SetScript("OnClick", function()
-        Options:ShowURLDialog(C.DISCORD_URL)
+        Options:ShowURLDialog("https://discord.gg/HuSXTa5XNq")
     end)
     
     yOffset = yOffset - 20
