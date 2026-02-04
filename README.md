@@ -150,9 +150,9 @@ Access settings by typing **/vh** in chat, or via **ESC → Options → AddOns �
 
 ---
 
-## Works Great With
+## HD Icons
 
-**[Clean Icons](https://www.wowinterface.com/downloads/info25064-CleanIcons-MechagnomeEdition.html)** — HD icon textures upscaled using AI. Clean Icons replaces WoW's icon textures at the game level, so VeevHUD automatically displays the higher-resolution versions with no configuration needed.
+WoW's default spell icons are low resolution (64×64). For crisp, high-resolution icons in VeevHUD, install **[Clean Icons - Mechagnome Edition](https://www.wowinterface.com/downloads/info25064-CleanIcons-MechagnomeEdition.html)** — a texture replacement pack with AI-upscaled icons. It replaces WoW's textures at the game level, so VeevHUD automatically displays the sharper versions with no configuration needed.
 
 ---
 
