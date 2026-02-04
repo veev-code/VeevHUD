@@ -852,7 +852,7 @@ function SpellsOptions:UpdateDrag()
     self.ghostFrame:SetPoint("CENTER", UIParent, "BOTTOMLEFT", x / scale, y / scale)
     
     -- Find drop target
-    local dropTarget, dropIndex, dropRow = self:FindDropTarget()
+    local dropTarget, dropIndex, dropRow, insertAfter = self:FindDropTarget()
     
     -- Update drop indicator
     if dropTarget then
@@ -863,8 +863,12 @@ function SpellsOptions:UpdateDrag()
             self.dropIndicator:SetPoint("TOPLEFT", dropTarget, "BOTTOMLEFT", 10, 0)
             self.dropIndicator:SetPoint("TOPRIGHT", dropTarget, "BOTTOMRIGHT", -10, 0)
             dropTarget.highlight:Show()
+        elseif insertAfter then
+            -- Dropping after this spell (indicator at bottom)
+            self.dropIndicator:SetPoint("BOTTOMLEFT", dropTarget, "BOTTOMLEFT", 0, -2)
+            self.dropIndicator:SetPoint("BOTTOMRIGHT", dropTarget, "BOTTOMRIGHT", 0, -2)
         else
-            -- Dropping before this spell
+            -- Dropping before this spell (indicator at top)
             self.dropIndicator:SetPoint("TOPLEFT", dropTarget, "TOPLEFT", 0, 2)
             self.dropIndicator:SetPoint("TOPRIGHT", dropTarget, "TOPRIGHT", 0, 2)
         end
@@ -901,9 +905,15 @@ function SpellsOptions:FindDropTarget()
             
             if left and x >= left and x <= right and y >= bottom and y <= top then
                 if entry.isRowHeader then
-                    return entry, 999, entry.rowIndex  -- 999 = end of row
+                    return entry, 999, entry.rowIndex, false  -- 999 = end of row
                 else
-                    return entry, entry.index, entry.rowIndex
+                    -- Check if cursor is in top half or bottom half of the entry
+                    -- Top half = insert before (at entry.index)
+                    -- Bottom half = insert after (at entry.index + 1)
+                    local midY = (top + bottom) / 2
+                    local insertAfter = (y < midY)  -- Below midpoint = insert after
+                    local targetIndex = insertAfter and (entry.index + 1) or entry.index
+                    return entry, targetIndex, entry.rowIndex, insertAfter
                 end
             end
         end
