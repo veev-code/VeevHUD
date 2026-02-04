@@ -1,5 +1,11 @@
 # VeevHUD Changelog
 
+## [1.0.35] - 2026-02-04
+
+### Fixed
+- **Spell reordering** — Fixed drag-and-drop to allow dropping spells at the end of a category
+- **Ready glow for lockout spells** — Ready glow now correctly triggers when a target lockout debuff (like Forbearance) is about to expire, even though the spell appears unusable during the lockout
+
 ## [1.0.34] - 2026-02-04
 
 ### Added

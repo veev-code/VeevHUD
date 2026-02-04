@@ -1490,6 +1490,7 @@ function CooldownIcons:UpdateIconState(frame, db)
     -- Example: Avenging Wrath (ready) + Forbearance (1min) -> show 1min lockout
     local targetLockoutActive = false
     local targetLockoutRemaining, targetLockoutDuration, targetLockoutExpiration = 0, 0, 0
+    local lockoutIsLimitingFactor = false  -- Track if lockout (not CD) is what's limiting us
     
     if spellData and spellData.targetLockoutDebuff then
         -- Determine lockout checking behavior (same logic as buff tracking):
@@ -1509,6 +1510,7 @@ function CooldownIcons:UpdateIconState(frame, db)
             -- Use whichever is more restrictive (longer remaining time)
             if targetLockoutRemaining > remaining then
                 -- Lockout debuff is more restrictive - use it
+                lockoutIsLimitingFactor = true
                 remaining = targetLockoutRemaining
                 duration = targetLockoutDuration
                 -- Calculate start time from expiration for accurate spiral
@@ -2001,7 +2003,9 @@ function CooldownIcons:UpdateIconState(frame, db)
     -- Skip if aura is active (that has its own glow)
     if not showAuraActive then
         local isReactive = frame.isReactive or false
-        self:UpdateReadyGlow(frame, spellID, remaining, duration, isUsable, isReactive, db)
+        -- Pass lockoutIsLimitingFactor so glow can trigger when lockout is almost expired
+        -- (WoW API reports isUsable=false while lockout is active, but we want glow at <1s remaining)
+        self:UpdateReadyGlow(frame, spellID, remaining, duration, isUsable, isReactive, db, lockoutIsLimitingFactor, canAfford)
     else
         -- Aura is active - hide ready glow but keep wasUsable updated
         -- This prevents false "just became usable" triggers when aura ends
@@ -2245,7 +2249,9 @@ end
 --   - "once": only glow once per cooldown cycle (default)
 --   - "always": glow every time ability becomes ready
 -- Reactive abilities (Execute, Overpower) always behave as "always" regardless of mode
-function CooldownIcons:UpdateReadyGlow(frame, spellID, remaining, duration, isUsable, isReactive, db)
+-- lockoutIsLimitingFactor: true if the "remaining" time is from a lockout debuff, not the actual CD
+-- canAfford: true if player has enough resources to cast the spell
+function CooldownIcons:UpdateReadyGlow(frame, spellID, remaining, duration, isUsable, isReactive, db, lockoutIsLimitingFactor, canAfford)
     local glowRows = db.readyGlowRows
     local glowMode = db.readyGlowMode
     local rowIndex = frame.rowIndex or 1
@@ -2269,6 +2275,14 @@ function CooldownIcons:UpdateReadyGlow(frame, spellID, remaining, duration, isUs
     local isAlmostReady = remaining > 0 and remaining <= 1.0 and isOnRealCooldown
     local isOffCooldown = self.Utils:IsOffCooldown(remaining, duration)
     
+    -- When lockout is the limiting factor and almost expired, treat as usable for glow purposes
+    -- The WoW API reports isUsable=false while lockout is active, but we want to trigger
+    -- the "almost ready" glow when the lockout has <1s remaining (if resources allow)
+    local effectiveUsable = isUsable
+    if lockoutIsLimitingFactor and isAlmostReady and canAfford then
+        effectiveUsable = true
+    end
+    
     -- Track previous states
     local wasOnRealCooldown = frame.wasOnRealCooldown or false
     local wasUsable = frame.wasUsable or false
@@ -2284,7 +2298,7 @@ function CooldownIcons:UpdateReadyGlow(frame, spellID, remaining, duration, isUs
     -- Reset glow tracking based on effective mode
     if effectiveMode == C.GLOW_MODE.ALWAYS then
         -- Reset glow when usability changes (allows re-triggering)
-        if isUsable and not wasUsable then
+        if effectiveUsable and not wasUsable then
             frame.readyGlowShown = false
         end
     end
@@ -2297,13 +2311,13 @@ function CooldownIcons:UpdateReadyGlow(frame, spellID, remaining, duration, isUs
         local glowDuration = db.readyGlowDuration
         
         -- Condition 1: <1s remaining on CD AND usable
-        if isAlmostReady and isUsable and inCombat then
+        if isAlmostReady and effectiveUsable and inCombat then
             showReadyGlow = true
             frame.readyGlowShown = true
             frame.readyGlowExpires = GetTime() + glowDuration
             
         -- Condition 2: Just became usable while off CD
-        elseif isOffCooldown and isUsable and not wasUsable and inCombat then
+        elseif isOffCooldown and effectiveUsable and not wasUsable and inCombat then
             showReadyGlow = true
             frame.readyGlowShown = true
             frame.readyGlowExpires = GetTime() + glowDuration
