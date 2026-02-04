@@ -190,6 +190,12 @@ end
 
 -- Entry point: show migrations after a delay
 function MigrationManager:Show()
+    -- Skip migrations for brand new users (they haven't seen welcome popup yet)
+    -- Check this BEFORE the timer since welcomeShown gets set when welcome is dismissed
+    if not VeevHUDDB.welcomeShown then
+        return
+    end
+    
     -- Delay to ensure UI is loaded (and after welcome popup)
     C_Timer.After(2, function()
         self:ShowNext()

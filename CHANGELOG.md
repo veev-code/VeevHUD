@@ -1,5 +1,11 @@
 # VeevHUD Changelog
 
+## [1.0.33] - 2026-02-04
+
+### Changed
+- **Migration popup improvements** — Now shows for all users affected by UI scale auto-compensation (not just those who manually scaled down). Message explains whether your HUD is now smaller or if manual settings are stacking.
+- Migration popups are now skipped for brand new users (they get the correct behavior from the start)
+
 ## [1.0.32] - 2026-02-04
 
 ### Added
