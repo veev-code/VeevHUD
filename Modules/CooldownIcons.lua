@@ -40,6 +40,7 @@ function CooldownIcons:Initialize()
     self.Events = addon.Events
     self.Utils = addon.Utils
     self.C = addon.Constants
+    self.Animations = addon.Animations
 
     -- Track active spell overlays (procs)
     self.activeOverlays = {}
@@ -357,7 +358,7 @@ function CooldownIcons:FindIconFrameBySpellID(spellID)
     return nil
 end
 
--- Play cast feedback animation (scale punch using Animation API)
+-- Play cast feedback animation (scale punch using Animations utility)
 function CooldownIcons:PlayCastFeedback(frame)
     if not frame then return end
     
@@ -369,37 +370,13 @@ function CooldownIcons:PlayCastFeedback(frame)
     
     local scale = db.castFeedbackScale
     
-    -- Create or update animation group
-    if not frame.punchAnim or frame.punchAnimScale ~= scale then
-        -- Need to create new animation with updated scale
-        if frame.punchAnim then
-            frame.punchAnim:Stop()
-        end
-        
-        local ag = frame:CreateAnimationGroup()
-        
-        -- Scale up from center
-        local scaleUp = ag:CreateAnimation("Scale")
-        scaleUp:SetOrigin("CENTER", 0, 0)
-        scaleUp:SetScale(scale, scale)
-        scaleUp:SetDuration(0.08)
-        scaleUp:SetSmoothing("OUT")
-        scaleUp:SetOrder(1)
-        
-        -- Scale back down to normal
-        local scaleDown = ag:CreateAnimation("Scale")
-        scaleDown:SetOrigin("CENTER", 0, 0)
-        scaleDown:SetScale(1/scale, 1/scale)
-        scaleDown:SetDuration(0.12)
-        scaleDown:SetSmoothing("IN")
-        scaleDown:SetOrder(2)
-        
-        frame.punchAnim = ag
-        frame.punchAnimScale = scale
-    end
+    -- Track when cast feedback plays so dim transition can sync with it
+    frame._lastCastFeedbackTime = GetTime()
     
-    frame.punchAnim:Stop()
-    frame.punchAnim:Play()
+    -- Use Animations utility for consistent scale punch behavior
+    if self.Animations then
+        self.Animations:PlayScalePunch(frame, scale, "punchAnim")
+    end
 end
 
 -------------------------------------------------------------------------------
@@ -576,7 +553,8 @@ function CooldownIcons:CreateIcon(parent, index, size)
     local cooldown = CreateFrame("Cooldown", buttonName .. "Cooldown", frame, "CooldownFrameTemplate")
     cooldown:SetAllPoints(icon)
     cooldown:SetDrawEdge(false)
-    cooldown:SetDrawBling(false)
+    -- Bling effect configured per-row in SetupIcon
+    cooldown:SetDrawBling(false)  -- Default off, SetupIcon enables per-row
     cooldown:SetDrawSwipe(true)
     -- Dark swipe for time remaining (covers the icon), light underneath for elapsed
     cooldown:SetSwipeColor(0, 0, 0, 0.8)
@@ -672,43 +650,10 @@ function CooldownIcons:CreateIcon(parent, index, size)
     rangeOverlay:SetTexture([[Interface\Buttons\WHITE8X8]])
     rangeOverlay:SetVertexColor(177/255, 22/255, 22/255, 0.4)  -- Out-of-range red: rgb(177, 22, 22)
     
-    -- Create fade-in animation
-    local fadeIn = rangeFrame:CreateAnimationGroup()
-    fadeIn:SetToFinalAlpha(true)  -- Ensures clean final state even if stopped
-    local fadeInAlpha = fadeIn:CreateAnimation("Alpha")
-    fadeInAlpha:SetFromAlpha(0)
-    fadeInAlpha:SetToAlpha(1)
-    fadeInAlpha:SetDuration(0.15)
-    fadeIn:SetScript("OnPlay", function()
-        if rangeFrame.fadeOut:IsPlaying() then
-            rangeFrame.fadeOut:Stop()
-        end
-        rangeFrame:SetAlpha(0)  -- Ensure clean starting state
-        rangeFrame:Show()
-    end)
-    fadeIn:SetScript("OnFinished", function()
-        rangeFrame:SetAlpha(1)
-    end)
-    rangeFrame.fadeIn = fadeIn
-    
-    -- Create fade-out animation
-    local fadeOut = rangeFrame:CreateAnimationGroup()
-    fadeOut:SetToFinalAlpha(true)  -- Ensures clean final state even if stopped
-    local fadeOutAlpha = fadeOut:CreateAnimation("Alpha")
-    fadeOutAlpha:SetFromAlpha(1)
-    fadeOutAlpha:SetToAlpha(0)
-    fadeOutAlpha:SetDuration(0.15)
-    fadeOut:SetScript("OnPlay", function()
-        if rangeFrame.fadeIn:IsPlaying() then
-            rangeFrame.fadeIn:Stop()
-        end
-        rangeFrame:SetAlpha(1)  -- Ensure clean starting state
-    end)
-    fadeOut:SetScript("OnFinished", function() 
-        rangeFrame:SetAlpha(0)
-        rangeFrame:Hide() 
-    end)
-    rangeFrame.fadeOut = fadeOut
+    -- Create fade animations using Animations utility
+    if self.Animations then
+        self.Animations:CreateFadePair(rangeFrame, 0.15)
+    end
     
     frame.rangeOverlay = rangeOverlay
     frame.rangeFrame = rangeFrame
@@ -1013,11 +958,14 @@ function CooldownIcons:UpdateRowIcons()
 
             -- Position and show icons for this row
             for i, iconFrame in ipairs(rowFrame.icons) do
-                if i <= iconCount then
+                local shouldShow = i <= iconCount
+                
+                if shouldShow then
                     local spellInfo = spells[i]
                     self:SetupIcon(iconFrame, spellInfo.spellID, spellInfo.actualSpellID, spellInfo.spellData, rowConfig, rowIndex)
                     -- Store default sort order for stable sorting when using dynamic sort
                     iconFrame.defaultSortOrder = spellInfo.customOrder or spellInfo.defaultOrder or i
+                    iconFrame:SetAlpha(iconFrame.iconAlpha or 1)
                     iconFrame:Show()
                 else
                     iconFrame:Hide()
@@ -1163,6 +1111,11 @@ function CooldownIcons:SetupIcon(frame, spellID, actualSpellID, spellData, rowCo
     -- This allows OmniCC to show text on rows where VeevHUD doesn't
     if frame.cooldown then
         self:ConfigureCooldownText(frame.cooldown, frame.rowIndex)
+        
+        -- Configure bling effect per-row
+        local db = addon.db and addon.db.profile.icons or {}
+        local blingEnabled = addon.Database:IsRowSettingEnabled(db.cooldownBlingRows, frame.rowIndex)
+        frame.cooldown:SetDrawBling(blingEnabled)
     end
     
     -- Check if this is a reactive spell (Execute, Revenge, Overpower)
@@ -1872,6 +1825,7 @@ function CooldownIcons:UpdateIconState(frame, db)
                 frame.lastCdDuration = predictionDuration
             end
             frame.cooldown:Show()
+            frame._wasRealCooldown = false  -- Prediction, no bling
         elseif showAuraActive and auraDisplayDuration > 0 then
             -- Show aura duration spiral (remaining = bright, elapsed = dark)
             frame.cooldown:SetReverse(true)  -- Swipe fills as time passes (elapsed = dark)
@@ -1883,6 +1837,7 @@ function CooldownIcons:UpdateIconState(frame, db)
                 frame.lastCdDuration = auraDisplayDuration
             end
             frame.cooldown:Show()
+            frame._wasRealCooldown = false  -- Aura spiral, no bling
         elseif duration > 0 and cdStartTime > 0 then
             -- Normal cooldown spiral (remaining = dark, elapsed = bright)
             -- Use actual start time from API for accuracy
@@ -1893,16 +1848,28 @@ function CooldownIcons:UpdateIconState(frame, db)
                 frame.lastCdStart = cdStartTime
                 frame.lastCdDuration = duration
             end
+            frame._wasRealCooldown = true  -- Real cooldown, bling should play
             frame.cooldown:Show()
         else
-            frame.cooldown:Hide()
+            -- No active cooldown/aura - clear tracking
+            -- For real cooldowns: let bling animation finish naturally
+            -- For predictions/auras: clear immediately (no bling)
+            if not frame._wasRealCooldown then
+                frame.cooldown:SetCooldown(0, 0)  -- Clear non-cooldown spirals immediately
+            end
             frame.lastCdStart = nil
             frame.lastCdDuration = nil
+            frame._wasRealCooldown = nil
         end
     else
-        frame.cooldown:Hide()
+        -- Row setting disables spiral
+        -- For real cooldowns: let bling play, for others: clear immediately
+        if not frame._wasRealCooldown then
+            frame.cooldown:SetCooldown(0, 0)
+        end
         frame.lastCdStart = nil
         frame.lastCdDuration = nil
+        frame._wasRealCooldown = nil
     end
 
     -- Show/hide cooldown text (or aura duration text) - row-based setting
@@ -1914,7 +1881,7 @@ function CooldownIcons:UpdateIconState(frame, db)
         frame.text:SetText(self.Utils:FormatCooldown(predictionRemaining))
         frame.text:SetTextColor(self.C.COLORS.TEXT.r, self.C.COLORS.TEXT.g, self.C.COLORS.TEXT.b)
     elseif showAuraActive and auraDisplayRemaining > 0 and showTextForRow then
-        -- Show aura remaining time in #ffe7be color
+        -- Show aura remaining time
         -- Always show our own text for aura duration (OmniCC doesn't track this)
         frame.text:SetText(self.Utils:FormatCooldown(auraDisplayRemaining))
         frame.text:SetTextColor(self.C.COLORS.TEXT.r, self.C.COLORS.TEXT.g, self.C.COLORS.TEXT.b)
@@ -1944,9 +1911,68 @@ function CooldownIcons:UpdateIconState(frame, db)
     frame.iconAlpha = alpha
     
     -- Apply alpha to the entire frame (affects all children and styling)
-    frame:SetAlpha(alpha)
+    -- Use smooth transition if enabled and alpha changed
+    local animDb = addon.db.profile.animations or {}
+    local targetAlpha = frame._targetAlpha
+    local isTransitioning = frame._alphaAnimating
     
-    -- Apply desaturation to icon
+    -- Only animate dim transition when going ON cooldown (alpha decreasing)
+    -- When coming OFF cooldown, snap to full alpha so bling isn't dimmed
+    -- Timing: Delay 0.08s to sync with cast feedback shrink phase (if cast feedback enabled)
+    if animDb.dimTransition and self.Animations then
+        if targetAlpha ~= alpha then
+            local currentAlpha = frame:GetAlpha()
+            if alpha < currentAlpha then
+                -- Dimming - delay only if cast feedback animation is currently playing
+                -- Cancel any pending dim timer
+                if frame._dimTimer then
+                    frame._dimTimer:Cancel()
+                    frame._dimTimer = nil
+                end
+                
+                -- Only delay if cast feedback just played (within last 0.2s = total punch duration)
+                local castFeedbackPlaying = frame._lastCastFeedbackTime and 
+                    (GetTime() - frame._lastCastFeedbackTime) < 0.2
+                local dimDelay = castFeedbackPlaying and 0.08 or 0
+                
+                -- Speed of 6 means ~0.12s for 0.7 alpha change (1.0 -> 0.3)
+                if dimDelay > 0 then
+                    frame._dimTimer = C_Timer.After(dimDelay, function()
+                        if frame and frame:IsShown() then
+                            self.Animations:TransitionAlpha(frame, alpha, 6)
+                        end
+                        frame._dimTimer = nil
+                    end)
+                else
+                    -- No delay - start dim immediately
+                    self.Animations:TransitionAlpha(frame, alpha, 6)
+                end
+            else
+                -- Brightening (coming off cooldown) - cancel pending dim and snap immediately
+                if frame._dimTimer then
+                    frame._dimTimer:Cancel()
+                    frame._dimTimer = nil
+                end
+                self.Animations:StopAlphaTransition(frame)
+                frame:SetAlpha(alpha)
+            end
+            frame._targetAlpha = alpha
+        end
+        -- If already transitioning to this alpha, let it continue
+    else
+        -- Animation disabled - cancel any pending dim and set directly
+        if frame._dimTimer then
+            frame._dimTimer:Cancel()
+            frame._dimTimer = nil
+        end
+        if self.Animations then
+            self.Animations:StopAlphaTransition(frame)
+        end
+        frame:SetAlpha(alpha)
+        frame._targetAlpha = alpha
+    end
+    
+    -- Apply desaturation to icon (instant - always accurate state)
     frame.icon:SetDesaturated(desaturate)
 
     -- Update charges display
@@ -2253,6 +2279,8 @@ function CooldownIcons:UpdateReadyGlow(frame, spellID, remaining, duration, isUs
         frame.readyGlowExpires = nil
     end
     
+    local inCombat = UnitAffectingCombat("player")
+    
     -- Reset glow tracking based on effective mode
     if effectiveMode == C.GLOW_MODE.ALWAYS then
         -- Reset glow when usability changes (allows re-triggering)
@@ -2267,9 +2295,6 @@ function CooldownIcons:UpdateReadyGlow(frame, spellID, remaining, duration, isUs
     
     if not frame.readyGlowShown then
         local glowDuration = db.readyGlowDuration
-        
-        -- Only initiate new glows when in combat
-        local inCombat = UnitAffectingCombat("player")
         
         -- Condition 1: <1s remaining on CD AND usable
         if isAlmostReady and isUsable and inCombat then
@@ -2627,6 +2652,16 @@ function CooldownIcons:Refresh()
     
     -- Reapply texcoords (ensures aspect ratio cropping is applied)
     self:ApplyIconTexCoords()
+    
+    -- Update cooldown bling setting on all icons (per-row)
+    for rowIndex, rowFrame in ipairs(self.rows or {}) do
+        local blingEnabled = addon.Database:IsRowSettingEnabled(iconDb.cooldownBlingRows, rowIndex)
+        for _, iconFrame in ipairs(rowFrame.icons or {}) do
+            if iconFrame.cooldown then
+                iconFrame.cooldown:SetDrawBling(blingEnabled)
+            end
+        end
+    end
     
     -- Final repositioning based on actual icon counts (overrides the estimated positions above)
     self:RepositionRows()

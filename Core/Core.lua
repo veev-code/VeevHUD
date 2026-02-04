@@ -312,54 +312,19 @@ function addon:UpdateVisibility()
         -- Start/update alpha animation if target changed
         if self.targetAlpha ~= targetAlpha then
             self.targetAlpha = targetAlpha
-            self:StartAlphaAnimation()
+            -- Use Animations utility for consistent alpha transition
+            if self.Animations then
+                self.Animations:TransitionAlpha(self.hudFrame, targetAlpha, 6)
+            else
+                self.hudFrame:SetAlpha(targetAlpha)
+            end
         end
     else
         self.hudFrame:Hide()
         self.targetAlpha = nil
-        self:StopAlphaAnimation()
+        if self.Animations then
+            self.Animations:StopAlphaTransition(self.hudFrame)
+        end
     end
-end
-
--- Start or continue animating HUD alpha toward target
-function addon:StartAlphaAnimation()
-    if not self.hudFrame or self.alphaAnimating then return end
-    
-    self.alphaAnimating = true
-    local fadeSpeed = 6  -- Higher = faster fade
-    local minStep = 0.02  -- Minimum alpha change per frame to prevent getting stuck
-    
-    self.hudFrame:SetScript("OnUpdate", function(frame, elapsed)
-        if not self.targetAlpha then
-            self:StopAlphaAnimation()
-            return
-        end
-        
-        local currentAlpha = frame:GetAlpha()
-        local diff = self.targetAlpha - currentAlpha
-        
-        -- If close enough, snap to target and stop
-        if math.abs(diff) < 0.01 then
-            frame:SetAlpha(self.targetAlpha)
-            self:StopAlphaAnimation()
-            return
-        end
-        
-        -- Lerp toward target (ease-out) with minimum step to prevent getting stuck
-        local step = diff * math.min(1, elapsed * fadeSpeed)
-        -- Ensure minimum step size (in the correct direction)
-        if math.abs(step) < minStep then
-            step = diff > 0 and minStep or -minStep
-        end
-        local newAlpha = math.max(0, math.min(1, currentAlpha + step))
-        frame:SetAlpha(newAlpha)
-    end)
-end
-
-function addon:StopAlphaAnimation()
-    if self.hudFrame then
-        self.hudFrame:SetScript("OnUpdate", nil)
-    end
-    self.alphaAnimating = false
 end
 

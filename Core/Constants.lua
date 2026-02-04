@@ -204,7 +204,8 @@ C.DEFAULTS = {
         
         -- Global animation settings
         animations = {
-            smoothBars = true,  -- Smooth animation for health bar, resource bar, and resource cost display
+            smoothBars = true,           -- Smooth animation for health bar, resource bar, and resource cost display
+            dimTransition = true,        -- Smooth alpha transition for dim on cooldown (vs instant)
         },
 
         -- Layout settings (spacing between stacked bars)
@@ -315,6 +316,7 @@ C.DEFAULTS = {
             -- "primary_secondary" = Primary + Secondary, "all" = all rows
             showCooldownTextOn = "all",   -- Which rows show cooldown text
             showCooldownSpiralOn = "all", -- Which rows show cooldown spiral
+            cooldownBlingRows = "all",     -- Which rows show sparkle effect when cooldown finishes
             
             -- GCD display: which rows show the global cooldown spinner
             -- "none" = disabled, "primary" = Primary Row only, 

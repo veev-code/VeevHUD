@@ -23,6 +23,7 @@ function ProcTracker:Initialize()
     self.Events = addon.Events
     self.Utils = addon.Utils
     self.C = addon.Constants
+    self.Animations = addon.Animations
     
     -- Icon frames
     self.icons = {}
@@ -546,37 +547,16 @@ function ProcTracker:FindDebuffOnTarget(spellID)
 end
 
 -------------------------------------------------------------------------------
--- Proc Animation (scale punch + fade in using Animation API)
+-- Proc Animation (scale punch using Animations utility)
 -------------------------------------------------------------------------------
 
 function ProcTracker:PlayProcAnimation(frame)
     if not frame then return end
     
-    -- Create animation group on first use
-    if not frame.procAnim then
-        local ag = frame:CreateAnimationGroup()
-        
-        -- Scale up from center
-        local scaleUp = ag:CreateAnimation("Scale")
-        scaleUp:SetOrigin("CENTER", 0, 0)
-        scaleUp:SetScale(1.25, 1.25)  -- Scale to 125%
-        scaleUp:SetDuration(0.1)
-        scaleUp:SetSmoothing("OUT")
-        scaleUp:SetOrder(1)
-        
-        -- Scale back down
-        local scaleDown = ag:CreateAnimation("Scale")
-        scaleDown:SetOrigin("CENTER", 0, 0)
-        scaleDown:SetScale(1/1.25, 1/1.25)  -- Scale back to 100%
-        scaleDown:SetDuration(0.15)
-        scaleDown:SetSmoothing("IN")
-        scaleDown:SetOrder(2)
-        
-        frame.procAnim = ag
+    -- Use Animations utility for consistent scale punch behavior
+    if self.Animations then
+        self.Animations:PlayScalePunch(frame, 1.25, "procAnim")
     end
-    
-    frame.procAnim:Stop()
-    frame.procAnim:Play()
 end
 
 -------------------------------------------------------------------------------

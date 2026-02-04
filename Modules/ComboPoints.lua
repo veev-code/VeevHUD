@@ -92,6 +92,7 @@ function ComboPoints:Initialize()
     self.Events = addon.Events
     self.Utils = addon.Utils
     self.C = addon.Constants
+    self.Animations = addon.Animations
     
     -- Combo point bar frames
     self.bars = {}
@@ -298,31 +299,10 @@ end
 function ComboPoints:PlayActivateAnimation(bar)
     if not bar then return end
     
-    -- Create animation group on first use
-    if not bar.activateAnim then
-        local ag = bar:CreateAnimationGroup()
-        
-        -- Scale up slightly
-        local scaleUp = ag:CreateAnimation("Scale")
-        scaleUp:SetOrigin("CENTER", 0, 0)
-        scaleUp:SetScale(1.15, 1.15)
-        scaleUp:SetDuration(0.08)
-        scaleUp:SetSmoothing("OUT")
-        scaleUp:SetOrder(1)
-        
-        -- Scale back down
-        local scaleDown = ag:CreateAnimation("Scale")
-        scaleDown:SetOrigin("CENTER", 0, 0)
-        scaleDown:SetScale(1/1.15, 1/1.15)
-        scaleDown:SetDuration(0.1)
-        scaleDown:SetSmoothing("IN")
-        scaleDown:SetOrder(2)
-        
-        bar.activateAnim = ag
+    -- Use Animations utility for consistent scale punch behavior
+    if self.Animations then
+        self.Animations:PlayScalePunch(bar, 1.15, "activateAnim")
     end
-    
-    bar.activateAnim:Stop()
-    bar.activateAnim:Play()
 end
 
 -------------------------------------------------------------------------------

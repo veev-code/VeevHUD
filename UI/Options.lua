@@ -206,6 +206,12 @@ function Options:CreatePanelContent(container)
         tooltip = "Makes bars animate smoothly when values change, rather than jumping instantly. Applies to health bar, resource bar, and resource cost fill on icons. Disable if you prefer instant feedback.",
     })
     
+    yOffset = self:CreateCheckbox(container, yOffset, {
+        path = "animations.dimTransition",
+        label = "Smooth Dim Transition",
+        tooltip = "Smoothly animates alpha changes when icons dim on cooldown, rather than changing instantly. Creates a more polished visual experience.",
+    })
+    
     -- === ICONS SECTION ===
     yOffset = yOffset - 8
     yOffset = self:CreateSectionHeader(container, "Icons", yOffset)
@@ -313,6 +319,8 @@ function Options:CreatePanelContent(container)
             { value = C.ROW_SETTING.PRIMARY, label = "Primary Row Only" },
             { value = C.ROW_SETTING.PRIMARY_SECONDARY, label = "Primary + Secondary" },
             { value = C.ROW_SETTING.ALL, label = "All Rows" },
+            { value = C.ROW_SETTING.SECONDARY_UTILITY, label = "Secondary + Utility" },
+            { value = C.ROW_SETTING.UTILITY, label = "Utility Only" },
         },
     })
     
@@ -325,6 +333,8 @@ function Options:CreatePanelContent(container)
             { value = C.ROW_SETTING.PRIMARY, label = "Primary Row Only" },
             { value = C.ROW_SETTING.PRIMARY_SECONDARY, label = "Primary + Secondary" },
             { value = C.ROW_SETTING.ALL, label = "All Rows" },
+            { value = C.ROW_SETTING.SECONDARY_UTILITY, label = "Secondary + Utility" },
+            { value = C.ROW_SETTING.UTILITY, label = "Utility Only" },
         },
     })
     
@@ -337,6 +347,8 @@ function Options:CreatePanelContent(container)
             { value = C.ROW_SETTING.PRIMARY, label = "Primary Row Only" },
             { value = C.ROW_SETTING.PRIMARY_SECONDARY, label = "Primary + Secondary" },
             { value = C.ROW_SETTING.ALL, label = "All Rows" },
+            { value = C.ROW_SETTING.SECONDARY_UTILITY, label = "Secondary + Utility" },
+            { value = C.ROW_SETTING.UTILITY, label = "Utility Only" },
         },
     })
     
@@ -346,9 +358,11 @@ function Options:CreatePanelContent(container)
         tooltip = "Controls which rows fade to Cooldown Opacity when abilities are on cooldown. Rows that don't fade stay at full brightness and use desaturation to show unavailability instead. Primary row typically stays bright to keep your core rotation visually prominent.",
         options = {
             { value = C.ROW_SETTING.NONE, label = "None (All Rows Full Opacity)" },
-            { value = C.ROW_SETTING.UTILITY, label = "Utility Only" },
-            { value = C.ROW_SETTING.SECONDARY_UTILITY, label = "Secondary + Utility" },
+            { value = C.ROW_SETTING.PRIMARY, label = "Primary Row Only" },
+            { value = C.ROW_SETTING.PRIMARY_SECONDARY, label = "Primary + Secondary" },
             { value = C.ROW_SETTING.ALL, label = "All Rows" },
+            { value = C.ROW_SETTING.SECONDARY_UTILITY, label = "Secondary + Utility" },
+            { value = C.ROW_SETTING.UTILITY, label = "Utility Only" },
         },
     })
     
@@ -365,6 +379,8 @@ function Options:CreatePanelContent(container)
             { value = C.ROW_SETTING.PRIMARY, label = "Primary Row Only" },
             { value = C.ROW_SETTING.PRIMARY_SECONDARY, label = "Primary + Secondary" },
             { value = C.ROW_SETTING.ALL, label = "All Rows" },
+            { value = C.ROW_SETTING.SECONDARY_UTILITY, label = "Secondary + Utility" },
+            { value = C.ROW_SETTING.UTILITY, label = "Utility Only" },
         },
     })
     
@@ -394,6 +410,8 @@ function Options:CreatePanelContent(container)
             { value = C.ROW_SETTING.PRIMARY, label = "Primary Row Only" },
             { value = C.ROW_SETTING.PRIMARY_SECONDARY, label = "Primary + Secondary" },
             { value = C.ROW_SETTING.ALL, label = "All Rows" },
+            { value = C.ROW_SETTING.SECONDARY_UTILITY, label = "Secondary + Utility" },
+            { value = C.ROW_SETTING.UTILITY, label = "Utility Only" },
         },
     })
     
@@ -410,25 +428,41 @@ function Options:CreatePanelContent(container)
     yOffset = self:CreateDropdown(container, yOffset, {
         path = "icons.readyGlowRows",
         label = "Usable Glow",
-        tooltip = "Shows a proc-style glowing border when an ability becomes ready. Controls which rows show the effect.\n\nNote: Reactive abilities (Execute, Overpower, etc.) always glow every time they become usable, regardless of this setting.",
+        tooltip = "Shows a proc-style glowing border when an ability becomes ready. Only triggers while in combat. Controls which rows show the effect.",
         options = {
             { value = C.ROW_SETTING.NONE, label = "None" },
             { value = C.ROW_SETTING.PRIMARY, label = "Primary Row Only" },
             { value = C.ROW_SETTING.PRIMARY_SECONDARY, label = "Primary + Secondary" },
             { value = C.ROW_SETTING.ALL, label = "All Rows" },
+            { value = C.ROW_SETTING.SECONDARY_UTILITY, label = "Secondary + Utility" },
+            { value = C.ROW_SETTING.UTILITY, label = "Utility Only" },
         },
     })
     
     yOffset = self:CreateDropdown(container, yOffset, {
         path = "icons.readyGlowMode",
         label = "Glow Behavior",
-        tooltip = "'Once Per Cooldown' glows when an ability first becomes ready and won't re-trigger if your resources fluctuate. 'Every Time Usable' glows each time all conditions are met (off cooldown + enough resources).",
+        tooltip = "'Once Per Cooldown' glows when an ability first becomes ready and won't re-trigger if your resources fluctuate. 'Every Time Usable' glows each time all conditions are met (off cooldown + enough resources).\n\nNote: Reactive abilities (Execute, Overpower, etc.) always glow every time they become usable, regardless of this setting.",
         options = {
             { value = C.GLOW_MODE.ONCE, label = "Once Per Cooldown" },
             { value = C.GLOW_MODE.ALWAYS, label = "Every Time Usable" },
         },
         dependsOn = "icons.readyGlowRows",
         dependsOnNotValue = C.ROW_SETTING.NONE,
+    })
+    
+    yOffset = self:CreateDropdown(container, yOffset, {
+        path = "icons.cooldownBlingRows",
+        label = "Cooldown Finish Sparkle",
+        tooltip = "Shows WoW's native sparkle effect when a cooldown finishes. This is purely cooldown-based and does not indicate usability — the spell may still be unusable due to resources or other conditions.\n\nNote: This also triggers when the GCD finishes, matching WoW's default action bar behavior.",
+        options = {
+            { value = C.ROW_SETTING.NONE, label = "None" },
+            { value = C.ROW_SETTING.PRIMARY, label = "Primary Row Only" },
+            { value = C.ROW_SETTING.PRIMARY_SECONDARY, label = "Primary + Secondary" },
+            { value = C.ROW_SETTING.ALL, label = "All Rows" },
+            { value = C.ROW_SETTING.SECONDARY_UTILITY, label = "Secondary + Utility" },
+            { value = C.ROW_SETTING.UTILITY, label = "Utility Only" },
+        },
     })
     
     -- ─── Icons: Aura Tracking ───
@@ -478,12 +512,14 @@ function Options:CreatePanelContent(container)
     yOffset = self:CreateDropdown(container, yOffset, {
         path = "icons.showRangeIndicator",
         label = "Out of Range Indicator",
-        tooltip = "Shows a red overlay on spell icons when your current target is out of range. This mimics the behavior of the default action bars.\n\nThe range indicator shows when an ability is usable (has resources, conditions met) but out of range - even during cooldown. This gives you a heads-up on positioning while waiting. When resources are insufficient, the grey/resource indicators take priority instead.\n\nThe range check runs every 0.1 seconds.\n\nNote: Only shows when you have a target. Spells without a range component (self-buffs, etc.) are not affected.",
+        tooltip = "Shows a red overlay on spell icons when your current target is out of range. This mimics the behavior of the default action bars.\n\nThe range indicator shows when an ability is usable (has resources, conditions met) but out of range - even during cooldown. This gives you a heads-up on positioning while waiting. When resources are insufficient, the grey/resource indicators take priority instead.\n\nNote: Only shows when you have a target. Spells without a range component (self-buffs, etc.) are not affected.",
         options = {
             { value = C.ROW_SETTING.NONE, label = "None" },
             { value = C.ROW_SETTING.PRIMARY, label = "Primary Row Only" },
             { value = C.ROW_SETTING.PRIMARY_SECONDARY, label = "Primary + Secondary" },
             { value = C.ROW_SETTING.ALL, label = "All Rows" },
+            { value = C.ROW_SETTING.SECONDARY_UTILITY, label = "Secondary + Utility" },
+            { value = C.ROW_SETTING.UTILITY, label = "Utility Only" },
         },
     })
     

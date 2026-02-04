@@ -1,5 +1,19 @@
 # VeevHUD Changelog
 
+## [1.0.34] - 2026-02-04
+
+### Added
+- **Cooldown Finish Sparkle** — WoW's native sparkle/bling effect now plays when cooldowns finish (per-row configurable, defaults to all rows). Note: Also triggers on GCD finish, matching default action bar behavior.
+- **Smooth Dim Transition** — Icons now smoothly fade to 30% alpha when going on cooldown, synced with cast feedback animation timing. Can be disabled in Animations settings.
+
+### Changed
+- **More row options** — All row-based dropdowns now offer 6 choices: None, Primary Only, Primary + Secondary, All Rows, Secondary + Utility, Utility Only. This allows more flexible configurations like usable glow on primary row but sparkle on secondary/utility rows.
+
+### Fixed
+- **Prediction spiral cleanup** — Resource prediction spirals now clear immediately when you gain enough resources (e.g., zoning and gaining full mana)
+- **Aura spiral cleanup** — Buff/debuff spirals now clear immediately when switching targets (instead of lingering from the previous target)
+- **Dim alpha on reload** — Icons on cooldown now correctly show 30% alpha immediately after /reload (previously showed full alpha until state changed)
+
 ## [1.0.33] - 2026-02-04
 
 ### Changed
