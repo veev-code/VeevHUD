@@ -1,5 +1,20 @@
 # VeevHUD Changelog
 
+## [1.0.32] - 2026-02-04
+
+### Added
+- **UI Scale Auto-Compensation** — VeevHUD now automatically adjusts for your in-game UI Scale setting, so the HUD looks the same size whether you use 65% or 100% UI scale. No more oversized icons at default settings!
+- **Migration popup** — If you previously adjusted Global Scale to compensate for a high UI scale, a one-time popup will offer to reset it to 100%
+- **Reusable MigrationManager** — Framework for future migration notices when addon behavior changes
+
+### Changed
+- Popups now appear 30% from the top of the screen (instead of center) to avoid covering the HUD
+- Improved popup title centering
+
+### LibSpellDB Updates
+- New `auraTarget` system for explicit buff tracking targets (self, ally, pet, none)
+- Added `GetAuraTarget()` API function
+
 ## [1.0.31] - 2026-02-03
 
 ### Fixed

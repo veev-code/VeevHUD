@@ -18,7 +18,8 @@ function WelcomePopup:CreateDialog()
     
     local dialog = CreateFrame("Frame", "VeevHUDWelcomeDialog", UIParent, "BasicFrameTemplateWithInset")
     dialog:SetSize(400, 240)
-    dialog:SetPoint("CENTER")
+    -- Position ~30% down from top (instead of center) to avoid hiding the HUD
+    dialog:SetPoint("CENTER", UIParent, "CENTER", 0, UIParent:GetHeight() * 0.20)
     dialog:SetFrameStrata("DIALOG")
     dialog:SetMovable(true)
     dialog:EnableMouse(true)
@@ -27,9 +28,9 @@ function WelcomePopup:CreateDialog()
     dialog:SetScript("OnDragStop", dialog.StopMovingOrSizing)
     dialog:Hide()
     
-    -- Title
+    -- Title (centered in the title bar area)
     local title = dialog:CreateFontString(nil, "OVERLAY", "GameFontHighlightLarge")
-    title:SetPoint("TOP", 0, -8)
+    title:SetPoint("TOP", 0, -6)
     title:SetText("|cff00ccffVeevHUD|r")
     
     -- Message text

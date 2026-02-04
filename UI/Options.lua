@@ -787,6 +787,52 @@ function Options:RegisterWidget(path, frame, control, config)
     end
 end
 
+-- Refresh a widget's displayed value from current profile data
+-- Called when a value is changed externally (e.g., migration popup)
+function Options:RefreshWidgetValue(path)
+    local widget = self.widgets[path]
+    if not widget then return end
+    
+    local config = widget.config
+    local control = widget.control
+    local frame = widget.frame
+    local currentValue = addon:GetSettingValue(path)
+    local defaultValue = addon:GetDefaultValue(path)
+    
+    -- Update based on widget type
+    if control.SetValue then
+        -- Slider
+        control:SetValue(currentValue)
+        if frame.valueText then
+            local displayValue
+            if config.isPercent then
+                displayValue = string.format("%.0f%%", currentValue * 100)
+            else
+                displayValue = tostring(math.floor(currentValue + 0.5))
+            end
+            frame.valueText:SetText(displayValue)
+        end
+        if frame.label then
+            if currentValue ~= defaultValue then
+                frame.label:SetText("|cffffd200*|r " .. config.label)
+            else
+                frame.label:SetText(config.label)
+            end
+        end
+    elseif control.SetChecked then
+        -- Checkbox
+        control:SetChecked(currentValue == true)
+        if control.Text then
+            if currentValue ~= defaultValue then
+                control.Text:SetText("|cffffd200*|r " .. config.label)
+            else
+                control.Text:SetText(config.label)
+            end
+        end
+    end
+    -- Dropdowns would need UIDropDownMenu_SetText, but those are less common to refresh externally
+end
+
 function Options:UpdateDependentWidgets(parentPath)
     local dependents = self.dependencies[parentPath]
     if not dependents then return end
