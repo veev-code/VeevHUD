@@ -14,6 +14,7 @@ Scratchpad for ideas, bugs, and public feature requests.
 ## Bugs
 
 - Mage: Icy Veins causes a black "pop" visual artifact that fills the screen (happens every cast, not just first)
+- Desperate Prayer should be on util row.
 
 ## Public Feature Requests
 
