@@ -1,5 +1,11 @@
 # VeevHUD Changelog
 
+## [1.0.37] - 2026-02-05
+
+### LibSpellDB Updates
+- **Faerie Fire (Feral)** — Now tracked separately from caster Faerie Fire (usable in cat/bear form)
+- **Mangle (Bear)** — Now shows cooldown instead of debuff timer (you spam on 6s CD, debuff lasts 12s)
+
 ## [1.0.36] - 2026-02-05
 
 ### Added
