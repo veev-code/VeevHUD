@@ -12,15 +12,13 @@ Scratchpad for ideas, bugs, and public feature requests.
 
 ## Bugs
 
-- [ ] Proc/buff tracking shows duplicate entries (e.g., 3 instances of Blood Fury; also duplicates of my Blood Elf racial)
 - [ ] Energy ticker timing seems off (possibly due to powershifting)
 - [ ] Option: keep energy ticker running even at full energy (useful for timing openers on the next tick)
+- [ ] Fix the black popup
 
 ## Public Feature Requests
 
-- [ ] Track Summon Water Elemental 
 - [ ] Faerie Fire (Feral)
-- [ ] Track Raptor Strike and Hunter's Mark, Mongoose bite
 - [ ] Track queued autoattack replacement abilities (Heroic Strike, Cleave, Maul) like Blizzard buttons do, or via a color-changing weapon swing timer
 - [ ] Mangle (Bear): when debuff tracking is enabled and the debuff lasts longer than the cooldown, dynamically show cooldown remaining instead of only the debuff timer
 - [ ] Druid: show abilities conditionally based on form (instead of always showing everything)
@@ -28,7 +26,6 @@ Scratchpad for ideas, bugs, and public feature requests.
 - [ ] Option to show icons above the health/mana bars (not only under)
 - [ ] Battle Shout reminder
 - [ ] Trinket tracking (general)
-- [ ] Fix the black popup
 - [ ] Enhancement: add a weapon sync bar (if not already present)
 - [ ] Add keybind text on icons
 

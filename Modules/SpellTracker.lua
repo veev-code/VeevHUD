@@ -345,8 +345,26 @@ function SpellTracker:CheckSpellKnown(spellID)
     
     local name = GetSpellInfo(spellID)
     if name and self.spellbookCache[name] then
-        self.Utils:LogInfo("SpellKnown FALLBACK Tier3 (spellbook cache) used for:", name, spellID)
-        return true
+        local knownSpellID = self.spellbookCache[name]
+        
+        -- Must be the EXACT spell ID, not just same name
+        -- This prevents false positives for class-specific variants like:
+        -- - Blood Fury: 20572 (AP), 33697 (AP+SP), 33702 (SP) - all named "Blood Fury"
+        -- - Arcane Torrent: 28730 (mana), 25046 (energy), etc. - all named "Arcane Torrent"
+        if knownSpellID == spellID then
+            self.Utils:LogInfo("SpellKnown FALLBACK Tier3 (spellbook cache) used for:", name, spellID)
+            return true
+        end
+        
+        -- Also check if they're in the same rank chain (different rank of same spell)
+        if self.LibSpellDB then
+            local knownCanonical = self.LibSpellDB:GetCanonicalSpellID(knownSpellID)
+            local queryCanonical = self.LibSpellDB:GetCanonicalSpellID(spellID)
+            if knownCanonical and queryCanonical and knownCanonical == queryCanonical then
+                self.Utils:LogInfo("SpellKnown FALLBACK Tier3 (spellbook cache, rank match) used for:", name, spellID)
+                return true
+            end
+        end
     end
 
     return false
