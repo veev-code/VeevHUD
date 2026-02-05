@@ -12,8 +12,6 @@ Scratchpad for ideas, bugs, and public feature requests.
 
 ## Bugs
 
-- [ ] Energy ticker timing seems off (possibly due to powershifting)
-- [ ] Option: keep energy ticker running even at full energy (useful for timing openers on the next tick)
 - [ ] Fix the black popup
 
 ## Public Feature Requests

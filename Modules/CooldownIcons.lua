@@ -1528,7 +1528,7 @@ function CooldownIcons:UpdateIconState(frame, db)
     -- Determine if this is GCD vs actual cooldown
     local isOnGCD = self.Utils:IsOnGCD(remaining, duration)
     local isOnActualCooldown = self.Utils:IsOnRealCooldown(remaining, duration)
-    local almostReady = remaining > 0 and remaining <= 1.0 and isOnActualCooldown
+    local almostReady = remaining > 0 and remaining <= C.READY_GLOW_THRESHOLD and isOnActualCooldown
 
     -- Determine if this row dims icons on cooldown based on global setting
     -- When false: full alpha + desaturation (keeps core rotation visually prominent)
@@ -2005,7 +2005,9 @@ function CooldownIcons:UpdateIconState(frame, db)
         local isReactive = frame.isReactive or false
         -- Pass lockoutIsLimitingFactor so glow can trigger when lockout is almost expired
         -- (WoW API reports isUsable=false while lockout is active, but we want glow at <1s remaining)
-        self:UpdateReadyGlow(frame, spellID, remaining, duration, isUsable, isReactive, db, lockoutIsLimitingFactor, canAfford)
+        -- Also pass prediction state so glow can trigger when prediction has <1s remaining
+        local predictionIsLimitingFactor = showPredictionSpiral and predictionRemaining > 0
+        self:UpdateReadyGlow(frame, spellID, remaining, duration, isUsable, isReactive, db, lockoutIsLimitingFactor, canAfford, predictionIsLimitingFactor, predictionRemaining)
     else
         -- Aura is active - hide ready glow but keep wasUsable updated
         -- This prevents false "just became usable" triggers when aura ends
@@ -2241,7 +2243,7 @@ end
 
 -- Update the "ready glow" - shows when ability becomes ready
 -- Triggers:
---   1. <1s remaining on CD AND usable -> show for remaining duration
+--   1. <1s remaining on CD/lockout/prediction AND usable -> show for remaining duration
 --   2. Was not usable, just became usable (while off CD) -> show for configured duration
 -- For Execute: "usable" means target < 20% AND enough rage
 -- readyGlowRows controls which rows show the glow ("none" = disabled)
@@ -2251,7 +2253,9 @@ end
 -- Reactive abilities (Execute, Overpower) always behave as "always" regardless of mode
 -- lockoutIsLimitingFactor: true if the "remaining" time is from a lockout debuff, not the actual CD
 -- canAfford: true if player has enough resources to cast the spell
-function CooldownIcons:UpdateReadyGlow(frame, spellID, remaining, duration, isUsable, isReactive, db, lockoutIsLimitingFactor, canAfford)
+-- predictionIsLimitingFactor: true if Resource Timer prediction is active and limiting usability
+-- predictionRemaining: time remaining on prediction (when predictionIsLimitingFactor is true)
+function CooldownIcons:UpdateReadyGlow(frame, spellID, remaining, duration, isUsable, isReactive, db, lockoutIsLimitingFactor, canAfford, predictionIsLimitingFactor, predictionRemaining)
     local glowRows = db.readyGlowRows
     local glowMode = db.readyGlowMode
     local rowIndex = frame.rowIndex or 1
@@ -2272,8 +2276,12 @@ function CooldownIcons:UpdateReadyGlow(frame, spellID, remaining, duration, isUs
     local effectiveMode = isReactive and C.GLOW_MODE.ALWAYS or glowMode
     
     local isOnRealCooldown = self.Utils:IsOnRealCooldown(remaining, duration)
-    local isAlmostReady = remaining > 0 and remaining <= 1.0 and isOnRealCooldown
+    local isAlmostReady = remaining > 0 and remaining <= C.READY_GLOW_THRESHOLD and isOnRealCooldown
     local isOffCooldown = self.Utils:IsOffCooldown(remaining, duration)
+    
+    -- Check if prediction is almost complete (Resource Timer mode for energy/mana)
+    -- When prediction is the limiting factor and almost ready, treat as almost ready
+    local isPredictionAlmostReady = predictionIsLimitingFactor and predictionRemaining > 0 and predictionRemaining <= C.READY_GLOW_THRESHOLD
     
     -- When lockout is the limiting factor and almost expired, treat as usable for glow purposes
     -- The WoW API reports isUsable=false while lockout is active, but we want to trigger
@@ -2281,6 +2289,13 @@ function CooldownIcons:UpdateReadyGlow(frame, spellID, remaining, duration, isUs
     local effectiveUsable = isUsable
     if lockoutIsLimitingFactor and isAlmostReady and canAfford then
         effectiveUsable = true
+    end
+    -- Similarly, when prediction is almost complete, treat as usable for glow purposes
+    -- The ability will become usable in <1s when we have enough resources
+    if isPredictionAlmostReady then
+        effectiveUsable = true
+        -- Also treat as "almost ready" for the glow trigger
+        isAlmostReady = true
     end
     
     -- Track previous states

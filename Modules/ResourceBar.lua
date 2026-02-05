@@ -33,6 +33,12 @@ end
 function ResourceBar:OnPlayerEnteringWorld()
     self:UpdatePowerType()
     self:UpdateBar()
+    
+    -- Initialize form tracking for druids
+    local TickTracker = addon.TickTracker
+    if TickTracker and TickTracker.InitFormTracking then
+        TickTracker:InitFormTracking()
+    end
 end
 
 function ResourceBar:OnPowerUpdate(event, unit, powerType)
@@ -44,6 +50,12 @@ end
 function ResourceBar:OnShapeshiftChange()
     self:UpdatePowerType()
     self:UpdateBar()
+    
+    -- Notify TickTracker of form change (for druid powershifting support)
+    local TickTracker = addon.TickTracker
+    if TickTracker and TickTracker.OnShapeshiftChange then
+        TickTracker:OnShapeshiftChange()
+    end
 end
 
 -------------------------------------------------------------------------------
@@ -495,6 +507,7 @@ function ResourceBar:UpdateEnergyTicker()
 
     local currentEnergy = UnitPower("player", self.C.POWER_TYPE.ENERGY)
     local maxEnergy = UnitPowerMax("player", self.C.POWER_TYPE.ENERGY)
+    local showAtFullEnergy = tickerDb.showAtFullEnergy ~= false  -- Default true
 
     -- Use centralized tick tracking from TickTracker
     -- This ensures consistency between the ticker UI and spell predictions
@@ -504,24 +517,26 @@ function ResourceBar:UpdateEnergyTicker()
         TickTracker:RecordEnergySample()
         
         -- Get tick progress from the centralized tracker
-        local tickProgress = TickTracker:GetEnergyTickProgress()
+        local tickProgress = TickTracker:GetEnergyTickProgress(showAtFullEnergy)
         local isMaxEnergy = currentEnergy >= maxEnergy
+        local hideForMaxEnergy = isMaxEnergy and not showAtFullEnergy
         
         -- Update based on style
         if style == self.C.TICKER_STYLE.BAR then
-            self:UpdateTickerBar(tickProgress, isMaxEnergy)
+            self:UpdateTickerBar(tickProgress, hideForMaxEnergy)
         elseif style == self.C.TICKER_STYLE.SPARK then
-            self:UpdateTickerOverlaySpark(tickProgress, isMaxEnergy)
+            self:UpdateTickerOverlaySpark(tickProgress, hideForMaxEnergy)
         end
     end
 end
 
 -- Update "bar" style ticker
-function ResourceBar:UpdateTickerBar(progress, isMaxEnergy)
+-- hideForMaxEnergy: true if we should hide/empty the ticker (at max energy and showAtFullEnergy is off)
+function ResourceBar:UpdateTickerBar(progress, hideForMaxEnergy)
     if not self.ticker or not self.ticker:IsShown() then return end
 
-    -- If at max energy, show empty bar (no fill, just background)
-    if isMaxEnergy then
+    -- If hiding for max energy, show empty bar (no fill, just background)
+    if hideForMaxEnergy then
         self.ticker:SetValue(0)
         self:UpdateTickerBarSpark(0)
         return
@@ -554,12 +569,13 @@ function ResourceBar:UpdateTickerBarSpark(progress)
 end
 
 -- Update "spark" style ticker (large spark overlay on resource bar)
-function ResourceBar:UpdateTickerOverlaySpark(progress, isMaxEnergy)
+-- hideForMaxEnergy: true if we should hide the ticker (at max energy and showAtFullEnergy is off)
+function ResourceBar:UpdateTickerOverlaySpark(progress, hideForMaxEnergy)
     if not self.tickerOverlaySpark then return end
     if not self.bar then return end
 
-    -- Hide spark when at max energy or no progress
-    if isMaxEnergy or progress <= 0 then
+    -- Hide spark when hiding for max energy or no progress
+    if hideForMaxEnergy or progress <= 0 then
         self.tickerOverlaySpark:Hide()
         return
     end

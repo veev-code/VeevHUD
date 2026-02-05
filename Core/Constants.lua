@@ -164,6 +164,9 @@ C.ENERGY_PER_TICK_ADRENALINE = 40
 -- Five Second Rule duration (spirit-based mana regen suppressed after spending mana)
 C.FIVE_SECOND_RULE_DURATION = 5.0
 
+-- Ready glow "almost ready" threshold (triggers glow when this much time remains)
+C.READY_GLOW_THRESHOLD = 0.5
+
 -- Mana spike threshold - gains above this % of max mana are filtered (potions, life tap)
 C.MANA_SPIKE_THRESHOLD = 0.10
 
@@ -235,6 +238,7 @@ C.DEFAULTS = {
             energyTicker = {
                 enabled = true,
                 style = "spark",      -- "bar" or "spark"
+                showAtFullEnergy = true, -- Keep showing ticker at full energy (useful for timing openers)
                 -- Bar style settings
                 height = 3,           -- Height of the ticker bar
                 offsetY = -1,         -- Gap between resource bar bottom and ticker top (negative = below)

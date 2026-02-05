@@ -654,6 +654,13 @@ function Options:CreatePanelContent(container)
             },
             dependsOn = "resourceBar.energyTicker.enabled",
         })
+        
+        yOffset = self:CreateCheckbox(container, yOffset, {
+            path = "resourceBar.energyTicker.showAtFullEnergy",
+            label = "Show at Full Energy",
+            tooltip = "Keep the tick indicator running even when at full energy. Useful for timing openers — you can see exactly when the next tick will occur and use energy right before it arrives.",
+            dependsOn = "resourceBar.energyTicker.enabled",
+        })
     end
     
     -- Mana ticker (only for mana-using classes)

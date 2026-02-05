@@ -7,9 +7,11 @@
     
     Key concepts:
     - Energy/mana regenerate in "ticks" every 2 seconds
-    - The tick timer is continuous and never resets (even when casting)
+    - For rogues: tick timer is continuous and never resets
+    - For druids: entering Cat Form RESETS the tick timer (powershifting mechanic)
     - We detect ticks by observing resource increases
     - "Phantom tick" tracking keeps timing accurate when at full resources
+    - Real ticks always resync our tracking when observed
 ]]
 
 local ADDON_NAME, addon = ...
@@ -25,6 +27,42 @@ addon.TickTracker = TickTracker
 -- Energy tick tracking
 TickTracker.lastEnergyTickTime = 0
 TickTracker.lastSampleEnergy = 0
+TickTracker.hasConfirmedTick = false  -- True after we've observed at least one real tick
+
+-- Shapeshift tracking for druids
+TickTracker.lastKnownForm = 0
+TickTracker.formChangeTime = 0
+
+-------------------------------------------------------------------------------
+-- Debug Logging (requires /vh debug to enable)
+-------------------------------------------------------------------------------
+--[[
+    Debug logs are written to VeevHUDLog in SavedVariables when debug mode is on.
+    
+    AI-Assisted Debugging Workflow:
+    1. Enable debug mode: /vh debug
+    2. Play and reproduce the issue (e.g., energy tick timing drift)
+    3. Reload UI: /reload (this flushes logs to SavedVariables)
+    4. Point the AI model to the SavedVariables file:
+       WTF/Account/<account>/SavedVariables/VeevHUD.lua
+       The VeevHUDLog table contains timestamped entries the model can analyze.
+    
+    Log entries include:
+    - TICK observed: actual energy ticks with interval timing
+    - TICK resync: real tick arrived shortly after phantom, resyncing
+    - FILTERED: energy gains rejected (Thistle Tea, refunds, etc.)
+    - PHANTOM: inferred ticks when at full energy
+    - FORM: druid shapeshift transitions (enter/leave cat form)
+]]
+
+local function TickLog(...)
+    local db = addon.db
+    if not (db and db.profile and db.profile.debugMode) then return end
+    local Utils = addon.Utils
+    if Utils and Utils.LogDebug then
+        Utils:LogDebug("[TickTracker]", ...)
+    end
+end
 
 -- Mana tick tracking  
 TickTracker.lastManaTickTime = 0
@@ -67,6 +105,7 @@ function TickTracker:RecordEnergySample()
     local now = GetTime()
     local expectedTick = self:GetExpectedEnergyPerTick()
     local tickObserved = false
+    local prevTickTime = self.lastEnergyTickTime  -- For interval calculation
     
     if currentEnergy > self.lastSampleEnergy then
         local gained = currentEnergy - self.lastSampleEnergy
@@ -95,7 +134,30 @@ function TickTracker:RecordEnergySample()
         
         if not isTooSoon and (isValidAmount or isPartialTick) then
             self.lastEnergyTickTime = now
+            self.hasConfirmedTick = true  -- We've observed a real tick
             tickObserved = true
+            
+            -- Debug: Log observed tick with interval
+            local interval = prevTickTime > 0 and (now - prevTickTime) or 0
+            TickLog(string.format("TICK observed: +%d energy, interval=%.3fs, now=%d/%d",
+                gained, interval, currentEnergy, maxEnergy))
+        elseif isTooSoon and (isValidAmount or isPartialTick) then
+            -- This is a real tick that arrived shortly after a phantom tick fired.
+            -- The phantom tick was slightly early (server ticks are ~2.01s, not exactly 2.0s).
+            -- Resync to this as the authoritative tick time.
+            local phantomOffset = timeSinceLastTick
+            self.lastEnergyTickTime = now
+            self.hasConfirmedTick = true  -- Resync also confirms we have valid tick data
+            tickObserved = true
+            
+            -- Debug: Log resync
+            local interval = prevTickTime > 0 and (now - prevTickTime) or 0
+            TickLog(string.format("TICK resync: +%d energy, interval=%.3fs, phantomWas=%.3fs early, now=%d/%d",
+                gained, interval, phantomOffset, currentEnergy, maxEnergy))
+        else
+            -- Debug: Log filtered energy gain (bad amount - probably Thistle Tea, refund, etc.)
+            TickLog(string.format("FILTERED +%d energy: reason=bad_amount, timeSince=%.3fs, AR=%s",
+                gained, timeSinceLastTick, tostring(hasAdrenalineRush)))
         end
     end
     
@@ -107,7 +169,12 @@ function TickTracker:RecordEnergySample()
         if timeSinceLastTick >= C.TICK_RATE then
             -- Advance by whole tick intervals to stay synchronized
             local ticksMissed = math.floor(timeSinceLastTick / C.TICK_RATE)
+            local oldTickTime = self.lastEnergyTickTime
             self.lastEnergyTickTime = self.lastEnergyTickTime + (ticksMissed * C.TICK_RATE)
+            
+            -- Debug: Log phantom tick advancement
+            TickLog(string.format("PHANTOM tick: advanced by %d ticks (%.3fs), energy=%d/%d",
+                ticksMissed, now - oldTickTime, currentEnergy, maxEnergy))
         end
     end
     
@@ -115,16 +182,25 @@ function TickTracker:RecordEnergySample()
 end
 
 -- Get the progress (0-1) toward the next energy tick
-function TickTracker:GetEnergyTickProgress()
+-- showAtFullEnergy: if true, continue tracking even at full energy (for timing openers)
+function TickTracker:GetEnergyTickProgress(showAtFullEnergy)
     local currentEnergy = UnitPower("player", C.POWER_TYPE.ENERGY)
     local maxEnergy = UnitPowerMax("player", C.POWER_TYPE.ENERGY)
+    local isAtMaxEnergy = currentEnergy >= maxEnergy
     
-    if currentEnergy >= maxEnergy then
-        return 0  -- At max, no progress to show
+    if isAtMaxEnergy and not showAtFullEnergy then
+        return 0  -- At max and not showing at full, no progress to show
+    end
+    
+    -- Don't show ticker until we have confirmed tick data
+    -- This prevents showing a meaningless ticker after UI reload, zone change, etc.
+    -- We need to observe a real tick (or druid form entry) to confirm timing
+    if not self.hasConfirmedTick then
+        return 0  -- No confirmed tick data yet
     end
     
     if self.lastEnergyTickTime <= 0 then
-        return 0  -- No tick data yet
+        return 0  -- No tick data yet (shouldn't happen if hasConfirmedTick is true)
     end
     
     local timeSinceTick = GetTime() - self.lastEnergyTickTime
@@ -349,6 +425,48 @@ function TickTracker:GetTimeUntilFullTick()
 end
 
 -------------------------------------------------------------------------------
+-- Shapeshift Handling (for Druids)
+-------------------------------------------------------------------------------
+
+-- Call this when UPDATE_SHAPESHIFT_FORM fires
+function TickTracker:OnShapeshiftChange()
+    local form = GetShapeshiftForm()
+    local now = GetTime()
+    local wasInEnergyForm = (self.lastKnownForm == C.DRUID_FORM.CAT)
+    local nowInEnergyForm = (form == C.DRUID_FORM.CAT)
+    
+    -- Leaving cat form
+    if wasInEnergyForm and not nowInEnergyForm then
+        TickLog(string.format("FORM left cat form (to form %d), lastTickTime was %.3f",
+            form, self.lastEnergyTickTime))
+        self.formChangeTime = now
+    end
+    
+    -- Entering cat form - RESETS the energy tick timer
+    -- This is the core mechanic that makes powershifting work in TBC:
+    -- - Druid waits for a tick, then immediately shifts out and back in
+    -- - Gets Furor/Wolfshead energy instantly
+    -- - Tick timer resets, so next tick is 2s away
+    -- - Net gain: got the tick + bonus energy in rapid succession
+    if nowInEnergyForm and not wasInEnergyForm then
+        local timeSinceFormChange = self.formChangeTime > 0 and (now - self.formChangeTime) or 0
+        
+        -- Reset tick timer - entering Cat Form starts a fresh 2-second cycle
+        self.lastEnergyTickTime = now
+        self.hasConfirmedTick = true  -- Form entry gives us confirmed timing (we know next tick is 2s away)
+        
+        -- Reset sample to avoid misinterpreting Furor/Wolfshead energy as a tick
+        local currentEnergy = UnitPower("player", C.POWER_TYPE.ENERGY)
+        self.lastSampleEnergy = currentEnergy
+        
+        TickLog(string.format("FORM entered cat form, timeOutOfForm=%.3fs, RESET tick timer, energy=%d (Furor/Wolfshead)",
+            timeSinceFormChange, currentEnergy))
+    end
+    
+    self.lastKnownForm = form
+end
+
+-------------------------------------------------------------------------------
 -- Utility
 -------------------------------------------------------------------------------
 
@@ -363,4 +481,14 @@ end
 
 function TickTracker:SyncManaTickTime(time)
     self.lastManaTickTime = time or GetTime()
+end
+
+-- Initialize/reset tracking (call this on PLAYER_ENTERING_WORLD)
+-- Resets tick confirmation since we can't trust timing across loading screens
+function TickTracker:InitFormTracking()
+    self.lastKnownForm = GetShapeshiftForm()
+    self.hasConfirmedTick = false  -- Reset confirmation - need to observe a real tick
+    self.lastEnergyTickTime = 0    -- Clear stale tick time
+    self.lastSampleEnergy = 0      -- Clear stale energy sample
+    TickLog(string.format("INIT tracking reset, current form=%d, waiting for confirmed tick", self.lastKnownForm))
 end

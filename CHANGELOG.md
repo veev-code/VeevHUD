@@ -1,5 +1,24 @@
 # VeevHUD Changelog
 
+## [1.0.36] - 2026-02-05
+
+### Added
+- **Show at Full Energy** option — Energy ticker continues running at full energy, useful for timing openers (default ON)
+- **Druid Powershifting Support** — Energy tick timer correctly resets when entering Cat Form, matching TBC mechanics
+
+### Changed
+- **Ready glow threshold** — Reduced from 1 second to 0.5 seconds before abilities become usable (felt too early)
+- **Ready glow for Resource Timer** — Now triggers when resource prediction shows <0.5s until affordable
+- Energy ticker only shows after observing a real tick (prevents inaccurate display after reload/zone change)
+
+### Fixed
+- Duplicate racial icons (Blood Fury, Arcane Torrent) no longer appear when multiple spell variants exist
+
+### LibSpellDB Updates
+- New `TEMPORARY_SUMMON` tag for short-duration pet abilities
+- Added missing Hunter abilities (Multi-Shot, Volley, Arcane Shot, etc.)
+- Fixed Maul missing `ROTATIONAL` tag
+
 ## [1.0.35] - 2026-02-04
 
 ### Fixed

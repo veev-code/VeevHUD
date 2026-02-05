@@ -1,6 +1,24 @@
 --[[
     VeevHUD - Logging System
     Persistent logging to SavedVariables when debug mode is enabled
+    
+    AI-Assisted Debugging Workflow:
+    ─────────────────────────────────────────────────────────────────────────────
+    Debug logs are saved to VeevHUDLog in SavedVariables and can be analyzed
+    by AI models (Claude, etc.) in future prompt sessions.
+    
+    Steps:
+    1. Enable debug mode: /vh debug
+    2. Play and reproduce the issue
+    3. Reload UI: /reload (flushes logs to disk)
+    4. Share the SavedVariables file with the AI:
+       Path: WTF/Account/<account>/SavedVariables/VeevHUD.lua
+       Look for the VeevHUDLog table - it contains timestamped log entries.
+    5. Or use /vh log [n] to view recent entries in chat
+    
+    The AI can read these logs to diagnose timing issues, event sequences,
+    and other runtime behavior that's hard to reproduce in a static codebase.
+    ─────────────────────────────────────────────────────────────────────────────
 ]]
 
 local ADDON_NAME, addon = ...
