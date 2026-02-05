@@ -47,6 +47,7 @@ Every visual element is designed to give you instant feedback:
 *   **Range indicator** — Icons show a red overlay when your target is out of range
 *   **Cast feedback** — A satisfying "pop" animation when you successfully cast
 *   **GCD display** — Global cooldown shown on primary abilities
+*   **Keybind text** — Optional keyboard shortcut display on icons (scans your action bars)
 
 ### Resource Timer (Energy/Mana)
 
