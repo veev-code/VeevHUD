@@ -1,5 +1,14 @@
 # VeevHUD Changelog
 
+## [1.0.38] - 2026-02-05
+
+### Improved
+- **Mana Tick Timer ("Next Full Tick")** — Major accuracy improvements for the 5-Second Rule countdown:
+  - Now correctly shows 5-7 second countdown to first full tick after casting
+  - Progress bar only jumps forward on recalibration, never backward
+  - Stays pinned at 100% until the full tick actually arrives (no premature resets)
+  - Each observed partial tick automatically refines the prediction
+
 ## [1.0.37] - 2026-02-05
 
 ### LibSpellDB Updates

@@ -5,13 +5,61 @@
     Both the Energy Tick Indicator UI and Resource Prediction features
     depend on accurate tick timing. This service provides that shared state.
     
-    Key concepts:
-    - Energy/mana regenerate in "ticks" every 2 seconds
-    - For rogues: tick timer is continuous and never resets
-    - For druids: entering Cat Form RESETS the tick timer (powershifting mechanic)
-    - We detect ticks by observing resource increases
-    - "Phantom tick" tracking keeps timing accurate when at full resources
-    - Real ticks always resync our tracking when observed
+    =========================================================================
+    ENERGY TICK TRACKING REQUIREMENTS
+    =========================================================================
+    
+    1. Energy regenerates in "ticks" every 2 seconds (20 energy per tick normally)
+    2. For rogues: tick timer is continuous and never resets
+    3. For druids: entering Cat Form RESETS the tick timer (powershifting mechanic)
+    4. We detect ticks by observing energy increases
+    5. "Phantom tick" tracking keeps timing accurate when at full energy
+    6. Real ticks always resync our tracking when observed
+    7. Don't show ticker until we've observed at least one real tick (hasConfirmedTick)
+    8. Option to show ticker even at full energy (for druid powershifting)
+    
+    =========================================================================
+    MANA TICK TRACKING REQUIREMENTS (Five Second Rule / "Next Full Tick")
+    =========================================================================
+    
+    The "Next Full Tick" feature shows progress toward the first full-rate mana
+    tick after casting a spell (after the 5-Second Rule ends).
+    
+    CORE MECHANICS:
+    1. Mana regenerates in "ticks" every 2 seconds (amount based on spirit)
+    2. The Five Second Rule (5SR): after spending mana, spirit-based regen is
+       suppressed for 5 seconds. You still get partial regen from talents/gear.
+    3. The "next full tick" is the first tick that occurs AFTER 5SR ends
+    4. This tick occurs 5-7 seconds after casting (5s for 5SR + 0-2s for tick cycle)
+    
+    SOURCE OF TRUTH:
+    1. lastManaSpendTime (from FiveSecondRule.lastManaCastTime) = when 5SR started
+    2. lastManaTickTime = where we are in the 2s tick cycle
+    3. Any observed tick immediately updates lastManaTickTime (no delay/window)
+    4. Phantom ticks maintain the 2s cycle when no ticks are observable
+    
+    CALCULATION:
+    1. time5SREnds = lastManaSpendTime + 5 seconds
+    2. nextFullTick = lastManaTickTime + ceil((time5SREnds - lastManaTickTime) / 2) * 2
+    3. progress = (now - lastManaSpendTime) / (nextFullTick - lastManaSpendTime)
+    4. This gives a 5-7 second denominator, NOT a 2 second denominator
+    
+    BEHAVIOR:
+    1. Don't show ticker until we've observed at least one real tick (hasConfirmedManaTick)
+    2. Every observed tick (partial or full) recalibrates the prediction automatically
+    3. If progress >= 100%, pin at 100% until we observe the full tick
+    4. Only switch to normal 2s mode when we observe a tick AFTER 5SR ended
+       (i.e., when lastManaTickTime >= time5SREnds)
+    5. If user casts again (extends 5SR), the prediction recalculates from new anchor
+    6. Anti-rewind: if recalibration predicts a LATER tick than before, keep the earlier
+       prediction. Progress bar should only jump forward, never backward.
+    
+    FILTERING:
+    1. Ignore mana gains < 0.3% of max (too small to be a tick)
+    2. Ignore mana gains > 10% of max (potions, Life Tap, mana gems, etc.)
+    3. Require at least 1.5s since last tick to avoid double-counting
+    
+    =========================================================================
 ]]
 
 local ADDON_NAME, addon = ...
@@ -69,17 +117,14 @@ TickTracker.lastManaTickTime = 0
 TickTracker.lastSampleMana = 0
 TickTracker.prevSampleMana = 0  -- For detecting passive vs active regen
 TickTracker.hasConfirmedManaTick = false  -- True after we've observed at least one real mana tick
-TickTracker.lastRealManaTickTime = 0  -- Time of last REAL (not phantom) mana tick
 
 -- Mana spike filtering (potions, life tap, etc.)
 TickTracker.manaSpikeThreshold = C.MANA_SPIKE_THRESHOLD
 
--- Full tick countdown state (for seamless "next full tick" progress)
-TickTracker.fullTickTargetTime = 0     -- When the first full tick will arrive
-TickTracker.fullTickStartTime = 0      -- When we started the countdown
-TickTracker.fullTickDuration = 0       -- Total duration of the countdown
-TickTracker.lastCheckedTickTime = 0    -- Last tick time we processed (avoid re-processing)
-TickTracker.fullTickPinnedLogged = false  -- Avoid log spam when pinned at 100%
+-- Full tick state
+TickTracker.fullTickPinnedLogged = false       -- For log spam reduction when pinned at 100%
+TickTracker.earliestPredictedFullTick = 0      -- Prevents progress from "rewinding" on recalibration
+TickTracker.predictionAnchorTime = 0           -- The lastManaSpendTime this prediction is based on
 
 -------------------------------------------------------------------------------
 -- Energy Tick Tracking
@@ -268,7 +313,6 @@ function TickTracker:RecordManaSample()
         
         if not isTooSoon and isValidAmount then
             self.lastManaTickTime = now
-            self.lastRealManaTickTime = now  -- Track real tick time separately
             self.hasConfirmedManaTick = true  -- We've observed a real tick
             tickObserved = true
             
@@ -281,7 +325,6 @@ function TickTracker:RecordManaSample()
             -- Resync to this as the authoritative tick time.
             local phantomOffset = timeSinceLastTick
             self.lastManaTickTime = now
-            self.lastRealManaTickTime = now  -- Track real tick time separately
             self.hasConfirmedManaTick = true  -- Resync also confirms we have valid tick data
             tickObserved = true
             
@@ -369,12 +412,14 @@ end
 -- Get progress toward the first full-rate mana tick (after 5SR ends)
 -- Returns progress 0-1 where 1 = full tick is imminent
 -- 
--- The "next full tick" is defined as:
--- - Minimum 5 seconds from last mana spend (5SR ends)
--- - Then the NEXT tick to occur after that (0-1.99s more)
--- 
--- Every partial tick observed during 5SR recalibrates the prediction.
--- We pin at 100% until we actually observe the tick.
+-- SIMPLIFIED APPROACH:
+-- - lastManaSpendTime is the anchor (when 5SR started)
+-- - lastManaTickTime is the source of truth for tick cycle timing
+-- - nextFullTick = lastManaTickTime + ceil((time5SREnds - lastManaTickTime) / 2) * 2
+-- - Progress = (now - lastManaSpendTime) / (nextFullTick - lastManaSpendTime)
+-- - Any observed tick updates lastManaTickTime, automatically recalibrating the prediction
+-- - We pin at 100% if countdown completed but tick not yet observed
+-- - We only switch to normal 2s mode when we observe a tick AFTER 5SR ended
 function TickTracker:GetFullTickProgress()
     local FSR = addon.FiveSecondRule
     local now = GetTime()
@@ -383,123 +428,71 @@ function TickTracker:GetFullTickProgress()
         return self:GetManaTickProgress()
     end
     
-    local timeRemaining5SR = FSR:GetTimeRemaining()
-    
-    -- Helper: Calculate predicted first full tick time based on current state
-    local function calculateFullTickTarget()
-        if not self.hasConfirmedManaTick or self.lastManaTickTime <= 0 then
-            return nil
-        end
-        local time5SREnds = timeRemaining5SR > 0 and (now + timeRemaining5SR) or now
-        local timeSinceLastTick = time5SREnds - self.lastManaTickTime
-        local ticksNeeded = math.ceil(timeSinceLastTick / C.TICK_RATE)
-        if ticksNeeded < 1 then ticksNeeded = 1 end
-        return self.lastManaTickTime + (ticksNeeded * C.TICK_RATE)
-    end
-    
-    -- Check if we have an active countdown
-    if self.fullTickTargetTime > 0 then
-        local timeRemaining = self.fullTickTargetTime - now
-        
-        -- Check if a real tick was observed since we last checked
-        -- We track this separately to avoid re-processing the same tick
-        local tickObservedSinceLastCheck = self.lastRealManaTickTime > (self.lastCheckedTickTime or 0)
-        
-        if tickObservedSinceLastCheck then
-            self.lastCheckedTickTime = self.lastRealManaTickTime
-            local tickTimeVsPrediction = self.fullTickTargetTime - self.lastRealManaTickTime
-            
-            TickLog(string.format("MANA FULLTICK check: tickTime=%.3f, target=%.3f, diff=%.3fs, 5SR=%.2fs",
-                self.lastRealManaTickTime, self.fullTickTargetTime, tickTimeVsPrediction, timeRemaining5SR))
-            
-            if tickTimeVsPrediction >= -0.5 and tickTimeVsPrediction < 0.5 then
-                -- Tick arrived within 0.5s of prediction - this IS the predicted tick
-                -- Sync lastManaTickTime to the real tick time and switch to normal 2s cycle
-                TickLog("MANA FULLTICK: tick confirmed, switching to normal 2s cycle")
-                self.fullTickTargetTime = 0
-                self.fullTickStartTime = 0
-                self.fullTickDuration = 0
-                self.lastCheckedTickTime = 0
-                self.fullTickPinnedLogged = false
-                -- Return progress based on time since the REAL tick (should be ~0%)
-                local timeSinceTick = now - self.lastRealManaTickTime
-                return math.min(1, math.max(0, timeSinceTick / C.TICK_RATE))
-            else
-                -- Partial tick during 5SR - recalibrate our prediction
-                local newTarget = calculateFullTickTarget()
-                if newTarget then
-                    local oldTarget = self.fullTickTargetTime
-                    self.fullTickTargetTime = newTarget
-                    -- Recalculate duration from current time for smooth progress
-                    self.fullTickDuration = newTarget - self.fullTickStartTime
-                    timeRemaining = newTarget - now
-                    TickLog(string.format("MANA FULLTICK recalibrated: old=%.3f, new=%.3f, remaining=%.2fs",
-                        oldTarget, newTarget, timeRemaining))
-                end
-            end
-        end
-        
-        -- Countdown completed - pin at 100% until we observe the full tick
-        if timeRemaining <= 0 then
-            -- Only log once when we first enter pinned state
-            if not self.fullTickPinnedLogged then
-                TickLog(string.format("MANA FULLTICK: pinned at 100%%, waiting for tick (lastReal=%.3f, start=%.3f)",
-                    self.lastRealManaTickTime, self.fullTickStartTime))
-                self.fullTickPinnedLogged = true
-            end
-            return 1.0
-        end
-        
-        -- Check if 5SR was reset (user cast again) - need to recalculate
-        if timeRemaining5SR > 0 then
-            local time5SREnds = now + timeRemaining5SR
-            if time5SREnds > self.fullTickTargetTime then
-                -- 5SR was extended past our target - recalculate
-                TickLog("MANA FULLTICK: 5SR extended, recalculating")
-                self.fullTickTargetTime = 0
-                self.fullTickStartTime = 0
-                self.fullTickDuration = 0
-                self.lastCheckedTickTime = 0
-                self.fullTickPinnedLogged = false
-                -- Fall through to recalculate below
-            else
-                -- Continue the countdown
-                local progress = 1 - (timeRemaining / self.fullTickDuration)
-                return math.min(1, math.max(0, progress))
-            end
-        else
-            -- Outside 5SR but countdown still active - continue it
-            local progress = 1 - (timeRemaining / self.fullTickDuration)
-            return math.min(1, math.max(0, progress))
-        end
-    end
-    
-    -- No active countdown - check if we should start one
-    if timeRemaining5SR <= 0 then
-        -- Outside 5SR with no countdown - use normal tick progress
+    -- Need confirmed tick data to calculate
+    if not self.hasConfirmedManaTick or self.lastManaTickTime <= 0 then
         return self:GetManaTickProgress()
     end
     
-    -- Inside 5SR - start a new countdown
-    local targetTime = calculateFullTickTarget()
-    if not targetTime then
-        return 0  -- No confirmed tick data yet
+    -- Get the anchor times
+    local lastManaSpendTime = FSR.lastManaCastTime
+    
+    -- If no mana has been spent yet, use normal 2s tick progress
+    if lastManaSpendTime <= 0 then
+        return self:GetManaTickProgress()
     end
     
-    local duration = targetTime - now
+    local time5SREnds = lastManaSpendTime + C.FIVE_SECOND_RULE_DURATION
     
-    -- Store countdown state
-    self.fullTickTargetTime = targetTime
-    self.fullTickStartTime = now
-    self.fullTickDuration = duration
-    self.lastCheckedTickTime = self.lastRealManaTickTime  -- Don't re-process ticks from before countdown
-    self.fullTickPinnedLogged = false  -- Reset log spam flag for new countdown
+    -- KEY: Only switch to normal 2s mode when we've observed a tick AFTER 5SR ended
+    -- This ensures we don't reset the denominator from 5-7s to 2s prematurely
+    if self.lastManaTickTime >= time5SREnds then
+        self.fullTickPinnedLogged = false  -- Reset for next 5SR
+        self.earliestPredictedFullTick = 0  -- Reset prediction tracking
+        self.predictionAnchorTime = 0
+        return self:GetManaTickProgress()
+    end
     
-    TickLog(string.format("MANA FULLTICK started: target=%.3f, duration=%.2fs, 5SR=%.2fs",
-        targetTime, duration, timeRemaining5SR))
+    -- If the anchor changed (user cast again), reset our prediction tracking
+    if lastManaSpendTime ~= self.predictionAnchorTime then
+        self.earliestPredictedFullTick = 0
+        self.predictionAnchorTime = lastManaSpendTime
+    end
     
-    -- Return initial progress (0%)
-    return 0
+    -- Calculate when the next full tick will arrive
+    -- Full tick = first tick to occur AFTER 5SR ends
+    local timeSinceLastTickAt5SREnd = time5SREnds - self.lastManaTickTime
+    local ticksNeeded = math.ceil(timeSinceLastTickAt5SREnd / C.TICK_RATE)
+    if ticksNeeded < 1 then ticksNeeded = 1 end
+    
+    local nextFullTickTime = self.lastManaTickTime + (ticksNeeded * C.TICK_RATE)
+    
+    -- Prevent "rewinding" - if recalibration predicts a LATER tick, keep the earlier prediction
+    -- This avoids the progress bar jumping backwards, which looks bad
+    if self.earliestPredictedFullTick > 0 then
+        nextFullTickTime = math.min(self.earliestPredictedFullTick, nextFullTickTime)
+    end
+    self.earliestPredictedFullTick = nextFullTickTime
+    
+    -- Calculate progress from when mana was spent to when full tick arrives
+    local totalDuration = nextFullTickTime - lastManaSpendTime
+    local elapsed = now - lastManaSpendTime
+    local progress = elapsed / totalDuration
+    
+    -- Debug log when prediction changes significantly or when entering pinned state
+    if progress >= 1.0 then
+        -- Pin at 100% until we observe the full tick
+        if not self.fullTickPinnedLogged then
+            TickLog(string.format("MANA FULLTICK: pinned at 100%%, waiting for tick (lastTick=%.3f, nextFull=%.3f)",
+                self.lastManaTickTime, nextFullTickTime))
+            self.fullTickPinnedLogged = true
+        end
+        return 1.0
+    end
+    
+    -- Reset pinned flag when not pinned (allows re-logging if we enter pinned state again)
+    self.fullTickPinnedLogged = false
+    
+    return math.min(1, math.max(0, progress))
 end
 
 -- Get time until the first full-rate mana tick (after 5SR ends)
@@ -584,10 +577,12 @@ end
 -- Sync the tick time (called when a tick is detected elsewhere, e.g., SYNC fix)
 function TickTracker:SyncEnergyTickTime(time)
     self.lastEnergyTickTime = time or GetTime()
+    self.hasConfirmedTick = true  -- If ResourcePrediction detected a tick, we have confirmed data
 end
 
 function TickTracker:SyncManaTickTime(time)
     self.lastManaTickTime = time or GetTime()
+    self.hasConfirmedManaTick = true  -- If ResourcePrediction detected a tick, we have confirmed data
 end
 
 -- Initialize/reset tracking (call this on PLAYER_ENTERING_WORLD)
@@ -603,14 +598,11 @@ function TickTracker:InitFormTracking()
     -- Reset mana tick state
     self.hasConfirmedManaTick = false  -- Reset confirmation - need to observe a real tick
     self.lastManaTickTime = 0          -- Clear stale tick time
-    self.lastRealManaTickTime = 0      -- Clear real tick time
     self.lastSampleMana = 0            -- Clear stale mana sample
     self.prevSampleMana = 0
-    self.fullTickTargetTime = 0        -- Clear full tick countdown
-    self.fullTickStartTime = 0
-    self.fullTickDuration = 0
-    self.lastCheckedTickTime = 0       -- Clear tick check state
     self.fullTickPinnedLogged = false  -- Clear log spam flag
+    self.earliestPredictedFullTick = 0 -- Clear prediction tracking
+    self.predictionAnchorTime = 0
     
     TickLog(string.format("INIT tracking reset, current form=%d, waiting for confirmed ticks", self.lastKnownForm))
 end
