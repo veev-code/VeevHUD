@@ -11,6 +11,8 @@ local ADDON_NAME, addon = ...
 local AuraTracker = {}
 addon:RegisterModule("AuraTracker", AuraTracker)
 
+local SUMMON_TAG = "PET_SUMMON_TEMP"
+
 -- Active auras: auraSpellID -> {targetGUID -> expirationTime}
 AuraTracker.activeAuras = {}
 
@@ -22,6 +24,11 @@ AuraTracker.spellToAuraMap = {}
 
 -- Mapping: rankSpellID -> baseSpellID (for looking up tracked spell from any rank)
 AuraTracker.rankToBaseMap = {}
+
+-- Temporary pet summon tracking
+AuraTracker.summonSpells = {}
+AuraTracker.summonPetToSpell = {}
+AuraTracker.summonPetsBySpell = {}
 
 -------------------------------------------------------------------------------
 -- Initialization
@@ -43,6 +50,12 @@ function AuraTracker:Initialize()
     self.Events:RegisterCLEU(self, "SPELL_AURA_REFRESH", self.OnAuraEvent)
     self.Events:RegisterCLEU(self, "SPELL_AURA_APPLIED_DOSE", self.OnAuraStackEvent)
     self.Events:RegisterCLEU(self, "SPELL_AURA_REMOVED_DOSE", self.OnAuraStackEvent)
+
+    -- Register for summon tracking (temporary pets/guardians)
+    self.Events:RegisterCLEU(self, "SPELL_SUMMON", self.OnSummonEvent)
+    self.Events:RegisterCLEU(self, "UNIT_DIED", self.OnSummonUnitRemoved)
+    self.Events:RegisterCLEU(self, "UNIT_DESTROYED", self.OnSummonUnitRemoved)
+    self.Events:RegisterCLEU(self, "UNIT_DISSIPATES", self.OnSummonUnitRemoved)
     
     -- Periodic cleanup of expired auras
     self.cleanupTicker = C_Timer.NewTicker(1, function()
@@ -112,6 +125,9 @@ function AuraTracker:BuildAuraMappings()
             end
         end
     end
+
+    -- Build summon mappings (temporary pet/guardian tracking)
+    self:BuildSummonMappings(trackedSpells)
     
     if count > 0 then
         self.Utils:LogInfo("AuraTracker: Pre-mapped", count, "spells with different aura IDs")
@@ -120,6 +136,36 @@ function AuraTracker:BuildAuraMappings()
         self.Utils:LogInfo("AuraTracker: Built rank mapping for", rankCount, "spell ranks")
     end
     self.Utils:LogInfo("AuraTracker: Same-ID auras will be detected dynamically from combat log")
+end
+
+function AuraTracker:BuildSummonMappings(trackedSpells)
+    wipe(self.summonSpells)
+    wipe(self.summonPetToSpell)
+    wipe(self.summonPetsBySpell)
+
+    if not self.LibSpellDB then return end
+
+    local summonTag = (self.LibSpellDB.Categories and self.LibSpellDB.Categories.PET_SUMMON_TEMP) or SUMMON_TAG
+    local count = 0
+
+    for spellID, data in pairs(trackedSpells or {}) do
+        local spellData = data.spellData
+        if spellData and self.LibSpellDB:HasTag(spellID, summonTag) then
+            local duration = spellData.duration
+            if duration and duration > 0 then
+                local canonicalID = self.LibSpellDB:GetCanonicalSpellID(spellID) or spellID
+                self.summonSpells[canonicalID] = {
+                    duration = duration,
+                    spellID = canonicalID,
+                }
+                count = count + 1
+            end
+        end
+    end
+
+    if count > 0 then
+        self.Utils:LogInfo("AuraTracker: Tracking", count, "temporary pet summons")
+    end
 end
 
 -------------------------------------------------------------------------------
@@ -182,7 +228,8 @@ function AuraTracker:OnAuraEvent(subEvent, data)
                 -- Check tags to determine if this is a buff-type spell
                 for _, tag in ipairs(spellData.tags) do
                     if tag == "HOT" or tag == "HAS_HOT" or tag == "HEAL_SINGLE" or tag == "HEAL_AOE" 
-                       or tag == "BUFF" or tag == "HAS_BUFF" or tag == "EXTERNAL_DEFENSIVE" then
+                       or tag == "BUFF" or tag == "HAS_BUFF" or tag == "EXTERNAL_DEFENSIVE"
+                       or tag == SUMMON_TAG then
                         isBuff = true
                         break
                     end
@@ -314,7 +361,8 @@ function AuraTracker:OnAuraStackEvent(subEvent, data)
     if spellData and spellData.tags then
         for _, tag in ipairs(spellData.tags) do
             if tag == "HOT" or tag == "HAS_HOT" or tag == "HEAL_SINGLE" or tag == "HEAL_AOE" 
-               or tag == "BUFF" or tag == "HAS_BUFF" or tag == "EXTERNAL_DEFENSIVE" then
+               or tag == "BUFF" or tag == "HAS_BUFF" or tag == "EXTERNAL_DEFENSIVE"
+               or tag == SUMMON_TAG then
                 isBuff = true
                 break
             end
@@ -334,6 +382,81 @@ function AuraTracker:OnAuraStackEvent(subEvent, data)
     end
 end
 
+-- CLEU callback for pet/guardian summons
+function AuraTracker:OnSummonEvent(subEvent, data)
+    local spellID = data.spellID
+    local spellName = data.spellName
+    local sourceGUID = data.sourceGUID
+    local destGUID = data.destGUID
+
+    -- Must be from us
+    if sourceGUID ~= self.playerGUID then return end
+    if not spellID then return end
+
+    -- Resolve to canonical/base spell ID
+    local baseSpellID = self.rankToBaseMap[spellID] or spellID
+    if self.LibSpellDB then
+        baseSpellID = self.LibSpellDB:GetCanonicalSpellID(baseSpellID) or baseSpellID
+    end
+
+    local summonInfo = self.summonSpells[baseSpellID]
+    if not summonInfo then return end
+
+    local duration = summonInfo.duration
+    if not duration or duration <= 0 then return end
+
+    local expiration = GetTime() + duration
+    local targetGUID = self.playerGUID
+
+    -- Store as a pseudo-aura on the player
+    self.activeAuras[baseSpellID] = self.activeAuras[baseSpellID] or {}
+    local existing = self.activeAuras[baseSpellID][targetGUID]
+    if existing and existing.expiration and existing.expiration > expiration then
+        expiration = existing.expiration  -- Prefer later expiration (multiple summon events)
+    end
+    self.activeAuras[baseSpellID][targetGUID] = {
+        expiration = expiration,
+        duration = duration,
+        stacks = 0,
+        sourceSpellID = baseSpellID,
+        isSummon = true,
+    }
+
+    -- Track pet GUIDs for early cleanup (Force of Nature spawns multiple)
+    if destGUID then
+        self.summonPetToSpell[destGUID] = baseSpellID
+        self.summonPetsBySpell[baseSpellID] = self.summonPetsBySpell[baseSpellID] or {}
+        self.summonPetsBySpell[baseSpellID][destGUID] = true
+    end
+
+    self.Utils:LogInfo("AuraTracker: Summon active", spellName or baseSpellID, "for", duration, "seconds")
+    self:NotifyAuraChange(baseSpellID, true)
+end
+
+-- CLEU callback for summon despawns/deaths
+function AuraTracker:OnSummonUnitRemoved(subEvent, data)
+    local destGUID = data.destGUID
+    if not destGUID then return end
+
+    local baseSpellID = self.summonPetToSpell[destGUID]
+    if not baseSpellID then return end
+
+    self.summonPetToSpell[destGUID] = nil
+
+    local pets = self.summonPetsBySpell[baseSpellID]
+    if pets then
+        pets[destGUID] = nil
+        if not next(pets) then
+            self.summonPetsBySpell[baseSpellID] = nil
+            local targets = self.activeAuras[baseSpellID]
+            if targets and targets[self.playerGUID] then
+                targets[self.playerGUID] = nil
+            end
+            self:NotifyAuraChange(baseSpellID, false)
+        end
+    end
+end
+
 -------------------------------------------------------------------------------
 -- Cleanup
 -------------------------------------------------------------------------------
@@ -348,6 +471,14 @@ function AuraTracker:CleanupExpiredAuras()
             if expiration <= now then
                 targets[targetGUID] = nil
                 changed = true
+
+                -- Clear summon tracking if this was a pseudo-aura on the player
+                if targetGUID == self.playerGUID and self.summonPetsBySpell[auraID] then
+                    for petGUID in pairs(self.summonPetsBySpell[auraID]) do
+                        self.summonPetToSpell[petGUID] = nil
+                    end
+                    self.summonPetsBySpell[auraID] = nil
+                end
             end
         end
     end
@@ -479,7 +610,8 @@ function AuraTracker:GetAuraType(spellID)
                     -- Helpful tags (if not already determined from auraInfos)
                     if not auraInfos then
                         if tag == "HOT" or tag == "HAS_HOT" or tag == "HEAL_SINGLE" or tag == "HEAL_AOE" 
-                           or tag == "BUFF" or tag == "HAS_BUFF" or tag == "EXTERNAL_DEFENSIVE" then
+                           or tag == "BUFF" or tag == "HAS_BUFF" or tag == "EXTERNAL_DEFENSIVE"
+                           or tag == SUMMON_TAG then
                             isHelpful = true
                         end
                     end
@@ -525,7 +657,8 @@ function AuraTracker:GetAuraTypeForAuraID(auraSpellID)
                         isCC = true
                     end
                     if tag == "HOT" or tag == "HAS_HOT" or tag == "HEAL_SINGLE" or tag == "HEAL_AOE" 
-                       or tag == "BUFF" or tag == "HAS_BUFF" or tag == "EXTERNAL_DEFENSIVE" then
+                       or tag == "BUFF" or tag == "HAS_BUFF" or tag == "EXTERNAL_DEFENSIVE"
+                       or tag == SUMMON_TAG then
                         isHelpful = true
                     end
                 end
