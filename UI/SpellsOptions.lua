@@ -4,9 +4,8 @@
     
     Key features:
     - Per-spec configuration (sparse storage)
-    - Visual highlighting for modified spells (gold asterisk)
-    - Per-spell reset to default (right-click)
     - Drag-and-drop reordering within and between rows
+    - Reset all spell config via button
 ]]
 
 local ADDON_NAME, addon = ...
@@ -89,7 +88,6 @@ function SpellsOptions:CreatePanel()
         GameTooltip:AddLine("Drag :: to reorder spells within a row", 1, 0.82, 0)
         GameTooltip:AddLine("Drag spells between rows to move them", 1, 0.82, 0)
         GameTooltip:AddLine("Drag from Available to enable additional spells", 1, 0.82, 0)
-        GameTooltip:AddLine("Right-click any modified spell to reset it", 1, 0.82, 0)
         GameTooltip:Show()
     end)
     descFrame:SetScript("OnLeave", function()
@@ -99,21 +97,15 @@ function SpellsOptions:CreatePanel()
     self.descriptionText = description
     self.descFrame = descFrame
     
-    -- Legend
-    local legend = panel:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-    legend:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -16, -16)
-    legend:SetText("|cffffd200*|r = Modified (Right-click to reset)")
-    legend:SetTextColor(0.7, 0.7, 0.7)
-    
     -- Instructions
     local instructions = panel:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-    instructions:SetPoint("TOPRIGHT", legend, "BOTTOMRIGHT", 0, -2)
+    instructions:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -16, -16)
     instructions:SetText("Drag |cffffffff::|r to reorder")
     instructions:SetTextColor(0.5, 0.5, 0.5)
     
     -- Reset Spells Button
     local resetSpellsButton = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
-    resetSpellsButton:SetPoint("TOPRIGHT", instructions, "BOTTOMRIGHT", 0, -8)
+    resetSpellsButton:SetPoint("TOPRIGHT", instructions, "BOTTOMRIGHT", 0, -4)
     resetSpellsButton:SetSize(160, 22)
     resetSpellsButton:SetText("Reset Spell Config")
     resetSpellsButton:SetScript("OnEnter", function(self)
@@ -286,18 +278,6 @@ function SpellsOptions:SetSpellOverride(spellID, field, value)
             cooldownIcons:RepositionRows()
         end
     end)
-end
-
-function SpellsOptions:ResetSpell(spellID)
-    addon:ClearSpellConfigOverride(spellID)
-    
-    -- IMPORTANT: Rescan FIRST to update trackedSpells, THEN refresh UI
-    local spellTracker = addon:GetModule("SpellTracker")
-    if spellTracker then
-        spellTracker:FullRescan()
-    end
-    
-    self:RefreshSpellList()
 end
 
 function SpellsOptions:GetDefaultValue(spellID, field)
@@ -505,7 +485,6 @@ function SpellsOptions:GetEffectiveSpellList()
                 rowIndex = effectiveRow,
                 defaultRow = defaultRow,
                 order = cfg.order,
-                isModified = (cfg.enabled ~= nil or cfg.rowIndex ~= nil or cfg.order ~= nil),
                 isAvailable = (defaultRow == nil),  -- Available if no default row (not spec-relevant)
             })
         end
@@ -546,7 +525,6 @@ function SpellsOptions:GetEffectiveSpellList()
                             rowIndex = effectiveRow,
                             defaultRow = AVAILABLE_ROW_INDEX,  -- Default is available section
                             order = cfg.order,
-                            isModified = (cfg.enabled ~= nil or cfg.rowIndex ~= nil or cfg.order ~= nil),
                             isAvailable = (effectiveRow == AVAILABLE_ROW_INDEX),  -- True if in available section
                         })
                     end
@@ -671,11 +649,8 @@ function SpellsOptions:CreateSpellEntry(spellInfo, rowIndex, index, yOffset)
     icon:SetTexture(spellIcon or "Interface\\Icons\\INV_Misc_QuestionMark")
     frame.icon = icon
     
-    -- Name with modified indicator
+    -- Name
     local nameText = spellName or ("Spell " .. spellInfo.spellID)
-    if spellInfo.isModified then
-        nameText = "|cffffd200*|r " .. nameText
-    end
     
     local name = frame:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
     name:SetPoint("LEFT", icon, "RIGHT", 8, 0)
@@ -750,22 +725,11 @@ function SpellsOptions:CreateSpellEntry(spellInfo, rowIndex, index, yOffset)
     end)
     frame.dragHandle = dragHandle
     
-    -- Right-click to reset
-    frame:SetScript("OnMouseUp", function(self, button)
-        if button == "RightButton" then
-            SpellsOptions:ResetSpell(spellInfo.spellID)
-        end
-    end)
-    
     -- Hover effects
     frame:SetScript("OnEnter", function(self)
         self.bg:Show()
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
         GameTooltip:SetSpellByID(spellInfo.spellID)
-        if spellInfo.isModified then
-            GameTooltip:AddLine(" ")
-            GameTooltip:AddLine("|cffffd200Modified|r - Right-click to reset", 0.7, 0.7, 0.7)
-        end
         GameTooltip:Show()
     end)
     frame:SetScript("OnLeave", function(self)
@@ -984,9 +948,16 @@ function SpellsOptions:EndDrag()
         
         -- Update order (skip for Available section as order doesn't matter there)
         if newRow ~= AVAILABLE_ROW_INDEX and (orderChanged or rowChanged) then
-            -- Calculate new order value based on position
-            -- IMPORTANT: Filter out the dragged spell from rowSpells since it's already been added
+            -- FIX: Assign explicit order values to ALL spells in this row.
+            -- This is critical because CooldownIcons computes defaultOrder based only on ENABLED spells,
+            -- while SpellsOptions computes defaultOrder based on ALL spells (enabled + disabled).
+            -- By saving explicit order values for every spell, we ensure consistent ordering
+            -- regardless of which spells are enabled or disabled.
+            
+            -- Get ALL spells in the target row (including the dragged spell)
             local allRowSpells = self:GetEffectiveSpellList()[newRow] or {}
+            
+            -- Build list excluding the dragged spell
             local rowSpells = {}
             local draggedSpellPositionInTargetRow = nil
             for i, spell in ipairs(allRowSpells) do
@@ -1004,30 +975,38 @@ function SpellsOptions:EndDrag()
                 adjustedIndex = newIndex - 1
             end
             
+            -- Calculate the new order for the dragged spell
+            local newDraggedOrder
             if newIndex == 999 or adjustedIndex > #rowSpells then
                 -- Dropped at end of row
-                local maxOrder = 0
-                for _, spell in ipairs(rowSpells) do
-                    local order = spell.order or spell.defaultOrder or 0
-                    if order > maxOrder then maxOrder = order end
-                end
-                self:SetSpellOverride(spellID, "order", maxOrder + 1)
+                newDraggedOrder = #rowSpells + 1
             elseif adjustedIndex <= 1 then
                 -- Dropped at start
-                local firstSpell = rowSpells[1]
-                local firstOrder = firstSpell and (firstSpell.order or firstSpell.defaultOrder or 1) or 1
-                local newOrder = firstOrder - 0.5
-                self:SetSpellOverride(spellID, "order", newOrder)
+                newDraggedOrder = 1
             else
-                -- Dropped between spells - calculate midpoint
-                local prevSpell = rowSpells[adjustedIndex - 1]
-                local nextSpell = rowSpells[adjustedIndex]
-                
-                local prevOrder = prevSpell and (prevSpell.order or prevSpell.defaultOrder or adjustedIndex - 1) or 0
-                local nextOrder = nextSpell and (nextSpell.order or nextSpell.defaultOrder or adjustedIndex) or prevOrder + 2
-                
-                local newOrder = (prevOrder + nextOrder) / 2
-                self:SetSpellOverride(spellID, "order", newOrder)
+                -- Dropped between spells - use the target position
+                newDraggedOrder = adjustedIndex
+            end
+            
+            -- Build the final ordered list by inserting dragged spell at its new position
+            local finalOrder = {}
+            local insertPos = math.max(1, math.min(newDraggedOrder, #rowSpells + 1))
+            
+            for i, spell in ipairs(rowSpells) do
+                if i == insertPos then
+                    table.insert(finalOrder, { spellID = spellID, isNew = true })
+                end
+                table.insert(finalOrder, spell)
+            end
+            -- Handle insertion at end
+            if insertPos > #rowSpells then
+                table.insert(finalOrder, { spellID = spellID, isNew = true })
+            end
+            
+            -- Assign sequential order values to ALL spells (1, 2, 3, ...)
+            -- This ensures every spell has an explicit order, eliminating defaultOrder inconsistencies
+            for i, spell in ipairs(finalOrder) do
+                self:SetSpellOverride(spell.spellID, "order", i)
             end
         end
     end
