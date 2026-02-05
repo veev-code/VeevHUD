@@ -1,5 +1,13 @@
 # VeevHUD Changelog
 
+## [1.0.39] - 2026-02-05
+
+### Added
+- **Keybind Text on Icons** — Shows keyboard shortcuts on cooldown icons, similar to default action bars. Scans action bars (including macros) to find matching spells and displays abbreviated keybinds (e.g., Shift+X → SX). Supports Bartender4, ElvUI, Dominos, and default UI. Toggle in options.
+
+### Fixed
+- **Spell Ordering** — Fixed a bug where disabling some abilities in a row could cause the remaining abilities to display in the wrong order
+
 ## [1.0.38] - 2026-02-05
 
 ### Improved
