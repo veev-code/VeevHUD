@@ -388,7 +388,7 @@ function SpellsOptions:RefreshSpellList()
         local availableSpells = rowSpells[AVAILABLE_ROW_INDEX]
         if availableSpells and #availableSpells > 0 then
             yOffset = yOffset - 12  -- Extra gap before available section
-            yOffset = self:CreateRowHeader(AVAILABLE_ROW_INDEX, "Available (Drag to Enable)", yOffset)
+            yOffset = self:CreateRowHeader(AVAILABLE_ROW_INDEX, "Available", yOffset)
             
             -- Add description
             local availDesc = self.scrollChild:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")

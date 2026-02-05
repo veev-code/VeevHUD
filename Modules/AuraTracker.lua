@@ -427,9 +427,16 @@ function AuraTracker:OnSummonEvent(subEvent, data)
         self.summonPetToSpell[destGUID] = baseSpellID
         self.summonPetsBySpell[baseSpellID] = self.summonPetsBySpell[baseSpellID] or {}
         self.summonPetsBySpell[baseSpellID][destGUID] = true
+
+        -- Update stacks to reflect number of living pets (for stack count display)
+        local petCount = 0
+        for _ in pairs(self.summonPetsBySpell[baseSpellID]) do
+            petCount = petCount + 1
+        end
+        self.activeAuras[baseSpellID][targetGUID].stacks = petCount
     end
 
-    self.Utils:LogInfo("AuraTracker: Summon active", spellName or baseSpellID, "for", duration, "seconds")
+    self.Utils:LogInfo("AuraTracker: Summon active", spellName or baseSpellID, "for", duration, "seconds, pets:", self.activeAuras[baseSpellID][targetGUID].stacks or 0)
     self:NotifyAuraChange(baseSpellID, true)
 end
 
@@ -447,12 +454,24 @@ function AuraTracker:OnSummonUnitRemoved(subEvent, data)
     if pets then
         pets[destGUID] = nil
         if not next(pets) then
+            -- All pets dead - remove the pseudo-aura
             self.summonPetsBySpell[baseSpellID] = nil
             local targets = self.activeAuras[baseSpellID]
             if targets and targets[self.playerGUID] then
                 targets[self.playerGUID] = nil
             end
             self:NotifyAuraChange(baseSpellID, false)
+        else
+            -- Some pets still alive - update stack count
+            local petCount = 0
+            for _ in pairs(pets) do
+                petCount = petCount + 1
+            end
+            local targets = self.activeAuras[baseSpellID]
+            if targets and targets[self.playerGUID] then
+                targets[self.playerGUID].stacks = petCount
+            end
+            self:NotifyAuraChange(baseSpellID, true)
         end
     end
 end

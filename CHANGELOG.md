@@ -1,5 +1,10 @@
 # VeevHUD Changelog
 
+## [1.0.40] - 2026-02-05
+
+### Added
+- **Summon Stack Count** — Spells that summon multiple pets (like Force of Nature) now display the number of living pets as a stack count. When treants die, the count decrements so you know how many remain active.
+
 ## [1.0.39] - 2026-02-05
 
 ### Added
