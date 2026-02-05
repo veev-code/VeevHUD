@@ -378,6 +378,13 @@ C.DEFAULTS = {
             -- "none" = disabled, "primary" = Primary only, "primary_secondary" = Primary + Secondary, "all" = all rows
             -- Uses throttled updates (0.1s) to minimize performance impact
             showRangeIndicator = "all",
+            
+            -- Keybind text: show the keyboard shortcut for each ability (like default action bars)
+            -- "none" = disabled, "primary" = Primary only, "primary_secondary" = Primary + Secondary, "all" = all rows
+            -- Scans action bars to find where each spell is placed and displays the keybind
+            -- Text appears in bottom-right (stack text uses top-right)
+            showKeybindText = "none",  -- Off by default
+            keybindTextSize = 12,  -- Font size in pixels for keybind text
         },
         
         -- Per-spec spell configuration (sparse storage)

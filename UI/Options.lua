@@ -505,9 +505,9 @@ function Options:CreatePanelContent(container)
         dependsOnNotValue = C.ROW_SETTING.NONE,
     })
     
-    -- ─── Icons: Range Indicator ───
+    -- ─── Icons: Action Bar Features ───
     yOffset = yOffset - 10
-    yOffset = self:CreateSubsectionHeader(container, "Range Indicator", yOffset)
+    yOffset = self:CreateSubsectionHeader(container, "Action Bar Features", yOffset)
     
     yOffset = self:CreateDropdown(container, yOffset, {
         path = "icons.showRangeIndicator",
@@ -521,6 +521,29 @@ function Options:CreatePanelContent(container)
             { value = C.ROW_SETTING.SECONDARY_UTILITY, label = "Secondary + Utility" },
             { value = C.ROW_SETTING.UTILITY, label = "Utility Only" },
         },
+    })
+    
+    yOffset = self:CreateDropdown(container, yOffset, {
+        path = "icons.showKeybindText",
+        label = "Keybind Text",
+        tooltip = "Displays the keyboard shortcut for each ability, similar to the default action bars. The keybind appears in the bottom-right corner (stack counts use top-right).\n\nVeevHUD scans your action bars to find where each spell is placed and shows the corresponding keybind. Modifiers are abbreviated: Shift=S, Ctrl=C, Alt=A (e.g., Shift+X becomes 'SX').\n\nNote: Only spells placed on your action bars with keybinds will show text. If you move spells or change keybinds, the display updates automatically.",
+        options = {
+            { value = C.ROW_SETTING.NONE, label = "None" },
+            { value = C.ROW_SETTING.PRIMARY, label = "Primary Row Only" },
+            { value = C.ROW_SETTING.PRIMARY_SECONDARY, label = "Primary + Secondary" },
+            { value = C.ROW_SETTING.ALL, label = "All Rows" },
+            { value = C.ROW_SETTING.SECONDARY_UTILITY, label = "Secondary + Utility" },
+            { value = C.ROW_SETTING.UTILITY, label = "Utility Only" },
+        },
+    })
+    
+    yOffset = self:CreateSlider(container, yOffset, {
+        path = "icons.keybindTextSize",
+        label = "Keybind Text Size",
+        tooltip = "The font size for keybind text in pixels. Larger values make the text more readable but take up more space on the icon.",
+        min = 8, max = 20, step = 1,
+        dependsOn = "icons.showKeybindText",
+        dependsOnNotValue = C.ROW_SETTING.NONE,
     })
     
     -- === HEALTH BAR SECTION ===
@@ -1710,6 +1733,22 @@ function Options:RefreshModuleIfNeeded(path)
         -- Scale is under icons but affects the whole HUD
         if path == "icons.scale" then
             Options:UpdateHUDPosition()
+        end
+        -- Keybind text toggle: just update keybind text, not full refresh
+        if path == "icons.showKeybindText" then
+            local cooldownIcons = addon:GetModule("CooldownIcons")
+            if cooldownIcons and cooldownIcons.UpdateAllKeybindText then
+                cooldownIcons:UpdateAllKeybindText()
+            end
+            return  -- No need for full module refresh
+        end
+        -- Keybind text size: refresh fonts on keybind text elements
+        if path == "icons.keybindTextSize" then
+            local cooldownIcons = addon:GetModule("CooldownIcons")
+            if cooldownIcons and cooldownIcons.RefreshFonts then
+                cooldownIcons:RefreshFonts(addon:GetFont())
+            end
+            return  -- No need for full module refresh
         end
         -- Aspect ratio affects both HUD icons and proc tracker
         if path == "icons.iconAspectRatio" then

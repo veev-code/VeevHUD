@@ -26,6 +26,7 @@ Core\Constants.lua
 Core\Logger.lua
 Core\Animations.lua
 Core\Utils.lua
+Core\Keybinds.lua
 Core\SpellUtils.lua
 Core\AuraCache.lua
 Core\Events.lua

@@ -25,7 +25,6 @@ Scratchpad for ideas, bugs, and public feature requests.
 - Battle Shout reminder
 - Trinket buff/aura tracking (consider: utility row, own row, or intelligent assignment based on throughput?)
 - Enhancement Shaman: weapon swing timer / sync bar (show MH/OH delta, warn if >0.5s apart)
-- Keybind text on icons
 
 ## Debug / Packaging
 

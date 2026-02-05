@@ -75,6 +75,13 @@ function CooldownIcons:Initialize()
         addon.RangeChecker:RegisterCallback(self, self.OnRangeUpdate)
     end
 
+    -- Register for action bar and keybind changes (for keybind text display)
+    self.Events:RegisterEvent(self, "ACTIONBAR_SLOT_CHANGED", self.OnActionBarChanged)
+    self.Events:RegisterEvent(self, "UPDATE_BINDINGS", self.OnBindingsChanged)
+    self.Events:RegisterEvent(self, "ACTIONBAR_PAGE_CHANGED", self.OnActionBarChanged)
+    self.Events:RegisterEvent(self, "ACTIONBAR_SHOWGRID", self.OnActionBarChanged)
+    self.Events:RegisterEvent(self, "ACTIONBAR_HIDEGRID", self.OnActionBarChanged)
+
     self.Utils:LogInfo("CooldownIcons initialized")
 end
 
@@ -146,6 +153,18 @@ function CooldownIcons:OnRangeUpdate()
     end
     
     self:UpdateAllRangeIndicators()
+end
+
+function CooldownIcons:OnActionBarChanged(event, slot)
+    -- Action bar slot changed - clear keybind cache and update
+    addon.Keybinds:ClearCache()
+    self:UpdateAllKeybindText()
+end
+
+function CooldownIcons:OnBindingsChanged()
+    -- Keybindings changed - clear cache and update
+    addon.Keybinds:ClearCache()
+    self:UpdateAllKeybindText()
 end
 
 function CooldownIcons:OnOverlayShow(event, spellID)
@@ -600,6 +619,10 @@ function CooldownIcons:CreateIcon(parent, index, size)
     stacks:SetJustifyV("TOP")
     stacks:SetTextColor(self.C.COLORS.TEXT.r, self.C.COLORS.TEXT.g, self.C.COLORS.TEXT.b)
     frame.stacks = stacks
+
+    -- Keybind text (bottom right, shows keyboard shortcut like default action bars)
+    -- Parented to textFrame so it renders above cooldown spiral
+    frame.keybindText = addon.Keybinds:CreateKeybindText(frame, textFrame, addon:GetFont(), db.keybindTextSize, size)
 
     -- Resource cost display elements
     -- Option A: Horizontal bar at bottom
@@ -1126,6 +1149,34 @@ function CooldownIcons:SetupIcon(frame, spellID, actualSpellID, spellData, rowCo
             if tag == "REACTIVE" then
                 frame.isReactive = true
                 break
+            end
+        end
+    end
+    
+    -- Update keybind text for this icon
+    self:UpdateKeybindText(frame)
+end
+
+-------------------------------------------------------------------------------
+-- Keybind Text Display
+-------------------------------------------------------------------------------
+
+-- Update keybind text for a single icon
+function CooldownIcons:UpdateKeybindText(frame)
+    local db = addon.db and addon.db.profile.icons or {}
+    addon.Keybinds:UpdateKeybindText(frame, db.showKeybindText)
+end
+
+-- Update keybind text for all visible icons
+function CooldownIcons:UpdateAllKeybindText()
+    if not self.rows then return end
+    
+    for rowIndex, rowFrame in pairs(self.rows) do
+        if rowFrame and rowFrame.icons then
+            for _, iconFrame in ipairs(rowFrame.icons) do
+                if iconFrame:IsShown() and iconFrame.spellID then
+                    self:UpdateKeybindText(iconFrame)
+                end
             end
         end
     end
@@ -2697,6 +2748,8 @@ function CooldownIcons:Refresh()
 end
 
 function CooldownIcons:RefreshFonts(fontPath)
+    local db = addon.db.profile.icons
+    
     -- Update fonts on all icon text elements
     for _, rowFrame in ipairs(self.rows or {}) do
         for _, iconFrame in ipairs(rowFrame.icons or {}) do
@@ -2719,6 +2772,9 @@ function CooldownIcons:RefreshFonts(fontPath)
                 local stacksFontSize = math.max(10, math.floor(size * 0.26))
                 iconFrame.stacks:SetFont(fontPath, stacksFontSize, "OUTLINE")
             end
+            
+            -- Keybind text
+            addon.Keybinds:UpdateKeybindFont(iconFrame, fontPath, db.keybindTextSize)
         end
     end
 end
