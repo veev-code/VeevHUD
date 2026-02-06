@@ -1067,35 +1067,36 @@ function CooldownIcons:PositionFlowLayout(rowFrame, count, iconWidth, iconHeight
     -- Calculate how many rows we need
     local numRows = math.ceil(count / iconsPerRow)
     
-    -- Check if last row would have only 1 icon - if so, redistribute
-    -- (only when we have enough icons across multiple rows to balance)
-    local lastRowCount = count % iconsPerRow
-    if lastRowCount == 1 and numRows > 1 and iconsPerRow > 2 then
-        -- Adjust icons per row to balance better
-        iconsPerRow = math.ceil(count / numRows)
-    end
-    
     -- Use rowSpacing for vertical gap between wrapped rows
     local verticalSpacing = rowSpacing
     local rowHeight = iconHeight + verticalSpacing
-    local currentRow = 0
-    local currentCol = 0
-    local iconsInCurrentRow = 0
     
-    -- Calculate icons per each row
+    -- Build row distribution: fill from top, last row gets the remainder
     local rowIconCounts = {}
     local remaining = count
     for r = 1, numRows do
         local iconsThisRow = math.min(iconsPerRow, remaining)
-        -- For last row, check if we need to balance
-        -- Only steal from previous row if it has 3+ icons (so it keeps at least 2)
-        if r == numRows and iconsThisRow == 1 and r > 1 and rowIconCounts[r-1] and rowIconCounts[r-1] >= 3 then
-            -- Steal one from previous row
-            rowIconCounts[r-1] = rowIconCounts[r-1] - 1
-            iconsThisRow = 2
-        end
         rowIconCounts[r] = iconsThisRow
         remaining = remaining - iconsThisRow
+    end
+    
+    -- Ensure last row has at least ceil(iconsPerRow/2) icons to avoid sparse trailing rows
+    -- Steal the deficit from the second-to-last row, but keep it >= last row (top-heavy)
+    if numRows > 1 then
+        local minLastRow = math.ceil(iconsPerRow / 2)
+        local lastRow = rowIconCounts[numRows]
+        local prevRow = rowIconCounts[numRows - 1]
+        if lastRow < minLastRow then
+            local deficit = minLastRow - lastRow
+            -- Only steal as much as keeps the previous row >= the new last row
+            local maxSteal = prevRow - minLastRow
+            if maxSteal < 0 then maxSteal = 0 end
+            local steal = math.min(deficit, maxSteal)
+            if steal > 0 then
+                rowIconCounts[numRows - 1] = prevRow - steal
+                rowIconCounts[numRows] = lastRow + steal
+            end
+        end
     end
     
     local iconIndex = 1

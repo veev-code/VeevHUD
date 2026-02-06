@@ -403,7 +403,7 @@ C.DEFAULTS = {
                 enabled = true,
                 iconSize = 56,       -- Larger core icons (like retail)
                 flowLayout = false,  -- Single line by default
-                iconsPerRow = 8,     -- Icons per row when flow layout is on
+                iconsPerRow = 6,     -- Icons per row when flow layout is on
             },
             {
                 name = "Secondary Row",
@@ -418,7 +418,7 @@ C.DEFAULTS = {
                 enabled = true,
                 iconSize = 48,
                 flowLayout = false,  -- Single line by default
-                iconsPerRow = 8,     -- Icons per row when flow layout is on
+                iconsPerRow = 6,     -- Icons per row when flow layout is on
             },
             {
                 -- Combined utility group - flows into multiple rows automatically

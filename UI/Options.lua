@@ -385,14 +385,14 @@ function Options:BuildOptionsTable()
 							flowLayout = {
 								type = "toggle",
 								name = "Enabled",
-								desc = "When enabled, this row wraps its icons into multiple lines instead of displaying them all in a single long line. The 'Icons Per Row' setting controls how many icons appear per line.\n\nTo avoid a lone icon on the last row, the layout may automatically adjust the distribution — for example, 7 icons at 4 per row becomes two rows of 4 and 3 instead of 4 and 3.",
+								desc = "When enabled, this row wraps its icons into multiple lines instead of displaying them all in a single long line. The 'Icons Per Row' setting controls the maximum icons per line.\n\nTo avoid a sparse last row, icons are moved down from the previous row — for example, 8 icons at 6 per row becomes 5 and 3 instead of 6 and 2.",
 								arg = ("rows.%d.flowLayout"):format(i),
 								order = 1,
 							},
 							iconsPerRow = {
 								type = "range",
 								name = "Icons Per Row",
-								desc = "How many icons appear on each line before wrapping to the next. For example, setting this to 5 with 12 icons creates rows of 5, 5, and 2.\n\nTo avoid a lone icon on the last row, the layout may automatically redistribute — for example, 7 icons at 4 per row becomes rows of 4 and 3 instead of 4, 2, and 1.",
+								desc = "The maximum number of icons on each line before wrapping to the next. Rows fill from the top, so earlier rows are always full.\n\nTo avoid a sparse last row, icons are moved down from the previous row — for example, 14 icons at 6 per row becomes 6, 5, 3 instead of 6, 6, 2.",
 								min = 2, max = 20, step = 1,
 								arg = ("rows.%d.iconsPerRow"):format(i),
 								disabled = function()
