@@ -8,9 +8,7 @@ Consolidated from Discord/Reddit feedback, internal ideas, and bug reports.
 
 Reported missing or broken spell support (not confirmed fixed):
 
-- **Shaman:** Shamanistic Focus and Flurry not appearing in proc tracker. Weapon buff durations not tracked. *(Shadowhawk)*
-- **Paladin:** Seal of the Crusader not appearing in spell list at low levels. *(Shadowhawk)*
-- **Priest:** Clearcasting (Holy Concentration) not tracked as a proc. *(Flaesh1552)*
+- **Shaman:** Weapon buff durations not tracked. *(Shadowhawk)*
 - **General:** Inconsistent buff tracking — some long buffs (Thorns, weapon buffs) track while others don't. *(Shadowhawk)*
 
 ---
@@ -108,5 +106,9 @@ Items from feedback that have been completed, with the version they shipped in.
 | Icon aspect ratio                                                | 1.0.11  | Square, 4:3, 2:1 options                       |
 | Out of combat alpha                                              | 1.0.10  | Fade HUD when not in combat                    |
 | Proc tracker with options                                        | 1.0.9   | Glow, backdrop, slide animation, sizing        |
+| Shaman: Shamanistic Focus + Flurry proc tracking                 | 1.0.42  | Added to LibSpellDB proc data                  |
+| Paladin: Seal of the Crusader at all levels                      | 1.0.42  | Added all 7 ranks to LibSpellDB                |
+| Priest: Clearcasting (Holy Concentration) proc tracking           | 1.0.42  | Added to LibSpellDB proc data                  |
+| Warrior: Blood Craze proc tracking                               | 1.0.42  | Added to LibSpellDB proc data                  |
 
 

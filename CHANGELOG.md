@@ -1,5 +1,13 @@
 # VeevHUD Changelog
 
+## [1.0.42] - 2026-02-06
+
+### LibSpellDB Updates
+- **Shaman proc tracking** — Shamanistic Focus ("Focused") and Flurry now appear in the proc tracker for Enhancement Shamans
+- **Priest proc tracking** — Clearcasting (Holy Concentration) now appears in the proc tracker for Holy Priests
+- **Warrior proc tracking** — Blood Craze now appears in the proc tracker
+- **Paladin: Seal of the Crusader** — Now appears in the spell list at all levels (all 7 ranks added)
+
 ## [1.0.41] - 2026-02-05
 
 ### Added
