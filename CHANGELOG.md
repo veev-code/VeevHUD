@@ -1,5 +1,11 @@
 # VeevHUD Changelog
 
+## [1.0.43] - 2026-02-06
+
+### Fixed
+
+- **Spell config opening unexpectedly** — Interacting with sliders (clicking the track) or pressing Enter in number fields could falsely trigger the Spell Configuration window to open. The Spells tab now uses an explicit "Open Spell Configuration" button instead of an automatic redirect.
+
 ## [1.0.42] - 2026-02-06
 
 ### LibSpellDB Updates

@@ -253,19 +253,12 @@ function SpellsOptions:CreateDialog()
             local cx, cy = SpellsOptions._lastCenterX, SpellsOptions._lastCenterY
             -- Slight delay so the hide finishes before the open
             C_Timer.After(0, function()
-                -- Prevent the Spells tab redirect from firing when AceConfig reopens
-                addon.Options._skipSpellsRedirect = true
-                -- Pass position so Options:Open() can reposition after AceConfigDialog opens
                 addon.Options:Open(cx, cy)
-                -- Select "general" tab so we don't land on "spells" again
+                -- Select the "spells" tab so the user lands back on the button
                 local AceConfigDialog = LibStub and LibStub("AceConfigDialog-3.0", true)
                 if AceConfigDialog then
-                    AceConfigDialog:SelectGroup("VeevHUD", "general")
+                    AceConfigDialog:SelectGroup("VeevHUD", "spells")
                 end
-                -- Keep the guard active briefly to cover any deferred rendering
-                C_Timer.After(0.1, function()
-                    addon.Options._skipSpellsRedirect = false
-                end)
             end)
         end
     end)

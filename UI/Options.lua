@@ -1222,33 +1222,21 @@ function Options:BuildOptionsTable()
 				name = "Spells",
 				order = 5,
 				args = {
-				_redirect = {
-					type = "description",
-					name = function()
-						-- Guard: skip if we're reopening AceConfig from SpellsOptions close
-						if Options._skipSpellsRedirect then return "" end
-						-- Guard: prevent re-entry
-						if Options._spellsRedirecting then return "" end
-
-						-- Guard: only redirect if "spells" is actually selected in the tree.
-						-- AceConfig evaluates name functions for ALL groups during tree rebuilds
-						-- (e.g. after any NotifyChange), not just the currently displayed group.
-						-- Best-effort: check status if available; if widget hierarchy doesn't
-						-- match (status nil), proceed anyway since other guards prevent false triggers.
-						local AceConfigDialog = LibStub and LibStub("AceConfigDialog-3.0", true)
-						if not AceConfigDialog then return "" end
-						local widget = AceConfigDialog.OpenFrames[ADDON_NAME]
-						if not widget then return "" end
-						local treeGroup = widget.children and widget.children[1]
-						local status = treeGroup and (treeGroup.status or treeGroup.localstatus)
-						if status and status.selected ~= "spells" then return "" end
-
-						Options._spellsRedirecting = true
-						-- When AceConfig renders this group (user clicked "Spells" in tree),
-						-- redirect to the standalone SpellsOptions window on the next frame.
-						C_Timer.After(0, function()
-							Options._spellsRedirecting = false
-							local frame = widget.frame
+					_desc = {
+						type = "description",
+						name = "Spell configuration uses a standalone window with drag-and-drop reordering.\nCustomize which spells appear on your HUD, their order, and which row they belong to.",
+						order = 1,
+						fontSize = "medium",
+					},
+					openButton = {
+						type = "execute",
+						name = "Open Spell Configuration",
+						desc = "Opens the spell configuration window where you can enable/disable spells, reorder them, and move them between rows using drag-and-drop.",
+						func = function()
+							local AceConfigDialog = LibStub and LibStub("AceConfigDialog-3.0", true)
+							if not AceConfigDialog then return end
+							local widget = AceConfigDialog.OpenFrames[ADDON_NAME]
+							local frame = widget and widget.frame
 							local cx, cy
 							if frame and frame:IsShown() then
 								cx, cy = frame:GetCenter()
@@ -1258,11 +1246,10 @@ function Options:BuildOptionsTable()
 							if spellsOptions and spellsOptions.Open then
 								spellsOptions:Open(cx, cy)
 							end
-						end)
-						return "Opening Spell Configuration..."
-					end,
-					order = 1,
-				},
+						end,
+						order = 2,
+						width = "double",
+					},
 				},
 			},
 
@@ -1366,9 +1353,6 @@ function Options:Open(centerX, centerY)
 		return
 	end
 
-	-- Temporarily skip spells redirect in case AceConfig remembers "spells" as last tab
-	-- Use a timer to clear since AceConfigDialog may defer rendering
-	self._skipSpellsRedirect = true
 	AceConfigDialog:Open(ADDON_NAME)
 	self:HookDialogState()
 
@@ -1385,10 +1369,6 @@ function Options:Open(centerX, centerY)
 			end
 		end)
 	end
-
-	C_Timer.After(0.1, function()
-		Options._skipSpellsRedirect = false
-	end)
 end
 
 -------------------------------------------------------------------------------
