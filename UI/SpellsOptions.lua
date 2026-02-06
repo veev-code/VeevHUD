@@ -30,43 +30,55 @@ SpellsOptions.spellEntries = {}  -- All spell entry frames for drop detection
 -------------------------------------------------------------------------------
 
 function SpellsOptions:Initialize()
-    -- Wait for Settings API and main Options to be ready
-    if not Settings or not Settings.RegisterCanvasLayoutSubcategory then
-        return
-    end
-    
-    -- Delay initialization until Options panel is ready
-    C_Timer.After(0.5, function()
-        local success, err = pcall(function()
-            self:CreatePanel()
-        end)
-        if not success and addon.Utils then
-            addon.Utils:LogError("SpellsOptions: CreatePanel error:", err)
-        end
-    end)
+    -- Created lazily when opened from AceConfig.
 end
 
-function SpellsOptions:CreatePanel()
-    local mainOptions = addon.Options
-    if not mainOptions or not mainOptions.category then
-        addon.Utils:LogInfo("Main options category not ready, retrying...")
-        C_Timer.After(1, function() self:CreatePanel() end)
-        return
+function SpellsOptions:Open(centerX, centerY)
+    if not self.dialog then
+        self:CreateDialog()
     end
-    
-    -- Create panel frame
-    local panel = CreateFrame("Frame")
-    panel.name = "Spells"
-    self.panel = panel
-    
-    -- Title
-    local title = panel:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
-    title:SetPoint("TOPLEFT", 16, -16)
-    title:SetText("Spell Configuration")
+    if self.dialog then
+        -- Track whether we were opened from AceConfig (should reopen on close)
+        self._openedFromAceConfig = (centerX ~= nil)
+        -- Reposition to match previous window's center (e.g., AceConfig dialog)
+        if centerX and centerY then
+            self.dialog:ClearAllPoints()
+            self.dialog:SetPoint("CENTER", UIParent, "BOTTOMLEFT", centerX, centerY)
+            -- Store as last known position (before any drag)
+            self._lastCenterX, self._lastCenterY = centerX, centerY
+        end
+        self.dialog:Show()
+    end
+end
+
+function SpellsOptions:CreateDialog()
+    if self.dialog then return self.dialog end
+
+    local dialog = CreateFrame("Frame", "VeevHUDSpellConfigDialog", UIParent, "BasicFrameTemplateWithInset")
+    dialog:SetSize(720, 640)
+    -- Position ~30% down from top (instead of center) to avoid hiding the HUD
+    dialog:SetPoint("CENTER", UIParent, "CENTER", 0, UIParent:GetHeight() * 0.20)
+    dialog:SetFrameStrata("DIALOG")
+    dialog:SetMovable(true)
+    dialog:EnableMouse(true)
+    dialog:RegisterForDrag("LeftButton")
+    dialog:SetScript("OnDragStart", dialog.StartMoving)
+    dialog:SetScript("OnDragStop", function(self)
+        self:StopMovingOrSizing()
+        -- Track last known center so we can pass it back to the main options window
+        SpellsOptions._lastCenterX, SpellsOptions._lastCenterY = self:GetCenter()
+    end)
+    dialog:Hide()
+
+    if dialog.TitleText then
+        dialog.TitleText:SetText("VeevHUD - Spell Configuration")
+    end
+
+    local panel = dialog
     
     -- Subtitle with spec info (set placeholder text so it has dimensions for anchoring)
     local subtitle = panel:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-    subtitle:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -2)
+    subtitle:SetPoint("TOPLEFT", 16, -34)
     subtitle:SetText("Loading...")  -- Placeholder, will be updated
     subtitle:SetTextColor(0.6, 0.6, 0.6)
     self.subtitleText = subtitle
@@ -99,7 +111,7 @@ function SpellsOptions:CreatePanel()
     
     -- Instructions
     local instructions = panel:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-    instructions:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -16, -16)
+    instructions:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -16, -34)
     instructions:SetText("Drag |cffffffff::|r to reorder")
     instructions:SetTextColor(0.5, 0.5, 0.5)
     
@@ -127,17 +139,13 @@ function SpellsOptions:CreatePanel()
             button1 = "Yes",
             button2 = "No",
             OnAccept = function()
-                -- Clear all spellConfig for current spec
-                if VeevHUDDB and VeevHUDDB.overrides and VeevHUDDB.overrides.spellConfig then
-                    VeevHUDDB.overrides.spellConfig[specKey] = nil
-                    -- Clean up empty parent if needed
-                    if next(VeevHUDDB.overrides.spellConfig) == nil then
-                        VeevHUDDB.overrides.spellConfig = nil
+                -- Clear all spellConfig for current spec (profile-scoped)
+                if addon.db and addon.db.profile and addon.db.profile.spellConfig then
+                    addon.db.profile.spellConfig[specKey] = nil
+                    if next(addon.db.profile.spellConfig) == nil then
+                        addon.db.profile.spellConfig = nil
                     end
                 end
-                
-                -- Rebuild live profile and refresh
-                addon.Database:RebuildLiveProfile()
                 
                 local spellTracker = addon:GetModule("SpellTracker")
                 if spellTracker then
@@ -183,14 +191,6 @@ function SpellsOptions:CreatePanel()
     -- Create drop indicator
     self:CreateDropIndicator()
     
-    -- Register as subcategory
-    local subcategory = Settings.RegisterCanvasLayoutSubcategory(mainOptions.category, panel, "Spells")
-    self.category = subcategory
-    
-    -- Track the detected spec to know when to refresh
-    local lastDetectedSpec = nil
-    local lastRefreshTime = 0
-    
     -- Helper function to refresh the spell list with spec detection
     local function DoRefresh()
         -- Set scroll child width
@@ -208,12 +208,15 @@ function SpellsOptions:CreatePanel()
         end
         
         SpellsOptions:RefreshSpellList()
-        lastDetectedSpec = addon.playerSpec
-        lastRefreshTime = GetTime()
     end
     
     -- Refresh when panel becomes visible or spec changes
     panel:SetScript("OnShow", function(self)
+        SpellsOptions.isConfigOpen = true
+        if addon and addon.UpdateVisibility then
+            addon:UpdateVisibility()
+        end
+
         -- Small delay to ensure spec detection has run after talent changes
         C_Timer.After(0.1, function()
             if self:IsVisible() and SpellsOptions.scrollChild then
@@ -221,17 +224,59 @@ function SpellsOptions:CreatePanel()
             end
         end)
     end)
+
+    panel:SetScript("OnHide", function()
+        SpellsOptions.isConfigOpen = false
+        if addon and addon.UpdateVisibility then
+            addon:UpdateVisibility()
+        end
+
+        -- Cancel any drag state cleanly
+        if SpellsOptions.ghostFrame then
+            SpellsOptions.ghostFrame:SetScript("OnUpdate", nil)
+            SpellsOptions.ghostFrame:Hide()
+        end
+        if SpellsOptions.dropIndicator then
+            SpellsOptions.dropIndicator:Hide()
+        end
+        if SpellsOptions.dragState and SpellsOptions.dragState.sourceFrame then
+            SpellsOptions.dragState.sourceFrame:SetAlpha(1.0)
+        end
+        SpellsOptions.dragState = nil
+
+        -- Reopen the main AceConfig options dialog only if we were opened from it
+        -- (not when user closes via X button or Escape from a standalone open)
+        if SpellsOptions._openedFromAceConfig and addon.Options and addon.Options.Open then
+            SpellsOptions._openedFromAceConfig = false
+            -- Use last known position (saved on drag stop / open) since GetCenter()
+            -- may return nil during OnHide
+            local cx, cy = SpellsOptions._lastCenterX, SpellsOptions._lastCenterY
+            -- Slight delay so the hide finishes before the open
+            C_Timer.After(0, function()
+                -- Prevent the Spells tab redirect from firing when AceConfig reopens
+                addon.Options._skipSpellsRedirect = true
+                -- Pass position so Options:Open() can reposition after AceConfigDialog opens
+                addon.Options:Open(cx, cy)
+                -- Select "general" tab so we don't land on "spells" again
+                local AceConfigDialog = LibStub and LibStub("AceConfigDialog-3.0", true)
+                if AceConfigDialog then
+                    AceConfigDialog:SelectGroup("VeevHUD", "general")
+                end
+                -- Keep the guard active briefly to cover any deferred rendering
+                C_Timer.After(0.1, function()
+                    addon.Options._skipSpellsRedirect = false
+                end)
+            end)
+        end
+    end)
     
     if addon.Utils then
-        addon.Utils:LogInfo("Spells options panel registered")
+        addon.Utils:LogInfo("Spells options window created")
     end
     
-    -- If panel is already visible (opened before CreatePanel finished), refresh now
-    if panel:IsVisible() then
-        C_Timer.After(0.1, function()
-            DoRefresh()
-        end)
-    end
+    self.dialog = dialog
+    self.panel = dialog
+    return dialog
 end
 
 -------------------------------------------------------------------------------

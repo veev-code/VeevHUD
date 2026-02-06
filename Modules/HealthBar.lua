@@ -90,12 +90,13 @@ function HealthBar:CreatePlayerBar(parent)
         self:CreateGradient(bar)
     end
 
-    -- Set bar color (class color or default green)
+    -- Set bar color (class color or custom color)
     local r, g, b
     if db.classColored then
         r, g, b = self.Utils:GetClassColor(addon.playerClass)
     else
-        r, g, b = 0.0, 0.8, 0.0  -- Default green for health
+        local c = db.color
+        r, g, b = c and c.r or 0, c and c.g or 0.8, c and c.b or 0
     end
     bar:SetStatusBarColor(r, g, b)
     bar.bg:SetVertexColor(r * 0.3, g * 0.3, b * 0.3)
@@ -198,16 +199,31 @@ function HealthBar:Refresh()
             self.playerBar:Hide()
         end
         
-        -- Update bar color (class color or default green)
+        -- Update bar color (class color or custom color)
         local r, g, b
         if db.classColored then
             r, g, b = self.Utils:GetClassColor(addon.playerClass)
         else
-            r, g, b = 0.0, 0.8, 0.0  -- Default green for health
+            local c = db.color
+            r, g, b = c and c.r or 0, c and c.g or 0.8, c and c.b or 0
         end
         self.playerBar:SetStatusBarColor(r, g, b)
         if self.playerBar.bg then
             self.playerBar.bg:SetVertexColor(r * 0.3, g * 0.3, b * 0.3)
+        end
+        
+        -- Toggle gradient
+        if db.showGradient ~= false then
+            if not self.playerGradient then
+                self:CreateGradient(self.playerBar)
+            end
+            if self.playerGradient then
+                self.playerGradient:Show()
+            end
+        else
+            if self.playerGradient then
+                self.playerGradient:Hide()
+            end
         end
         
         -- Toggle text visibility and update font size

@@ -31,7 +31,7 @@ local Utils = addon.Utils
 -- Logging System (only saves to SavedVariables when debug mode is enabled)
 -------------------------------------------------------------------------------
 
-local MAX_LOG_ENTRIES = 500
+local MAX_LOG_ENTRIES = 1000
 
 -- Check if debug mode is enabled
 local function IsDebugMode()

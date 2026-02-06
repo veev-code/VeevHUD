@@ -1,12 +1,9 @@
 --[[
     VeevHUD - Database Management
     
-    Philosophy: Only save user customizations, not entire profile.
-    This way users always get the latest addon defaults unless they
-    explicitly changed a specific setting.
-    
-    VeevHUDDB.overrides contains ONLY user-customized settings.
-    Everything else comes from Constants.DEFAULTS.
+    Migrated to AceDB-3.0 for profile support (including LibDualSpec).
+    We keep backwards compatibility by migrating the legacy
+    VeevHUDDB.overrides format into an AceDB "Default" profile on first run.
 ]]
 
 local ADDON_NAME, addon = ...
@@ -19,130 +16,52 @@ local Database = addon.Database
 -------------------------------------------------------------------------------
 
 function Database:Initialize()
-    -- Initialize overrides table (stores only user-customized settings)
-    VeevHUDDB.overrides = VeevHUDDB.overrides or {}
-    
-    -- Build the live profile by layering overrides on top of defaults
-    self:RebuildLiveProfile()
+    VeevHUDDB = type(VeevHUDDB) == "table" and VeevHUDDB or {}
+
+    -- One-time migration from legacy sparse overrides format -> AceDB profile.
+    self:UpgradeLegacyDBIfNeeded()
+
+    local AceDB = LibStub and LibStub("AceDB-3.0", true)
+    if not AceDB then
+        error("VeevHUD: AceDB-3.0 missing (embedded libraries not loaded)")
+    end
+
+    local defaults = self:GetAceDefaults()
+
+    -- Use a shared global profile called "Default" (matches legacy behavior).
+    addon.db = AceDB:New("VeevHUDDB", defaults, true)
+
+    -- Ensure expected global tables exist even if user DB is missing them.
+    addon.db.global = addon.db.global or {}
+    addon.db.global.migrationsShown = addon.db.global.migrationsShown or {}
+
+    -- Hook profile change events so the HUD refreshes when profiles/specializations switch.
+    addon.db.RegisterCallback(addon, "OnNewProfile", "OnProfileChanged")
+    addon.db.RegisterCallback(addon, "OnProfileChanged", "OnProfileChanged")
+    addon.db.RegisterCallback(addon, "OnProfileCopied", "OnProfileChanged")
+    addon.db.RegisterCallback(addon, "OnProfileReset", "OnProfileChanged")
+
+    -- LibDualSpec: auto-switch profiles on spec change (optional but embedded).
+    local LibDualSpec = LibStub and LibStub("LibDualSpec-1.0", true)
+    if LibDualSpec then
+        LibDualSpec:EnhanceDatabase(addon.db, ADDON_NAME)
+    end
 end
 
 -------------------------------------------------------------------------------
--- Profile Building
+-- Defaults
 -------------------------------------------------------------------------------
 
--- Rebuild the live profile from defaults + overrides
-function Database:RebuildLiveProfile()
-    local defaults = addon.Constants.DEFAULTS.profile
-    local overrides = VeevHUDDB.overrides or {}
-    
-    -- Create a proxy table that reads from overrides first, then defaults
-    addon.db = {
-        profile = self:MergeWithDefaults(overrides, defaults)
+function Database:GetAceDefaults()
+    -- Keep existing default profile structure.
+    -- Add global defaults for one-time screens and migration notices.
+    return {
+        profile = addon.Constants.DEFAULTS.profile,
+        global = {
+            welcomeShown = false,
+            migrationsShown = {},
+        },
     }
-end
-
--- Deep merge: overrides take precedence over defaults
-function Database:MergeWithDefaults(overrides, defaults)
-    -- Just deep copy defaults (DeepCopy handles arrays correctly now)
-    local result = self:DeepCopy(defaults)
-    
-    -- Then apply overrides on top
-    self:ApplyOverrides(result, overrides)
-    
-    return result
-end
-
--- Apply overrides recursively
-function Database:ApplyOverrides(target, overrides)
-    for k, v in pairs(overrides) do
-        if type(v) == "table" and type(target[k]) == "table" then
-            self:ApplyOverrides(target[k], v)
-        else
-            target[k] = v
-        end
-    end
-end
-
-function Database:DeepCopy(orig)
-    local copy
-    if type(orig) == "table" then
-        copy = {}
-        -- Use ipairs first for arrays to preserve order
-        for i, v in ipairs(orig) do
-            copy[i] = self:DeepCopy(v)
-        end
-        -- Then copy any non-numeric keys
-        for k, v in pairs(orig) do
-            if type(k) ~= "number" then
-                copy[k] = self:DeepCopy(v)
-            end
-        end
-    else
-        copy = orig
-    end
-    return copy
-end
-
--------------------------------------------------------------------------------
--- Override Management
--------------------------------------------------------------------------------
-
--- Save a user override (only saves the specific changed value)
-function Database:SetOverride(path, value)
-    local overrides = VeevHUDDB.overrides
-    local keys = {strsplit(".", path)}
-    
-    -- Navigate to the parent table, creating as needed
-    for i = 1, #keys - 1 do
-        local key = addon.Utils:ToKeyType(keys[i])
-        if not overrides[key] then
-            overrides[key] = {}
-        end
-        overrides = overrides[key]
-    end
-    
-    -- Set the value
-    overrides[addon.Utils:ToKeyType(keys[#keys])] = value
-    
-    -- Rebuild live profile
-    self:RebuildLiveProfile()
-end
-
--- Clear a specific override (revert to default)
-function Database:ClearOverride(path)
-    local overrides = VeevHUDDB.overrides
-    local keys = {strsplit(".", path)}
-    
-    -- Navigate to the parent
-    for i = 1, #keys - 1 do
-        local key = addon.Utils:ToKeyType(keys[i])
-        if not overrides[key] then
-            return -- Path doesn't exist, nothing to clear
-        end
-        overrides = overrides[key]
-    end
-    
-    -- Clear the value
-    overrides[addon.Utils:ToKeyType(keys[#keys])] = nil
-    
-    -- Rebuild live profile
-    self:RebuildLiveProfile()
-end
-
--- Reset entire profile to defaults
-function Database:ResetProfile()
-    -- Clear all overrides - user gets fresh defaults
-    VeevHUDDB.overrides = {}
-    self:RebuildLiveProfile()
-
-    -- Refresh all modules
-    for name, module in pairs(addon.modules) do
-        if module.Refresh then
-            module:Refresh()
-        end
-    end
-
-    addon.Utils:Print("Profile reset to defaults. Type /reload to apply all changes.")
 end
 
 -------------------------------------------------------------------------------
@@ -151,34 +70,14 @@ end
 
 -- Get the default value for a path
 function Database:GetDefaultValue(path)
-    local defaults = addon.Constants.DEFAULTS.profile
-    local keys = {strsplit(".", path)}
-    
-    local current = defaults
-    for i, key in ipairs(keys) do
-        if type(current) ~= "table" then
-            return nil
-        end
-        current = current[addon.Utils:ToKeyType(key)]
-    end
-    
-    return current
+    local defaults = addon.Constants.DEFAULTS and addon.Constants.DEFAULTS.profile or {}
+    return self:GetValueAtPath(defaults, path)
 end
 
 -- Get the current value for a path
 function Database:GetSettingValue(path)
     local profile = addon.db and addon.db.profile or {}
-    local keys = {strsplit(".", path)}
-    
-    local current = profile
-    for i, key in ipairs(keys) do
-        if type(current) ~= "table" then
-            return nil
-        end
-        current = current[addon.Utils:ToKeyType(key)]
-    end
-    
-    return current
+    return self:GetValueAtPath(profile, path)
 end
 
 -- Check if a setting path is overridden by user
@@ -236,60 +135,153 @@ function Database:GetSpellConfigForSpell(spellID, specKey)
     return spellCfg[spellID] or {}
 end
 
--- Set a spellConfig override (writes to VeevHUDDB.overrides and rebuilds profile)
+-- Set a spellConfig override (profile-scoped in AceDB)
 function Database:SetSpellConfigOverride(spellID, field, value, specKey)
     specKey = specKey or self:GetSpecKey()
-    
-    -- Initialize nested tables in overrides
-    VeevHUDDB.overrides.spellConfig = VeevHUDDB.overrides.spellConfig or {}
-    VeevHUDDB.overrides.spellConfig[specKey] = VeevHUDDB.overrides.spellConfig[specKey] or {}
-    VeevHUDDB.overrides.spellConfig[specKey][spellID] = VeevHUDDB.overrides.spellConfig[specKey][spellID] or {}
-    
+
+    if not addon.db or not addon.db.profile then return end
+
+    addon.db.profile.spellConfig = addon.db.profile.spellConfig or {}
+    addon.db.profile.spellConfig[specKey] = addon.db.profile.spellConfig[specKey] or {}
+    addon.db.profile.spellConfig[specKey][spellID] = addon.db.profile.spellConfig[specKey][spellID] or {}
+
     if value == nil then
-        -- Remove override
-        VeevHUDDB.overrides.spellConfig[specKey][spellID][field] = nil
-        -- Clean up empty tables
-        if next(VeevHUDDB.overrides.spellConfig[specKey][spellID]) == nil then
-            VeevHUDDB.overrides.spellConfig[specKey][spellID] = nil
+        addon.db.profile.spellConfig[specKey][spellID][field] = nil
+        if next(addon.db.profile.spellConfig[specKey][spellID]) == nil then
+            addon.db.profile.spellConfig[specKey][spellID] = nil
         end
-        if next(VeevHUDDB.overrides.spellConfig[specKey]) == nil then
-            VeevHUDDB.overrides.spellConfig[specKey] = nil
+        if next(addon.db.profile.spellConfig[specKey]) == nil then
+            addon.db.profile.spellConfig[specKey] = nil
         end
-        if next(VeevHUDDB.overrides.spellConfig) == nil then
-            VeevHUDDB.overrides.spellConfig = nil
+        if next(addon.db.profile.spellConfig) == nil then
+            addon.db.profile.spellConfig = nil
         end
     else
-        VeevHUDDB.overrides.spellConfig[specKey][spellID][field] = value
+        addon.db.profile.spellConfig[specKey][spellID][field] = value
     end
-    
-    -- Rebuild live profile
-    self:RebuildLiveProfile()
 end
 
 -- Clear all spellConfig overrides for a specific spell
 function Database:ClearSpellConfigOverride(spellID, specKey)
     specKey = specKey or self:GetSpecKey()
-    
-    if VeevHUDDB.overrides.spellConfig and VeevHUDDB.overrides.spellConfig[specKey] then
-        VeevHUDDB.overrides.spellConfig[specKey][spellID] = nil
-        if next(VeevHUDDB.overrides.spellConfig[specKey]) == nil then
-            VeevHUDDB.overrides.spellConfig[specKey] = nil
+
+    if not addon.db or not addon.db.profile or not addon.db.profile.spellConfig then return end
+
+    if addon.db.profile.spellConfig[specKey] then
+        addon.db.profile.spellConfig[specKey][spellID] = nil
+        if next(addon.db.profile.spellConfig[specKey]) == nil then
+            addon.db.profile.spellConfig[specKey] = nil
         end
-        if VeevHUDDB.overrides.spellConfig and next(VeevHUDDB.overrides.spellConfig) == nil then
-            VeevHUDDB.overrides.spellConfig = nil
+        if next(addon.db.profile.spellConfig) == nil then
+            addon.db.profile.spellConfig = nil
         end
     end
-    
-    self:RebuildLiveProfile()
 end
 
 -- Check if a spell has any overrides (for showing "modified" indicator)
 function Database:IsSpellConfigModified(spellID, specKey)
     specKey = specKey or self:GetSpecKey()
-    local overrides = VeevHUDDB.overrides.spellConfig
-    if overrides and overrides[specKey] and overrides[specKey][spellID] then
-        local cfg = overrides[specKey][spellID]
+    local spellConfig = addon.db and addon.db.profile and addon.db.profile.spellConfig
+    if spellConfig and spellConfig[specKey] and spellConfig[specKey][spellID] then
+        local cfg = spellConfig[specKey][spellID]
         return cfg.enabled ~= nil or cfg.rowIndex ~= nil or cfg.order ~= nil
     end
     return false
+end
+
+-------------------------------------------------------------------------------
+-- Path Helpers (used by AceConfig get/set)
+-------------------------------------------------------------------------------
+
+function Database:GetValueAtPath(root, path)
+    local current = root
+    for _, key in ipairs({ strsplit(".", path) }) do
+        if type(current) ~= "table" then
+            return nil
+        end
+        current = current[addon.Utils:ToKeyType(key)]
+    end
+    return current
+end
+
+function Database:SetValueAtPath(root, path, value)
+    if type(root) ~= "table" then return end
+
+    local keys = { strsplit(".", path) }
+    local current = root
+
+    for i = 1, #keys - 1 do
+        local key = addon.Utils:ToKeyType(keys[i])
+        if type(current[key]) ~= "table" then
+            current[key] = {}
+        end
+        current = current[key]
+    end
+
+    local finalKey = addon.Utils:ToKeyType(keys[#keys])
+    current[finalKey] = value
+end
+
+-------------------------------------------------------------------------------
+-- Legacy Migration
+-------------------------------------------------------------------------------
+
+function Database:UpgradeLegacyDBIfNeeded()
+    if type(VeevHUDDB) == "table" and VeevHUDDB.global and VeevHUDDB.global.dbVersion then
+        return
+    end
+
+    local legacy = VeevHUDDB or {}
+
+    -- Legacy format:
+    --   VeevHUDDB.overrides = { ...sparse... }
+    --   VeevHUDDB.welcomeShown = boolean
+    --   VeevHUDDB.migrationsShown = { [id]=true, ... }
+    local legacyOverrides = type(legacy.overrides) == "table" and legacy.overrides or {}
+
+    local migrated = {
+        profileKeys = {},
+        profiles = {
+            Default = legacyOverrides,
+        },
+        global = {},
+    }
+
+    if legacy.welcomeShown ~= nil then
+        migrated.global.welcomeShown = legacy.welcomeShown
+    end
+    if type(legacy.migrationsShown) == "table" then
+        migrated.global.migrationsShown = legacy.migrationsShown
+    end
+
+    migrated.global.dbVersion = "ace3"
+
+    VeevHUDDB = migrated
+end
+
+-------------------------------------------------------------------------------
+-- Convenience wrappers (kept for backward compatibility with existing code)
+-------------------------------------------------------------------------------
+
+function Database:SetOverride(path, value)
+    if not addon.db or not addon.db.profile then return end
+    self:SetValueAtPath(addon.db.profile, path, value)
+end
+
+function Database:ClearOverride(path)
+    if not addon.db or not addon.db.profile then return end
+    -- With AceDB, "clearing" means resetting to the default value.
+    -- We cannot set keys to nil because AceDB copies scalar defaults
+    -- directly into the profile table (no metatable fallback).
+    -- AceDB's removeDefaults() handles sparseness at save time.
+    local defaultValue = self:GetDefaultValue(path)
+    self:SetValueAtPath(addon.db.profile, path, defaultValue)
+end
+
+function Database:ResetProfile()
+    if addon.db and addon.db.ResetProfile then
+        addon.db:ResetProfile()
+    end
+
+    addon.Utils:Print("Profile reset to defaults.")
 end

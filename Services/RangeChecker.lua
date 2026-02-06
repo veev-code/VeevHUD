@@ -97,7 +97,8 @@ function RangeChecker:IsSpellInRange(spellID, unit)
     end
     
     -- Get the effective spell ID for API calls
-    local effectiveSpellID = self.Utils:GetEffectiveSpellID(spellID)
+    local Utils = self.Utils or addon.Utils
+    local effectiveSpellID = Utils:GetEffectiveSpellID(spellID)
     
     -- Try C_Spell.IsSpellInRange first (TWW+)
     if C_Spell and C_Spell.IsSpellInRange then

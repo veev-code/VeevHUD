@@ -207,10 +207,10 @@ function ResourceBar:CreateEnergyTickerBar(bar, db, tickerDb)
     ticker:SetValue(0)
     self.ticker = ticker
 
-    -- Use energy color (yellow) for the ticker
-    local energyColor = self.C.POWER_COLORS.ENERGY
-    ticker:SetStatusBarColor(energyColor.r, energyColor.g, energyColor.b)
-    ticker.bg:SetVertexColor(energyColor.r * 0.15, energyColor.g * 0.15, energyColor.b * 0.15)
+    -- Use custom color or default energy yellow for the ticker
+    local tickerColor = tickerDb.color or self.C.POWER_COLORS.ENERGY
+    ticker:SetStatusBarColor(tickerColor.r, tickerColor.g, tickerColor.b)
+    ticker.bg:SetVertexColor(tickerColor.r * 0.15, tickerColor.g * 0.15, tickerColor.b * 0.15)
 
     -- Border for ticker (matches resource bar style)
     self:CreateTickerBorder(ticker)
@@ -339,10 +339,11 @@ function ResourceBar:UpdatePowerType()
         local db = addon.db.profile.resourceBar
         local r, g, b
 
-        if db.classColored then
-            r, g, b = self.Utils:GetClassColor(addon.playerClass)
-        else
+        if db.powerColor then
             r, g, b = self.Utils:GetPowerColor(self.powerType)
+        else
+            local c = db.color
+            r, g, b = c and c.r or 0.8, c and c.g or 0.8, c and c.b or 0.8
         end
 
         self.bar:SetStatusBarColor(r, g, b)
@@ -499,6 +500,9 @@ function ResourceBar:OnUpdate()
 end
 
 function ResourceBar:UpdateEnergyTicker()
+    -- Only run for energy-using power types (Rogue, Druid Cat Form)
+    if self.powerType ~= self.C.POWER_TYPE.ENERGY then return end
+
     local db = addon.db.profile.resourceBar
     local tickerDb = db.energyTicker
     
@@ -700,6 +704,20 @@ function ResourceBar:Refresh()
             self.bar:Hide()
         end
         
+        -- Toggle gradient
+        if db.showGradient ~= false then
+            if not self.gradient then
+                self:CreateGradient(self.bar)
+            end
+            if self.gradient then
+                self.gradient:Show()
+            end
+        else
+            if self.gradient then
+                self.gradient:Hide()
+            end
+        end
+        
         -- Toggle text visibility and update font size
         if self.text then
             self.text:SetFont(addon:GetFont(), db.textSize or 11, "OUTLINE")
@@ -742,6 +760,27 @@ function ResourceBar:RefreshEnergyTicker()
             self.ticker:SetSize(db.width, tickerHeight)
             self.ticker:ClearAllPoints()
             self.ticker:SetPoint("TOP", self.bar, "BOTTOM", 0, tickerOffsetY)
+            
+            -- Update ticker color
+            local tickerColor = tickerDb.color or self.C.POWER_COLORS.ENERGY
+            self.ticker:SetStatusBarColor(tickerColor.r, tickerColor.g, tickerColor.b)
+            if self.ticker.bg then
+                self.ticker.bg:SetVertexColor(tickerColor.r * 0.15, tickerColor.g * 0.15, tickerColor.b * 0.15)
+            end
+            
+            -- Toggle gradient
+            if tickerDb.showGradient ~= false then
+                if not self.tickerGradient then
+                    self:CreateTickerGradient(self.ticker)
+                end
+                if self.tickerGradient then
+                    self.tickerGradient:Show()
+                end
+            else
+                if self.tickerGradient then
+                    self.tickerGradient:Hide()
+                end
+            end
         end
         -- Hide spark if it exists
         if self.tickerOverlaySpark then

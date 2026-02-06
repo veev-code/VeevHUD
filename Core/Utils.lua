@@ -198,9 +198,14 @@ end
 function Utils:ShouldShowHUD()
     local db = addon.db.profile.visibility
 
+    -- Master enable/disable toggle
+    if addon.db and addon.db.profile and addon.db.profile.enabled == false then
+        return false, 0
+    end
+
     -- Always show at full opacity when config panel is open
-    local options = addon.Options
-    if options and options.isConfigOpen then
+    local forceVisible = (addon.Options and addon.Options.isConfigOpen) or (addon.SpellsOptions and addon.SpellsOptions.isConfigOpen)
+    if forceVisible then
         return true, 1.0
     end
 

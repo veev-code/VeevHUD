@@ -4,9 +4,8 @@
     <!--
         VeevHUD - Embedded Libraries
 
-        LibSpellDB is embedded for self-contained distribution.
-        If LibSpellDB is installed as a standalone addon, it will take precedence
-        via LibStub's version checking.
+        Ace3 and LibSpellDB are embedded for self-contained distribution.
+        If standalone versions are installed, they take precedence via LibStub version checking.
     -->
 
     <!-- LibStub - Required for library access -->
@@ -15,10 +14,29 @@
     <!-- CallbackHandler for event handling -->
     <Script file="CallbackHandler-1.0\CallbackHandler-1.0.lua"/>
 
+    <!-- Ace3 (embedded) -->
+    <Include file="AceAddon-3.0\AceAddon-3.0.xml"/>
+    <Include file="AceEvent-3.0\AceEvent-3.0.xml"/>
+    <Include file="AceHook-3.0\AceHook-3.0.xml"/>
+    <Include file="AceConsole-3.0\AceConsole-3.0.xml"/>
+    <Include file="AceLocale-3.0\AceLocale-3.0.xml"/>
+    <Include file="AceDB-3.0\AceDB-3.0.xml"/>
+    <Include file="AceDBOptions-3.0\AceDBOptions-3.0.xml"/>
+    <Include file="AceGUI-3.0\AceGUI-3.0.xml"/>
+    <Include file="AceConfig-3.0\AceConfig-3.0.xml"/>
+
+    <!-- LibDualSpec for per-spec profile switching -->
+    <Script file="LibDualSpec-1.0\LibDualSpec-1.0.lua"/>
+
+    <!-- LibSharedMedia + AceGUI widgets (fonts, etc.) -->
+    <Include file="LibSharedMedia-3.0\lib.xml"/>
+    <Include file="AceGUI-3.0-SharedMediaWidgets\widget.xml"/>
+
     <!-- LibCustomGlow for animated glow effects -->
     <Include file="LibCustomGlow-1.0\LibCustomGlow-1.0.xml"/>
 
-    <!-- LibSpellDB - Spell database (embedded) -->
+    <!-- LibSpellDB - Spell database (embedded for self-contained distribution) -->
+    <!-- If LibSpellDB is installed as a standalone addon, it will take precedence via LibStub version checking. -->
     <Include file="LibSpellDB\lib.xml"/>
 
 </Ui>

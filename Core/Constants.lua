@@ -67,7 +67,7 @@ C.TICKER_STYLE = {
     SPARK = "spark", -- Large spark overlay on resource bar
 }
 
--- Valid values for icons.readyGlowMode setting
+-- Internal glow mode constants (used by UpdateReadyGlow logic)
 C.GLOW_MODE = {
     ONCE = "once",     -- Only glow once per cooldown cycle
     ALWAYS = "always", -- Glow every time ability becomes ready
@@ -190,8 +190,7 @@ C.DEFAULTS = {
             font = "Expressway, Bold",  -- Font name (registered with LibSharedMedia)
         },
 
-        -- Global positioning anchor (centered, below character)
-        -- Note: x is always 0 (centered), y is configurable via settings
+        -- Global positioning anchor (centered by default; configurable via settings)
         anchor = {
             point = "CENTER",
             relativePoint = "CENTER",
@@ -224,8 +223,8 @@ C.DEFAULTS = {
             offsetY = 0,
             textFormat = "current",  -- "current", "percent", "both", "none"
             textSize = 11,
-            smoothing = true,
-            classColored = false,  -- Use power color by default
+            powerColor = true,    -- Use power-type color (blue/red/yellow) by default
+            color = { r = 0.8, g = 0.8, b = 0.8 },  -- Custom color when powerColor is off (neutral light grey)
             showGradient = true,  -- Gradient overlay (darker at bottom)
             -- Spark settings
             showSpark = true,
@@ -243,6 +242,7 @@ C.DEFAULTS = {
                 height = 3,           -- Height of the ticker bar
                 offsetY = -1,         -- Gap between resource bar bottom and ticker top (negative = below)
                 showGradient = true,  -- Match resource bar gradient style
+                color = { r = 1.0, g = 1.0, b = 0.0 },  -- Energy yellow
                 -- Spark style settings
                 sparkWidth = 6,       -- Width of the spark overlay (thinner = more elegant)
                 sparkHeight = 1.8,    -- Height multiplier relative to bar height
@@ -263,11 +263,10 @@ C.DEFAULTS = {
             enabled = true,
             width = 230,  -- Width of 4 core icons (4×56 + 3×2 spacing)
             height = 10,
-            offsetY = 12,  -- Position so bars touch (resourceBar.height/2 + healthBar.height/2)
             textFormat = "percent",  -- "current", "percent", "both", "none"
             textSize = 10,
-            smoothing = true,
             classColored = true,
+            color = { r = 0.0, g = 0.8, b = 0.0 },  -- Custom color when classColored is off (green default)
             showGradient = true,
         },
 
@@ -279,6 +278,7 @@ C.DEFAULTS = {
             barSpacing = 2,  -- Horizontal spacing between bars
             offsetY = 2,     -- Gap between resource bar bottom and combo points top
             showGradient = true,
+            color = { r = 1.0, g = 0.82, b = 0.0 },  -- Yellow-gold (matches energy theme)
         },
 
         -- Proc/Buff tracker (important buffs like Enrage, Flurry)
@@ -286,7 +286,6 @@ C.DEFAULTS = {
             enabled = true,
             iconSize = 26,
             iconSpacing = 6,  -- spacing between icons
-            offsetY = 31,     -- calculated dynamically in CreateFrames
             gapAboveHealthBar = 6,  -- gap between health bar and proc icons
             showDuration = true,  -- show remaining time text on procs
             showInactiveIcons = false,  -- Only show when active (not exposed in UI)
@@ -300,7 +299,6 @@ C.DEFAULTS = {
 
         -- Icon display settings (defaults, rows can override)
         icons = {
-            enabled = true,
             iconSize = 52,          -- Default icon size (per-row overrides in rows config)
             iconAspectRatio = 1.0,  -- Width:Height ratio (1.0 = square, 1.33 = 4:3 wide)
             iconZoom = 0.20,        -- How much to zoom into icon textures (0 = none, 0.20 = 10% cropped from each edge)
@@ -360,10 +358,10 @@ C.DEFAULTS = {
             -- Triggers: 1) <1s remaining on CD with enough resources
             --           2) Just got enough resources after CD finished
             -- Rows: "none" = disabled, "primary"/"primary_secondary"/"all" = which rows show it
-            -- Mode: "once" = once per cooldown, "always" = every time ready
-            readyGlowRows = "all",        -- Which rows show ready glow (none = disabled)
-            readyGlowMode = "once",
-            readyGlowDuration = 1.0,      -- Duration to show glow when triggered
+            -- Always rows: which rows keep glow active while ready (others use "once" mode)
+            readyGlowRows = "all",            -- Which rows show ready glow (none = disabled)
+            readyGlowAlwaysRows = "primary",  -- Which rows use persistent "always" glow (others flash once)
+            readyGlowDuration = 1.0,          -- Duration to show glow in "once" mode
             
             -- Dynamic sorting by time remaining: which rows dynamically reorder by actionable time
             -- "none" = static order (priority-based, icons don't move)
@@ -404,6 +402,8 @@ C.DEFAULTS = {
                 maxIcons = 20,       -- No practical limit, grows horizontally
                 enabled = true,
                 iconSize = 56,       -- Larger core icons (like retail)
+                flowLayout = false,  -- Single line by default
+                iconsPerRow = 8,     -- Icons per row when flow layout is on
             },
             {
                 name = "Secondary Row",
@@ -417,6 +417,8 @@ C.DEFAULTS = {
                 maxIcons = 20,       -- No practical limit, grows horizontally
                 enabled = true,
                 iconSize = 48,
+                flowLayout = false,  -- Single line by default
+                iconsPerRow = 8,     -- Icons per row when flow layout is on
             },
             {
                 -- Combined utility group - flows into multiple rows automatically

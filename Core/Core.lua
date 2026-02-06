@@ -52,9 +52,12 @@ function addon:OnAddonLoaded()
     self.version = getMetadata and getMetadata(ADDON_NAME, "Version") or "1.0.5"
     self.Constants.VERSION = self.version
     
-    -- Initialize saved variables with defaults
-    VeevHUDDB = VeevHUDDB or {}
+    -- Initialize saved variables with defaults (AceDB + legacy migration)
     self.Database:Initialize()
+
+    -- Snapshot initial aspect ratio for Masque reload detection on profile changes.
+    self._lastAspectRatio = self.db and self.db.profile and self.db.profile.icons
+        and self.db.profile.icons.iconAspectRatio
 
     -- Get LibSpellDB reference
     if LibStub then
@@ -73,6 +76,62 @@ function addon:OnAddonLoaded()
     -- Initialize RangeChecker (handles spell range detection)
     if self.RangeChecker then
         self.RangeChecker:Initialize()
+    end
+end
+
+-------------------------------------------------------------------------------
+-- Profile Change Handling (AceDB / LibDualSpec)
+-------------------------------------------------------------------------------
+
+function addon:OnProfileChanged()
+    -- Refresh everything that depends on profile settings.
+    -- This is triggered by manual profile switches and by LibDualSpec when specs change.
+    if self.fatalError then return end
+
+    -- Snapshot the previous aspect ratio before refreshing (profile is already switched).
+    local prevAspectRatio = self._lastAspectRatio
+
+    -- Update anchor/scale (safe if HUD isn't created yet).
+    if self.hudFrame then
+        self:UpdateHUDPosition()
+    end
+
+    -- Refresh fonts first so modules can pick up new font paths.
+    if self.FontManager and self.FontManager.RefreshAllFonts then
+        self.FontManager:RefreshAllFonts()
+    end
+
+    -- Refresh all modules.
+    for name, module in pairs(self.modules) do
+        if module.Refresh then
+            local success, err = pcall(module.Refresh, module)
+            if not success then
+                if self.Utils and self.Utils.LogError then
+                    self.Utils:LogError("Error refreshing module", name, ":", err)
+                end
+            end
+        end
+    end
+
+    -- Force a layout refresh (some modules only update gaps).
+    if self.Layout then
+        self.Layout:Refresh()
+    end
+
+    -- Ensure visibility/alpha is correct after changes.
+    if self.UpdateVisibility then
+        self:UpdateVisibility()
+    end
+
+    -- Track aspect ratio and prompt reload if Masque needs it.
+    local newAspectRatio = self.db and self.db.profile and self.db.profile.icons
+        and self.db.profile.icons.iconAspectRatio
+    self._lastAspectRatio = newAspectRatio
+    if prevAspectRatio and newAspectRatio and prevAspectRatio ~= newAspectRatio then
+        local cooldownIcons = self:GetModule("CooldownIcons")
+        if cooldownIcons and cooldownIcons.MasqueGroup then
+            StaticPopup_Show("VEEVHUD_RELOAD_UI")
+        end
     end
 end
 
@@ -249,22 +308,14 @@ function addon:CreateHUDFrame()
     -- Main container frame
     local hud = CreateFrame("Frame", "VeevHUDFrame", UIParent)
     hud:SetSize(300, 200)
-    hud:SetPoint(
-        self.db.profile.anchor.point,
-        UIParent,
-        self.db.profile.anchor.relativePoint,
-        self.db.profile.anchor.x,
-        self.db.profile.anchor.y
-    )
+    self.hudFrame = hud
+    self:UpdateHUDPosition()
     hud:SetFrameStrata("MEDIUM")
     hud:SetFrameLevel(10)
     hud:EnableMouse(false)  -- Always click-through (position via settings only)
     
     -- Apply global scale (compensated for UI scale)
-    local scale = self.Utils:GetEffectiveHUDScale()
-    hud:SetScale(scale)
-
-    self.hudFrame = hud
+    self:UpdateHUDScale()
 
     -- Create module frames
     self:CreateModuleFrames()
@@ -299,6 +350,25 @@ function addon:UpdateHUDScale()
     if not self.hudFrame then return end
     local scale = self.Utils:GetEffectiveHUDScale()
     self.hudFrame:SetScale(scale)
+end
+
+-- Update HUD anchor position (called when offsets/profile change)
+function addon:UpdateHUDPosition()
+    if not self.hudFrame or not self.db or not self.db.profile then return end
+
+    local db = self.db.profile.anchor or {}
+
+    self.hudFrame:ClearAllPoints()
+    self.hudFrame:SetPoint(
+        db.point or "CENTER",
+        UIParent,
+        db.relativePoint or "CENTER",
+        db.x or 0,
+        db.y or -84
+    )
+
+    -- Reapply scale (also covers UI scale compensation).
+    self:UpdateHUDScale()
 end
 
 function addon:UpdateVisibility()

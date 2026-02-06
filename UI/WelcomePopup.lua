@@ -74,13 +74,21 @@ function WelcomePopup:CreateDialog()
     closeBtn:SetPoint("BOTTOM", 0, 12)
     closeBtn:SetText("Got it!")
     closeBtn:SetScript("OnClick", function()
-        VeevHUDDB.welcomeShown = true
+        if addon.db and addon.db.global then
+            addon.db.global.welcomeShown = true
+        elseif VeevHUDDB then
+            VeevHUDDB.welcomeShown = true
+        end
         dialog:Hide()
     end)
     
     -- Also mark as shown when closing via X button
     dialog:SetScript("OnHide", function()
-        VeevHUDDB.welcomeShown = true
+        if addon.db and addon.db.global then
+            addon.db.global.welcomeShown = true
+        elseif VeevHUDDB then
+            VeevHUDDB.welcomeShown = true
+        end
     end)
     
     self.dialog = dialog
@@ -92,7 +100,8 @@ end
 -------------------------------------------------------------------------------
 
 function WelcomePopup:Show()
-    if not VeevHUDDB.welcomeShown then
+    local welcomeShown = (addon.db and addon.db.global and addon.db.global.welcomeShown) or (VeevHUDDB and VeevHUDDB.welcomeShown)
+    if not welcomeShown then
         -- Delay slightly to ensure UI is fully loaded
         C_Timer.After(1, function()
             local dialog = self:CreateDialog()

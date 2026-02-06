@@ -21,10 +21,12 @@ addon.MigrationManager:Register({
         local uiScale = UIParent:GetScale()
         local referenceScale = C.REFERENCE_UI_SCALE  -- 0.65
         
-        -- Check if user has a scale override
-        local overrides = VeevHUDDB.overrides
-        local hasScaleOverride = overrides and overrides.icons and overrides.icons.scale
-        local userScale = hasScaleOverride and overrides.icons.scale or 1.0
+        -- Check if user has a scale override (AceDB profile value; defaults to 1.0)
+        local userScale = 1.0
+        if addon.db and addon.db.profile and addon.db.profile.icons then
+            userScale = addon.db.profile.icons.scale or 1.0
+        end
+        local hasScaleOverride = (userScale ~= 1.0)
         
         -- If UI scale is close to reference (within 10%), no significant change
         local scaleDifference = math.abs(uiScale - referenceScale)

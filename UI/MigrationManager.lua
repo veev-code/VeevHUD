@@ -131,8 +131,13 @@ function MigrationManager:ConfigureDialog(migration, extraData)
         
         btn:SetScript("OnClick", function()
             -- Mark migration as shown
-            VeevHUDDB.migrationsShown = VeevHUDDB.migrationsShown or {}
-            VeevHUDDB.migrationsShown[migration.id] = true
+            if addon.db and addon.db.global then
+                addon.db.global.migrationsShown = addon.db.global.migrationsShown or {}
+                addon.db.global.migrationsShown[migration.id] = true
+            elseif VeevHUDDB then
+                VeevHUDDB.migrationsShown = VeevHUDDB.migrationsShown or {}
+                VeevHUDDB.migrationsShown[migration.id] = true
+            end
             
             -- Execute action if provided
             if btnConfig.action then
@@ -150,8 +155,13 @@ function MigrationManager:ConfigureDialog(migration, extraData)
     
     -- Handle X button close
     dialog:SetScript("OnHide", function()
-        VeevHUDDB.migrationsShown = VeevHUDDB.migrationsShown or {}
-        VeevHUDDB.migrationsShown[migration.id] = true
+        if addon.db and addon.db.global then
+            addon.db.global.migrationsShown = addon.db.global.migrationsShown or {}
+            addon.db.global.migrationsShown[migration.id] = true
+        elseif VeevHUDDB then
+            VeevHUDDB.migrationsShown = VeevHUDDB.migrationsShown or {}
+            VeevHUDDB.migrationsShown[migration.id] = true
+        end
     end)
     
     return dialog
@@ -163,11 +173,19 @@ end
 
 -- Find and show the next applicable migration
 function MigrationManager:ShowNext()
-    VeevHUDDB.migrationsShown = VeevHUDDB.migrationsShown or {}
+    local migrationsShown = (addon.db and addon.db.global and addon.db.global.migrationsShown) or (VeevHUDDB and VeevHUDDB.migrationsShown)
+    if type(migrationsShown) ~= "table" then
+        migrationsShown = {}
+        if addon.db and addon.db.global then
+            addon.db.global.migrationsShown = migrationsShown
+        elseif VeevHUDDB then
+            VeevHUDDB.migrationsShown = migrationsShown
+        end
+    end
     
     for _, migration in ipairs(migrations) do
         -- Skip if already shown
-        if not VeevHUDDB.migrationsShown[migration.id] then
+        if not migrationsShown[migration.id] then
             -- Check if this migration applies
             local shouldShow, extraData = false, nil
             if migration.check then
@@ -180,7 +198,7 @@ function MigrationManager:ShowNext()
                 return true
             else
                 -- Migration doesn't apply, mark as shown so we don't check again
-                VeevHUDDB.migrationsShown[migration.id] = true
+                migrationsShown[migration.id] = true
             end
         end
     end
@@ -192,7 +210,8 @@ end
 function MigrationManager:Show()
     -- Skip migrations for brand new users (they haven't seen welcome popup yet)
     -- Check this BEFORE the timer since welcomeShown gets set when welcome is dismissed
-    if not VeevHUDDB.welcomeShown then
+    local welcomeShown = (addon.db and addon.db.global and addon.db.global.welcomeShown) or (VeevHUDDB and VeevHUDDB.welcomeShown)
+    if not welcomeShown then
         return
     end
     

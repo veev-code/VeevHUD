@@ -405,8 +405,8 @@ end
 function CooldownIcons:CreateFrames(parent)
     local db = addon.db and addon.db.profile and addon.db.profile.icons
 
-    if not db or not db.enabled then 
-        self.Utils:LogInfo("CooldownIcons: disabled or no config")
+    if not db then 
+        self.Utils:LogInfo("CooldownIcons: no config")
         return 
     end
 
@@ -1061,12 +1061,16 @@ function CooldownIcons:PositionRowIcons(rowFrame, count, db)
 end
 
 function CooldownIcons:PositionFlowLayout(rowFrame, count, iconWidth, iconHeight, spacing, iconsPerRow, rowSpacing)
+    -- Enforce minimum of 2 icons per row for flow layout to work properly
+    if iconsPerRow < 2 then iconsPerRow = 2 end
+    
     -- Calculate how many rows we need
     local numRows = math.ceil(count / iconsPerRow)
     
     -- Check if last row would have only 1 icon - if so, redistribute
+    -- (only when we have enough icons across multiple rows to balance)
     local lastRowCount = count % iconsPerRow
-    if lastRowCount == 1 and numRows > 1 then
+    if lastRowCount == 1 and numRows > 1 and iconsPerRow > 2 then
         -- Adjust icons per row to balance better
         iconsPerRow = math.ceil(count / numRows)
     end
@@ -1084,7 +1088,8 @@ function CooldownIcons:PositionFlowLayout(rowFrame, count, iconWidth, iconHeight
     for r = 1, numRows do
         local iconsThisRow = math.min(iconsPerRow, remaining)
         -- For last row, check if we need to balance
-        if r == numRows and iconsThisRow == 1 and r > 1 then
+        -- Only steal from previous row if it has 3+ icons (so it keeps at least 2)
+        if r == numRows and iconsThisRow == 1 and r > 1 and rowIconCounts[r-1] and rowIconCounts[r-1] >= 3 then
             -- Steal one from previous row
             rowIconCounts[r-1] = rowIconCounts[r-1] - 1
             iconsThisRow = 2
@@ -2298,17 +2303,14 @@ end
 --   2. Was not usable, just became usable (while off CD) -> show for configured duration
 -- For Execute: "usable" means target < 20% AND enough rage
 -- readyGlowRows controls which rows show the glow ("none" = disabled)
--- readyGlowMode controls behavior:
---   - "once": only glow once per cooldown cycle (default)
---   - "always": glow every time ability becomes ready
--- Reactive abilities (Execute, Overpower) always behave as "always" regardless of mode
+-- readyGlowAlwaysRows controls which rows use persistent "always" mode (others use "once")
+-- Reactive abilities (Execute, Overpower) always behave as "always" regardless of setting
 -- lockoutIsLimitingFactor: true if the "remaining" time is from a lockout debuff, not the actual CD
 -- canAfford: true if player has enough resources to cast the spell
 -- predictionIsLimitingFactor: true if Resource Timer prediction is active and limiting usability
 -- predictionRemaining: time remaining on prediction (when predictionIsLimitingFactor is true)
 function CooldownIcons:UpdateReadyGlow(frame, spellID, remaining, duration, isUsable, isReactive, db, lockoutIsLimitingFactor, canAfford, predictionIsLimitingFactor, predictionRemaining)
     local glowRows = db.readyGlowRows
-    local glowMode = db.readyGlowMode
     local rowIndex = frame.rowIndex or 1
     
     -- Check row-based setting first
@@ -2323,8 +2325,11 @@ function CooldownIcons:UpdateReadyGlow(frame, spellID, remaining, duration, isUs
         return
     end
     
-    -- Determine effective mode: reactive abilities always use "always" behavior
-    local effectiveMode = isReactive and C.GLOW_MODE.ALWAYS or glowMode
+    -- Determine effective mode per row:
+    -- Reactive abilities (Execute, Overpower) always use "always" behavior
+    -- Otherwise, check readyGlowAlwaysRows to see if this row uses persistent glow
+    local alwaysForRow = addon.Database:IsRowSettingEnabled(db.readyGlowAlwaysRows or "none", rowIndex)
+    local effectiveMode = (isReactive or alwaysForRow) and C.GLOW_MODE.ALWAYS or C.GLOW_MODE.ONCE
     
     local isOnRealCooldown = self.Utils:IsOnRealCooldown(remaining, duration)
     local isAlmostReady = remaining > 0 and remaining <= C.READY_GLOW_THRESHOLD and isOnRealCooldown
@@ -2371,19 +2376,23 @@ function CooldownIcons:UpdateReadyGlow(frame, spellID, remaining, duration, isUs
     -- "once" mode: readyGlowShown stays true until ability is used (goes on CD)
     
     -- Check if ready glow should be triggered
+    -- IMPORTANT: canAfford is required in addition to effectiveUsable because
+    -- WoW's IsUsableSpell is unreliable during cooldowns -- it may return true
+    -- even when the player lacks the resources (rage/mana/energy) to cast.
+    -- canAfford uses the addon's own power cost calculation which is always accurate.
     local showReadyGlow = false
     
     if not frame.readyGlowShown then
         local glowDuration = db.readyGlowDuration
         
-        -- Condition 1: <1s remaining on CD AND usable
-        if isAlmostReady and effectiveUsable and inCombat then
+        -- Condition 1: <1s remaining on CD AND usable AND can afford
+        if isAlmostReady and effectiveUsable and canAfford and inCombat then
             showReadyGlow = true
             frame.readyGlowShown = true
             frame.readyGlowExpires = GetTime() + glowDuration
             
-        -- Condition 2: Just became usable while off CD
-        elseif isOffCooldown and effectiveUsable and not wasUsable and inCombat then
+        -- Condition 2: Just became usable while off CD (canAfford is implicit in effectiveUsable when off CD)
+        elseif isOffCooldown and effectiveUsable and canAfford and not wasUsable and inCombat then
             showReadyGlow = true
             frame.readyGlowShown = true
             frame.readyGlowExpires = GetTime() + glowDuration
@@ -2391,7 +2400,10 @@ function CooldownIcons:UpdateReadyGlow(frame, spellID, remaining, duration, isUs
     end
     
     -- Check if existing ready glow should continue
-    if frame.readyGlowExpires and frame.readyGlowExpires > GetTime() then
+    -- Cancel early if player can no longer afford the spell (e.g. spent rage on something else)
+    if not canAfford then
+        frame.readyGlowExpires = nil
+    elseif frame.readyGlowExpires and frame.readyGlowExpires > GetTime() then
         showReadyGlow = true
     elseif frame.readyGlowExpires and frame.readyGlowExpires <= GetTime() then
         -- Glow expired
@@ -2681,6 +2693,7 @@ function CooldownIcons:Refresh()
         end
         rowFrame.iconSpacing = newSpacing
         rowFrame.iconsPerRow = rowConfig.iconsPerRow or rowConfig.maxIcons
+        rowFrame.flowLayout = rowConfig.flowLayout or false
         
         -- Update row frame size to match new icon dimensions
         local maxIcons = rowConfig.maxIcons

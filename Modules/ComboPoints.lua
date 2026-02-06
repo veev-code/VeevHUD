@@ -199,7 +199,8 @@ function ComboPoints:CreateComboPointBar(parent, index, db, barWidth)
     bar.bg = bg
     
     -- Fill texture (shown when point is active)
-    local color = self.C.COMBO_POINT_COLOR
+    local cpDb = addon.db and addon.db.profile and addon.db.profile.comboPoints
+    local color = (cpDb and cpDb.color) or self.C.COMBO_POINT_COLOR
     local fill = bar:CreateTexture(nil, "ARTWORK")
     fill:SetAllPoints()
     fill:SetTexture(self.C.TEXTURES.STATUSBAR)
@@ -333,11 +334,42 @@ function ComboPoints:Refresh()
         local spacing = db.barSpacing
         local startX = -totalWidth / 2 + barWidth / 2
         
+        -- Update fill color
+        local color = (db.color) or self.C.COMBO_POINT_COLOR
+        
         for i, bar in ipairs(self.bars) do
             local xOffset = startX + (i - 1) * (barWidth + spacing)
             bar:SetSize(barWidth, db.barHeight)
             bar:ClearAllPoints()
             bar:SetPoint("CENTER", self.container, "CENTER", xOffset, 0)
+            
+            -- Update fill color
+            if bar.fill then
+                bar.fill:SetVertexColor(color.r, color.g, color.b, 1)
+            end
+            
+            -- Toggle gradient
+            if db.showGradient then
+                if not bar.gradient then
+                    local gradient = bar:CreateTexture(nil, "ARTWORK", nil, 1)
+                    gradient:SetAllPoints()
+                    gradient:SetTexture([[Interface\Buttons\WHITE8X8]])
+                    gradient:SetGradient("HORIZONTAL", 
+                        CreateColor(0, 0, 0, 0.35),
+                        CreateColor(1, 1, 1, 0.15)
+                    )
+                    gradient:Hide()
+                    bar.gradient = gradient
+                end
+                -- Show/hide based on active state
+                if bar.isActive then
+                    bar.gradient:Show()
+                end
+            else
+                if bar.gradient then
+                    bar.gradient:Hide()
+                end
+            end
         end
         
         self:UpdateVisibility()
