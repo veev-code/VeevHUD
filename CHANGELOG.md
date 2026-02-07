@@ -1,5 +1,20 @@
 # VeevHUD Changelog
 
+## [1.0.48] - 2026-02-07
+
+### Added
+
+- **Health Bar: Heal Prediction** — The health bar now shows incoming heals as a lighter extension of the health fill, giving you a preview of where your health will be when the heal lands. Uses the same visual style as Blizzard's default raid frames. *(Shadowhawk)*
+- **Health Bar: Absorb Shields** — Active absorb shields (Power Word: Shield, Ice Barrier, etc.) are shown as a Blizzard-style shield texture on the health bar between the health fill and heal prediction. Compatible with TBC Anniversary Edition where the modern absorb API is unavailable — uses a smart UnitAura scanning fallback that updates in real time as shields take damage. *(Shadowhawk)*
+- **Health Bar: Over-Absorb Glow** — A glowing edge effect appears when absorb shields exceed your missing health, indicating you have more shielding than you can currently use.
+- **Health Bar Overlay Options** — New toggles in the Health Bar settings to individually enable/disable heal prediction, absorb shields, and over-absorb glow.
+- **Resource Bar: Predicted Cost Toggle** — The predicted resource cost overlay can now be toggled on/off in resource bar settings. Enabled by default.
+- **Queued Highlight Toggle** — The queued ability icon highlight can now be toggled on/off in icon behavior settings. Enabled by default.
+
+### Changed
+
+- **Config defaults cleanup** — All configuration defaults are now managed exclusively through the AceDB layer. Removed ~70 inline fallback defaults scattered across the codebase, improving consistency and preventing potential config mismatches.
+
 ## [1.0.47] - 2026-02-07
 
 ### Added

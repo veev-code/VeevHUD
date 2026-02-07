@@ -450,7 +450,7 @@ end
 
 function SpellTracker:GetEnabledTags()
     local enabledTags = {}
-    local rowConfigs = addon.db and addon.db.profile and addon.db.profile.rows or {}
+    local rowConfigs = addon.db.profile.rows
 
     for _, rowConfig in ipairs(rowConfigs) do
         if rowConfig.enabled then

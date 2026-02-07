@@ -434,7 +434,7 @@ function SpellsOptions:RefreshSpellList()
     
     -- Build content
     local yOffset = 0
-    local rowConfigs = addon.db.profile.rows or {}
+    local rowConfigs = addon.db.profile.rows
     
     if totalSpells == 0 then
         -- Show message when no spells are found

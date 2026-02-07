@@ -117,7 +117,7 @@ function Layout:Refresh()
     -- Get configurable icon row gap (default 2)
     local iconRowGap = 2
     if addon.db and addon.db.profile and addon.db.profile.layout then
-        iconRowGap = addon.db.profile.layout.iconRowGap or 2
+        iconRowGap = addon.db.profile.layout.iconRowGap
     end
     
     for i, element in ipairs(visibleElements) do
@@ -183,7 +183,7 @@ function Layout:PrintDebug()
     -- Get configurable icon row gap (default 2)
     local iconRowGap = 2
     if addon.db and addon.db.profile and addon.db.profile.layout then
-        iconRowGap = addon.db.profile.layout.iconRowGap or 2
+        iconRowGap = addon.db.profile.layout.iconRowGap
     end
     
     -- Calculate positions with upward stacking (same logic as Refresh)

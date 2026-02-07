@@ -376,15 +376,15 @@ end
 function addon:UpdateHUDPosition()
     if not self.hudFrame or not self.db or not self.db.profile then return end
 
-    local db = self.db.profile.anchor or {}
+    local db = self.db.profile.anchor
 
     self.hudFrame:ClearAllPoints()
     self.hudFrame:SetPoint(
-        db.point or "CENTER",
+        db.point,
         UIParent,
-        db.relativePoint or "CENTER",
-        db.x or 0,
-        db.y or -84
+        db.relativePoint,
+        db.x,
+        db.y
     )
 
     -- Reapply scale (also covers UI scale compensation).

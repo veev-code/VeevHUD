@@ -825,8 +825,8 @@ function AuraTracker:GetRelevantTargetGUIDForAura(auraSpellID)
     
     -- Rotational spells follow target context (heals check friendly target, DoTs check enemy target)
     -- Check if targettarget support is enabled
-    local db = addon.db and addon.db.profile and addon.db.profile.icons or {}
-    local useTargettarget = db.auraTargettargetSupport or false
+    local db = addon.db.profile.icons
+    local useTargettarget = db.auraTargettargetSupport
     
     local targetGUID = UnitGUID("target")
     local targetExists = UnitExists("target")

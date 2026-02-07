@@ -170,7 +170,7 @@ end
 -- If showCooldownText is disabled for this row, we let external addons show their text
 -- rowIndex: 1 = Primary, 2 = Secondary, 3+ = Utility (nil = use global setting)
 function CooldownIcons:ConfigureCooldownText(cooldown, rowIndex)
-    local db = addon.db and addon.db.profile.icons or {}
+    local db = addon.db.profile.icons
     
     -- Check if VeevHUD will show its own text for this specific row
     local showOwnText
@@ -213,7 +213,7 @@ end
 function CooldownIcons:OnRangeUpdate()
     -- Called by RangeChecker on throttled interval (0.1s) or target change
     -- RangeChecker already handles target existence check
-    local db = addon.db and addon.db.profile.icons or {}
+    local db = addon.db.profile.icons
     local showRangeOn = db.showRangeIndicator
     
     -- Skip if range indicator is completely disabled
@@ -240,10 +240,11 @@ end
 -- Only toggles queued highlight textures — no full icon state recompute
 function CooldownIcons:OnCurrentSpellChanged()
     if not IsCurrentSpell then return end
+    local showQueued = addon.db.profile.icons.showQueuedHighlight
     for rowIndex, icons in pairs(self.iconsByRow or {}) do
         for _, frame in ipairs(icons) do
             if frame.queuedHighlight and frame.actualSpellID then
-                local isQueued = IsCurrentSpell(frame.actualSpellID)
+                local isQueued = showQueued and IsCurrentSpell(frame.actualSpellID)
                 if isQueued then
                     if not frame.queuedHighlight:IsShown() then
                         frame.queuedHighlight:Show()
@@ -356,8 +357,8 @@ function CooldownIcons:GetRelevantBuff(spellID, checkSelfOnly)
     local unit = "player"
     
     if not checkSelfOnly then
-        local db = addon.db and addon.db.profile and addon.db.profile.icons or {}
-        local useTargettarget = db.auraTargettargetSupport or false
+        local db = addon.db.profile.icons
+        local useTargettarget = db.auraTargettargetSupport
         
         local targetExists = UnitExists("target")
         local targetIsEnemy = targetExists and UnitIsEnemy("player", "target")
@@ -408,8 +409,8 @@ function CooldownIcons:GetTargetLockoutDebuff(debuffSpellID, isSelfOnly)
     local unit = "player"
     
     if not isSelfOnly then
-        local db = addon.db and addon.db.profile and addon.db.profile.icons or {}
-        local useTargettarget = db.auraTargettargetSupport or false
+        local db = addon.db.profile.icons
+        local useTargettarget = db.auraTargettargetSupport
         
         local targetExists = UnitExists("target")
         local targetIsEnemy = targetExists and UnitIsEnemy("player", "target")
@@ -472,7 +473,7 @@ end
 function CooldownIcons:PlayCastFeedback(frame)
     if not frame then return end
     
-    local db = addon.db and addon.db.profile.icons or {}
+    local db = addon.db.profile.icons
     
     -- Check row-based setting
     local rowIndex = frame.rowIndex or 1
@@ -596,7 +597,7 @@ function CooldownIcons:CreateRowFrames()
             rowFrame.iconHeight = rowIconHeight
             rowFrame.iconSpacing = rowIconSpacing
             rowFrame.iconsPerRow = rowConfig.iconsPerRow or rowConfig.maxIcons
-            rowFrame.flowLayout = rowConfig.flowLayout or false
+            rowFrame.flowLayout = rowConfig.flowLayout
 
             rowFrame.config = rowConfig
             rowFrame.icons = {}
@@ -841,11 +842,11 @@ function CooldownIcons:GetDefaultRowForSpell(spellID)
         return nil  -- Not relevant for current spec
     end
     
-    local rowConfigs = addon.db.profile.rows or {}
+    local rowConfigs = addon.db.profile.rows
     
     for rowIndex, rowConfig in ipairs(rowConfigs) do
         if rowConfig.enabled then
-            for _, requiredTag in ipairs(rowConfig.tags or {}) do
+            for _, requiredTag in ipairs(rowConfig.tags) do
                 if LibSpellDB:HasTag(spellID, requiredTag) then
                     return rowIndex
                 end
@@ -1004,8 +1005,8 @@ end
 function CooldownIcons:RepositionRows()
     if not self.rows or not self.container then return end
     
-    local rowConfigs = addon.db.profile.rows or {}
-    local iconDb = addon.db.profile.icons or {}
+    local rowConfigs = addon.db.profile.rows
+    local iconDb = addon.db.profile.icons
     
     -- Get sorted list of row indices (to handle sparse tables)
     local sortedRowIndices = {}
@@ -1069,7 +1070,7 @@ end
 
 function CooldownIcons:UpdateRowIcons()
     local db = addon.db.profile.icons
-    local rowConfigs = addon.db.profile.rows or {}
+    local rowConfigs = addon.db.profile.rows
 
     for rowIndex, rowFrame in pairs(self.rows) do
         if rowFrame then
@@ -1242,7 +1243,7 @@ function CooldownIcons:SetupIcon(frame, spellID, actualSpellID, spellData, rowCo
         self:ConfigureCooldownText(frame.cooldown, frame.rowIndex)
         
         -- Configure bling effect per-row
-        local db = addon.db and addon.db.profile.icons or {}
+        local db = addon.db.profile.icons
         local blingEnabled = addon.Database:IsRowSettingEnabled(db.cooldownBlingRows, frame.rowIndex)
         frame.cooldown:SetDrawBling(blingEnabled)
     end
@@ -1269,7 +1270,7 @@ end
 
 -- Update keybind text for a single icon
 function CooldownIcons:UpdateKeybindText(frame)
-    local db = addon.db and addon.db.profile.icons or {}
+    local db = addon.db.profile.icons
     addon.Keybinds:UpdateKeybindText(frame, db.showKeybindText)
 end
 
@@ -1353,7 +1354,7 @@ function CooldownIcons:SortRowByTimeRemaining(rowFrame, rowIndex)
     if not rowFrame then return end
     
     local db = addon.db.profile.icons
-    local useAnimation = db.dynamicSortAnimation ~= false  -- default true
+    local useAnimation = db.dynamicSortAnimation
     
     -- Reuse cached table (wipe and refill instead of allocating new)
     wipe(dynamicSortCache)
@@ -1555,7 +1556,7 @@ function CooldownIcons:UpdateIconState(frame, db)
     local auraRemaining, auraDuration, auraStacks = 0, 0, 0
     local spellData = frame.spellData
     
-    if db.showAuraTracking ~= false then
+    if db.showAuraTracking then
         local auraTracker = addon:GetModule("AuraTracker")
         auraActive = auraTracker and auraTracker:IsAuraActive(spellID)
         if auraTracker then
@@ -1685,7 +1686,7 @@ function CooldownIcons:UpdateIconState(frame, db)
     -- Determine if this is GCD vs actual cooldown
     local isOnGCD = self.Utils:IsOnGCD(remaining, duration)
     local isOnActualCooldown = self.Utils:IsOnRealCooldown(remaining, duration)
-    local readyGlowThreshold = db.readyGlowThreshold or C.READY_GLOW_THRESHOLD
+    local readyGlowThreshold = db.readyGlowThreshold
     local almostReady = remaining > 0 and remaining <= readyGlowThreshold and isOnActualCooldown
 
     -- Determine if this row dims icons on cooldown based on global setting
@@ -2054,7 +2055,7 @@ function CooldownIcons:UpdateIconState(frame, db)
         frame.text:SetTextColor(self.C.COLORS.TEXT.r, self.C.COLORS.TEXT.g, self.C.COLORS.TEXT.b)
     elseif showText and showTextForRow and remaining > 0 then
         -- For cooldowns, respect useOwnCooldownText setting
-        local useOwnText = db.useOwnCooldownText ~= false  -- Default true
+        local useOwnText = db.useOwnCooldownText
         if useOwnText then
             frame.text:SetText(self.Utils:FormatCooldown(remaining))
             -- Always use the same color for cooldown text
@@ -2079,7 +2080,7 @@ function CooldownIcons:UpdateIconState(frame, db)
     
     -- Apply alpha to the entire frame (affects all children and styling)
     -- Use smooth transition if enabled and alpha changed
-    local animDb = addon.db.profile.animations or {}
+    local animDb = addon.db.profile.animations
     local targetAlpha = frame._targetAlpha
     local isTransitioning = frame._alphaAnimating
     
@@ -2191,7 +2192,7 @@ function CooldownIcons:UpdateIconState(frame, db)
     -- IsCurrentSpell returns true when a "next melee" ability is queued
     if frame.queuedHighlight then
         local isQueued = false
-        if IsCurrentSpell then
+        if db.showQueuedHighlight and IsCurrentSpell then
             isQueued = IsCurrentSpell(actualSpellID)
         end
         if isQueued then
@@ -2272,7 +2273,7 @@ function CooldownIcons:UpdateResourceDisplay(frame, spellID, cooldownRemaining, 
         frame.resourceOnUpdate = true
         frame:HookScript("OnUpdate", function(f, elapsed)
             -- Get fresh db reference each frame
-            local freshDb = addon.db and addon.db.profile.icons or {}
+            local freshDb = addon.db.profile.icons
             self:AnimateResourceDisplay(f, elapsed, freshDb)
         end)
     end
@@ -2298,7 +2299,7 @@ function CooldownIcons:AnimateResourceDisplay(frame, elapsed, db)
     local target = frame.resourceTarget
     
     -- Check global animation setting
-    local animDb = addon.db.profile.animations or {}
+    local animDb = addon.db.profile.animations
     if animDb.smoothBars then
         -- Smooth interpolation (lerp)
         local speed = 8  -- Higher = faster animation
@@ -2455,11 +2456,11 @@ function CooldownIcons:UpdateReadyGlow(frame, spellID, remaining, duration, isUs
     -- Determine effective mode per row:
     -- Reactive abilities (Execute, Overpower) always use "always" behavior
     -- Otherwise, check readyGlowAlwaysRows to see if this row uses persistent glow
-    local alwaysForRow = addon.Database:IsRowSettingEnabled(db.readyGlowAlwaysRows or "none", rowIndex)
+    local alwaysForRow = addon.Database:IsRowSettingEnabled(db.readyGlowAlwaysRows, rowIndex)
     local effectiveMode = (isReactive or alwaysForRow) and C.GLOW_MODE.ALWAYS or C.GLOW_MODE.ONCE
     
     local isOnRealCooldown = self.Utils:IsOnRealCooldown(remaining, duration)
-    local readyGlowThreshold = db.readyGlowThreshold or C.READY_GLOW_THRESHOLD
+    local readyGlowThreshold = db.readyGlowThreshold
     local isAlmostReady = remaining > 0 and remaining <= readyGlowThreshold and isOnRealCooldown
     local isOffCooldown = self.Utils:IsOffCooldown(remaining, duration)
     
@@ -2780,7 +2781,7 @@ end
 
 -- Force update range for all visible icons (called on throttled timer via RangeChecker callback)
 function CooldownIcons:UpdateAllRangeIndicators()
-    local db = addon.db and addon.db.profile.icons or {}
+    local db = addon.db.profile.icons
     
     for _, rowFrame in ipairs(self.rows or {}) do
         if rowFrame.icons then
@@ -2800,8 +2801,8 @@ end
 
 function CooldownIcons:Refresh()
     -- Update cached row settings from current config before rebuilding
-    local rowConfigs = addon.db.profile.rows or {}
-    local iconDb = addon.db.profile.icons or {}
+    local rowConfigs = addon.db.profile.rows
+    local iconDb = addon.db.profile.icons
     
     -- Track vertical offset for row repositioning
     local yOffset = 0
@@ -2821,7 +2822,7 @@ function CooldownIcons:Refresh()
         end
         rowFrame.iconSpacing = newSpacing
         rowFrame.iconsPerRow = rowConfig.iconsPerRow or rowConfig.maxIcons
-        rowFrame.flowLayout = rowConfig.flowLayout or false
+        rowFrame.flowLayout = rowConfig.flowLayout
         
         -- Update row frame size to match new icon dimensions
         local maxIcons = rowConfig.maxIcons

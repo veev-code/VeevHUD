@@ -112,8 +112,8 @@ function ResourceBar:CreateFrames(parent)
     self:CreateBorder(bar)
 
     -- Gradient overlay (darker at bottom, lighter at top)
-    local appearanceDb = addon.db.profile.appearance or {}
-    if appearanceDb.showGradient ~= false then
+    local appearanceDb = addon.db.profile.appearance
+    if appearanceDb.showGradient then
         self:CreateGradient(bar)
     end
 
@@ -122,7 +122,7 @@ function ResourceBar:CreateFrames(parent)
 
     -- Text overlay
     local text = bar:CreateFontString(nil, "OVERLAY")
-    text:SetFont(addon:GetFont(), db.textSize or 11, "OUTLINE")
+    text:SetFont(addon:GetFont(), db.textSize, "OUTLINE")
     text:SetPoint("CENTER")
     self.text = text
 
@@ -146,18 +146,18 @@ function ResourceBar:CreateFrames(parent)
 end
 
 function ResourceBar:RegisterUpdateIfNeeded()
-    local animDb = addon.db.profile.animations or {}
+    local animDb = addon.db.profile.animations
     local db = addon.db.profile.resourceBar
     local tickerDb = db.energyTicker
     local manaTickerDb = db.manaTicker
-    local iconsDb = addon.db.profile.icons or {}
+    local iconsDb = addon.db.profile.icons
     
     -- Need updates if smooth bars enabled OR if ticker is enabled and we have energy/mana
     local needsSmoothUpdate = animDb.smoothBars
     local isEnergy = self.powerType == self.C.POWER_TYPE.ENERGY
     local isMana = self.powerType == self.C.POWER_TYPE.MANA
-    local energyTickerEnabled = tickerDb and tickerDb.enabled ~= false  -- Default true for backwards compat
-    local manaTickerEnabled = manaTickerDb and manaTickerDb.enabled ~= false  -- Default true for backwards compat
+    local energyTickerEnabled = tickerDb and tickerDb.enabled
+    local manaTickerEnabled = manaTickerDb and manaTickerDb.enabled
     local needsEnergyTicker = energyTickerEnabled and isEnergy
     local needsManaTicker = manaTickerEnabled and isMana
     
@@ -175,14 +175,14 @@ function ResourceBar:RegisterUpdateIfNeeded()
 end
 
 function ResourceBar:CreateSpark(bar, db)
-    if db.showSpark == false then return end
+    if not db.showSpark then return end
     
     local spark = bar:CreateTexture(nil, "OVERLAY")
     
     -- Use the casting bar spark texture (available in all WoW versions)
     spark:SetTexture([[Interface\CastingBar\UI-CastingBar-Spark]])
     spark:SetBlendMode("ADD")
-    spark:SetSize(db.sparkWidth or 12, db.height + (db.sparkOverflow or 8))
+    spark:SetSize(db.sparkWidth, db.height + db.sparkOverflow)
     spark:SetPoint("CENTER", bar, "LEFT", 0, 0)
     spark:SetAlpha(0.9)
     
@@ -199,7 +199,7 @@ end
 
 function ResourceBar:CreateEnergyTicker(bar, db)
     local tickerDb = db.energyTicker
-    if not tickerDb or tickerDb.enabled == false then return end
+    if not tickerDb or not tickerDb.enabled then return end
 
     if tickerDb.style == self.C.TICKER_STYLE.BAR then
         self:CreateEnergyTickerBar(bar, db, tickerDb)
@@ -210,19 +210,16 @@ end
 
 -- "bar" style: Separate bar below resource bar (attached sub-element)
 function ResourceBar:CreateEnergyTickerBar(bar, db, tickerDb)
-    local tickerHeight = tickerDb.height or 3
-    local tickerOffsetY = tickerDb.offsetY or -1
-
     -- Create ticker bar as child of resource bar, positioned below it
     -- The layout system accounts for this via ResourceBar's gap
-    local ticker = self.Utils:CreateStatusBar(bar, db.width, tickerHeight)
-    ticker:SetPoint("TOP", bar, "BOTTOM", 0, tickerOffsetY)
+    local ticker = self.Utils:CreateStatusBar(bar, db.width, tickerDb.height)
+    ticker:SetPoint("TOP", bar, "BOTTOM", 0, tickerDb.offsetY)
     ticker:SetMinMaxValues(0, 1)
     ticker:SetValue(0)
     self.ticker = ticker
 
     -- Use custom color or default energy yellow for the ticker
-    local tickerColor = tickerDb.color or self.C.POWER_COLORS.ENERGY
+    local tickerColor = tickerDb.color
     ticker:SetStatusBarColor(tickerColor.r, tickerColor.g, tickerColor.b)
     ticker.bg:SetVertexColor(tickerColor.r * 0.15, tickerColor.g * 0.15, tickerColor.b * 0.15)
 
@@ -230,8 +227,8 @@ function ResourceBar:CreateEnergyTickerBar(bar, db, tickerDb)
     self:CreateTickerBorder(ticker)
 
     -- Gradient overlay (matches resource bar style)
-    local appearanceDb = addon.db.profile.appearance or {}
-    if appearanceDb.showGradient ~= false then
+    local appearanceDb = addon.db.profile.appearance
+    if appearanceDb.showGradient then
         self:CreateTickerGradient(ticker)
     end
 
@@ -244,7 +241,7 @@ end
 
 function ResourceBar:CreateTickerBarSpark(ticker, tickerHeight)
     local db = addon.db.profile.resourceBar
-    if db.showSpark == false then return end
+    if not db.showSpark then return end
 
     local spark = ticker:CreateTexture(nil, "OVERLAY")
     spark:SetTexture([[Interface\CastingBar\UI-CastingBar-Spark]])
@@ -259,8 +256,8 @@ end
 
 -- "spark" style: Elegant spark overlay on the resource bar itself
 function ResourceBar:CreateEnergyTickerSpark(bar, db, tickerDb)
-    local sparkWidth = tickerDb.sparkWidth or 6
-    local sparkHeightMult = tickerDb.sparkHeight or 1.8
+    local sparkWidth = tickerDb.sparkWidth
+    local sparkHeightMult = tickerDb.sparkHeight
     local sparkHeight = db.height * sparkHeightMult
 
     -- Create the spark overlay
@@ -284,11 +281,11 @@ end
 
 function ResourceBar:CreateManaTicker(bar, db)
     local manaTickerDb = db.manaTicker
-    if not manaTickerDb or manaTickerDb.enabled == false then return end
-    local style = manaTickerDb.style or "nextfulltick"
+    if not manaTickerDb or not manaTickerDb.enabled then return end
+    local style = manaTickerDb.style
 
-    local sparkWidth = manaTickerDb.sparkWidth or 12
-    local sparkHeightMult = manaTickerDb.sparkHeight or 2.0
+    local sparkWidth = manaTickerDb.sparkWidth
+    local sparkHeightMult = manaTickerDb.sparkHeight
     local sparkHeight = db.height * sparkHeightMult
 
     -- Create the spark overlay (similar to energy ticker spark style)
@@ -331,7 +328,7 @@ function ResourceBar:GetTickerHeight()
     
     -- Return height + gap (total space the ticker occupies below resource bar)
     -- offsetY is negative, so we use abs to get the gap
-    return (tickerDb.height or 3) + math.abs(tickerDb.offsetY or -1)
+    return tickerDb.height + math.abs(tickerDb.offsetY)
 end
 
 function ResourceBar:CreateTickerBorder(ticker)
@@ -372,7 +369,7 @@ function ResourceBar:UpdateCostOverlayColor()
         r, g, b = self.Utils:GetPowerColor(self.powerType)
     else
         local c = db.color
-        r, g, b = c and c.r or 0.8, c and c.g or 0.8, c and c.b or 0.8
+        r, g, b = c.r, c.g, c.b
     end
 
     -- Darken and slightly desaturate the power color for clear "consumed" contrast
@@ -495,6 +492,12 @@ end
 function ResourceBar:UpdateCostOverlay()
     if not self.bar or not self.costOverlay then return end
 
+    local db = addon.db.profile.resourceBar
+    if not db.showPredictedCost then
+        self.costOverlay:Hide()
+        return
+    end
+
     local pendingCost = self:GetPendingResourceCost()
     if pendingCost <= 0 then
         self.costOverlay:Hide()
@@ -545,7 +548,7 @@ function ResourceBar:UpdatePowerType()
             r, g, b = self.Utils:GetPowerColor(self.powerType)
         else
             local c = db.color
-            r, g, b = c and c.r or 0.8, c and c.g or 0.8, c and c.b or 0.8
+            r, g, b = c.r, c.g, c.b
         end
 
         self.bar:SetStatusBarColor(r, g, b)
@@ -567,8 +570,8 @@ function ResourceBar:UpdateTickerVisibility()
 
     -- Only show ticker for energy users when enabled
     local isEnergy = self.powerType == self.C.POWER_TYPE.ENERGY
-    local tickerEnabled = tickerDb and tickerDb.enabled ~= false
-    local style = tickerDb and tickerDb.style or "spark"
+    local tickerEnabled = tickerDb and tickerDb.enabled
+    local style = tickerDb and tickerDb.style
     local shouldShow = tickerEnabled and isEnergy
     
     -- Track previous visibility state for layout changes
@@ -630,7 +633,7 @@ function ResourceBar:UpdateBar()
 
     local db = addon.db.profile.resourceBar
 
-    local animDb = addon.db.profile.animations or {}
+    local animDb = addon.db.profile.animations
     if animDb.smoothBars then
         self.targetValue = percent
     else
@@ -655,13 +658,13 @@ function ResourceBar:UpdateSpark(percent)
     local db = addon.db.profile.resourceBar
     
     -- Respect showSpark setting
-    if db.showSpark == false then
+    if not db.showSpark then
         self.spark:Hide()
         return
     end
     
     -- Hide spark when full or empty
-    if db.sparkHideFullEmpty ~= false then
+    if db.sparkHideFullEmpty then
         if percent <= 0 or percent >= 1 then
             self.spark:Hide()
             return
@@ -684,8 +687,8 @@ end
 function ResourceBar:OnUpdate()
     -- Smooth bar updates
     if self.bar and self.targetValue then
-        local animDb = addon.db.profile.animations or {}
-        if animDb.smoothBars then
+    local animDb = addon.db.profile.animations
+    if animDb.smoothBars then
             self.currentValue = self.Utils:SmoothBarValue(self.currentValue, self.targetValue)
             self.bar:SetValue(self.currentValue)
             self:UpdateSpark(self.currentValue)
@@ -714,12 +717,12 @@ function ResourceBar:UpdateEnergyTicker()
     local db = addon.db.profile.resourceBar
     local tickerDb = db.energyTicker
     
-    if not tickerDb or tickerDb.enabled == false then return end
-    local style = tickerDb.style or "spark"
+    if not tickerDb or not tickerDb.enabled then return end
+    local style = tickerDb.style
 
     local currentEnergy = UnitPower("player", self.C.POWER_TYPE.ENERGY)
     local maxEnergy = UnitPowerMax("player", self.C.POWER_TYPE.ENERGY)
-    local showAtFullEnergy = tickerDb.showAtFullEnergy ~= false  -- Default true
+    local showAtFullEnergy = tickerDb.showAtFullEnergy
 
     -- Use centralized tick tracking from TickTracker
     -- This ensures consistency between the ticker UI and spell predictions
@@ -762,7 +765,7 @@ function ResourceBar:UpdateTickerBarSpark(progress)
     if not self.tickerSpark then return end
 
     local db = addon.db.profile.resourceBar
-    if db.showSpark == false then
+    if not db.showSpark then
         self.tickerSpark:Hide()
         return
     end
@@ -811,11 +814,11 @@ function ResourceBar:UpdateManaTicker()
     local db = addon.db.profile.resourceBar
     local manaTickerDb = db.manaTicker
     
-    if not manaTickerDb or manaTickerDb.enabled == false then
+    if not manaTickerDb or not manaTickerDb.enabled then
         self.manaTickerSpark:Hide()
         return
     end
-    local style = manaTickerDb.style or "nextfulltick"
+    local style = manaTickerDb.style
     
     local currentMana = UnitPower("player", self.C.POWER_TYPE.MANA)
     local maxMana = UnitPowerMax("player", self.C.POWER_TYPE.MANA)
@@ -901,7 +904,7 @@ function ResourceBar:Refresh()
         end
         
         -- Update spark visibility and size
-        if db.showSpark == false then
+        if not db.showSpark then
             -- Hide spark if disabled
             if self.spark then
                 self.spark:Hide()
@@ -912,7 +915,7 @@ function ResourceBar:Refresh()
                 self:CreateSpark(self.bar, db)
             end
             if self.spark then
-                self.spark:SetSize(db.sparkWidth or 12, db.height + (db.sparkOverflow or 8))
+                self.spark:SetSize(db.sparkWidth, db.height + db.sparkOverflow)
                 self.spark:Show()
             end
         end
@@ -925,8 +928,8 @@ function ResourceBar:Refresh()
         end
         
         -- Toggle gradient
-        local appearanceDb = addon.db.profile.appearance or {}
-        if appearanceDb.showGradient ~= false then
+        local appearanceDb = addon.db.profile.appearance
+        if appearanceDb.showGradient then
             if not self.gradient then
                 self:CreateGradient(self.bar)
             end
@@ -941,7 +944,7 @@ function ResourceBar:Refresh()
         
         -- Toggle text visibility and update font size
         if self.text then
-            self.text:SetFont(addon:GetFont(), db.textSize or 11, "OUTLINE")
+            self.text:SetFont(addon:GetFont(), db.textSize, "OUTLINE")
             if db.textFormat and db.textFormat ~= self.C.TEXT_FORMAT.NONE then
                 self.text:Show()
             else
@@ -964,8 +967,8 @@ end
 function ResourceBar:RefreshEnergyTicker()
     local db = addon.db.profile.resourceBar
     local tickerDb = db.energyTicker
-    local tickerEnabled = tickerDb and tickerDb.enabled ~= false
-    local style = tickerDb and tickerDb.style or "spark"
+    local tickerEnabled = tickerDb and tickerDb.enabled
+    local style = tickerDb and tickerDb.style
     
     -- Handle "bar" style
     if tickerEnabled and style == self.C.TICKER_STYLE.BAR then
@@ -975,12 +978,9 @@ function ResourceBar:RefreshEnergyTicker()
         end
         -- Update bar size and position (attached to resource bar)
         if self.ticker then
-            local tickerHeight = tickerDb.height or 3
-            local tickerOffsetY = tickerDb.offsetY or -1
-            
-            self.ticker:SetSize(db.width, tickerHeight)
+            self.ticker:SetSize(db.width, tickerDb.height)
             self.ticker:ClearAllPoints()
-            self.ticker:SetPoint("TOP", self.bar, "BOTTOM", 0, tickerOffsetY)
+            self.ticker:SetPoint("TOP", self.bar, "BOTTOM", 0, tickerDb.offsetY)
             
             -- Update ticker texture
             local barTexture = addon:GetBarTexture()
@@ -990,15 +990,15 @@ function ResourceBar:RefreshEnergyTicker()
             end
             
             -- Update ticker color
-            local tickerColor = tickerDb.color or self.C.POWER_COLORS.ENERGY
+            local tickerColor = tickerDb.color
             self.ticker:SetStatusBarColor(tickerColor.r, tickerColor.g, tickerColor.b)
             if self.ticker.bg then
                 self.ticker.bg:SetVertexColor(tickerColor.r * 0.15, tickerColor.g * 0.15, tickerColor.b * 0.15)
             end
             
             -- Toggle gradient
-            local appearanceDb = addon.db.profile.appearance or {}
-            if appearanceDb.showGradient ~= false then
+            local appearanceDb = addon.db.profile.appearance
+            if appearanceDb.showGradient then
                 if not self.tickerGradient then
                     self:CreateTickerGradient(self.ticker)
                 end
@@ -1022,8 +1022,8 @@ function ResourceBar:RefreshEnergyTicker()
         end
         -- Update spark size
         if self.tickerOverlaySpark then
-            local sparkWidth = tickerDb.sparkWidth or 6
-            local sparkHeightMult = tickerDb.sparkHeight or 1.8
+            local sparkWidth = tickerDb.sparkWidth
+            local sparkHeightMult = tickerDb.sparkHeight
             local sparkHeight = db.height * sparkHeightMult
             self.tickerOverlaySpark:SetSize(sparkWidth, sparkHeight)
         end

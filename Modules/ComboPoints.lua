@@ -42,8 +42,8 @@ end
 function ComboPoints:GetBarWidth()
     local comboDb = addon.db and addon.db.profile and addon.db.profile.comboPoints
     
-    local totalWidth = comboDb and comboDb.width or 230
-    local spacing = comboDb and comboDb.barSpacing or 2
+    local totalWidth = comboDb and comboDb.width
+    local spacing = comboDb and comboDb.barSpacing
     local numBars = self.C.MAX_COMBO_POINTS
     
     -- totalWidth = numBars * barWidth + (numBars - 1) * spacing
@@ -99,7 +99,7 @@ function ComboPoints:Initialize()
     
     -- Register with layout system (priority 10 = closest to icons, gap from settings)
     local db = addon.db and addon.db.profile and addon.db.profile.comboPoints
-    local gap = db and db.offsetY or 2
+    local gap = db and db.offsetY
     addon.Layout:RegisterElement("comboPoints", self, 10, gap)
     
     -- Register events
@@ -157,7 +157,7 @@ function ComboPoints:CreateFrames(parent)
     
     -- Calculate bar width based on combo points width setting
     local barWidth = self:GetBarWidth()
-    local totalWidth = db.width or 230
+    local totalWidth = db.width
     
     -- Create container (position will be set by layout system)
     local container = CreateFrame("Frame", "VeevHUDComboPoints", parent)
@@ -181,7 +181,7 @@ end
 
 function ComboPoints:CreateComboPointBar(parent, index, db, barWidth)
     local spacing = db.barSpacing
-    local totalWidth = db.width or 230
+    local totalWidth = db.width
     local startX = -totalWidth / 2 + barWidth / 2
     local xOffset = startX + (index - 1) * (barWidth + spacing)
     
@@ -211,8 +211,8 @@ function ComboPoints:CreateComboPointBar(parent, index, db, barWidth)
     
     -- Gradient overlay (darker left, lighter right) - matches resource/health bar style
     -- Only shown when active (hidden by default so empty bars match resource bar background)
-    local appearanceDb = addon.db.profile.appearance or {}
-    if appearanceDb.showGradient ~= false then
+    local appearanceDb = addon.db.profile.appearance
+    if appearanceDb.showGradient then
         local gradient = bar:CreateTexture(nil, "ARTWORK", nil, 1)
         gradient:SetAllPoints()
         gradient:SetTexture([[Interface\Buttons\WHITE8X8]])
@@ -317,7 +317,7 @@ function ComboPoints:Refresh()
     if not db then return end
     
     -- Update layout gap from settings
-    addon.Layout:SetElementGap("comboPoints", db.offsetY or 2)
+    addon.Layout:SetElementGap("comboPoints", db.offsetY)
     
     -- Create frames if they don't exist and we should have them
     if not self.container and db.enabled and addon.hudFrame then
@@ -327,7 +327,7 @@ function ComboPoints:Refresh()
     if self.container then
         -- Recalculate bar width based on combo points width setting
         local barWidth = self:GetBarWidth()
-        local totalWidth = db.width or 230
+        local totalWidth = db.width
         
         -- Update container size (position handled by layout system)
         self.container:SetSize(totalWidth, db.barHeight)
@@ -356,8 +356,8 @@ function ComboPoints:Refresh()
             end
             
             -- Toggle gradient
-            local appearanceDb = addon.db.profile.appearance or {}
-            if appearanceDb.showGradient ~= false then
+            local appearanceDb = addon.db.profile.appearance
+            if appearanceDb.showGradient then
                 if not bar.gradient then
                     local gradient = bar:CreateTexture(nil, "ARTWORK", nil, 1)
                     gradient:SetAllPoints()

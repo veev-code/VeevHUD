@@ -33,7 +33,7 @@ function ProcTracker:Initialize()
     
     -- Register with layout system (priority 50 = above health bar, gap from settings)
     local db = addon.db and addon.db.profile and addon.db.profile.procTracker
-    local gap = db and db.gapAboveHealthBar or 6
+    local gap = db and db.gapAboveHealthBar
     addon.Layout:RegisterElement("procTracker", self, 50, gap)
     
     -- Register events
@@ -465,7 +465,7 @@ function ProcTracker:RepositionIcons()
     local size = db.iconSize
     local iconWidth, iconHeight = self.Utils:GetIconDimensions(size)
     local spacing = db.iconSpacing
-    local useSlideAnimation = db.slideAnimation ~= false  -- default true
+    local useSlideAnimation = db.slideAnimation
     
     -- Count visible icons
     local visibleIcons = {}
@@ -660,7 +660,7 @@ function ProcTracker:Refresh()
     local db = addon.db.profile.procTracker
     
     -- Update layout gap from settings
-    addon.Layout:SetElementGap("procTracker", db.gapAboveHealthBar or 6)
+    addon.Layout:SetElementGap("procTracker", db.gapAboveHealthBar)
     
     -- Create frames if they don't exist and we should have them
     if not self.container and db.enabled and addon.hudFrame then

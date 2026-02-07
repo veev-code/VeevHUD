@@ -71,7 +71,7 @@ end
 function Utils:GetEffectiveHUDScale()
     local userScale = 1.0
     if addon.db and addon.db.profile and addon.db.profile.icons then
-        userScale = addon.db.profile.icons.scale or 1.0
+        userScale = addon.db.profile.icons.scale
     end
     return userScale * self:GetUIScaleCompensation()
 end
@@ -86,7 +86,7 @@ end
 function Utils:GetIconDimensions(baseSize)
     local aspectRatio = 1.0
     if addon.db and addon.db.profile and addon.db.profile.icons then
-        aspectRatio = addon.db.profile.icons.iconAspectRatio or 1.0
+        aspectRatio = addon.db.profile.icons.iconAspectRatio
     end
     local width = baseSize
     local height = math.floor(baseSize / aspectRatio + 0.5)  -- Round to nearest pixel
@@ -101,7 +101,7 @@ function Utils:GetIconTexCoords(baseZoom)
     
     local aspectRatio = 1.0
     if addon.db and addon.db.profile and addon.db.profile.icons then
-        aspectRatio = addon.db.profile.icons.iconAspectRatio or 1.0
+        aspectRatio = addon.db.profile.icons.iconAspectRatio
     end
     
     -- Horizontal texcoords stay the same
@@ -200,7 +200,7 @@ function Utils:ShouldShowHUD()
     local db = addon.db.profile.visibility
 
     -- Master enable/disable toggle
-    if addon.db and addon.db.profile and addon.db.profile.enabled == false then
+    if not addon.db.profile.enabled then
         return false, 0
     end
 

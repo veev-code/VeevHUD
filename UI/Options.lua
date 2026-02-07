@@ -272,7 +272,7 @@ function Options:BuildOptionsTable()
 	local function colorGet(info)
 		local c = addon.Database:GetSettingValue(info.arg)
 		if type(c) == "table" then
-			return c.r or 1, c.g or 1, c.b or 1
+			return c.r, c.g, c.b
 		end
 		return 1, 1, 1
 	end
@@ -959,11 +959,26 @@ function Options:BuildOptionsTable()
 									},
 								},
 							},
-							rangeSorting = {
-								type = "group",
-								name = "Range & Sorting",
-								inline = true,
-								order = 4,
+						queuedHighlight = {
+							type = "group",
+							name = "Queued Highlight",
+							inline = true,
+							order = 4,
+							args = {
+								showQueuedHighlight = {
+									type = "toggle",
+									name = "Enabled",
+									desc = "Shows a highlight glow on ability icons that are queued as your next attack (e.g., Heroic Strike, Cleave, Maul). These \"next melee\" abilities queue up and execute on your next swing — the highlight confirms the ability is active and waiting.",
+									arg = "icons.showQueuedHighlight",
+									order = 1,
+								},
+							},
+						},
+						rangeSorting = {
+							type = "group",
+							name = "Range & Sorting",
+							inline = true,
+							order = 5,
 								args = {
 									showRangeIndicator = {
 										type = "select",
@@ -993,11 +1008,11 @@ function Options:BuildOptionsTable()
 									},
 								},
 							},
-							keybinds = {
-								type = "group",
-								name = "Keybinds",
-								inline = true,
-								order = 5,
+						keybinds = {
+							type = "group",
+							name = "Keybinds",
+							inline = true,
+							order = 6,
 								args = {
 									showKeybindText = {
 										type = "select",
@@ -1081,6 +1096,16 @@ function Options:BuildOptionsTable()
 									sparkWidth = { type = "range", name = "Width", desc = "How wide the spark highlight is in pixels. Larger values create a broader, more prominent glow.", min = 1, max = 32, step = 1, arg = "resourceBar.sparkWidth", order = 2 },
 									sparkOverflow = { type = "range", name = "Overflow", desc = "How far the spark glow extends beyond the top and bottom edges of the bar (in pixels). Higher values create a taller spark that 'overflows' past the bar.", min = 0, max = 32, step = 1, arg = "resourceBar.sparkOverflow", order = 3 },
 									sparkHideFullEmpty = { type = "toggle", name = "Hide at Full/Empty", desc = "Hides the spark when the bar is completely full or completely empty, since there's no meaningful fill point to highlight in those states.", arg = "resourceBar.sparkHideFullEmpty", order = 4 },
+								},
+							},
+							overlaySettings = {
+								type = "group",
+								name = "Overlays",
+								inline = true,
+								order = 6,
+								disabled = function() return addon.db and addon.db.profile and not addon.db.profile.resourceBar.enabled end,
+								args = {
+									showPredictedCost = { type = "toggle", name = "Predicted Cost", desc = "Shows a darkened section on the resource bar representing the cost of abilities you are currently casting or have queued (e.g., Heroic Strike, Cleave). Gives you a preview of where your resource will be after the ability completes.", arg = "resourceBar.showPredictedCost", order = 1 },
 								},
 							},
 						},
@@ -1188,6 +1213,18 @@ function Options:BuildOptionsTable()
 								args = {
 									classColored = { type = "toggle", name = "Class Colored", desc = "Colors the health bar using your class color (e.g., brown for Warriors, purple for Warlocks) instead of the standard green.", arg = "healthBar.classColored", order = 1 },
 									color = { type = "color", name = "Bar Color", desc = "The custom color for the health bar. Only used when Class Colored is unchecked.", hasAlpha = false, get = colorGet, set = colorSet, arg = "healthBar.color", order = 2, disabled = function() local db = addon.db and addon.db.profile and addon.db.profile.healthBar; return db and db.classColored end },
+								},
+							},
+							overlaySettings = {
+								type = "group",
+								name = "Overlays",
+								inline = true,
+								order = 5,
+								disabled = function() return addon.db and addon.db.profile and not addon.db.profile.healthBar.enabled end,
+								args = {
+									showHealPrediction = { type = "toggle", name = "Heal Prediction", desc = "Shows a lighter overlay on the health bar representing incoming heals. The overlay extends from your current health into the missing health area, giving you a preview of where your health will be after heals land.", arg = "healthBar.showHealPrediction", order = 1 },
+									showAbsorbs = { type = "toggle", name = "Absorb Shields", desc = "Shows a shield-textured overlay on the health bar representing active absorb effects (e.g., Power Word: Shield). Absorbs are shown between your current health and heal prediction since they are guaranteed protection.", arg = "healthBar.showAbsorbs", order = 2 },
+									showOverAbsorbGlow = { type = "toggle", name = "Over-Absorb Glow", desc = "Shows a subtle glow at the right edge of the health bar when your absorb shields exceed your missing health. This indicates you have more shielding than you have room to display.", arg = "healthBar.showOverAbsorbGlow", order = 3, disabled = function() local db = addon.db and addon.db.profile and addon.db.profile.healthBar; return not db or not db.enabled or not db.showAbsorbs end },
 								},
 							},
 						},

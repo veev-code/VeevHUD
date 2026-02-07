@@ -227,6 +227,8 @@ C.DEFAULTS = {
             textSize = 11,
             powerColor = true,    -- Use power-type color (blue/red/yellow) by default
             color = { r = 0.8, g = 0.8, b = 0.8 },  -- Custom color when powerColor is off (neutral light grey)
+            -- Predicted cost overlay (darkened section for queued/casting resource cost)
+            showPredictedCost = true,
             -- Spark settings
             showSpark = true,
             sparkWidth = 12,
@@ -267,6 +269,9 @@ C.DEFAULTS = {
             textSize = 10,
             classColored = true,
             color = { r = 0.0, g = 0.8, b = 0.0 },  -- Custom color when classColored is off (green default)
+            showHealPrediction = true,   -- Show incoming heal overlay on bar
+            showAbsorbs = true,          -- Show absorb shield overlay on bar
+            showOverAbsorbGlow = true,   -- Show glow at bar edge when shield exceeds missing health
         },
 
         -- Combo points settings (for Rogues and Feral Druids)
@@ -314,6 +319,7 @@ C.DEFAULTS = {
             -- Cooldown display
             -- Row selection: "none" = disabled, "primary" = Primary only,
             -- "primary_secondary" = Primary + Secondary, "all" = all rows
+            useOwnCooldownText = true,    -- Use VeevHUD's own cooldown text instead of Blizzard's
             showCooldownTextOn = "all",   -- Which rows show cooldown text
             showCooldownSpiralOn = "all", -- Which rows show cooldown spiral
             cooldownBlingRows = "all",     -- Which rows show sparkle effect when cooldown finishes
@@ -375,6 +381,10 @@ C.DEFAULTS = {
             -- "none" = disabled, "primary" = Primary only, "primary_secondary" = Primary + Secondary, "all" = all rows
             -- Uses throttled updates (0.1s) to minimize performance impact
             showRangeIndicator = "all",
+            
+            -- Queued highlight: shows a glow on icons for "next melee" abilities
+            -- (Heroic Strike, Cleave, Maul, etc.) that are queued via IsCurrentSpell
+            showQueuedHighlight = true,
             
             -- Keybind text: show the keyboard shortcut for each ability (like default action bars)
             -- "none" = disabled, "primary" = Primary only, "primary_secondary" = Primary + Secondary, "all" = all rows

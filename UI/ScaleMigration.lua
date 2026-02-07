@@ -24,7 +24,7 @@ addon.MigrationManager:Register({
         -- Check if user has a scale override (AceDB profile value; defaults to 1.0)
         local userScale = 1.0
         if addon.db and addon.db.profile and addon.db.profile.icons then
-            userScale = addon.db.profile.icons.scale or 1.0
+            userScale = addon.db.profile.icons.scale
         end
         local hasScaleOverride = (userScale ~= 1.0)
         

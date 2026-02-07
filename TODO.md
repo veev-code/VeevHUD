@@ -45,11 +45,12 @@ These were requested by multiple people or have strong gameplay impact.
 - **Battle Shout / Short Buff Tracking** — Battle Shout doesn't appear in spell list. Also applies to other short-duration party buffs that need reapplication reminders. *(Shadowhawk, anonymous French warrior)*
 - **Missing Buff Alert / Inverse Glow** — Glow or visual indicator when an important buff is *missing* (e.g., Battle Shout fell off, self-buff expired). Opposite of the current "active proc" glow. *(Shadowhawk)*
 - **Grouped Category Icons** — Instead of separate icons for every totem/seal/blessing, show one icon per category (e.g., one Earth Totem icon, one Seal icon) that reflects whichever is currently active. Reduces icon clutter for Shamans and Paladins. *(Shadowhawk)*
-- **Health Bar Improvements** — The current health bar is basic. Potential enhancements:
+- **Track Shared Debuffs from Any Caster** — Debuffs like Faerie Fire and Sunder Armor should show on your HUD even when applied by another player, since only one instance of the debuff matters. *(Artvil)*
+- **Totem Duration Tracking** — Casting a totem triggers the cast flash but doesn't show a timer for how long the totem will live. Should display remaining duration. *(Shadowhawk)*
+- **Dual Countdown on Icons (CD + Debuff)** — For abilities where both a cooldown and a debuff matter (e.g., Mangle Cat — no CD but debuff is key), show a secondary timer in an icon corner so both can be tracked on one icon without adding a separate icon. *(Artvil)*
+- **Health Bar Improvements** — Potential enhancements:
   - Text options: max health, health deficit, whole numbers (not just "k" abbreviation)
   - Custom color picker (beyond class-colored toggle)
-  - Heal predictions (incoming heal overlay)
-  - Shield/absorb estimations
   - *Note: Veev considers this lower priority — users can supplement with a dedicated unit frame addon.* *(Shadowhawk)*
 
 ---
@@ -111,5 +112,13 @@ Items from feedback that have been completed, with the version they shipped in.
 | Custom bar textures                                              | 1.0.45  | SharedMedia support for all bars                |
 | Predicted rage/resource loss on bar                              | 1.0.46  | Expanded to all resource types                  |
 | Configure Proc Tracker                                           | 1.0.47  | Enable/disable procs in Spell Configuration     |
-
-
+| Cast Feedback black box visual artifact                          | 1.0.45  | Fixed large black flash on spells like Icy Veins |
+| AceConfig click-through bug                                      | 1.0.43  | Clicking scroll bar no longer opens spell menu   |
+| Proc icon max size increase                                      | 1.0.47  | Allows proc icons to scale much larger           |
+| Health bar: heal prediction overlay                               | 1.0.48  | Shows incoming heals as lighter bar section       |
+| Health bar: absorb shield overlay                                 | 1.0.48  | Shield-Fill texture for PWS, Ice Barrier, etc.    |
+| Health bar: over-absorb glow                                      | 1.0.48  | Edge glow when absorbs exceed missing health      |
+| Health bar overlay options (toggles)                              | 1.0.48  | Heal prediction, absorbs, over-absorb glow        |
+| Resource bar predicted cost toggle                                | 1.0.48  | Option to disable predicted cost overlay          |
+| Queued ability highlight toggle                                   | 1.0.48  | Option to disable queued icon highlight           |
+| Config defaults audit                                             | 1.0.48  | All defaults managed by AceDB, no inline fallbacks|
