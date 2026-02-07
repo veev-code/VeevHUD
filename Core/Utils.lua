@@ -173,9 +173,10 @@ end
 
 -- Create a status bar
 function Utils:CreateStatusBar(parent, width, height, texture)
+    local resolvedTexture = texture or (addon.GetBarTexture and addon:GetBarTexture()) or C.TEXTURES.STATUSBAR
     local bar = CreateFrame("StatusBar", nil, parent)
     bar:SetSize(width, height)
-    bar:SetStatusBarTexture(texture or C.TEXTURES.STATUSBAR)
+    bar:SetStatusBarTexture(resolvedTexture)
     bar:SetMinMaxValues(0, 1)
     bar:SetValue(1)
     bar:EnableMouse(false)  -- Click-through
@@ -183,7 +184,7 @@ function Utils:CreateStatusBar(parent, width, height, texture)
     -- Background
     bar.bg = bar:CreateTexture(nil, "BACKGROUND")
     bar.bg:SetAllPoints()
-    bar.bg:SetTexture(texture or C.TEXTURES.STATUSBAR)
+    bar.bg:SetTexture(resolvedTexture)
     bar.bg:SetVertexColor(0.2, 0.2, 0.2, 0.8)
 
     return bar

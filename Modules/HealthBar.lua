@@ -86,7 +86,8 @@ function HealthBar:CreatePlayerBar(parent)
     self:CreateBorder(bar)
 
     -- Gradient overlay
-    if db.showGradient ~= false then
+    local appearanceDb = addon.db.profile.appearance or {}
+    if appearanceDb.showGradient ~= false then
         self:CreateGradient(bar)
     end
 
@@ -199,6 +200,13 @@ function HealthBar:Refresh()
             self.playerBar:Hide()
         end
         
+        -- Update bar texture
+        local barTexture = addon:GetBarTexture()
+        self.playerBar:SetStatusBarTexture(barTexture)
+        if self.playerBar.bg then
+            self.playerBar.bg:SetTexture(barTexture)
+        end
+        
         -- Update bar color (class color or custom color)
         local r, g, b
         if db.classColored then
@@ -213,7 +221,8 @@ function HealthBar:Refresh()
         end
         
         -- Toggle gradient
-        if db.showGradient ~= false then
+        local appearanceDb = addon.db.profile.appearance or {}
+        if appearanceDb.showGradient ~= false then
             if not self.playerGradient then
                 self:CreateGradient(self.playerBar)
             end

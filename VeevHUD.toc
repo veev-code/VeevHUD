@@ -31,6 +31,7 @@ Core\SpellUtils.lua
 Core\AuraCache.lua
 Core\Events.lua
 Core\FontManager.lua
+Core\TextureManager.lua
 Core\Layout.lua
 Core\Database.lua
 Core\Core.lua

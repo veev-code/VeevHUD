@@ -73,6 +73,11 @@ function addon:OnAddonLoaded()
         self.FontManager:Initialize()
     end
     
+    -- Initialize TextureManager (handles LibSharedMedia integration for bar textures)
+    if self.TextureManager then
+        self.TextureManager:Initialize()
+    end
+    
     -- Initialize RangeChecker (handles spell range detection)
     if self.RangeChecker then
         self.RangeChecker:Initialize()
@@ -99,6 +104,13 @@ function addon:OnProfileChanged()
     -- Refresh fonts first so modules can pick up new font paths.
     if self.FontManager and self.FontManager.RefreshAllFonts then
         self.FontManager:RefreshAllFonts()
+    end
+
+    -- Refresh bar textures so modules can pick up new texture paths.
+    -- (Modules also update textures in their own Refresh, but this ensures
+    -- the TextureManager state is current before the module loop below.)
+    if self.TextureManager and self.TextureManager.RefreshAllTextures then
+        self.TextureManager:RefreshAllTextures()
     end
 
     -- Refresh all modules.

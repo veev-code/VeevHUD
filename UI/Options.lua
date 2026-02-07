@@ -50,6 +50,15 @@ local function GetLSMFontValues()
 	return LSM and LSM:HashTable("font") or {}
 end
 
+local function GetLSMStatusbarValues()
+	if type(AceGUIWidgetLSMlists) == "table" and type(AceGUIWidgetLSMlists.statusbar) == "table" then
+		return AceGUIWidgetLSMlists.statusbar
+	end
+
+	local LSM = LibStub and LibStub("LibSharedMedia-3.0", true)
+	return LSM and LSM:HashTable("statusbar") or {}
+end
+
 local function PickValues(source, ...)
 	local values = {}
 	for i = 1, select("#", ...) do
@@ -79,6 +88,18 @@ function Options:ApplySettingChange(path)
 	-- Fonts
 	if path == "appearance.font" then
 		SafeCall(addon.FontManager and addon.FontManager.RefreshAllFonts, addon.FontManager)
+		return
+	end
+
+	-- Bar textures
+	if path == "appearance.statusbarTexture" then
+		SafeCall(addon.TextureManager and addon.TextureManager.RefreshAllTextures, addon.TextureManager)
+		return
+	end
+
+	-- Bar gradient
+	if path == "appearance.showGradient" then
+		SafeCall(addon.TextureManager and addon.TextureManager.RefreshAllTextures, addon.TextureManager)
 		return
 	end
 
@@ -455,6 +476,14 @@ function Options:BuildOptionsTable()
 								arg = "anchor.y",
 								order = 4,
 							},
+						},
+					},
+					appearance = {
+						type = "group",
+						name = "Appearance",
+						inline = true,
+						order = 1.5,
+						args = {
 							font = {
 								type = "select",
 								name = "Font",
@@ -462,7 +491,23 @@ function Options:BuildOptionsTable()
 								dialogControl = "LSM30_Font",
 								values = GetLSMFontValues,
 								arg = "appearance.font",
-								order = 5,
+								order = 1,
+							},
+							statusbarTexture = {
+								type = "select",
+								name = "Bar Texture",
+								desc = "The texture used for all status bars in the HUD, including health, resource, combo point, and energy ticker bars.\n\nIf you have texture-sharing addons installed (SharedMedia, etc.), their textures will appear here automatically.",
+								dialogControl = "LSM30_Statusbar",
+								values = GetLSMStatusbarValues,
+								arg = "appearance.statusbarTexture",
+								order = 2,
+							},
+							showGradient = {
+								type = "toggle",
+								name = "Bar Gradient",
+								desc = "Adds a subtle dark-to-light gradient across all status bars (health, resource, combo points, and energy ticker), giving them more visual depth instead of a flat solid color.",
+								arg = "appearance.showGradient",
+								order = 3,
 							},
 						},
 					},
@@ -1023,7 +1068,6 @@ function Options:BuildOptionsTable()
 								args = {
 									powerColor = { type = "toggle", name = "Power Color", desc = "Colors the bar based on your resource type — blue for mana, red for rage, yellow for energy. Uncheck to use a custom color instead.", arg = "resourceBar.powerColor", order = 1 },
 									color = { type = "color", name = "Bar Color", desc = "The custom color for the resource bar. Only used when Power Color is unchecked.", hasAlpha = false, get = colorGet, set = colorSet, arg = "resourceBar.color", order = 2, disabled = function() local db = addon.db and addon.db.profile and addon.db.profile.resourceBar; return db and db.powerColor end },
-									showGradient = { type = "toggle", name = "Gradient", desc = "Adds a subtle light-to-dark gradient across the bar, giving it more visual depth instead of a flat solid color.", arg = "resourceBar.showGradient", order = 3 },
 								},
 							},
 							sparkSettings = {
@@ -1063,7 +1107,6 @@ function Options:BuildOptionsTable()
 									height = { type = "range", name = "Bar Height", desc = "How tall the energy ticker bar is in pixels.", min = 1, max = 12, step = 1, arg = "resourceBar.energyTicker.height", order = 1 },
 									offsetY = { type = "range", name = "Bar Offset", desc = "Moves the energy ticker bar up or down relative to the resource bar. Positive values move it down, negative values move it up.", min = -24, max = 24, step = 1, arg = "resourceBar.energyTicker.offsetY", order = 2 },
 									color = { type = "color", name = "Color", desc = "The color used for the energy ticker bar.", hasAlpha = false, get = colorGet, set = colorSet, arg = "resourceBar.energyTicker.color", order = 3 },
-									showGradient = { type = "toggle", name = "Gradient", desc = "Adds a subtle light-to-dark gradient across the energy ticker bar for more visual depth.", arg = "resourceBar.energyTicker.showGradient", order = 4 },
 								},
 							},
 							sparkSettings = {
@@ -1145,7 +1188,6 @@ function Options:BuildOptionsTable()
 								args = {
 									classColored = { type = "toggle", name = "Class Colored", desc = "Colors the health bar using your class color (e.g., brown for Warriors, purple for Warlocks) instead of the standard green.", arg = "healthBar.classColored", order = 1 },
 									color = { type = "color", name = "Bar Color", desc = "The custom color for the health bar. Only used when Class Colored is unchecked.", hasAlpha = false, get = colorGet, set = colorSet, arg = "healthBar.color", order = 2, disabled = function() local db = addon.db and addon.db.profile and addon.db.profile.healthBar; return db and db.classColored end },
-									showGradient = { type = "toggle", name = "Gradient", desc = "Adds a subtle light-to-dark gradient across the bar for more visual depth.", arg = "healthBar.showGradient", order = 3 },
 								},
 							},
 						},
@@ -1178,7 +1220,6 @@ function Options:BuildOptionsTable()
 								disabled = function() return addon.db and addon.db.profile and not addon.db.profile.comboPoints.enabled end,
 								args = {
 									color = { type = "color", name = "Color", desc = "The color used for active combo point segments.", hasAlpha = false, get = colorGet, set = colorSet, arg = "comboPoints.color", order = 1 },
-									showGradient = { type = "toggle", name = "Gradient", desc = "Adds a subtle light-to-dark gradient to each combo point segment for more visual depth.", arg = "comboPoints.showGradient", order = 2 },
 								},
 							},
 						},

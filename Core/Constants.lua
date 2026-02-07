@@ -188,6 +188,8 @@ C.DEFAULTS = {
         -- Global appearance settings
         appearance = {
             font = "Expressway, Bold",  -- Font name (registered with LibSharedMedia)
+            statusbarTexture = "Clean",  -- Statusbar texture name (registered with LibSharedMedia)
+            showGradient = true,  -- Gradient overlay on all status bars (health, resource, combo points, ticker)
         },
 
         -- Global positioning anchor (centered by default; configurable via settings)
@@ -225,7 +227,6 @@ C.DEFAULTS = {
             textSize = 11,
             powerColor = true,    -- Use power-type color (blue/red/yellow) by default
             color = { r = 0.8, g = 0.8, b = 0.8 },  -- Custom color when powerColor is off (neutral light grey)
-            showGradient = true,  -- Gradient overlay (darker at bottom)
             -- Spark settings
             showSpark = true,
             sparkWidth = 12,
@@ -241,7 +242,6 @@ C.DEFAULTS = {
                 -- Bar style settings
                 height = 3,           -- Height of the ticker bar
                 offsetY = -1,         -- Gap between resource bar bottom and ticker top (negative = below)
-                showGradient = true,  -- Match resource bar gradient style
                 color = { r = 1.0, g = 1.0, b = 0.0 },  -- Energy yellow
                 -- Spark style settings
                 sparkWidth = 6,       -- Width of the spark overlay (thinner = more elegant)
@@ -267,7 +267,6 @@ C.DEFAULTS = {
             textSize = 10,
             classColored = true,
             color = { r = 0.0, g = 0.8, b = 0.0 },  -- Custom color when classColored is off (green default)
-            showGradient = true,
         },
 
         -- Combo points settings (for Rogues and Feral Druids)
@@ -277,7 +276,6 @@ C.DEFAULTS = {
             barHeight = 6,
             barSpacing = 2,  -- Horizontal spacing between bars
             offsetY = 2,     -- Gap between resource bar bottom and combo points top
-            showGradient = true,
             color = { r = 1.0, g = 0.82, b = 0.0 },  -- Yellow-gold (matches energy theme)
         },
 
@@ -454,3 +452,12 @@ C.TEXTURES = {
 -- Name matches SharedMediaAdditionalFonts convention to avoid duplicates
 C.BUNDLED_FONT = "Interface\\AddOns\\VeevHUD\\Fonts\\Expressway-Bold.ttf"
 C.BUNDLED_FONT_NAME = "Expressway, Bold"
+
+-------------------------------------------------------------------------------
+-- Bundled Statusbar Texture
+-------------------------------------------------------------------------------
+
+-- Bundled statusbar texture path (used as fallback when LibSharedMedia is unavailable)
+-- Name matches SharedMedia convention to avoid duplicates
+C.BUNDLED_STATUSBAR = "Interface\\AddOns\\VeevHUD\\Media\\Statusbar_Clean"
+C.BUNDLED_STATUSBAR_NAME = "Clean"

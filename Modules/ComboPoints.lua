@@ -192,9 +192,10 @@ function ComboPoints:CreateComboPointBar(parent, index, db, barWidth)
     bar.barWidth = barWidth  -- Store for refresh
     
     -- Background (neutral gray, matching resource bar background style)
+    local barTexture = addon:GetBarTexture()
     local bg = bar:CreateTexture(nil, "BACKGROUND")
     bg:SetAllPoints()
-    bg:SetTexture(self.C.TEXTURES.STATUSBAR)  -- Same texture as resource bar
+    bg:SetTexture(barTexture)
     bg:SetVertexColor(0.2, 0.2, 0.2, 0.8)
     bar.bg = bg
     
@@ -203,14 +204,15 @@ function ComboPoints:CreateComboPointBar(parent, index, db, barWidth)
     local color = (cpDb and cpDb.color) or self.C.COMBO_POINT_COLOR
     local fill = bar:CreateTexture(nil, "ARTWORK")
     fill:SetAllPoints()
-    fill:SetTexture(self.C.TEXTURES.STATUSBAR)
+    fill:SetTexture(barTexture)
     fill:SetVertexColor(color.r, color.g, color.b, 1)
     fill:Hide()
     bar.fill = fill
     
     -- Gradient overlay (darker left, lighter right) - matches resource/health bar style
     -- Only shown when active (hidden by default so empty bars match resource bar background)
-    if db.showGradient then
+    local appearanceDb = addon.db.profile.appearance or {}
+    if appearanceDb.showGradient ~= false then
         local gradient = bar:CreateTexture(nil, "ARTWORK", nil, 1)
         gradient:SetAllPoints()
         gradient:SetTexture([[Interface\Buttons\WHITE8X8]])
@@ -334,8 +336,9 @@ function ComboPoints:Refresh()
         local spacing = db.barSpacing
         local startX = -totalWidth / 2 + barWidth / 2
         
-        -- Update fill color
+        -- Update fill color and texture
         local color = (db.color) or self.C.COMBO_POINT_COLOR
+        local barTexture = addon:GetBarTexture()
         
         for i, bar in ipairs(self.bars) do
             local xOffset = startX + (i - 1) * (barWidth + spacing)
@@ -343,13 +346,18 @@ function ComboPoints:Refresh()
             bar:ClearAllPoints()
             bar:SetPoint("CENTER", self.container, "CENTER", xOffset, 0)
             
-            -- Update fill color
+            -- Update textures
+            if bar.bg then
+                bar.bg:SetTexture(barTexture)
+            end
             if bar.fill then
+                bar.fill:SetTexture(barTexture)
                 bar.fill:SetVertexColor(color.r, color.g, color.b, 1)
             end
             
             -- Toggle gradient
-            if db.showGradient then
+            local appearanceDb = addon.db.profile.appearance or {}
+            if appearanceDb.showGradient ~= false then
                 if not bar.gradient then
                     local gradient = bar:CreateTexture(nil, "ARTWORK", nil, 1)
                     gradient:SetAllPoints()

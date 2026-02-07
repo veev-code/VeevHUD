@@ -102,7 +102,8 @@ function ResourceBar:CreateFrames(parent)
     self:CreateBorder(bar)
 
     -- Gradient overlay (darker at bottom, lighter at top)
-    if db.showGradient ~= false then
+    local appearanceDb = addon.db.profile.appearance or {}
+    if appearanceDb.showGradient ~= false then
         self:CreateGradient(bar)
     end
 
@@ -216,7 +217,8 @@ function ResourceBar:CreateEnergyTickerBar(bar, db, tickerDb)
     self:CreateTickerBorder(ticker)
 
     -- Gradient overlay (matches resource bar style)
-    if tickerDb.showGradient ~= false then
+    local appearanceDb = addon.db.profile.appearance or {}
+    if appearanceDb.showGradient ~= false then
         self:CreateTickerGradient(ticker)
     end
 
@@ -680,6 +682,13 @@ function ResourceBar:Refresh()
         -- Update size (position handled by layout system)
         self.bar:SetSize(db.width, db.height)
         
+        -- Update bar texture
+        local barTexture = addon:GetBarTexture()
+        self.bar:SetStatusBarTexture(barTexture)
+        if self.bar.bg then
+            self.bar.bg:SetTexture(barTexture)
+        end
+        
         -- Update spark visibility and size
         if db.showSpark == false then
             -- Hide spark if disabled
@@ -705,7 +714,8 @@ function ResourceBar:Refresh()
         end
         
         -- Toggle gradient
-        if db.showGradient ~= false then
+        local appearanceDb = addon.db.profile.appearance or {}
+        if appearanceDb.showGradient ~= false then
             if not self.gradient then
                 self:CreateGradient(self.bar)
             end
@@ -761,6 +771,13 @@ function ResourceBar:RefreshEnergyTicker()
             self.ticker:ClearAllPoints()
             self.ticker:SetPoint("TOP", self.bar, "BOTTOM", 0, tickerOffsetY)
             
+            -- Update ticker texture
+            local barTexture = addon:GetBarTexture()
+            self.ticker:SetStatusBarTexture(barTexture)
+            if self.ticker.bg then
+                self.ticker.bg:SetTexture(barTexture)
+            end
+            
             -- Update ticker color
             local tickerColor = tickerDb.color or self.C.POWER_COLORS.ENERGY
             self.ticker:SetStatusBarColor(tickerColor.r, tickerColor.g, tickerColor.b)
@@ -769,7 +786,8 @@ function ResourceBar:RefreshEnergyTicker()
             end
             
             -- Toggle gradient
-            if tickerDb.showGradient ~= false then
+            local appearanceDb = addon.db.profile.appearance or {}
+            if appearanceDb.showGradient ~= false then
                 if not self.tickerGradient then
                     self:CreateTickerGradient(self.ticker)
                 end
