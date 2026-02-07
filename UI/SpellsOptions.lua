@@ -6,6 +6,35 @@
     - Per-spec configuration (sparse storage)
     - Drag-and-drop reordering within and between rows
     - Reset all spell config via button
+
+    Why this is a standalone window (not embedded in AceConfig):
+    
+    AceConfig is a declarative system with fixed widget types (toggle, range,
+    select, execute). It has no support for drag-and-drop, dynamic spell lists,
+    ghost frames, or custom scrollable content — all of which this panel needs.
+    
+    The current flow closes the AceConfig dialog, opens this standalone window,
+    and reopens AceConfig (on the Spells tab) when this window closes. It works,
+    but the window-swap feels janky.
+    
+    Options to embed it in the future (roughly easiest to hardest):
+    
+    1. Hijack AceConfigDialog's content area (~1-2 days)
+       When the Spells tab is selected, hide AceConfig's auto-generated content
+       and reparent this panel's scroll frame into the dialog. Restore on tab
+       switch. Keeps drag-and-drop intact but depends on AceConfigDialog internals
+       and could break if the library updates.
+    
+    2. Pure AceConfig widgets (~2-3 days)
+       Replace spell entries with AceConfig primitives: a toggle per spell, a
+       select for row assignment, and Move Up/Down buttons for ordering. Loses
+       drag-and-drop entirely and looks like a generic settings page. Dynamic
+       per-spec content is also awkward since AceConfig tables are typically static.
+    
+    3. Custom AceGUI widget (~3-5 days)
+       Build a proper AceGUI widget wrapping this UI, registered via dialogControl.
+       Best result (native feel + drag-and-drop) but requires deep knowledge of
+       AceGUI widget internals (OnAcquire, OnRelease, SetValue, layout callbacks).
 ]]
 
 local ADDON_NAME, addon = ...

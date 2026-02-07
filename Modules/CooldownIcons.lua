@@ -9,6 +9,70 @@
     - No resources: desaturated (like default action bars)
 ]]
 
+--[[
+    Ready Glow Requirements
+    =======================
+    The ready glow is a proc-style animated glow that signals when an ability
+    is about to become (or has just become) usable. See UpdateReadyGlow().
+
+    R1. Usability gate
+        The glow only shows when ALL of these are true:
+        - The spell is coming off cooldown (within the anticipation threshold)
+          OR has just become usable while off cooldown.
+        - The spell is usable per WoW's IsUsableSpell (stance, conditions, etc.).
+        - The player can afford it (canAfford — the addon's own resource check,
+          since WoW's API is unreliable for resources during cooldowns).
+
+    R3. Combat: start-only gate
+        The glow may only START while in combat. Leaving combat does NOT
+        terminate an active glow — it runs until its configured duration expires
+        or the player can no longer afford the spell.
+
+    R4. Reactive abilities always re-trigger
+        Reactive abilities (Execute, Overpower, etc.) always use "always" mode
+        regardless of the Re-trigger row setting. They re-glow every time they
+        become usable.
+
+    R5. Once-mode behavior
+        When Re-trigger is disabled for a row, the glow plays only once per
+        cooldown cycle. If an ability becomes ready outside of combat, no glow
+        is shown, and re-entering combat does NOT retroactively trigger it.
+
+    R6. Dim interaction
+        When "dim on cooldown" is active for a row, the dim and desaturation are
+        lifted while the ready glow is showing. Uses frame.readyGlowActive
+        (previous frame's state) as a single source of truth — no duplicated
+        condition logic between the dim system and the glow system.
+
+    R7. Configurable anticipation
+        The "almost ready" threshold is configurable via db.readyGlowThreshold
+        (default 0.5s, range 0–2.0s, "Anticipation" slider in Options).
+        Controls how early the glow triggers before cooldown completion.
+
+    R8. Aura suppression
+        When a spell's aura (buff/debuff) is active, the ready glow is
+        suppressed — the aura has its own glow. wasUsable is preserved during
+        aura display to prevent false "just became usable" re-triggers when the
+        aura ends.
+
+    R9. Early cancellation on resource loss
+        If an active glow is running and the player can no longer afford the
+        spell (e.g., spent rage on another ability), the glow cancels
+        immediately rather than running to expiry.
+
+    R10. Lockout anticipation
+        When an ability lockout (e.g., Weakened Soul, or a school lockout from
+        an interrupt) is the limiting factor and nearly expired, the glow treats
+        the spell as usable for anticipation purposes. WoW's API reports
+        isUsable=false during lockouts, but we override this when the lockout
+        has less than the anticipation threshold remaining and the player can
+        afford the spell.
+
+    R11. Cooldown reset clears tracking
+        When an ability goes on cooldown (i.e., is cast), readyGlowShown resets.
+        This allows the glow to trigger fresh on the next cooldown cycle.
+]]
+
 local ADDON_NAME, addon = ...
 local C = addon.Constants
 
@@ -1585,7 +1649,8 @@ function CooldownIcons:UpdateIconState(frame, db)
     -- Determine if this is GCD vs actual cooldown
     local isOnGCD = self.Utils:IsOnGCD(remaining, duration)
     local isOnActualCooldown = self.Utils:IsOnRealCooldown(remaining, duration)
-    local almostReady = remaining > 0 and remaining <= C.READY_GLOW_THRESHOLD and isOnActualCooldown
+    local readyGlowThreshold = db.readyGlowThreshold or C.READY_GLOW_THRESHOLD
+    local almostReady = remaining > 0 and remaining <= readyGlowThreshold and isOnActualCooldown
 
     -- Determine if this row dims icons on cooldown based on global setting
     -- When false: full alpha + desaturation (keeps core rotation visually prominent)
@@ -1831,15 +1896,22 @@ function CooldownIcons:UpdateIconState(frame, db)
         local isRealCooldown = self.Utils:IsOnRealCooldown(remaining, duration)
         
         if isRealCooldown then
-            -- On actual cooldown (not just GCD): dim + spinner + text + desaturate
-            alpha = db.cooldownAlpha
-            desaturate = true
+            -- On actual cooldown (not just GCD): spinner + text always shown
             showSpinner = true
             showText = duration >= 2  -- Only show text if cooldown >= 2 sec
             
-            -- Glow when almost ready (< 1 sec remaining)
-            if almostReady then
+            if frame.readyGlowActive then
+                -- Ready glow is showing: lift dim and desaturation so glow isn't dimmed.
+                -- The glow is a child frame that inherits parent alpha, so both
+                -- the icon and glow brighten together as a cohesive "almost ready" signal.
+                -- Uses previous frame's glow state as single source of truth (1-tick delay).
+                alpha = db.readyAlpha
+                desaturate = false
                 showGlow = true
+            else
+                -- Normal cooldown: dim + desaturate
+                alpha = db.cooldownAlpha
+                desaturate = true
             end
         elseif isOnGCD and showGCDForThisRow then
             -- Show GCD spinner for this row (based on setting)
@@ -2333,12 +2405,13 @@ function CooldownIcons:UpdateReadyGlow(frame, spellID, remaining, duration, isUs
     local effectiveMode = (isReactive or alwaysForRow) and C.GLOW_MODE.ALWAYS or C.GLOW_MODE.ONCE
     
     local isOnRealCooldown = self.Utils:IsOnRealCooldown(remaining, duration)
-    local isAlmostReady = remaining > 0 and remaining <= C.READY_GLOW_THRESHOLD and isOnRealCooldown
+    local readyGlowThreshold = db.readyGlowThreshold or C.READY_GLOW_THRESHOLD
+    local isAlmostReady = remaining > 0 and remaining <= readyGlowThreshold and isOnRealCooldown
     local isOffCooldown = self.Utils:IsOffCooldown(remaining, duration)
     
     -- Check if prediction is almost complete (Resource Timer mode for energy/mana)
     -- When prediction is the limiting factor and almost ready, treat as almost ready
-    local isPredictionAlmostReady = predictionIsLimitingFactor and predictionRemaining > 0 and predictionRemaining <= C.READY_GLOW_THRESHOLD
+    local isPredictionAlmostReady = predictionIsLimitingFactor and predictionRemaining > 0 and predictionRemaining <= readyGlowThreshold
     
     -- When lockout is the limiting factor and almost expired, treat as usable for glow purposes
     -- The WoW API reports isUsable=false while lockout is active, but we want to trigger

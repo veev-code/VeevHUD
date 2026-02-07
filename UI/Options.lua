@@ -881,8 +881,8 @@ function Options:BuildOptionsTable()
 									},
 									readyGlowAlwaysRows = {
 										type = "select",
-										name = "Persistent Glow",
-										desc = "Controls which rows re-trigger the ready glow each time an ability becomes usable. On these rows, the glow plays for the configured duration every time usability changes (e.g., gaining enough resources, target entering Execute range). Rows not selected here play the glow only once per cooldown cycle.\n\nNote: Reactive abilities (like Execute or Overpower) always re-glow every time they become usable, regardless of this setting.",
+										name = "Re-trigger",
+										desc = "Controls which rows re-trigger the ready glow each time an ability becomes usable. On these rows, the glow plays again every time usability changes (e.g., gaining enough resources, target entering Execute range). Rows not selected here play the glow only once per cooldown cycle.\n\nNote: Reactive abilities (like Execute or Overpower) always re-trigger regardless of this setting.",
 										values = rowSettingAll,
 										arg = "icons.readyGlowAlwaysRows",
 										order = 2,
@@ -897,6 +897,17 @@ function Options:BuildOptionsTable()
 										min = 0.1, max = 5.0, step = 0.05,
 										arg = "icons.readyGlowDuration",
 										order = 3,
+										disabled = function()
+											return addon.db and addon.db.profile and addon.db.profile.icons and addon.db.profile.icons.readyGlowRows == C.ROW_SETTING.NONE
+										end,
+									},
+									readyGlowThreshold = {
+										type = "range",
+										name = "Anticipation",
+										desc = "How early (in seconds) the ready glow triggers before an ability finishes its cooldown. At 0, the glow only appears once the cooldown is fully complete. Higher values give you more advance notice.",
+										min = 0, max = 2.0, step = 0.05,
+										arg = "icons.readyGlowThreshold",
+										order = 4,
 										disabled = function()
 											return addon.db and addon.db.profile and addon.db.profile.icons and addon.db.profile.icons.readyGlowRows == C.ROW_SETTING.NONE
 										end,

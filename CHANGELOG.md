@@ -1,5 +1,20 @@
 # VeevHUD Changelog
 
+## [1.0.44] - 2026-02-06
+
+### Fixed
+
+- **Ready glow dimmed on cooldown rows** — When "dim on cooldown" was active, the ready glow was partially dimmed because it inherits the icon's alpha. The icon now brightens to full alpha when the ready glow is showing, so the glow and icon brighten together as a cohesive "almost ready" signal.
+- **Flow layout last-row distribution** — Utility row flow layout now ensures the last row has at least half the configured max icons, preventing a single icon from sitting alone on a new row.
+
+### Added
+
+- **Ready Glow: Anticipation slider** — New option to control how early (0–2s) the ready glow triggers before an ability finishes its cooldown. Default remains 0.5s. Found in the Ready Glow section of icon options.
+
+### Changed
+
+- **"Persistent Glow" renamed to "Re-trigger"** — The ready glow row setting is now called "Re-trigger" to better describe its behavior: it controls which rows re-trigger the glow each time an ability becomes usable, rather than implying the glow stays on.
+
 ## [1.0.43] - 2026-02-06
 
 ### Fixed

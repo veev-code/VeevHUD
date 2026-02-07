@@ -164,7 +164,7 @@ C.ENERGY_PER_TICK_ADRENALINE = 40
 -- Five Second Rule duration (spirit-based mana regen suppressed after spending mana)
 C.FIVE_SECOND_RULE_DURATION = 5.0
 
--- Ready glow "almost ready" threshold (triggers glow when this much time remains)
+-- Ready glow "almost ready" threshold fallback (see db.readyGlowThreshold for configurable value)
 C.READY_GLOW_THRESHOLD = 0.5
 
 -- Mana spike threshold - gains above this % of max mana are filtered (potions, life tap)
@@ -362,6 +362,7 @@ C.DEFAULTS = {
             readyGlowRows = "all",            -- Which rows show ready glow (none = disabled)
             readyGlowAlwaysRows = "primary",  -- Which rows use persistent "always" glow (others flash once)
             readyGlowDuration = 1.0,          -- Duration to show glow in "once" mode
+            readyGlowThreshold = 0.5,         -- Seconds before cooldown ends to trigger "almost ready" glow
             
             -- Dynamic sorting by time remaining: which rows dynamically reorder by actionable time
             -- "none" = static order (priority-based, icons don't move)
