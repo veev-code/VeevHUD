@@ -31,7 +31,6 @@ These were requested by multiple people or have strong gameplay impact.
   - Enhancement Shaman: MH/OH sync bar (warn when swings are >0.5s apart for Windfury optimization)
   - Arms Warrior: slam cast timing indicator
   - Paladin: seal twist timing window
-  - Consider: queued next-attack indicator (Heroic Strike, Cleave, Maul) — show which ability is queued, like Blizzard's default buttons do, or via a color change on the swing bar
   *(Togg, Shadowhawk, Artvil, RidiculedDaily, anonymous French warrior)*
 - **Built-in Cast Bar** — Replace Blizzard's default cast bar with one integrated into the HUD layout. *(Togg)*
 - **Druid: Form-Conditional Abilities** — Option to show/hide abilities based on current shapeshift form (e.g., hide caster spells in Cat Form, hide Cat abilities in caster form). *(Birdehh, Shadowhawk)*
@@ -62,7 +61,7 @@ These were requested by multiple people or have strong gameplay impact.
 - **Custom Bar Textures** — Allow users to select bar textures (via SharedMedia).
 - **WoW Animation API** — Migrate animations to use WoW's built-in Animation system for smoother/more efficient playback.
 - **Separate Movable Buffs Bar** — A dedicated area for tracking buffs that can be positioned independently from the main HUD stack. *(Shadowhawk)*
-- **Predicted Rage Loss** — Show the rage cost of the queued next-attack ability on the resource bar (e.g., darkened section for Heroic Strike cost). *(anonymous French warrior)*
+- ~~**Predicted Rage Loss** — Show the rage cost of the queued next-attack ability on the resource bar (e.g., darkened section for Heroic Strike cost). *(Caworder)*~~ → Shipped in v1.0.46 (expanded to all resource types)
 
 ---
 
@@ -109,5 +108,8 @@ Items from feedback that have been completed, with the version they shipped in.
 | Paladin: Seal of the Crusader at all levels                      | 1.0.42  | Added all 7 ranks to LibSpellDB                |
 | Priest: Clearcasting (Holy Concentration) proc tracking           | 1.0.42  | Added to LibSpellDB proc data                  |
 | Warrior: Blood Craze proc tracking                               | 1.0.42  | Added to LibSpellDB proc data                  |
+| Queued ability icon highlight                                    | 1.0.46  | Bright overlay when next-melee is queued        |
+| Predicted resource cost on bar                                   | 1.0.46  | Darkened section for queued/casting cost         |
+| Proc tracker: multi-rank matching                                | 1.0.46  | Detects all talent ranks, not just max          |
 
 

@@ -50,11 +50,14 @@ function ProcTracker:GetProcsForClass(class)
     if self.LibSpellDB then
         local libProcs = self.LibSpellDB:GetProcs(class)
         for _, spellData in ipairs(libProcs) do
+            -- Collect all rank IDs so we can match any rank of the buff
+            local allRankIDs = self.LibSpellDB:GetAllRankIDs(spellData.spellID)
             table.insert(procs, {
                 spellID = spellData.spellID,
                 name = spellData.name,
                 duration = spellData.duration or 15,
                 procInfo = spellData.procInfo,
+                allRankIDs = allRankIDs,  -- Set of all rank spell IDs (keys = IDs, values = true)
             })
         end
     end
@@ -289,6 +292,14 @@ function ProcTracker:UpdateAllProcs()
     if not db.showInactiveIcons then
         self:RepositionIcons()
     end
+    
+    -- Play queued proc animations (after repositioning so scale doesn't corrupt offsets)
+    for _, frame in ipairs(self.icons) do
+        if frame._needsProcAnim then
+            self:PlayProcAnimation(frame)
+            frame._needsProcAnim = nil
+        end
+    end
 end
 
 function ProcTracker:UpdateProcIcon(frame, db)
@@ -301,15 +312,16 @@ function ProcTracker:UpdateProcIcon(frame, db)
     local name, icon, count, debuffType, duration, expirationTime, source, isStealable, 
           nameplateShowPersonal, spellId
     
+    local allRankIDs = procData.allRankIDs
     local isOnTarget = procData.procInfo and procData.procInfo.onTarget
     if isOnTarget then
-        -- Check for debuff on target
+        -- Check for debuff on target (check all ranks)
         name, icon, count, debuffType, duration, expirationTime, source, isStealable, 
-              nameplateShowPersonal, spellId = self:FindDebuffOnTarget(spellID)
+              nameplateShowPersonal, spellId = self:FindDebuffOnTarget(spellID, allRankIDs)
     else
-        -- Check for buff on player
+        -- Check for buff on player (check all ranks)
         name, icon, count, debuffType, duration, expirationTime, source, isStealable, 
-              nameplateShowPersonal, spellId = self:FindBuffBySpellID(spellID)
+              nameplateShowPersonal, spellId = self:FindBuffBySpellID(spellID, allRankIDs)
     end
     
     local isActive = name ~= nil
@@ -338,9 +350,10 @@ function ProcTracker:UpdateProcIcon(frame, db)
         end
         frame.lastExpirationTime = expirationTime
         
-        -- Play pop-in animation if just became active OR refreshed
+        -- Queue pop-in animation if just became active OR refreshed
+        -- (played after RepositionIcons so scale doesn't corrupt offsets)
         if wasHidden or wasRefreshed then
-            self:PlayProcAnimation(frame)
+            frame._needsProcAnim = true
         end
         
         -- Show duration text
@@ -446,6 +459,12 @@ function ProcTracker:RepositionIcons()
     local totalWidth = (#visibleIcons * iconWidth) + ((#visibleIcons - 1) * spacing)
     
     for i, frame in ipairs(visibleIcons) do
+        -- Stop any active scale punch so positioning isn't affected by
+        -- non-1.0 scale (SetScale multiplies anchor offsets)
+        if self.Animations then
+            self.Animations:StopScalePunch(frame)
+        end
+        
         local targetX = (i - 1) * (iconWidth + spacing) - (totalWidth / 2) + (iconWidth / 2)
         
         if useSlideAnimation then
@@ -519,7 +538,7 @@ function ProcTracker:ResetIconPosition(frame)
     frame.targetX = nil
 end
 
-function ProcTracker:FindBuffBySpellID(spellID)
+function ProcTracker:FindBuffBySpellID(spellID, allRankIDs)
     -- Use cached buff lookup to avoid scanning 40 buffs per proc per update
     local aura = self.Utils:GetCachedBuff("player", spellID)
     
@@ -529,10 +548,24 @@ function ProcTracker:FindBuffBySpellID(spellID)
                aura.nameplateShowPersonal, aura.spellID
     end
     
+    -- Check all rank IDs (player may have a lower rank of the talent)
+    if allRankIDs then
+        for rankID in pairs(allRankIDs) do
+            if rankID ~= spellID then
+                aura = self.Utils:GetCachedBuff("player", rankID)
+                if aura then
+                    return aura.name, aura.icon, aura.count, aura.debuffType, aura.duration, 
+                           aura.expirationTime, aura.source, aura.isStealable, 
+                           aura.nameplateShowPersonal, aura.spellID
+                end
+            end
+        end
+    end
+    
     return nil
 end
 
-function ProcTracker:FindDebuffOnTarget(spellID)
+function ProcTracker:FindDebuffOnTarget(spellID, allRankIDs)
     -- Use cached debuff lookup on current target
     -- Only track debuffs applied by the player
     local aura = self.Utils:GetCachedDebuff("target", spellID)
@@ -541,6 +574,20 @@ function ProcTracker:FindDebuffOnTarget(spellID)
         return aura.name, aura.icon, aura.count, aura.debuffType, aura.duration, 
                aura.expirationTime, aura.source, aura.isStealable, 
                aura.nameplateShowPersonal, aura.spellID
+    end
+    
+    -- Check all rank IDs (player may have a lower rank of the talent)
+    if allRankIDs then
+        for rankID in pairs(allRankIDs) do
+            if rankID ~= spellID then
+                aura = self.Utils:GetCachedDebuff("target", rankID)
+                if aura and aura.source == "player" then
+                    return aura.name, aura.icon, aura.count, aura.debuffType, aura.duration, 
+                           aura.expirationTime, aura.source, aura.isStealable, 
+                           aura.nameplateShowPersonal, aura.spellID
+                end
+            end
+        end
     end
     
     return nil

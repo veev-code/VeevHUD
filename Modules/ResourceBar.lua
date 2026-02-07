@@ -27,6 +27,16 @@ function ResourceBar:Initialize()
     self.Events:RegisterEvent(self, "PLAYER_ENTERING_WORLD", self.OnPlayerEnteringWorld)
     self.Events:RegisterEvent(self, "UPDATE_SHAPESHIFT_FORM", self.OnShapeshiftChange)
 
+    -- Register cast/channel events for predicted cost overlay
+    self.Events:RegisterEvent(self, "UNIT_SPELLCAST_START", self.OnCastStart)
+    self.Events:RegisterEvent(self, "UNIT_SPELLCAST_STOP", self.OnCastEnd)
+    self.Events:RegisterEvent(self, "UNIT_SPELLCAST_SUCCEEDED", self.OnCastEnd)
+    self.Events:RegisterEvent(self, "UNIT_SPELLCAST_FAILED", self.OnCastEnd)
+    self.Events:RegisterEvent(self, "UNIT_SPELLCAST_INTERRUPTED", self.OnCastEnd)
+    self.Events:RegisterEvent(self, "UNIT_SPELLCAST_CHANNEL_START", self.OnChannelStart)
+    self.Events:RegisterEvent(self, "UNIT_SPELLCAST_CHANNEL_STOP", self.OnChannelEnd)
+    self.Events:RegisterEvent(self, "CURRENT_SPELL_CAST_CHANGED", self.OnCurrentSpellChanged)
+
     self.Utils:Debug("ResourceBar initialized")
 end
 
@@ -121,6 +131,9 @@ function ResourceBar:CreateFrames(parent)
 
     -- Mana ticker (shows progress to next mana tick, only in 5SR)
     self:CreateManaTicker(bar, db)
+
+    -- Predicted cost overlay (darkened section showing pending resource deduction)
+    self:CreateCostOverlay(bar)
 
     -- Initialize
     self:UpdatePowerType()
@@ -330,6 +343,177 @@ function ResourceBar:CreateTickerGradient(ticker)
 end
 
 -------------------------------------------------------------------------------
+-- Predicted Cost Overlay
+-- Shows a darkened section on the bar for pending resource deductions
+-- (queued next-melee abilities like Heroic Strike, casting/channeling spells)
+-------------------------------------------------------------------------------
+
+function ResourceBar:CreateCostOverlay(bar)
+    local barTexture = (addon.GetBarTexture and addon:GetBarTexture()) or self.C.TEXTURES.STATUSBAR
+
+    -- ARTWORK sublevel 2: above the StatusBar fill (sublevel 0) so the dark
+    -- section is visible on top of the bright fill
+    local costOverlay = bar:CreateTexture(nil, "ARTWORK", nil, 2)
+    costOverlay:SetTexture(barTexture)
+    costOverlay:Hide()
+    self.costOverlay = costOverlay
+
+    -- Color is set by UpdateCostOverlayColor (called from UpdatePowerType)
+end
+
+-- Update overlay color to match the current power type (darkened)
+function ResourceBar:UpdateCostOverlayColor()
+    if not self.costOverlay then return end
+
+    local db = addon.db.profile.resourceBar
+    local r, g, b
+
+    if db.powerColor then
+        r, g, b = self.Utils:GetPowerColor(self.powerType)
+    else
+        local c = db.color
+        r, g, b = c and c.r or 0.8, c and c.g or 0.8, c and c.b or 0.8
+    end
+
+    -- Darken and slightly desaturate the power color for clear "consumed" contrast
+    self.costOverlay:SetVertexColor(r * 0.25, g * 0.25, b * 0.25, 0.8)
+end
+
+-------------------------------------------------------------------------------
+-- Predicted Cost: Event Handlers
+-------------------------------------------------------------------------------
+
+function ResourceBar:OnCastStart(event, unit, castGUID, spellID)
+    if unit ~= "player" then return end
+    self.castingSpellID = spellID
+    self:UpdateCostOverlay()
+end
+
+function ResourceBar:OnCastEnd(event, unit)
+    if unit ~= "player" then return end
+    self.castingSpellID = nil
+    self:UpdateCostOverlay()
+end
+
+function ResourceBar:OnChannelStart(event, unit, castGUID, spellID)
+    if unit ~= "player" then return end
+    self.channelingSpellID = spellID
+    self:UpdateCostOverlay()
+end
+
+function ResourceBar:OnChannelEnd(event, unit)
+    if unit ~= "player" then return end
+    self.channelingSpellID = nil
+    self:UpdateCostOverlay()
+end
+
+function ResourceBar:OnCurrentSpellChanged()
+    self:UpdateCostOverlay()
+end
+
+-------------------------------------------------------------------------------
+-- Predicted Cost: Detection
+-------------------------------------------------------------------------------
+
+-- Get the total pending resource cost (casting + channeling + queued abilities)
+-- Only counts costs that match the bar's current power type
+function ResourceBar:GetPendingResourceCost()
+    local totalCost = 0
+
+    -- 1. Currently casting spell
+    if self.castingSpellID then
+        totalCost = totalCost + self:GetSpellResourceCost(self.castingSpellID)
+    end
+
+    -- 2. Currently channeling spell
+    if self.channelingSpellID then
+        totalCost = totalCost + self:GetSpellResourceCost(self.channelingSpellID)
+    end
+
+    -- 3. Queued "next melee" ability (Heroic Strike, Cleave, Maul, etc.)
+    totalCost = totalCost + self:GetQueuedSpellCost()
+
+    return totalCost
+end
+
+-- Get the resource cost of a specific spell for the current power type
+-- Returns 0 if the spell uses a different power type or has no cost
+function ResourceBar:GetSpellResourceCost(spellID)
+    if not GetSpellPowerCost or not spellID then return 0 end
+    local costTable = GetSpellPowerCost(spellID)
+    if costTable and costTable[1] then
+        local cost = costTable[1].cost or 0
+        local costPowerType = costTable[1].type
+        -- Only count costs that match the bar's displayed power type
+        if costPowerType == self.powerType then
+            return cost
+        end
+    end
+    return 0
+end
+
+-- Find any queued "next melee" ability among tracked spells and return its cost
+function ResourceBar:GetQueuedSpellCost()
+    if not IsCurrentSpell then return 0 end
+
+    local CooldownIcons = addon:GetModule("CooldownIcons")
+    if not CooldownIcons then return 0 end
+
+    for _, icons in pairs(CooldownIcons.iconsByRow or {}) do
+        for _, frame in ipairs(icons) do
+            if frame.actualSpellID and IsCurrentSpell(frame.actualSpellID) then
+                return self:GetSpellResourceCost(frame.actualSpellID)
+            end
+        end
+    end
+    return 0
+end
+
+-------------------------------------------------------------------------------
+-- Predicted Cost: Overlay Positioning
+-------------------------------------------------------------------------------
+
+-- Reposition (or hide) the cost overlay based on current state
+-- The overlay is a darkened section at the right edge of the bar fill,
+-- representing resource that will be consumed by pending actions
+function ResourceBar:UpdateCostOverlay()
+    if not self.bar or not self.costOverlay then return end
+
+    local pendingCost = self:GetPendingResourceCost()
+    if pendingCost <= 0 then
+        self.costOverlay:Hide()
+        return
+    end
+
+    local maxPower = UnitPowerMax("player", self.powerType)
+    if maxPower == 0 then maxPower = 1 end
+
+    local currentPower = UnitPower("player", self.powerType)
+    local currentPercent = currentPower / maxPower
+    local costPercent = pendingCost / maxPower
+
+    -- Can't show more cost than current resource
+    costPercent = math.min(costPercent, currentPercent)
+
+    local afterCostPercent = currentPercent - costPercent
+
+    local barWidth = self.bar:GetWidth()
+    local leftX = afterCostPercent * barWidth
+    local costWidth = costPercent * barWidth
+
+    if costWidth < 1 then
+        self.costOverlay:Hide()
+        return
+    end
+
+    self.costOverlay:ClearAllPoints()
+    self.costOverlay:SetPoint("TOPLEFT", self.bar, "TOPLEFT", leftX, 0)
+    self.costOverlay:SetPoint("BOTTOMLEFT", self.bar, "BOTTOMLEFT", leftX, 0)
+    self.costOverlay:SetWidth(costWidth)
+    self.costOverlay:Show()
+end
+
+-------------------------------------------------------------------------------
 -- Updates
 -------------------------------------------------------------------------------
 
@@ -351,6 +535,9 @@ function ResourceBar:UpdatePowerType()
         self.bar:SetStatusBarColor(r, g, b)
         self.bar.bg:SetVertexColor(r * 0.2, g * 0.2, b * 0.2)
     end
+
+    -- Update cost overlay color to match new power type
+    self:UpdateCostOverlayColor()
 
     -- Show/hide energy ticker based on power type
     self:UpdateTickerVisibility()
@@ -441,6 +628,9 @@ function ResourceBar:UpdateBar()
     elseif self.text then
         self.text:SetText("")
     end
+
+    -- Update cost overlay position (power level changed, so the overlay section shifts)
+    self:UpdateCostOverlay()
 end
 
 function ResourceBar:UpdateSpark(percent)
@@ -687,6 +877,11 @@ function ResourceBar:Refresh()
         self.bar:SetStatusBarTexture(barTexture)
         if self.bar.bg then
             self.bar.bg:SetTexture(barTexture)
+        end
+        
+        -- Update cost overlay texture to match
+        if self.costOverlay then
+            self.costOverlay:SetTexture(barTexture)
         end
         
         -- Update spark visibility and size

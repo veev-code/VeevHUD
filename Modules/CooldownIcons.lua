@@ -139,6 +139,11 @@ function CooldownIcons:Initialize()
         addon.RangeChecker:RegisterCallback(self, self.OnRangeUpdate)
     end
 
+    -- Register for queued spell changes (Heroic Strike, Cleave, Maul, etc.)
+    -- CURRENT_SPELL_CAST_CHANGED fires when a spell's "current" status changes
+    -- Uses a lightweight handler that only toggles highlight textures (no full icon recompute)
+    self.Events:RegisterEvent(self, "CURRENT_SPELL_CAST_CHANGED", self.OnCurrentSpellChanged)
+
     -- Register for action bar and keybind changes (for keybind text display)
     self.Events:RegisterEvent(self, "ACTIONBAR_SLOT_CHANGED", self.OnActionBarChanged)
     self.Events:RegisterEvent(self, "UPDATE_BINDINGS", self.OnBindingsChanged)
@@ -229,6 +234,28 @@ function CooldownIcons:OnBindingsChanged()
     -- Keybindings changed - clear cache and update
     addon.Keybinds:ClearCache()
     self:UpdateAllKeybindText()
+end
+
+-- Lightweight handler for CURRENT_SPELL_CAST_CHANGED
+-- Only toggles queued highlight textures — no full icon state recompute
+function CooldownIcons:OnCurrentSpellChanged()
+    if not IsCurrentSpell then return end
+    for rowIndex, icons in pairs(self.iconsByRow or {}) do
+        for _, frame in ipairs(icons) do
+            if frame.queuedHighlight and frame.actualSpellID then
+                local isQueued = IsCurrentSpell(frame.actualSpellID)
+                if isQueued then
+                    if not frame.queuedHighlight:IsShown() then
+                        frame.queuedHighlight:Show()
+                    end
+                else
+                    if frame.queuedHighlight:IsShown() then
+                        frame.queuedHighlight:Hide()
+                    end
+                end
+            end
+        end
+    end
 end
 
 function CooldownIcons:OnOverlayShow(event, spellID)
@@ -744,6 +771,15 @@ function CooldownIcons:CreateIcon(parent, index, size)
     
     frame.rangeOverlay = rangeOverlay
     frame.rangeFrame = rangeFrame
+
+    -- Queued spell highlight (for "next melee" abilities like Heroic Strike, Cleave, Maul)
+    -- Uses the same texture as Blizzard's default action bar "checked" state
+    local queuedHighlight = frame:CreateTexture(nil, "OVERLAY", nil, 3)
+    queuedHighlight:SetTexture([[Interface\Buttons\CheckButtonHilight]])
+    queuedHighlight:SetBlendMode("ADD")
+    queuedHighlight:SetAllPoints()
+    queuedHighlight:Hide()
+    frame.queuedHighlight = queuedHighlight
 
     frame.index = index
     frame.spellID = nil
@@ -2150,6 +2186,24 @@ function CooldownIcons:UpdateIconState(frame, db)
     -- Handle range indicator (red overlay when target is out of range)
     -- Only check if setting is enabled for this row and we have a target
     self:UpdateRangeIndicator(frame, actualSpellID, db)
+
+    -- Handle queued spell highlight (Heroic Strike, Cleave, Maul, etc.)
+    -- IsCurrentSpell returns true when a "next melee" ability is queued
+    if frame.queuedHighlight then
+        local isQueued = false
+        if IsCurrentSpell then
+            isQueued = IsCurrentSpell(actualSpellID)
+        end
+        if isQueued then
+            if not frame.queuedHighlight:IsShown() then
+                frame.queuedHighlight:Show()
+            end
+        else
+            if frame.queuedHighlight:IsShown() then
+                frame.queuedHighlight:Hide()
+            end
+        end
+    end
 end
 
 -- Update resource cost display (horizontal bar or vertical fill)

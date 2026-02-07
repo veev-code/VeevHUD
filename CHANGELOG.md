@@ -1,5 +1,20 @@
 # VeevHUD Changelog
 
+## [1.0.46] - 2026-02-07
+
+### Added
+
+- **Queued Ability Highlight** — Icons for queued "next melee" abilities (Heroic Strike, Cleave, Maul, etc.) now show Blizzard's default bright highlight overlay, matching the visual feedback from the default action bars. Detects any queued ability dynamically via the WoW API. *(Togg, Shadowhawk, Artvil, RidiculedDaily, anonymous French warrior)*
+- **Predicted Resource Cost** — The resource bar now shows a darkened section at the right edge of the fill representing the cost of pending actions. Works for queued next-melee abilities (e.g., Heroic Strike rage cost) and spells currently being cast or channeled. Updates instantly via events with no additional polling. *(Caworder)*
+
+### Fixed
+
+- **Proc tracker: multi-rank detection** — Proc buffs like Enrage, Flurry, and Blood Craze are now detected regardless of which talent rank the player has. Previously only the highest rank was tracked, causing procs to not appear for players with lower-rank talents.
+- **Proc tracker: animation positioning** — Fixed a bug where the proc "pop-in" scale animation could corrupt icon positions when sliding animations were also active. Animations are now queued until after repositioning completes.
+
+### LibSpellDB Updates
+- Proc entries for Enrage, Flurry (Warrior & Shaman), and Blood Craze now include all talent rank spell IDs for multi-rank matching
+
 ## [1.0.45] - 2026-02-06
 
 ### Fixed
