@@ -15,7 +15,6 @@ Reported missing or broken spell support (not confirmed fixed):
 
 ## Bugs
 
-- **Cast feedback black "pop" artifact** — Icy Veins (and some other spells) cause a large black box that fills part of the screen during cast feedback animation. Happens every cast, not just the first. Reported by multiple users. Workaround: disable cast feedback. *(Shadowhawk, FionaSilberpfeil, Syn2108)*
 - **Masque reload required on icon size / aspect ratio change** — Changing icon size or aspect ratio with Masque installed currently requires a UI reload. Investigate whether Masque's `ReSkin()` or `Group:ReSkin()` API can be called to update button skins in-place without a full reload.
 - **Desperate Prayer row assignment** — Should default to Utility row, not Primary/Secondary.
 - **Timer text rounding** — Buff/debuff minute display rounds *down* while WoW's native buff bar rounds *up* (e.g., addon shows "3m" when WoW shows "4m"). *(Shadowhawk)*

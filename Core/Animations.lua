@@ -142,69 +142,133 @@ end
 -------------------------------------------------------------------------------
 -- Scale Punch Animation (pop effect)
 -------------------------------------------------------------------------------
+-- Uses frame:SetScale() driven by a shared OnUpdate handler instead of WoW's
+-- CreateAnimation("Scale") API. The Scale animation type causes rendering
+-- artifacts (large black box flash) on frames containing CooldownFrameTemplate
+-- children, because the Cooldown model's internal clipping doesn't follow the
+-- animation's rendering transform. SetScale() modifies the frame's actual
+-- effective scale, which the renderer handles correctly.
+-------------------------------------------------------------------------------
 
--- Creates a scale punch animation (scale up then back down)
+-- SetScale() multiplies anchor offsets by the scale factor, which causes frames
+-- to drift away from (or toward) their anchor origin during scaling. These
+-- helpers adjust offsets each frame to keep the effective visual position fixed.
+--
+-- Stateless: computes compensation from current scale/offset so external
+-- repositioning (e.g., ProcTracker re-centering icons) is handled correctly.
+
+-- Apply scale while keeping the frame's effective visual position fixed.
+-- Math: effectiveOffset = storedOffset * scale  (must stay constant)
+--       newOffset = currentOffset * (currentScale / newScale)
+local function ApplyPunchScale(frame, newScale)
+    local oldScale = frame:GetScale()
+    local point, relativeTo, relativePoint, xOfs, yOfs = frame:GetPoint(1)
+    frame:SetScale(newScale)
+    if point then
+        local ratio = oldScale / newScale
+        frame:SetPoint(point, relativeTo, relativePoint,
+            (xOfs or 0) * ratio, (yOfs or 0) * ratio)
+    end
+end
+
+-- Reset frame to scale 1 and restore the correct offset.
+local function ResetPunchScale(frame)
+    local oldScale = frame:GetScale()
+    local point, relativeTo, relativePoint, xOfs, yOfs = frame:GetPoint(1)
+    frame:SetScale(1)
+    if point then
+        -- At scale 1, stored offset = effective offset = currentOffset * oldScale
+        frame:SetPoint(point, relativeTo, relativePoint,
+            (xOfs or 0) * oldScale, (yOfs or 0) * oldScale)
+    end
+end
+
+-- Shared driver frame for all active scale punch animations.
+-- A single OnUpdate handler manages all in-flight punches efficiently.
+local punchDriver = CreateFrame("Frame")
+punchDriver.active = {}  -- [frame] = { phase, elapsed, targetScale, upDur, downDur }
+punchDriver:Hide()
+
+punchDriver:SetScript("OnUpdate", function(self, elapsed)
+    local hasActive = false
+
+    for frame, state in pairs(self.active) do
+        state.elapsed = state.elapsed + elapsed
+
+        if state.phase == "up" then
+            -- Hold at target scale for upDuration
+            if state.elapsed >= state.upDur then
+                state.phase = "down"
+                state.elapsed = 0
+            end
+            hasActive = true
+        elseif state.phase == "down" then
+            -- Smoothly scale back to 1.0
+            local progress = state.elapsed / state.downDur
+            if progress >= 1 then
+                ResetPunchScale(frame)
+                self.active[frame] = nil
+            else
+                -- Quadratic ease-out: fast start, smooth deceleration
+                local eased = progress * (2 - progress)
+                local s = state.targetScale
+                ApplyPunchScale(frame, s + (1 - s) * eased)
+                hasActive = true
+            end
+        end
+    end
+
+    if not hasActive then
+        self:Hide()
+    end
+end)
+
+-- Play scale punch animation on a frame
 -- Parameters:
 --   frame: The frame to animate
 --   scale: Target scale (e.g., 1.15 for 15% larger)
---   upDuration: Duration of scale up (default 0.08)
---   downDuration: Duration of scale down (default 0.12)
---   cacheKey: Optional key to cache animation (for dynamic scale values)
-function Animations:CreateScalePunch(frame, scale, upDuration, downDuration, cacheKey)
-    if not frame then return nil end
-    
-    scale = scale or 1.15
-    upDuration = upDuration or 0.08
-    downDuration = downDuration or 0.12
-    cacheKey = cacheKey or "scalePunch"
-    local scaleKey = cacheKey .. "Scale"
-    
-    -- Check if we need to recreate (scale changed)
-    if frame[cacheKey] and frame[scaleKey] == scale then
-        return frame[cacheKey]
-    end
-    
-    -- Stop existing animation if recreating
-    if frame[cacheKey] then
-        frame[cacheKey]:Stop()
-    end
-    
-    local ag = frame:CreateAnimationGroup()
-    
-    -- Scale up from center
-    local scaleUp = ag:CreateAnimation("Scale")
-    scaleUp:SetOrigin("CENTER", 0, 0)
-    scaleUp:SetScale(scale, scale)
-    scaleUp:SetDuration(upDuration)
-    scaleUp:SetSmoothing("OUT")
-    scaleUp:SetOrder(1)
-    
-    -- Scale back down to normal
-    local scaleDown = ag:CreateAnimation("Scale")
-    scaleDown:SetOrigin("CENTER", 0, 0)
-    scaleDown:SetScale(1/scale, 1/scale)
-    scaleDown:SetDuration(downDuration)
-    scaleDown:SetSmoothing("IN")
-    scaleDown:SetOrder(2)
-    
-    frame[cacheKey] = ag
-    frame[scaleKey] = scale
-    
-    return ag
-end
-
--- Play scale punch animation (creates if needed)
+--   cacheKey: Unused, kept for API compatibility
 function Animations:PlayScalePunch(frame, scale, cacheKey)
     if not frame then return end
-    
+
+    scale = scale or 1.15
+
+    -- Cancel any in-progress punch on this frame
+    if punchDriver.active[frame] then
+        ResetPunchScale(frame)
+        punchDriver.active[frame] = nil
+    end
+
+    -- Also stop any legacy AnimationGroup-based animations (cleanup after code update)
     cacheKey = cacheKey or "scalePunch"
-    
-    -- Create or get cached animation
-    local ag = self:CreateScalePunch(frame, scale, nil, nil, cacheKey)
-    if not ag then return end
-    
-    ag:Stop()
-    ag:Play()
+    if frame[cacheKey] and type(frame[cacheKey]) == "table" and frame[cacheKey].Stop then
+        frame[cacheKey]:Stop()
+        frame[cacheKey] = nil
+    end
+
+    -- Phase 1: Immediately scale up (the visual "punch")
+    ApplyPunchScale(frame, scale)
+
+    -- Register for animated scale-down
+    punchDriver.active[frame] = {
+        phase = "up",
+        elapsed = 0,
+        targetScale = scale,
+        upDur = 0.08,   -- Hold at peak scale
+        downDur = 0.12,  -- Smooth return to normal
+    }
+
+    punchDriver:Show()
+end
+
+-- Stop any active scale punch on a frame (immediately restore scale)
+function Animations:StopScalePunch(frame)
+    if not frame then return end
+
+    if punchDriver.active[frame] then
+        ResetPunchScale(frame)
+        punchDriver.active[frame] = nil
+    end
 end
 
 -------------------------------------------------------------------------------

@@ -415,9 +415,9 @@ function ProcTracker:UpdateProcIcon(frame, db)
             frame.glowActive = false
         end
         
-        -- Stop any running animation
-        if frame.procAnim then
-            frame.procAnim:Stop()
+        -- Stop any running scale punch animation
+        if self.Animations then
+            self.Animations:StopScalePunch(frame)
         end
     end
 end

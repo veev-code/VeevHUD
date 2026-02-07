@@ -1,5 +1,19 @@
 # VeevHUD Changelog
 
+## [1.0.45] - 2026-02-06
+
+### Fixed
+
+- **Cast feedback black box artifact** — Fixed a rendering bug where casting spells (especially Icy Veins and others) could cause a large black box to flash on screen during the cast feedback "pop" animation. This was caused by WoW's Scale animation API interacting badly with Cooldown frame rendering. The animation now uses a different technique that avoids the artifact entirely while preserving the same visual feel. *(Thanks Shadowhawk, FionaSilberpfeil, Syn2108 for reporting)*
+
+### Added
+
+- **Customizable Bar Texture** — All bars (health, resource, combo points, energy ticker) now use a shared status bar texture selectable from SharedMedia. Found in the new Appearance section of General settings.
+
+### Changed
+
+- **Gradient toggle consolidated** — The four separate per-module gradient toggles have been replaced by a single global "Show Gradient" setting in the Appearance section.
+
 ## [1.0.44] - 2026-02-06
 
 ### Fixed
