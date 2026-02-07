@@ -1,5 +1,15 @@
 # VeevHUD Changelog
 
+## [1.0.50] - 2026-02-07
+
+### Added
+
+- **Shaman: Totem Duration Tracking** — All shaman totems now show an active duration countdown when placed, just like Shadowfiend and Water Elemental. The icon displays a cooldown spiral and remaining time text so you can see exactly how long your totem has left. Correctly enforces one totem per element — placing a new Earth totem automatically clears the old Earth totem's timer. This is a first step toward better totem support in VeevHUD; a more comprehensive totem model (grouped icons, element-aware UI) is still being explored. *(Soveliss, Shadowhawk)*
+
+### LibSpellDB Updates
+- All 22 shaman totems now tagged with `TOTEM` category and element tags (`TOTEM_EARTH`, `TOTEM_FIRE`, `TOTEM_WATER`, `TOTEM_AIR`) with duration data
+- New `CONSUMES_ALL_RESOURCE` tag replaces the `consumesAllResource` field (Execute)
+
 ## [1.0.49] - 2026-02-07
 
 ### Changed

@@ -436,7 +436,7 @@ end
 
 -- Get the resource cost of a specific spell for the current power type
 -- Returns 0 if the spell uses a different power type or has no cost
--- Handles "consumesAllResource" spells (e.g., Execute) that drain all remaining power
+-- Handles CONSUMES_ALL_RESOURCE tagged spells (e.g., Execute) that drain all remaining power
 function ResourceBar:GetSpellResourceCost(spellID)
     if not GetSpellPowerCost or not spellID then return 0 end
     local costTable = GetSpellPowerCost(spellID)
@@ -447,11 +447,8 @@ function ResourceBar:GetSpellResourceCost(spellID)
         if costPowerType == self.powerType then
             -- Check if this spell consumes ALL remaining resource (e.g., Execute)
             local LibSpellDB = addon.LibSpellDB
-            if LibSpellDB then
-                local spellData = LibSpellDB:GetSpellInfo(spellID)
-                if spellData and spellData.consumesAllResource then
-                    return UnitPower("player", self.powerType)
-                end
+            if LibSpellDB and LibSpellDB:HasTag(spellID, "CONSUMES_ALL_RESOURCE") then
+                return UnitPower("player", self.powerType)
             end
             return cost
         end

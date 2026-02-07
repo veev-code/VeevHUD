@@ -46,7 +46,7 @@ These were requested by multiple people or have strong gameplay impact.
 - **Missing Buff Alert / Inverse Glow** — Glow or visual indicator when an important buff is *missing* (e.g., Battle Shout fell off, self-buff expired). Opposite of the current "active proc" glow. *(Shadowhawk)*
 - **Grouped Category Icons** — Instead of separate icons for every totem/seal/blessing, show one icon per category (e.g., one Earth Totem icon, one Seal icon) that reflects whichever is currently active. Reduces icon clutter for Shamans and Paladins. *(Shadowhawk)*
 - **Track Shared Debuffs from Any Caster** — Debuffs like Faerie Fire and Sunder Armor should show on your HUD even when applied by another player, since only one instance of the debuff matters. *(Artvil)*
-- **Totem Duration Tracking** — Casting a totem triggers the cast flash but doesn't show a timer for how long the totem will live. Should display remaining duration. *(Shadowhawk)*
+- **Totem Duration Tracking** — Basic duration tracking shipped in 1.0.50. Still considering a more comprehensive totem model (grouped category icons, element-aware UI). *(Shadowhawk)*
 - **Dual Countdown on Icons (CD + Debuff)** — For abilities where both a cooldown and a debuff matter (e.g., Mangle Cat — no CD but debuff is key), show a secondary timer in an icon corner so both can be tracked on one icon without adding a separate icon. *(Artvil)*
 - **Health Bar Improvements** — Potential enhancements:
   - Text options: max health, health deficit, whole numbers (not just "k" abbreviation)
@@ -121,3 +121,5 @@ Items from feedback that have been completed, with the version they shipped in.
 | Queued ability highlight toggle                                   | 1.0.48  | Option to disable queued icon highlight           |
 | Config defaults audit                                             | 1.0.48  | All defaults managed by AceDB, no inline fallbacks|
 | Health bar: custom color picker                                    | 1.0.41  | Beyond class-colored toggle *(Shadowhawk)*         |
+| Ultrawide monitor support: expanded X/Y offset range               | 1.0.49  | Range beyond ±500 px for ultrawide resolutions     |
+| Shaman: Totem duration tracking                                    | 1.0.50  | All totems show active duration countdown, 1-per-element enforced |

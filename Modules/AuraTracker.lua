@@ -12,6 +12,7 @@ local AuraTracker = {}
 addon:RegisterModule("AuraTracker", AuraTracker)
 
 local SUMMON_TAG = "PET_SUMMON_TEMP"
+local TOTEM_TAG = "TOTEM"
 
 -- Active auras: auraSpellID -> {targetGUID -> expirationTime}
 AuraTracker.activeAuras = {}
@@ -29,6 +30,15 @@ AuraTracker.rankToBaseMap = {}
 AuraTracker.summonSpells = {}
 AuraTracker.summonPetToSpell = {}
 AuraTracker.summonPetsBySpell = {}
+
+-- Totem element exclusivity: element tag -> currently active baseSpellID
+-- Only one totem per element can be active at a time
+AuraTracker.totemElementToSpell = {}
+
+-- Totem element tags (for resolving element from spell tags)
+local TOTEM_ELEMENT_TAGS = {
+    "TOTEM_EARTH", "TOTEM_FIRE", "TOTEM_WATER", "TOTEM_AIR",
+}
 
 -------------------------------------------------------------------------------
 -- Initialization
@@ -142,21 +152,32 @@ function AuraTracker:BuildSummonMappings(trackedSpells)
     wipe(self.summonSpells)
     wipe(self.summonPetToSpell)
     wipe(self.summonPetsBySpell)
+    wipe(self.totemElementToSpell)
 
     if not self.LibSpellDB then return end
 
     local summonTag = (self.LibSpellDB.Categories and self.LibSpellDB.Categories.PET_SUMMON_TEMP) or SUMMON_TAG
+    local totemTag = (self.LibSpellDB.Categories and self.LibSpellDB.Categories.TOTEM) or TOTEM_TAG
     local count = 0
 
     for spellID, data in pairs(trackedSpells or {}) do
         local spellData = data.spellData
-        if spellData and self.LibSpellDB:HasTag(spellID, summonTag) then
+        if spellData and (self.LibSpellDB:HasTag(spellID, summonTag) or self.LibSpellDB:HasTag(spellID, totemTag)) then
             local duration = spellData.duration
             if duration and duration > 0 then
                 local canonicalID = self.LibSpellDB:GetCanonicalSpellID(spellID) or spellID
+                -- Resolve totem element from tags (nil for non-totems)
+                local elementTag = nil
+                for _, tag in ipairs(TOTEM_ELEMENT_TAGS) do
+                    if self.LibSpellDB:HasTag(spellID, tag) then
+                        elementTag = tag
+                        break
+                    end
+                end
                 self.summonSpells[canonicalID] = {
                     duration = duration,
                     spellID = canonicalID,
+                    totemElementTag = elementTag,  -- nil for non-totems
                 }
                 count = count + 1
             end
@@ -164,7 +185,7 @@ function AuraTracker:BuildSummonMappings(trackedSpells)
     end
 
     if count > 0 then
-        self.Utils:LogInfo("AuraTracker: Tracking", count, "temporary pet summons")
+        self.Utils:LogInfo("AuraTracker: Tracking", count, "temporary pet/totem summons")
     end
 end
 
@@ -229,7 +250,7 @@ function AuraTracker:OnAuraEvent(subEvent, data)
                 for _, tag in ipairs(spellData.tags) do
                     if tag == "HOT" or tag == "HAS_HOT" or tag == "HEAL_SINGLE" or tag == "HEAL_AOE" 
                        or tag == "BUFF" or tag == "HAS_BUFF" or tag == "EXTERNAL_DEFENSIVE"
-                       or tag == SUMMON_TAG then
+                       or tag == SUMMON_TAG or tag == TOTEM_TAG then
                         isBuff = true
                         break
                     end
@@ -362,7 +383,7 @@ function AuraTracker:OnAuraStackEvent(subEvent, data)
         for _, tag in ipairs(spellData.tags) do
             if tag == "HOT" or tag == "HAS_HOT" or tag == "HEAL_SINGLE" or tag == "HEAL_AOE" 
                or tag == "BUFF" or tag == "HAS_BUFF" or tag == "EXTERNAL_DEFENSIVE"
-               or tag == SUMMON_TAG then
+               or tag == SUMMON_TAG or tag == TOTEM_TAG then
                 isBuff = true
                 break
             end
@@ -379,6 +400,33 @@ function AuraTracker:OnAuraStackEvent(subEvent, data)
         
         -- Notify for UI update
         self:NotifyAuraChange(sourceSpellID, true)
+    end
+end
+
+-- Clear all tracking for a summon spell (pseudo-aura, pet GUIDs)
+function AuraTracker:ClearSummonTracking(baseSpellID)
+    -- Remove pseudo-aura
+    if self.activeAuras[baseSpellID] and self.activeAuras[baseSpellID][self.playerGUID] then
+        self.activeAuras[baseSpellID][self.playerGUID] = nil
+    end
+
+    -- Remove all pet GUIDs
+    local pets = self.summonPetsBySpell[baseSpellID]
+    if pets then
+        for petGUID in pairs(pets) do
+            self.summonPetToSpell[petGUID] = nil
+        end
+        self.summonPetsBySpell[baseSpellID] = nil
+    end
+end
+
+-- Clear totem element tracking for a given spell ID
+function AuraTracker:ClearTotemElementForSpell(baseSpellID)
+    for element, spellID in pairs(self.totemElementToSpell) do
+        if spellID == baseSpellID then
+            self.totemElementToSpell[element] = nil
+            return
+        end
     end
 end
 
@@ -405,15 +453,35 @@ function AuraTracker:OnSummonEvent(subEvent, data)
     local duration = summonInfo.duration
     if not duration or duration <= 0 then return end
 
+    local totemElementTag = summonInfo.totemElementTag
+
+    -- Totem element exclusivity: only 1 totem per element
+    if totemElementTag then
+        local existingSpellID = self.totemElementToSpell[totemElementTag]
+        if existingSpellID then
+            -- Clear old totem (same spell recast or different totem of same element)
+            self:ClearSummonTracking(existingSpellID)
+            if existingSpellID ~= baseSpellID then
+                self:NotifyAuraChange(existingSpellID, false)
+            end
+        end
+        self.totemElementToSpell[totemElementTag] = baseSpellID
+    end
+
     local expiration = GetTime() + duration
     local targetGUID = self.playerGUID
 
     -- Store as a pseudo-aura on the player
     self.activeAuras[baseSpellID] = self.activeAuras[baseSpellID] or {}
-    local existing = self.activeAuras[baseSpellID][targetGUID]
-    if existing and existing.expiration and existing.expiration > expiration then
-        expiration = existing.expiration  -- Prefer later expiration (multiple summon events)
+
+    if not totemElementTag then
+        -- Non-totem summons: keep later expiration for multi-summon spells (Force of Nature)
+        local existing = self.activeAuras[baseSpellID][targetGUID]
+        if existing and existing.expiration and existing.expiration > expiration then
+            expiration = existing.expiration
+        end
     end
+
     self.activeAuras[baseSpellID][targetGUID] = {
         expiration = expiration,
         duration = duration,
@@ -422,18 +490,22 @@ function AuraTracker:OnSummonEvent(subEvent, data)
         isSummon = true,
     }
 
-    -- Track pet GUIDs for early cleanup (Force of Nature spawns multiple)
+    -- Track pet/totem GUIDs for early cleanup on death/destroy
     if destGUID then
         self.summonPetToSpell[destGUID] = baseSpellID
         self.summonPetsBySpell[baseSpellID] = self.summonPetsBySpell[baseSpellID] or {}
         self.summonPetsBySpell[baseSpellID][destGUID] = true
 
-        -- Update stacks to reflect number of living pets (for stack count display)
-        local petCount = 0
-        for _ in pairs(self.summonPetsBySpell[baseSpellID]) do
-            petCount = petCount + 1
+        if not totemElementTag then
+            -- Non-totem summons: update stacks to reflect number of living pets
+            -- (Force of Nature spawns 3 treants, Shadowfiend = 1)
+            local petCount = 0
+            for _ in pairs(self.summonPetsBySpell[baseSpellID]) do
+                petCount = petCount + 1
+            end
+            self.activeAuras[baseSpellID][targetGUID].stacks = petCount
         end
-        self.activeAuras[baseSpellID][targetGUID].stacks = petCount
+        -- Totems: stacks stay at 0 (only 1 per element)
     end
 
     self.Utils:LogInfo("AuraTracker: Summon active", spellName or baseSpellID, "for", duration, "seconds, pets:", self.activeAuras[baseSpellID][targetGUID].stacks or 0)
@@ -454,12 +526,14 @@ function AuraTracker:OnSummonUnitRemoved(subEvent, data)
     if pets then
         pets[destGUID] = nil
         if not next(pets) then
-            -- All pets dead - remove the pseudo-aura
+            -- All pets/totems dead - remove the pseudo-aura
             self.summonPetsBySpell[baseSpellID] = nil
             local targets = self.activeAuras[baseSpellID]
             if targets and targets[self.playerGUID] then
                 targets[self.playerGUID] = nil
             end
+            -- Clear totem element tracking
+            self:ClearTotemElementForSpell(baseSpellID)
             self:NotifyAuraChange(baseSpellID, false)
         else
             -- Some pets still alive - update stack count
@@ -497,6 +571,11 @@ function AuraTracker:CleanupExpiredAuras()
                         self.summonPetToSpell[petGUID] = nil
                     end
                     self.summonPetsBySpell[auraID] = nil
+                end
+
+                -- Clear totem element tracking if this was a totem
+                if targetGUID == self.playerGUID then
+                    self:ClearTotemElementForSpell(auraID)
                 end
             end
         end
@@ -630,7 +709,7 @@ function AuraTracker:GetAuraType(spellID)
                     if not auraInfos then
                         if tag == "HOT" or tag == "HAS_HOT" or tag == "HEAL_SINGLE" or tag == "HEAL_AOE" 
                            or tag == "BUFF" or tag == "HAS_BUFF" or tag == "EXTERNAL_DEFENSIVE"
-                           or tag == SUMMON_TAG then
+                           or tag == SUMMON_TAG or tag == TOTEM_TAG then
                             isHelpful = true
                         end
                     end
@@ -677,7 +756,7 @@ function AuraTracker:GetAuraTypeForAuraID(auraSpellID)
                     end
                     if tag == "HOT" or tag == "HAS_HOT" or tag == "HEAL_SINGLE" or tag == "HEAL_AOE" 
                        or tag == "BUFF" or tag == "HAS_BUFF" or tag == "EXTERNAL_DEFENSIVE"
-                       or tag == SUMMON_TAG then
+                       or tag == SUMMON_TAG or tag == TOTEM_TAG then
                         isHelpful = true
                     end
                 end
