@@ -178,6 +178,53 @@ function Database:ClearSpellConfigOverride(spellID, specKey)
     end
 end
 
+-------------------------------------------------------------------------------
+-- Proc Config Helpers
+-------------------------------------------------------------------------------
+
+-- Get procConfig (returns table of disabled proc overrides)
+function Database:GetProcConfig()
+    return addon.db and addon.db.profile and addon.db.profile.procConfig or {}
+end
+
+-- Check if a proc is enabled (default: true if no override)
+function Database:IsProcEnabled(spellID)
+    local procConfig = self:GetProcConfig()
+    if procConfig[spellID] == false then
+        return false
+    end
+    return true
+end
+
+-- Set proc enabled/disabled override
+function Database:SetProcEnabled(spellID, enabled)
+    if not addon.db or not addon.db.profile then return end
+
+    if enabled then
+        -- Enabling = remove the disabled override (default is enabled)
+        if addon.db.profile.procConfig then
+            addon.db.profile.procConfig[spellID] = nil
+            if next(addon.db.profile.procConfig) == nil then
+                addon.db.profile.procConfig = nil
+            end
+        end
+    else
+        -- Disabling = store false
+        addon.db.profile.procConfig = addon.db.profile.procConfig or {}
+        addon.db.profile.procConfig[spellID] = false
+    end
+end
+
+-- Reset all proc config overrides (re-enable all procs)
+function Database:ResetProcConfig()
+    if not addon.db or not addon.db.profile then return end
+    addon.db.profile.procConfig = nil
+end
+
+-------------------------------------------------------------------------------
+-- Spell Config Helpers (continued)
+-------------------------------------------------------------------------------
+
 -- Check if a spell has any overrides (for showing "modified" indicator)
 function Database:IsSpellConfigModified(spellID, specKey)
     specKey = specKey or self:GetSpecKey()

@@ -390,6 +390,11 @@ C.DEFAULTS = {
         -- Only modified values are stored; nil = use default
         spellConfig = {},
 
+        -- Per-class proc visibility (sparse storage)
+        -- Format: procConfig[spellID] = false (disabled)
+        -- Absence = enabled (all procs enabled by default)
+        procConfig = {},
+
         -- Row definitions (order matters - top to bottom)
         -- Each row shows spells matching these LibSpellDB tags
         -- Spells are assigned to the FIRST matching row (no duplicates)

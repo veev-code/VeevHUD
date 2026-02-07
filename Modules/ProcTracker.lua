@@ -308,6 +308,28 @@ function ProcTracker:UpdateProcIcon(frame, db)
     local procData = frame.procData
     local spellID = procData.spellID
     
+    -- Check if this proc is disabled in config
+    if not addon:IsProcEnabled(spellID) then
+        frame:Hide()
+        frame.wasInactive = true
+        frame.text:SetText("")
+        frame.stacks:SetText("")
+        frame.cooldown:Hide()
+        frame.lastStart = nil
+        frame.lastDuration = nil
+        frame.lastExpirationTime = nil
+        if frame.backdropGlow then frame.backdropGlow:Hide() end
+        if frame.glowActive then
+            self:HideProcGlow(frame)
+            frame.glowActive = false
+        end
+        if self.Animations then
+            self.Animations:StopScalePunch(frame)
+        end
+        self:ResetIconPosition(frame)
+        return
+    end
+    
     -- Check if aura is active (buff on player or debuff on target)
     local name, icon, count, debuffType, duration, expirationTime, source, isStealable, 
           nameplateShowPersonal, spellId

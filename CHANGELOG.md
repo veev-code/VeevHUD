@@ -1,5 +1,20 @@
 # VeevHUD Changelog
 
+## [1.0.47] - 2026-02-07
+
+### Added
+
+- **Configure Proc Tracker** — You can now choose which procs appear in the proc tracker area. A new "Proc Tracker" section at the bottom of the Spell Configuration window shows all available procs for your class with checkboxes to enable or disable each one. All procs are enabled by default. The "Reset Spell Config" button also resets proc visibility. *(Shadowhawk)*
+
+### Fixed
+
+- **Execute resource bar prediction** — The resource bar now correctly shows Execute consuming all remaining rage instead of only the base cost, giving an accurate preview of post-cast rage.
+- **Queued ability cost stacking** — When multiple abilities are queued simultaneously, their costs are now combined on the resource bar instead of only showing one. Prevents double-counting with casting spells.
+
+### LibSpellDB Updates
+- Proc descriptions updated to reflect max talent rank values (Enrage: 25% damage, Blood Craze: 3% health)
+- Warrior Execute marked as `consumesAllResource` for accurate rage prediction
+
 ## [1.0.46] - 2026-02-07
 
 ### Added

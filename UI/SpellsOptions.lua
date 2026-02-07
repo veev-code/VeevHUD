@@ -152,8 +152,8 @@ function SpellsOptions:CreateDialog()
     resetSpellsButton:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_LEFT")
         GameTooltip:AddLine("Reset Spell Configuration", 1, 1, 1)
-        GameTooltip:AddLine("Resets all spell visibility and ordering", 1, 0.82, 0, true)
-        GameTooltip:AddLine("for your current spec to defaults.", 1, 0.82, 0, true)
+        GameTooltip:AddLine("Resets all spell visibility, ordering, and", 1, 0.82, 0, true)
+        GameTooltip:AddLine("proc tracker settings to defaults.", 1, 0.82, 0, true)
         GameTooltip:AddLine(" ", 1, 1, 1)
         GameTooltip:AddLine("Current spec: " .. (SpellsOptions:GetSpecKey():gsub("_", " ")), 0.7, 0.7, 0.7)
         GameTooltip:Show()
@@ -164,7 +164,7 @@ function SpellsOptions:CreateDialog()
     resetSpellsButton:SetScript("OnClick", function()
         local specKey = SpellsOptions:GetSpecKey()
         StaticPopupDialogs["VEEVHUD_RESET_SPELLS_CONFIRM"] = {
-            text = "Reset all spell configuration for " .. specKey:gsub("_", " ") .. " to defaults?",
+            text = "Reset all spell and proc configuration for " .. specKey:gsub("_", " ") .. " to defaults?",
             button1 = "Yes",
             button2 = "No",
             OnAccept = function()
@@ -176,9 +176,18 @@ function SpellsOptions:CreateDialog()
                     end
                 end
                 
+                -- Clear all procConfig overrides (re-enable all procs)
+                addon.Database:ResetProcConfig()
+                
                 local spellTracker = addon:GetModule("SpellTracker")
                 if spellTracker then
                     spellTracker:FullRescan()
+                end
+                
+                -- Refresh proc tracker display
+                local procTracker = addon:GetModule("ProcTracker")
+                if procTracker and procTracker.Refresh then
+                    procTracker:Refresh()
                 end
                 
                 -- Force reposition rows after spell changes
@@ -470,6 +479,9 @@ function SpellsOptions:RefreshSpellList()
             end
         end
     end
+    
+    -- Proc Tracker section (at the very bottom)
+    yOffset = self:CreateProcTrackerSection(yOffset)
     
     -- Set scroll child height
     self.scrollChild:SetHeight(math.abs(yOffset) + 20)
@@ -806,6 +818,171 @@ function SpellsOptions:CreateSpellEntry(spellInfo, rowIndex, index, yOffset)
     
     -- Store for drag detection
     table.insert(self.spellEntries, frame)
+    
+    return yOffset - SPELL_ENTRY_HEIGHT
+end
+
+-------------------------------------------------------------------------------
+-- Proc Tracker Section
+-------------------------------------------------------------------------------
+
+function SpellsOptions:CreateProcTrackerSection(yOffset)
+    -- Get proc data from LibSpellDB (same source as ProcTracker module)
+    local LibSpellDB = LibStub and LibStub("LibSpellDB-1.0", true)
+    if not LibSpellDB then return yOffset end
+    
+    local classProcs = LibSpellDB:GetProcs(addon.playerClass)
+    if not classProcs or #classProcs == 0 then return yOffset end
+    
+    yOffset = yOffset - 20  -- Extra gap before proc section
+    
+    -- Section header (not registered in spellEntries to avoid drag-drop interaction)
+    yOffset = self:CreateSectionHeader("Proc Tracker", yOffset)
+    
+    -- Description
+    local desc = self.scrollChild:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+    desc:SetPoint("TOPLEFT", self.scrollChild, "TOPLEFT", 10, yOffset)
+    desc:SetText("|cff888888Choose which procs appear in the tracker above the health bar.|r")
+    desc:SetWidth(450)
+    desc:SetJustifyH("LEFT")
+    yOffset = yOffset - 16
+    
+    -- Sort procs alphabetically by name for a stable, readable list
+    local sortedProcs = {}
+    for _, procData in ipairs(classProcs) do
+        table.insert(sortedProcs, procData)
+    end
+    table.sort(sortedProcs, function(a, b)
+        local nameA = a.name or ""
+        local nameB = b.name or ""
+        return nameA < nameB
+    end)
+    
+    -- Proc entries
+    for i, procData in ipairs(sortedProcs) do
+        yOffset = self:CreateProcEntry(procData, i, yOffset)
+    end
+    
+    return yOffset
+end
+
+-- Section header without drag-drop integration (used for Proc Tracker section)
+function SpellsOptions:CreateSectionHeader(name, yOffset)
+    local frame = CreateFrame("Frame", nil, self.scrollChild)
+    frame:SetPoint("TOPLEFT", self.scrollChild, "TOPLEFT", 0, yOffset)
+    frame:SetSize(500, ROW_HEADER_HEIGHT)
+    
+    -- Left separator line
+    local leftLine = frame:CreateTexture(nil, "ARTWORK")
+    leftLine:SetHeight(1)
+    leftLine:SetPoint("LEFT", 0, 0)
+    leftLine:SetPoint("RIGHT", frame, "LEFT", 60, 0)
+    leftLine:SetColorTexture(0.6, 0.5, 0.2, 0.8)
+    
+    -- Header text
+    local header = frame:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+    header:SetPoint("LEFT", leftLine, "RIGHT", 8, 0)
+    header:SetText(name)
+    header:SetTextColor(1, 0.82, 0)
+    
+    -- Right separator line
+    local rightLine = frame:CreateTexture(nil, "ARTWORK")
+    rightLine:SetHeight(1)
+    rightLine:SetPoint("LEFT", header, "RIGHT", 8, 0)
+    rightLine:SetPoint("RIGHT", frame, "RIGHT", 0, 0)
+    rightLine:SetColorTexture(0.6, 0.5, 0.2, 0.8)
+    
+    frame:Show()
+    
+    return yOffset - ROW_HEADER_HEIGHT
+end
+
+function SpellsOptions:CreateProcEntry(procData, index, yOffset)
+    local frame = CreateFrame("Frame", nil, self.scrollChild)
+    frame:SetPoint("TOPLEFT", self.scrollChild, "TOPLEFT", 10, yOffset)
+    frame:SetSize(480, SPELL_ENTRY_HEIGHT)
+    frame:EnableMouse(true)
+    frame:Show()
+    
+    -- Background (for hover)
+    frame.bg = frame:CreateTexture(nil, "BACKGROUND")
+    frame.bg:SetAllPoints()
+    frame.bg:SetColorTexture(0.1, 0.1, 0.1, 0.3)
+    frame.bg:Hide()
+    
+    -- Icon
+    local icon = frame:CreateTexture(nil, "ARTWORK")
+    icon:SetPoint("LEFT", 0, 0)
+    icon:SetSize(ICON_SIZE, ICON_SIZE)
+    local spellName, _, spellIcon = GetSpellInfo(procData.spellID)
+    icon:SetTexture(spellIcon or "Interface\\Icons\\INV_Misc_QuestionMark")
+    frame.icon = icon
+    
+    -- Name
+    local nameText = spellName or procData.name or ("Spell " .. procData.spellID)
+    
+    local name = frame:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+    name:SetPoint("LEFT", icon, "RIGHT", 8, 0)
+    name:SetText(nameText)
+    name:SetWidth(200)
+    name:SetJustifyH("LEFT")
+    frame.nameText = name
+    
+    -- Check enabled state
+    local enabled = addon:IsProcEnabled(procData.spellID)
+    
+    -- Grey out if disabled
+    if not enabled then
+        icon:SetDesaturated(true)
+        icon:SetAlpha(0.5)
+        name:SetTextColor(0.5, 0.5, 0.5)
+    end
+    
+    -- Checkbox (enable/disable)
+    local checkbox = CreateFrame("CheckButton", nil, frame, "InterfaceOptionsCheckButtonTemplate")
+    checkbox:SetPoint("LEFT", name, "RIGHT", 8, 0)
+    checkbox:SetChecked(enabled)
+    checkbox.Text:SetText("")  -- No label text on checkbox
+    
+    checkbox:SetScript("OnClick", function(self)
+        local isEnabled = self:GetChecked()
+        addon:SetProcEnabled(procData.spellID, isEnabled)
+        
+        -- Refresh proc tracker display
+        local procTracker = addon:GetModule("ProcTracker")
+        if procTracker and procTracker.Refresh then
+            procTracker:Refresh()
+        end
+        
+        -- Refresh list to update visual state
+        SpellsOptions:RefreshSpellList()
+    end)
+    frame.checkbox = checkbox
+    
+    -- Proc description text (to the right of checkbox, grey)
+    local procDesc = procData.procInfo and procData.procInfo.description
+    if procDesc then
+        local descText = frame:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+        descText:SetPoint("LEFT", checkbox, "RIGHT", 4, 0)
+        descText:SetText("|cff888888" .. procDesc .. "|r")
+        descText:SetWidth(180)
+        descText:SetJustifyH("LEFT")
+        if not enabled then
+            descText:SetAlpha(0.5)
+        end
+    end
+    
+    -- Hover effects
+    frame:SetScript("OnEnter", function(self)
+        self.bg:Show()
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetSpellByID(procData.spellID)
+        GameTooltip:Show()
+    end)
+    frame:SetScript("OnLeave", function(self)
+        self.bg:Hide()
+        GameTooltip:Hide()
+    end)
     
     return yOffset - SPELL_ENTRY_HEIGHT
 end

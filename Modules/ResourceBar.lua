@@ -433,11 +433,13 @@ function ResourceBar:GetPendingResourceCost()
     -- 3. Queued "next melee" ability (Heroic Strike, Cleave, Maul, etc.)
     totalCost = totalCost + self:GetQueuedSpellCost()
 
-    return totalCost
+    -- Never project negative cost
+    return math.max(0, totalCost)
 end
 
 -- Get the resource cost of a specific spell for the current power type
 -- Returns 0 if the spell uses a different power type or has no cost
+-- Handles "consumesAllResource" spells (e.g., Execute) that drain all remaining power
 function ResourceBar:GetSpellResourceCost(spellID)
     if not GetSpellPowerCost or not spellID then return 0 end
     local costTable = GetSpellPowerCost(spellID)
@@ -446,27 +448,41 @@ function ResourceBar:GetSpellResourceCost(spellID)
         local costPowerType = costTable[1].type
         -- Only count costs that match the bar's displayed power type
         if costPowerType == self.powerType then
+            -- Check if this spell consumes ALL remaining resource (e.g., Execute)
+            local LibSpellDB = addon.LibSpellDB
+            if LibSpellDB then
+                local spellData = LibSpellDB:GetSpellInfo(spellID)
+                if spellData and spellData.consumesAllResource then
+                    return UnitPower("player", self.powerType)
+                end
+            end
             return cost
         end
     end
     return 0
 end
 
--- Find any queued "next melee" ability among tracked spells and return its cost
+-- Find ALL queued abilities among tracked spells and return their combined cost
+-- Skips spells already tracked as casting/channeling to prevent double-counting
 function ResourceBar:GetQueuedSpellCost()
     if not IsCurrentSpell then return 0 end
 
     local CooldownIcons = addon:GetModule("CooldownIcons")
     if not CooldownIcons then return 0 end
 
+    local totalCost = 0
     for _, icons in pairs(CooldownIcons.iconsByRow or {}) do
         for _, frame in ipairs(icons) do
             if frame.actualSpellID and IsCurrentSpell(frame.actualSpellID) then
-                return self:GetSpellResourceCost(frame.actualSpellID)
+                -- Skip if already counted as a casting or channeling spell
+                if frame.actualSpellID ~= self.castingSpellID
+                   and frame.actualSpellID ~= self.channelingSpellID then
+                    totalCost = totalCost + self:GetSpellResourceCost(frame.actualSpellID)
+                end
             end
         end
     end
-    return 0
+    return totalCost
 end
 
 -------------------------------------------------------------------------------

@@ -275,6 +275,14 @@ function addon:IsSpellConfigModified(spellID, specKey)
     return self.Database:IsSpellConfigModified(spellID, specKey)
 end
 
+function addon:IsProcEnabled(spellID)
+    return self.Database:IsProcEnabled(spellID)
+end
+
+function addon:SetProcEnabled(spellID, enabled)
+    self.Database:SetProcEnabled(spellID, enabled)
+end
+
 function addon:GetDefaultValue(path)
     return self.Database:GetDefaultValue(path)
 end

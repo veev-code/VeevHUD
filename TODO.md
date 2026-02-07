@@ -43,7 +43,6 @@ These were requested by multiple people or have strong gameplay impact.
 - **Configurable Bar/Icon Position** — Allow icons to appear above the health/resource bars instead of only below. Options: above primary, between primary/secondary, between secondary/utility, below all. See `TODO-Layout.md` for the full drag-and-drop layout spec. *(FionaSilberpfeil, Shadowhawk)*
 - **Trinket Tracking** — Track trinket use/on-use cooldowns and proc buffs. Consider smart row assignment (throughput trinkets → secondary row, utility → utility row). *(Independent-Bother17)*
 - **Battle Shout / Short Buff Tracking** — Battle Shout doesn't appear in spell list. Also applies to other short-duration party buffs that need reapplication reminders. *(Shadowhawk, anonymous French warrior)*
-- **Configure Proc Tracker** — Let users choose which procs show/hide in the proc tracker area. Currently all detected procs display automatically. *(Shadowhawk)*
 - **Missing Buff Alert / Inverse Glow** — Glow or visual indicator when an important buff is *missing* (e.g., Battle Shout fell off, self-buff expired). Opposite of the current "active proc" glow. *(Shadowhawk)*
 - **Grouped Category Icons** — Instead of separate icons for every totem/seal/blessing, show one icon per category (e.g., one Earth Totem icon, one Seal icon) that reflects whichever is currently active. Reduces icon clutter for Shamans and Paladins. *(Shadowhawk)*
 - **Health Bar Improvements** — The current health bar is basic. Potential enhancements:
@@ -58,10 +57,8 @@ These were requested by multiple people or have strong gameplay impact.
 ## Feature Requests — Low Priority / Ideas
 
 - **PvP Trinket Tracking** — Track PvP trinket cooldown.
-- **Custom Bar Textures** — Allow users to select bar textures (via SharedMedia).
 - **WoW Animation API** — Migrate animations to use WoW's built-in Animation system for smoother/more efficient playback.
 - **Separate Movable Buffs Bar** — A dedicated area for tracking buffs that can be positioned independently from the main HUD stack. *(Shadowhawk)*
-- ~~**Predicted Rage Loss** — Show the rage cost of the queued next-attack ability on the resource bar (e.g., darkened section for Heroic Strike cost). *(Caworder)*~~ → Shipped in v1.0.46 (expanded to all resource types)
 
 ---
 
@@ -111,5 +108,8 @@ Items from feedback that have been completed, with the version they shipped in.
 | Queued ability icon highlight                                    | 1.0.46  | Bright overlay when next-melee is queued        |
 | Predicted resource cost on bar                                   | 1.0.46  | Darkened section for queued/casting cost         |
 | Proc tracker: multi-rank matching                                | 1.0.46  | Detects all talent ranks, not just max          |
+| Custom bar textures                                              | 1.0.45  | SharedMedia support for all bars                |
+| Predicted rage/resource loss on bar                              | 1.0.46  | Expanded to all resource types                  |
+| Configure Proc Tracker                                           | 1.0.47  | Enable/disable procs in Spell Configuration     |
 
 
