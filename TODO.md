@@ -40,7 +40,7 @@ These were requested by multiple people or have strong gameplay impact.
 
 ## Feature Requests — Medium Priority
 
-- **Configurable Bar/Icon Position** — Allow icons to appear above the health/resource bars instead of only below. Options: above primary, between primary/secondary, between secondary/utility, below all. See `TODO-Layout.md` for the full drag-and-drop layout spec. *(FionaSilberpfeil, Shadowhawk)*
+- **Configurable Bar/Icon Position** — Allow icons to appear above the health/resource bars instead of only below. Options: above primary, between primary/secondary, between secondary/utility, below all. *(FionaSilberpfeil, Shadowhawk)*
 - **Trinket Tracking** — Track trinket use/on-use cooldowns and proc buffs. Consider smart row assignment (throughput trinkets → secondary row, utility → utility row). *(Independent-Bother17)*
 - **Battle Shout / Short Buff Tracking** — Battle Shout doesn't appear in spell list. Also applies to other short-duration party buffs that need reapplication reminders. *(Shadowhawk, anonymous French warrior)*
 - **Missing Buff Alert / Inverse Glow** — Glow or visual indicator when an important buff is *missing* (e.g., Battle Shout fell off, self-buff expired). Opposite of the current "active proc" glow. *(Shadowhawk)*
@@ -50,8 +50,6 @@ These were requested by multiple people or have strong gameplay impact.
 - **Dual Countdown on Icons (CD + Debuff)** — For abilities where both a cooldown and a debuff matter (e.g., Mangle Cat — no CD but debuff is key), show a secondary timer in an icon corner so both can be tracked on one icon without adding a separate icon. *(Artvil)*
 - **Health Bar Improvements** — Potential enhancements:
   - Text options: max health, health deficit, whole numbers (not just "k" abbreviation)
-  - Custom color picker (beyond class-colored toggle)
-  - *Note: Veev considers this lower priority — users can supplement with a dedicated unit frame addon.* *(Shadowhawk)*
 
 ---
 
@@ -122,3 +120,4 @@ Items from feedback that have been completed, with the version they shipped in.
 | Resource bar predicted cost toggle                                | 1.0.48  | Option to disable predicted cost overlay          |
 | Queued ability highlight toggle                                   | 1.0.48  | Option to disable queued icon highlight           |
 | Config defaults audit                                             | 1.0.48  | All defaults managed by AceDB, no inline fallbacks|
+| Health bar: custom color picker                                    | 1.0.41  | Beyond class-colored toggle *(Shadowhawk)*         |

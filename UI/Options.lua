@@ -227,6 +227,10 @@ end
 -------------------------------------------------------------------------------
 
 function Options:BuildOptionsTable()
+	-- Screen-aware offset limits (half screen in each direction, rounded up to nearest 100)
+	local screenHalfW = math.ceil((GetScreenWidth and GetScreenWidth() or 1920) / 200) * 100
+	local screenHalfH = math.ceil((GetScreenHeight and GetScreenHeight() or 1080) / 200) * 100
+
 	local rowSettingAll = {
 		[C.ROW_SETTING.NONE] = "None",
 		[C.ROW_SETTING.PRIMARY] = "Primary",
@@ -463,16 +467,16 @@ function Options:BuildOptionsTable()
 							hOffset = {
 								type = "range",
 								name = "Horizontal Offset",
-								desc = "Moves the entire HUD left or right from the center of the screen. Negative values shift it left, positive values shift it right.",
-								min = -500, max = 500, step = 1,
+								desc = "Moves the entire HUD left or right from the center of the screen. Negative values shift it left, positive values shift it right. The range adjusts to your screen resolution.",
+								min = -screenHalfW, max = screenHalfW, step = 1,
 								arg = "anchor.x",
 								order = 3,
 							},
 							vOffset = {
 								type = "range",
 								name = "Vertical Offset",
-								desc = "Moves the entire HUD up or down on your screen. Negative values move it below center, positive values move it above.",
-								min = -500, max = 500, step = 1,
+								desc = "Moves the entire HUD up or down on your screen. Negative values move it below center, positive values move it above. The range adjusts to your screen resolution.",
+								min = -screenHalfH, max = screenHalfH, step = 1,
 								arg = "anchor.y",
 								order = 4,
 							},

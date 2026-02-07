@@ -1,5 +1,11 @@
 # VeevHUD Changelog
 
+## [1.0.49] - 2026-02-07
+
+### Changed
+
+- **Ultrawide monitor support** — The Horizontal and Vertical Offset sliders now scale to your screen resolution instead of being capped at ±500 pixels. On a 5120×1440 ultrawide, the horizontal slider goes up to ±2600 — enough to place the HUD anywhere on screen. *(Thanks ChaosEternal for the feedback!)*
+
 ## [1.0.48] - 2026-02-07
 
 ### Added
