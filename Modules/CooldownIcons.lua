@@ -1565,9 +1565,8 @@ function CooldownIcons:UpdateIconState(frame, db)
         
         -- For shared CD abilities (Reck/Retal/SWall), also check buffs directly
         -- since AuraTracker may not track non-displayed spells
-        -- Skip if spell has ignoreAura set (e.g., Bloodthirst buff is longer than CD)
         -- Respects target context: heals/external buffs check the relevant target
-        local shouldCheckBuff = not (spellData and spellData.ignoreAura)
+        local shouldCheckBuff = true
         
         if shouldCheckBuff then
             -- Determine buff tracking behavior:
@@ -1633,11 +1632,15 @@ function CooldownIcons:UpdateIconState(frame, db)
     -- This is when the ability will need attention: max(cooldown_remaining, aura_remaining)
     -- If both are 0, the ability is ready to be cast now
     -- Permanent buffs (Shadowform, Stealth, etc.) get very high actionableTime to sort right
+    local hasCooldownPriority = spellData and spellData.cooldownPriority
     local effectiveCooldownRemaining = self.Utils:IsOnRealCooldown(remaining, duration) and remaining or 0
     local isPermanentBuffActive = auraActive and auraDuration == 0 and auraRemaining == 0
     if isPermanentBuffActive then
         -- Permanent buff active - sort to the right (doesn't need attention)
         frame.actionableTime = 999999
+    elseif hasCooldownPriority then
+        -- Cooldown-priority spells: actionable when CD ends (aura irrelevant for sorting)
+        frame.actionableTime = effectiveCooldownRemaining
     else
         frame.actionableTime = math.max(effectiveCooldownRemaining, auraRemaining or 0)
     end
@@ -1738,8 +1741,11 @@ function CooldownIcons:UpdateIconState(frame, db)
     
     -- Skip prediction if aura is active - aura display takes precedence
     -- (e.g., Power Word: Shield active - show buff duration, not mana prediction)
+    -- Exception: cooldownPriority spells prioritize cooldown/prediction over aura display
+    -- (e.g., Rake debuff active but not enough energy - show prediction, not debuff)
     -- Also skip if resource display is not enabled for this row
-    local skipPrediction = (auraActive and auraRemaining > 0) or not resourceEnabledForRow
+    local auraBlocksPrediction = auraActive and auraRemaining > 0 and not hasCooldownPriority
+    local skipPrediction = auraBlocksPrediction or not resourceEnabledForRow
     
     if isPredictionMode and hasResourceCost and not skipPrediction then
         if canAfford then
@@ -1855,8 +1861,16 @@ function CooldownIcons:UpdateIconState(frame, db)
     -----------------------------------------------------------------------
     -- AURA ACTIVE STATE (overrides normal cooldown display)
     -- When a debuff/buff from this spell is active on a target
+    -- For cooldownPriority spells: suppress aura display while on cooldown.
+    -- If the spell also has a resource cost, always suppress — affordability
+    -- can change rapidly (energy/rage spent on other abilities) which would
+    -- cause the aura to flicker on and off. Spells gated purely by cooldown
+    -- (no resource cost) show the aura once the cooldown ends.
     -----------------------------------------------------------------------
-    if auraActive and auraRemaining > 0 then
+    local suppressAura = hasCooldownPriority and
+        (isOnActualCooldown or hasResourceCost)
+
+    if auraActive and auraRemaining > 0 and not suppressAura then
         -----------------------------------------------------------------------
         -- TIMED AURA ACTIVE STATE
         -- Debuff/buff from this spell is active with a duration
@@ -2151,6 +2165,8 @@ function CooldownIcons:UpdateIconState(frame, db)
     end
 
     -- Update stacks display (for aura stacks like Rampage, Lifebloom, Sunder)
+    -- Note: intentionally independent of suppressAura — cooldownPriority spells
+    -- still show stacks (e.g., Bloodthirst heal charges) alongside the cooldown spiral
     if auraActive and auraStacks and auraStacks > 1 then
         frame.stacks:SetText(auraStacks)
     else
@@ -2732,10 +2748,10 @@ function CooldownIcons:UpdateRangeIndicator(frame, spellID, db)
         local hasActiveAura = auraTracker and auraTracker:IsAuraActive(frame.spellID)
         
         -- Skip if player has an active buff from this spell (self-buffs, permanent buffs)
-        -- Respect ignoreAura flag for spells where the buff is incidental (e.g., Bloodthirst healing)
+        -- Respect cooldownPriority flag for spells where the buff is incidental (e.g., Bloodthirst healing)
         local actualSpellID = frame.actualSpellID or frame.spellID
         local spellData = frame.spellData
-        local shouldCheckBuff = not (spellData and spellData.ignoreAura)
+        local shouldCheckBuff = not (spellData and spellData.cooldownPriority)
         local isBuffActive = shouldCheckBuff and self:GetPlayerBuff(actualSpellID)
         
         -- Skip if ability is not usable (resources, conditions, etc.)

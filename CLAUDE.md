@@ -1,9 +1,3 @@
----
-description: VeevHUD addon context - WeakAuras-inspired cooldown/buff HUD for WoW
-globs: **/*
-alwaysApply: false
----
-
 # VeevHUD - Addon Context
 
 VeevHUD is a lightweight, WeakAuras-inspired heads-up display addon for World of Warcraft (TBC Classic / Anniversary Edition). It tracks cooldowns, buffs, debuffs, DoTs, procs, and resources with zero configuration required.
@@ -23,7 +17,7 @@ VeevHUD is a lightweight, WeakAuras-inspired heads-up display addon for World of
 ## File Structure
 
 ### Root
-- `VeevHUD.toc` — TOC file (Interface 20505, v1.0.47, MIT license)
+- `VeevHUD.toc` — TOC file, MIT license
 - `README.md`, `CHANGELOG.md`, `TODO.md`
 - `.pkgmeta` — CurseForge packaging
 - `.github/workflows/release.yml` — CI release workflow
@@ -53,6 +47,7 @@ VeevHUD is a lightweight, WeakAuras-inspired heads-up display addon for World of
 - `HealthBar.lua` — Health bar with heal prediction, absorb shield, and over-absorb glow overlays
 - `ComboPoints.lua` — Horizontal combo point bars with activation animation
 - `ProcTracker.lua` — Proc buff icons with stacks, glow, and configurable enable/disable
+- `BuffReminders.lua` — Buff reminder alerts for missing class/role buffs
 
 ### Services (`Services/`)
 - `FiveSecondRule.lua` — 5-second rule tracking for mana regeneration
@@ -66,6 +61,7 @@ VeevHUD is a lightweight, WeakAuras-inspired heads-up display addon for World of
 - `MigrationManager.lua` — One-time migration notice system
 - `ScaleMigration.lua` — UI scale auto-compensation migration notice
 - `WelcomePopup.lua` — First-time welcome dialog with Discord link
+- `BuffRemindersMigration.lua` — Migration notice for buff reminders feature
 - `Templates.xml` — UI frame templates
 
 ### Other
@@ -132,10 +128,13 @@ VeevHUD uses **AceDB-3.0** with metatable-based defaults merging:
 - LibDualSpec-1.0 integration for automatic per-spec profile switching
 
 **IMPORTANT -- Config access rules:**
+
+The DB layer is the single source of truth for all resolved config values. Application code (modules, services, UI) must never know or care what the default is — it just reads from `addon.db.profile` and gets the correct value. All default resolution happens in the DB layer via AceDB metatables. This means:
+
 - **NEVER** use inline default fallbacks when reading config values. AceDB provides them via metatables.
   - Do NOT write: `db.textSize or 10`, `db.showSpark == false`, `db.enabled ~= false`, `addon.db.profile.appearance or {}`
   - Instead write: `db.textSize`, `not db.showSpark`, `db.enabled`, `addon.db.profile.appearance`
-- **ALL new config keys MUST have a default** in `Constants.DEFAULTS.profile`. If a key is used in code but missing from defaults, add it.
+- **ALL new config keys MUST have a default** in `Constants.DEFAULTS.profile`. If a key is used in code but missing from defaults, add it — don't paper over it with a fallback at the call site.
 - The only exception is **sparse per-spell config** (`spellConfig`/`procConfig`), which intentionally uses `nil` to mean "use default behavior" and `false` to mean "explicitly disabled". The `cfg.enabled ~= false` pattern is correct there.
 
 #### Database API
@@ -158,6 +157,7 @@ addon.Database:IsSpellConfigModified(spellID, specKey)
 -- Proc config
 addon.Database:IsProcEnabled(spellID)
 addon.Database:SetProcEnabled(spellID, enabled)
+addon.Database:GetProcConfig()
 addon.Database:ResetProcConfig()
 
 -- Row settings
@@ -177,20 +177,26 @@ Per-spec spell config stored at `VeevHUDDB.overrides.spellConfig[specKey][spellI
 
 ### SpellUtils (`Core/SpellUtils.lua`)
 
+Note: SpellUtils populates `addon.Utils`, not a separate namespace.
+
 ```lua
-addon.SpellUtils:GetSpellCooldown(spellID)   -- Returns {remaining, duration, enabled, startTime}
-addon.SpellUtils:IsOnRealCooldown(spellID)
-addon.SpellUtils:IsOnGCD(spellID)
-addon.SpellUtils:IsOffCooldown(spellID)
-addon.SpellUtils:GetEffectiveSpellID(spellID) -- Action bar rank or highest known rank
-addon.SpellUtils:GetSpellPowerInfo(spellID)   -- Returns {cost, currentPower, maxPower, powerType, powerColor}
-addon.SpellUtils:FindSpellOnActionBar(spellID) -- Finds actual rank on action bar
+addon.Utils:GetSpellCooldown(spellID)   -- Returns remaining, duration, enabled, startTime
+addon.Utils:IsOnRealCooldown(remaining, duration)
+addon.Utils:IsOnGCD(remaining, duration)
+addon.Utils:IsOffCooldown(remaining, duration)
+addon.Utils:IsSpellOnRealCooldown(spellID) -- Convenience: fetches cooldown + checks
+addon.Utils:IsSpellOnGCD(spellID)
+addon.Utils:IsSpellOffCooldown(spellID)
+addon.Utils:GetEffectiveSpellID(spellID) -- Action bar rank or highest known rank
+addon.Utils:GetSpellPowerInfo(spellID)   -- Returns {cost, currentPower, maxPower, powerType, powerColor}
+addon.Utils:GetSpellTexture(spellID)
+addon.Utils:FindSpellOnActionBar(spellID) -- Finds actual rank on action bar
 ```
 
 ## Constants (`Core/Constants.lua`)
 
 ### Key Constants
-- `C.ROW_SETTING` — `NONE`, `PRIMARY`, `ALL`
+- `C.ROW_SETTING` — `NONE`, `PRIMARY`, `PRIMARY_SECONDARY`, `SECONDARY_UTILITY`, `UTILITY`, `ALL`
 - `C.RESOURCE_DISPLAY_MODE` — `FILL`, `BAR`, `PREDICTION`
 - `C.TICKER_STYLE` — `BAR`, `SPARK`
 - `C.GLOW_MODE` — `ONCE`, `ALWAYS`
@@ -216,7 +222,7 @@ Notable defaults:
 - `resourceBar.showPredictedCost = true`
 - `healthBar.showHealPrediction = true`, `healthBar.showAbsorbs = true`, `healthBar.showOverAbsorbGlow = true`
 - `icons.useOwnCooldownText = true`
-- `visibility.outOfCombatAlpha = 0.3`, `visibility.hideOnFlightPath = true`
+- `visibility.outOfCombatAlpha = 1.0`, `visibility.hideOnFlightPath = true`
 - `animations.smoothBars = true`, `animations.dimTransition = true`
 
 ## Row Configuration

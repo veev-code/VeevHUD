@@ -8,7 +8,7 @@ Consolidated from Discord/Reddit feedback, internal ideas, and bug reports.
 
 Reported missing or broken spell support (not confirmed fixed):
 
-- **Druid:** Claw and Rake not available as selectable abilities. *(Soveliss)*
+*(None currently)*
 
 ---
 

@@ -81,13 +81,7 @@ Small icons above the health bar for important temporary buffs: Enrage, Flurry, 
 
 ### Buff Reminders
 
-Large, semi-transparent icons that appear when you're missing an important long-duration buff — Battle Shout, Inner Fire, poisons, weapon imbues, Mark of the Wild, and more. Think of them as a gentle nudge to rebuff, separate from the main HUD's rotational tracking.
-
-*   **Works out of the box** — Pre-configured for every class with sensible defaults
-*   **Buff group awareness** — Understands equivalent buffs (Fortitude / Prayer of Fortitude), exclusive buffs (Battle Shout / Commanding Shout), and weapon enchants (rogue poisons on both MH and OH)
-*   **Smart pre-requisites** — Only reminds when the spell is known, you have the resources, and you're not resting, mounted, or on a taxi
-*   **Per-spell configuration** — Enable/disable individually, set time-remaining and stack thresholds, choose combat state (in combat / out of combat / any), and track against yourself, party, or raid
-*   **WeakAura-style animations** — Shrink-in, pulse, and grow-out effects with configurable icon size and opacity
+Large, semi-transparent icons that nudge you to rebuff when missing important long-duration buffs. Pre-configured per class, with awareness of buff equivalents (Fortitude / Prayer of Fortitude), exclusive buffs, and weapon enchants. Only triggers when the spell is known and usable. Per-spell config for thresholds, combat state, and group scope.
 
 ### Health & Resource Bars
 

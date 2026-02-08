@@ -564,7 +564,7 @@
 ### LibSpellDB Updates
 
 - Added Deep Wounds proc tracking for Warriors (target debuff)
-- Added `ignoreAura` flag for spells where cooldown tracking is preferred over debuff tracking
+- Added `cooldownPriority` flag (renamed from `ignoreAura`) — shows cooldown/prediction first, then aura when ability is ready
 
 ## [1.0.10] - 2026-01-28
 
