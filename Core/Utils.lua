@@ -43,8 +43,12 @@ end
 function Utils:FormatCooldown(seconds)
     if seconds >= 3600 then
         return string.format("%dh", math.floor(seconds / 3600))
-    elseif seconds >= 60 then
+    elseif seconds >= 300 then
         return string.format("%dm", math.floor(seconds / 60))
+    elseif seconds >= 60 then
+        local m = math.floor(seconds / 60)
+        local s = math.floor(seconds % 60)
+        return string.format("%d:%02d", m, s)
     elseif seconds >= 1 then
         return string.format("%d", math.floor(seconds))
     elseif seconds > 0 then

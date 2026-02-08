@@ -66,6 +66,9 @@ function AuraTracker:Initialize()
     self.Events:RegisterCLEU(self, "UNIT_DIED", self.OnSummonUnitRemoved)
     self.Events:RegisterCLEU(self, "UNIT_DESTROYED", self.OnSummonUnitRemoved)
     self.Events:RegisterCLEU(self, "UNIT_DISSIPATES", self.OnSummonUnitRemoved)
+
+    -- Register for totem recall detection (Totemic Call destroys all totems)
+    self.Events:RegisterCLEU(self, "SPELL_CAST_SUCCESS", self.OnSpellCastSuccess)
     
     -- Periodic cleanup of expired auras
     self.cleanupTicker = C_Timer.NewTicker(1, function()
@@ -153,6 +156,7 @@ function AuraTracker:BuildSummonMappings(trackedSpells)
     wipe(self.summonPetToSpell)
     wipe(self.summonPetsBySpell)
     wipe(self.totemElementToSpell)
+    self.totemRecallSpells = {}
 
     if not self.LibSpellDB then return end
 
@@ -180,6 +184,14 @@ function AuraTracker:BuildSummonMappings(trackedSpells)
                     totemElementTag = elementTag,  -- nil for non-totems
                 }
                 count = count + 1
+            end
+
+            -- Build totem-recall spell lookup (e.g., Totemic Call has clearsTotems = true)
+            if spellData.clearsTotems then
+                local canonicalID = self.LibSpellDB:GetCanonicalSpellID(spellID) or spellID
+                self.totemRecallSpells[canonicalID] = true
+                local spellName = GetSpellInfo(spellID) or tostring(spellID)
+                self.Utils:LogInfo("AuraTracker: Registered totem-recall spell:", spellName, "(" .. canonicalID .. ")")
             end
         end
     end
@@ -419,6 +431,29 @@ function AuraTracker:ClearTotemElementForSpell(baseSpellID)
             self.totemElementToSpell[element] = nil
             return
         end
+    end
+end
+
+-- Clear all active totem timers (e.g., when Totemic Call is cast)
+function AuraTracker:ClearAllTotemTracking()
+    for element, baseSpellID in pairs(self.totemElementToSpell) do
+        self:ClearSummonTracking(baseSpellID)
+        self:NotifyAuraChange(baseSpellID, false)
+    end
+    wipe(self.totemElementToSpell)
+end
+
+-- CLEU callback for player spell casts (totem-recall detection)
+-- TODO: Test if Totemic Call fires UNIT_DESTROYED/UNIT_DISSIPATES for each totem in CLEU.
+-- If so, OnSummonUnitRemoved already handles cleanup and this handler is redundant.
+function AuraTracker:OnSpellCastSuccess(subEvent, data)
+    if data.sourceGUID ~= self.playerGUID then return end
+    if not data.spellID then return end
+
+    -- totemRecallSpells is built from LibSpellDB spells with clearsTotems = true
+    if self.totemRecallSpells[data.spellID] and next(self.totemElementToSpell) then
+        self.Utils:LogInfo("AuraTracker: Totem recall spell detected (" .. data.spellID .. "), clearing all totem timers")
+        self:ClearAllTotemTracking()
     end
 end
 
