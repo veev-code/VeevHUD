@@ -139,6 +139,9 @@ function CooldownIcons:Initialize()
         addon.RangeChecker:RegisterCallback(self, self.OnRangeUpdate)
     end
 
+    -- Register for reactive window refresh events (e.g., PARTY_KILL refreshes Victory Rush)
+    self.Events:RegisterCLEU(self, "PARTY_KILL", self.OnReactiveWindowEvent)
+
     -- Register for queued spell changes (Heroic Strike, Cleave, Maul, etc.)
     -- CURRENT_SPELL_CAST_CHANGED fires when a spell's "current" status changes
     -- Uses a lightweight handler that only toggles highlight textures (no full icon recompute)
@@ -275,16 +278,47 @@ end
 
 function CooldownIcons:OnSpellCastSucceeded(event, unit, castGUID, spellID)
     if unit ~= "player" then return end
-    
+
     -- Find the icon frame for this spell
     local frame = self:FindIconFrameBySpellID(spellID)
     if frame then
         self:PlayCastFeedback(frame)
+
+        -- Clear reactive window timer immediately on cast (e.g., Victory Rush used)
+        -- Note: do NOT reset reactiveWindowWasUsable here — the API may still report
+        -- isUsable=true for a tick after cast, which would cause a false timer restart.
+        -- Kill-refreshes are handled by OnReactiveWindowEvent (PARTY_KILL) instead.
+        if frame.reactiveWindow and frame.reactiveWindowExpires then
+            frame.reactiveWindowStart = nil
+            frame.reactiveWindowExpires = nil
+        end
     end
-    
+
     -- Check if this spell is part of a shared cooldown group
     -- If so, and it's not the displayed spell, set an override to show this spell's buff
     self:HandleSharedCooldownCast(spellID)
+end
+
+-- Handle CLEU events that refresh reactive windows (e.g., PARTY_KILL refreshes Victory Rush)
+-- Scans visible icons for matching reactiveWindowEvent and resets their timer
+-- Gates on IsSpellUsable so non-qualifying kills are ignored (e.g., grey mobs don't grant VR).
+-- Limitation: if the window is already active, IsSpellUsable is true regardless of kill quality,
+-- so a grey mob kill during an active window will incorrectly refresh the timer. There is no API
+-- to distinguish "kill yielded xp/honor" from "kill didn't", so this is the best we can do.
+function CooldownIcons:OnReactiveWindowEvent(subEvent, data)
+    if data.sourceGUID ~= UnitGUID("player") then return end
+
+    for _, row in ipairs(self.rows or {}) do
+        for _, frame in ipairs(row.icons or {}) do
+            if frame.reactiveWindowEvent == subEvent and frame.reactiveWindow then
+                local actualSpellID = frame.actualSpellID or frame.spellID
+                if self:IsSpellUsable(actualSpellID) then
+                    frame.reactiveWindowStart = GetTime()
+                    frame.reactiveWindowExpires = GetTime() + frame.reactiveWindow
+                end
+            end
+        end
+    end
 end
 
 -- Handle when a shared cooldown spell is cast that isn't the displayed one
@@ -1238,7 +1272,19 @@ function CooldownIcons:SetupIcon(frame, spellID, actualSpellID, spellData, rowCo
             end
         end
     end
-    
+
+    -- Check if this reactive spell has a timed usability window (e.g., Victory Rush: 20s after kill)
+    -- When non-nil, we show a synthetic aura countdown when the spell becomes usable
+    frame.reactiveWindow = nil
+    frame.reactiveWindowEvent = nil
+    if frame.isReactive and addon.LibSpellDB then
+        frame.reactiveWindow = addon.LibSpellDB:GetReactiveWindow(spellID)
+        if frame.reactiveWindow then
+            local spellInfo = addon.LibSpellDB:GetSpellInfo(spellID)
+            frame.reactiveWindowEvent = spellInfo and spellInfo.reactiveWindowEvent
+        end
+    end
+
     -- Update keybind text for this icon
     self:UpdateKeybindText(frame)
 end
@@ -1693,10 +1739,37 @@ function CooldownIcons:UpdateIconState(frame, db)
         frame.actionableTime = 60
     end
     
+    -- Reactive window tracking: for spells with reactiveWindow (e.g., Victory Rush),
+    -- start a synthetic aura timer when the spell becomes usable, clear when
+    -- it becomes unusable (cast or expired)
+    if frame.reactiveWindow then
+        local wasUsableForWindow = frame.reactiveWindowWasUsable or false
+
+        -- Transition: unusable -> usable: start timer
+        if isUsable and not wasUsableForWindow then
+            frame.reactiveWindowStart = GetTime()
+            frame.reactiveWindowExpires = GetTime() + frame.reactiveWindow
+        end
+
+        -- Transition: usable -> unusable: clear timer (cast or conditions lost)
+        if not isUsable and wasUsableForWindow then
+            frame.reactiveWindowStart = nil
+            frame.reactiveWindowExpires = nil
+        end
+
+        -- Natural expiration
+        if frame.reactiveWindowExpires and GetTime() >= frame.reactiveWindowExpires then
+            frame.reactiveWindowStart = nil
+            frame.reactiveWindowExpires = nil
+        end
+
+        frame.reactiveWindowWasUsable = isUsable
+    end
+
     -- Check for spell activation overlay (for proc glow display)
     -- Use actualSpellID since WoW overlay events use actual spell IDs
     local hasOverlay = self:HasSpellActivationOverlay(actualSpellID)
-    
+
     -- Get power/resource info for resource display
     -- Uses actualSpellID since GetEffectiveSpellID handles rank conversion internally
     local powerCost, currentPower, maxPower, powerType, powerColor = self.Utils:GetSpellPowerInfo(actualSpellID)
@@ -1836,6 +1909,18 @@ function CooldownIcons:UpdateIconState(frame, db)
     
     -- Detect permanent buff (active but no duration, e.g., Shadowform, Stealth)
     local isPermanentBuffActive = auraActive and auraDuration == 0 and auraRemaining == 0
+
+    -- Reactive window: inject synthetic aura data for spells with a timed usability
+    -- window (e.g., Victory Rush 20s after kill). This reuses all existing aura display
+    -- infrastructure (glow, countdown spiral, duration text) with no changes to that code.
+    if frame.reactiveWindow and frame.reactiveWindowExpires then
+        local rwRemaining = frame.reactiveWindowExpires - GetTime()
+        if rwRemaining > 0 then
+            auraActive = true
+            auraRemaining = rwRemaining
+            auraDuration = frame.reactiveWindow
+        end
+    end
 
     -----------------------------------------------------------------------
     -- AURA ACTIVE STATE (overrides normal cooldown display)

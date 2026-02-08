@@ -1,5 +1,16 @@
 # VeevHUD Changelog
 
+## [1.0.54] - 2026-02-08
+
+### Added
+
+- **Victory Rush Timer** — When Victory Rush becomes usable after a killing blow, the icon now shows a 20-second countdown with an aura-style glow and spiral, filling the gap left by the game's invisible usability window. The timer refreshes on subsequent qualifying kills and clears immediately when the ability is cast or the window expires. Non-qualifying kills (grey mobs) are correctly ignored when starting the timer.
+
+### LibSpellDB Updates
+- New `reactiveWindow` and `reactiveWindowEvent` spell data fields for modeling abilities with time-limited usability windows
+- New `GetReactiveWindow(spellID)` API for querying window duration
+- Victory Rush: added reactive window metadata (20s after PARTY_KILL)
+
 ## [1.0.53] - 2026-02-08
 
 ### Added
