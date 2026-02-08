@@ -1,5 +1,11 @@
 # VeevHUD Changelog
 
+## [1.0.55] - 2026-02-08
+
+### Fixed
+
+- **Buff Reminders not responding to Global Scale** — Changing the Global Scale slider now correctly resizes Buff Reminder icons. Previously, only the main HUD elements (icon rows, bars) were affected.
+
 ## [1.0.54] - 2026-02-08
 
 ### Added

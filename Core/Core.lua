@@ -373,6 +373,13 @@ function addon:UpdateHUDScale()
     if not self.hudFrame then return end
     local scale = self.Utils:GetEffectiveHUDScale()
     self.hudFrame:SetScale(scale)
+
+    -- BuffReminders is parented to UIParent (not hudFrame) for independent visibility,
+    -- so it doesn't inherit the HUD scale automatically and needs a manual update
+    local br = self:GetModule("BuffReminders")
+    if br and br.UpdatePosition then
+        br:UpdatePosition()
+    end
 end
 
 -- Update HUD anchor position (called when offsets/profile change)
