@@ -17,9 +17,8 @@ function ResourceBar:Initialize()
     self.Utils = addon.Utils
     self.C = addon.Constants
 
-    -- Register with layout system (priority 30)
-    -- Gap is 0 by default, increases when energy ticker is visible (hangs below bar)
-    addon.Layout:RegisterElement("resourceBar", self, 30, 0)
+    -- Register with layout system
+    addon.Layout:RegisterElement("resourceBar", self)
 
     -- Register events
     self.Events:RegisterEvent(self, "UNIT_POWER_UPDATE", self.OnPowerUpdate)
@@ -81,9 +80,10 @@ function ResourceBar:GetLayoutHeight()
     if not self.bar or not self.bar:IsShown() then
         return 0
     end
-    
+
     -- Include border in visual height (1px top + 1px bottom = 2px total)
-    return db.height + 2
+    -- Include energy ticker height (bar-style ticker hangs below resource bar)
+    return db.height + 2 + self:GetTickerHeight()
 end
 
 -- Position this element at the given Y offset (center of element)
@@ -607,11 +607,9 @@ function ResourceBar:UpdateTickerVisibility()
     -- Re-evaluate if we need the update ticker
     self:RegisterUpdateIfNeeded()
     
-    -- Check if bar-style visibility changed (affects layout)
+    -- Check if bar-style visibility changed (affects layout height)
     local isBarVisible = self.ticker and self.ticker:IsShown()
     if wasBarVisible ~= isBarVisible then
-        -- Update our gap in the layout system (ticker space only)
-        addon.Layout:SetElementGap("resourceBar", self:GetTickerHeight())
         addon.Layout:Refresh()
     end
 end
@@ -956,8 +954,7 @@ function ResourceBar:Refresh()
     self:UpdatePowerType()
     self:UpdateBar()
     
-    -- Update layout gap (ticker space only) and refresh positions
-    addon.Layout:SetElementGap("resourceBar", self:GetTickerHeight())
+    -- Refresh layout (height may have changed due to ticker)
     addon.Layout:Refresh()
 end
 

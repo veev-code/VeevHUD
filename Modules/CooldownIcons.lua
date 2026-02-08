@@ -502,14 +502,11 @@ function CooldownIcons:CreateFrames(parent)
         return 
     end
 
-    -- Main container for all rows
-    -- Position below the resource bar (which is at CENTER with offsetY=0, height=14)
-    local resourceBarDb = addon.db.profile.resourceBar
-    local resourceBarBottom = resourceBarDb.offsetY - resourceBarDb.height / 2
-    
+    -- Main container for all rows (transparent parent frame for organizational purposes).
+    -- Row frames are children of the container but positioned absolutely by Layout.lua.
     local container = CreateFrame("Frame", "VeevHUDIconContainer", parent)
-    container:SetSize(400, 400)
-    container:SetPoint("TOP", parent, "CENTER", 0, resourceBarBottom - 2)  -- 2px below resource bar
+    container:SetSize(400, 800)
+    container:SetPoint("CENTER", parent, "CENTER", 0, 0)
     container:EnableMouse(false)  -- Click-through
     self.container = container
 
@@ -561,20 +558,9 @@ function CooldownIcons:CreateRowFrames()
     end
     
     self.Utils:LogInfo("CooldownIcons: Creating", #rowConfigs, "row frames")
-    local yOffset = 0
 
     for rowIndex, rowConfig in ipairs(rowConfigs) do
         if rowConfig.enabled then
-            -- Add extra space between primary and secondary rows
-            if rowIndex == 2 then
-                yOffset = yOffset - iconDb.primarySecondaryGap
-            end
-            
-            -- Add extra space before utility section (row 3+)
-            if rowIndex >= 3 then
-                yOffset = yOffset - iconDb.sectionGap
-            end
-
             -- Use per-row settings or fall back to global
             local rowIconSize = rowConfig.iconSize or iconDb.iconSize
             -- Use explicit nil check since 0 is a valid spacing value
@@ -585,12 +571,12 @@ function CooldownIcons:CreateRowFrames()
 
             -- Get width/height based on aspect ratio
             local rowIconWidth, rowIconHeight = self.Utils:GetIconDimensions(rowIconSize)
-            
+
             self.Utils:LogInfo("Row", rowIndex, rowConfig.name, "iconSize:", rowIconSize, "iconWidth:", rowIconWidth, "maxIcons:", rowConfig.maxIcons)
 
             local rowFrame = CreateFrame("Frame", nil, self.container)
             rowFrame:SetSize(rowConfig.maxIcons * (rowIconWidth + rowIconSpacing), rowIconHeight)
-            rowFrame:SetPoint("TOP", self.container, "TOP", 0, yOffset)
+            rowFrame:SetPoint("TOP", addon.hudFrame, "CENTER", 0, 0)  -- Placeholder; Layout will position
             rowFrame:EnableMouse(false)  -- Click-through
             rowFrame.iconSize = rowIconSize
             rowFrame.iconWidth = rowIconWidth
@@ -611,16 +597,61 @@ function CooldownIcons:CreateRowFrames()
 
             self.rows[rowIndex] = rowFrame
             self.iconsByRow[rowIndex] = {}
-
-            -- Calculate height for yOffset - estimate rows needed for flow layout
-            local estimatedHeight = rowIconHeight
-            if rowConfig.flowLayout and rowConfig.iconsPerRow then
-                local estimatedRows = math.ceil(rowConfig.maxIcons / rowConfig.iconsPerRow)
-                estimatedHeight = estimatedRows * (rowIconHeight + iconDb.rowSpacing)
-            end
-            yOffset = yOffset - (estimatedHeight + iconDb.rowSpacing)
         end
     end
+
+    -- Register each icon row with the Layout system
+    self:RegisterRowsWithLayout()
+end
+
+-------------------------------------------------------------------------------
+-- Layout Integration
+-------------------------------------------------------------------------------
+
+-- Map row indices to layout element keys
+local ROW_LAYOUT_KEYS = { "primaryRow", "secondaryRow", "utilityRow" }
+
+-- Register all icon rows as layout elements
+function CooldownIcons:RegisterRowsWithLayout()
+    for rowIndex, key in ipairs(ROW_LAYOUT_KEYS) do
+        local ri = rowIndex  -- capture for closure
+        addon.Layout:RegisterRowElement(key,
+            function() return self:GetRowHeight(ri) end,
+            function(topY) self:SetRowPosition(ri, topY) end
+        )
+    end
+end
+
+-- Get the pixel height of an icon row (accounting for flow-wrap).
+-- Returns 0 if the row is disabled, not created, or has no icons.
+function CooldownIcons:GetRowHeight(rowIndex)
+    local rowFrame = self.rows and self.rows[rowIndex]
+    if not rowFrame then return 0 end
+
+    local rowConfig = addon.db.profile.rows[rowIndex]
+    if not rowConfig or not rowConfig.enabled then return 0 end
+
+    local iconHeight = rowFrame.iconHeight or rowFrame.iconSize
+    local actualIconCount = self.iconsByRow[rowIndex] and #self.iconsByRow[rowIndex] or 0
+
+    if actualIconCount == 0 then return 0 end
+
+    if rowFrame.flowLayout and rowFrame.iconsPerRow and actualIconCount > 0 then
+        local actualRows = math.ceil(actualIconCount / rowFrame.iconsPerRow)
+        local rowSpacing = addon.db.profile.icons.rowSpacing
+        return actualRows * (iconHeight + rowSpacing) - rowSpacing
+    end
+
+    return iconHeight
+end
+
+-- Position an icon row at the given Y offset (top edge, relative to hudFrame center).
+function CooldownIcons:SetRowPosition(rowIndex, topY)
+    local rowFrame = self.rows and self.rows[rowIndex]
+    if not rowFrame then return end
+
+    rowFrame:ClearAllPoints()
+    rowFrame:SetPoint("TOP", addon.hudFrame, "CENTER", 0, topY)
 end
 
 function CooldownIcons:CreateIcon(parent, index, size)
@@ -999,73 +1030,21 @@ function CooldownIcons:RebuildAllRows()
     end
 end
 
--- Reposition row frames based on actual icon counts
--- This is called after RebuildAllRows to ensure flow layout rows are positioned correctly
--- when the number of icons changes (e.g., after reset or enabling/disabling spells)
+-- Reposition row frames based on actual icon counts.
+-- Delegates to Layout:Refresh() which queries GetRowHeight() and calls SetRowPosition().
 function CooldownIcons:RepositionRows()
-    if not self.rows or not self.container then return end
-    
-    local rowConfigs = addon.db.profile.rows
-    local iconDb = addon.db.profile.icons
-    
-    -- Get sorted list of row indices (to handle sparse tables)
-    local sortedRowIndices = {}
-    for rowIndex in pairs(self.rows) do
-        table.insert(sortedRowIndices, rowIndex)
-    end
-    table.sort(sortedRowIndices)
-    
-    local yOffset = 0
-    
-    for _, rowIndex in ipairs(sortedRowIndices) do
-        local rowFrame = self.rows[rowIndex]
+    if not self.rows then return end
+
+    -- Update row frame heights for icons positioned correctly within each row
+    for rowIndex, rowFrame in pairs(self.rows) do
         if rowFrame then
-            local rowConfig = rowConfigs[rowIndex] or {}
             local iconHeight = rowFrame.iconHeight or rowFrame.iconSize
-            local iconsPerRow = rowFrame.iconsPerRow or rowConfig.iconsPerRow or rowConfig.maxIcons
-            local rowSpacing = iconDb.rowSpacing
-            
-            -- Get actual icon count for this row
-            local actualIconCount = 0
-            local spells = self.iconsByRow[rowIndex]
-            if spells then
-                actualIconCount = #spells
-            end
-            
-            -- Add extra gap between primary and secondary rows
-            if rowIndex == 2 then
-                yOffset = yOffset - iconDb.primarySecondaryGap
-            end
-            
-            -- Add section gap before utility rows (row 3+)
-            if rowIndex >= 3 then
-                yOffset = yOffset - iconDb.sectionGap
-            end
-            
-            -- Position row frame
-            rowFrame:ClearAllPoints()
-            rowFrame:SetPoint("TOP", self.container, "TOP", 0, yOffset)
-            
-            -- Reset row frame height to match actual content height
-            -- This ensures icons are positioned correctly when using TOP anchor
             rowFrame:SetHeight(iconHeight)
-            
-            -- Calculate height based on ACTUAL icon count (not maxIcons)
-            local actualHeight = iconHeight
-            if rowFrame.flowLayout and iconsPerRow and actualIconCount > 0 then
-                local actualRows = math.ceil(actualIconCount / iconsPerRow)
-                actualHeight = actualRows * (iconHeight + rowSpacing) - rowSpacing
-            elseif actualIconCount == 0 then
-                -- Empty row takes no vertical space
-                actualHeight = 0
-            end
-            
-            -- Only add row spacing if this row has icons
-            if actualIconCount > 0 then
-                yOffset = yOffset - actualHeight - rowSpacing
-            end
         end
     end
+
+    -- Let the unified layout system handle all vertical positioning
+    addon.Layout:Refresh()
 end
 
 function CooldownIcons:UpdateRowIcons()
@@ -2820,9 +2799,6 @@ function CooldownIcons:Refresh()
     local rowConfigs = addon.db.profile.rows
     local iconDb = addon.db.profile.icons
     
-    -- Track vertical offset for row repositioning
-    local yOffset = 0
-    
     for rowIndex, rowFrame in ipairs(self.rows or {}) do
         local rowConfig = rowConfigs[rowIndex] or {}
         local size = rowConfig.iconSize or iconDb.iconSize
@@ -2862,27 +2838,6 @@ function CooldownIcons:Refresh()
             addon.IconStyling:Update(icon, size, self.MasqueGroup ~= nil)
         end
         
-        -- Reposition row vertically based on current settings
-        -- Add extra gap between primary and secondary rows
-        if rowIndex == 2 then
-            yOffset = yOffset - iconDb.primarySecondaryGap
-        end
-        
-        -- Add section gap before utility rows (row 3+)
-        if rowIndex >= 3 then
-            yOffset = yOffset - iconDb.sectionGap
-        end
-        
-        rowFrame:ClearAllPoints()
-        rowFrame:SetPoint("TOP", self.container, "TOP", 0, yOffset)
-        
-        -- Calculate height for next row offset (use iconHeight, not size)
-        local estimatedHeight = iconHeight
-        if rowFrame.flowLayout and rowFrame.iconsPerRow then
-            local estimatedRows = math.ceil(rowConfig.maxIcons / rowFrame.iconsPerRow)
-            estimatedHeight = estimatedRows * (iconHeight + iconDb.rowSpacing)
-        end
-        yOffset = yOffset - (estimatedHeight + iconDb.rowSpacing)
     end
     
     self:RebuildAllRows()

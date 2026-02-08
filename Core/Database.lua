@@ -41,6 +41,9 @@ function Database:Initialize()
     addon.db.RegisterCallback(addon, "OnProfileCopied", "OnProfileChanged")
     addon.db.RegisterCallback(addon, "OnProfileReset", "OnProfileChanged")
 
+    -- Migrate old gap settings to unified layout.gaps (idempotent, per-profile)
+    self:MigrateLayoutGaps()
+
     -- LibDualSpec: auto-switch profiles on spec change (optional but embedded).
     local LibDualSpec = LibStub and LibStub("LibDualSpec-1.0", true)
     if LibDualSpec then
@@ -62,6 +65,71 @@ function Database:GetAceDefaults()
             migrationsShown = {},
         },
     }
+end
+
+-------------------------------------------------------------------------------
+-- Layout Gap Migration
+-------------------------------------------------------------------------------
+
+--[[
+    Migrate old scattered gap settings to the unified layout.gaps system.
+
+    Old settings (now removed from defaults):
+      procTracker.gapAboveHealthBar  -> layout.gaps.healthBar
+      layout.iconRowGap              -> layout.gaps.primaryRow (+ comboPoints.offsetY)
+      comboPoints.offsetY            -> folded into layout.gaps.primaryRow
+      icons.primarySecondaryGap      -> layout.gaps.secondaryRow (+ icons.rowSpacing)
+      icons.sectionGap               -> layout.gaps.utilityRow   (+ icons.rowSpacing)
+
+    Idempotent: only runs when old values are detected in the profile.
+]]
+function Database:MigrateLayoutGaps()
+    local profile = addon.db and addon.db.profile
+    if not profile then return end
+
+    -- Check for any old gap values (nil means user never customized them)
+    local pt = profile.procTracker or {}
+    local cp = profile.comboPoints or {}
+    local ic = profile.icons or {}
+    local ly = profile.layout or {}
+
+    local oldGapAboveHealth = pt.gapAboveHealthBar
+    local oldIconRowGap     = ly.iconRowGap
+    local oldOffsetY        = cp.offsetY
+    local oldRowSpacing     = ic.rowSpacing
+    local oldPSGap          = ic.primarySecondaryGap
+    local oldSectionGap     = ic.sectionGap
+
+    -- Nothing to migrate if no old values exist
+    if oldGapAboveHealth == nil and oldIconRowGap == nil and oldOffsetY == nil
+       and oldPSGap == nil and oldSectionGap == nil then
+        return
+    end
+
+    addon.Utils:LogInfo("Database: Migrating old gap settings to layout.gaps")
+
+    -- Fill in defaults for any values the user didn't customize
+    local gapAboveHealth = oldGapAboveHealth or 6
+    local iconRowGap     = oldIconRowGap or 2
+    local offsetY        = oldOffsetY or 0
+    local rowSpacing     = oldRowSpacing or 1
+    local psGap          = oldPSGap or 0
+    local sectionGap     = oldSectionGap or 16
+
+    -- Write new gap values
+    profile.layout.gaps.healthBar    = gapAboveHealth
+    profile.layout.gaps.primaryRow   = iconRowGap + offsetY
+    profile.layout.gaps.secondaryRow = rowSpacing + psGap
+    profile.layout.gaps.utilityRow   = rowSpacing + sectionGap
+
+    -- Clean up old settings (no longer in defaults, would be orphaned data)
+    if profile.procTracker then profile.procTracker.gapAboveHealthBar = nil end
+    if profile.layout then profile.layout.iconRowGap = nil end
+    if profile.comboPoints then profile.comboPoints.offsetY = nil end
+    if profile.icons then
+        profile.icons.primarySecondaryGap = nil
+        profile.icons.sectionGap = nil
+    end
 end
 
 -------------------------------------------------------------------------------

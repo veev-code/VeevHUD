@@ -18,6 +18,8 @@ Reported missing or broken spell support (not confirmed fixed):
 - **Desperate Prayer row assignment** — Should default to Utility row, not Primary/Secondary.
 - **Timer text rounding** — Buff/debuff minute display rounds *down* while WoW's native buff bar rounds *up* (e.g., addon shows "3m" when WoW shows "4m"). *(Shadowhawk)*
 - **Resource-gated cooldown transition** — When an ability comes off cooldown but the player lacks the resource (e.g., rage) to cast it, the icon transition is jarring — it briefly looks ready, then snaps to the "not usable" state instead of filling smoothly. Investigate a more seamless visual path for this case.
+- **Absorb Shields not working** — Not displaying on health bar at all
+- Grow out animation on buff reminders can end somewhat abruptly
 
 ---
 
@@ -42,7 +44,6 @@ These were requested by multiple people or have strong gameplay impact.
 
 - **Custom Buff/Debuff Display Near Health Bar** — Let users select arbitrary important buffs and debuffs to display near the health bar (extending beyond just procs), keeping all critical info in one place. *(Soveliss)*
 
-- **Configurable Bar/Icon Position** — Allow icons to appear above the health/resource bars instead of only below. Options: above primary, between primary/secondary, between secondary/utility, below all. *(FionaSilberpfeil, Shadowhawk)*
 - **Trinket Tracking** — Track trinket use/on-use cooldowns and proc buffs. Consider smart row assignment (throughput trinkets → secondary row, utility → utility row). *(Independent-Bother17)*
 - **Grouped Category Icons** — Instead of separate icons for every totem/seal/blessing, show one icon per category (e.g., one Earth Totem icon, one Seal icon) that reflects whichever is currently active. Reduces icon clutter for Shamans and Paladins. *(Shadowhawk)*
 - **Track Shared Debuffs from Any Caster** — Debuffs like Faerie Fire and Sunder Armor should show on your HUD even when applied by another player, since only one instance of the debuff matters. Should also handle cross-ability equivalence (e.g., Sunder Armor and Expose Armor share the same armor-reduction debuff slot). *(Artvil)*
@@ -133,3 +134,4 @@ Items from feedback that have been completed, with the version they shipped in.
 | Long buff tracking consistency (Thorns, weapon buffs, etc.)        | 1.0.51  | All LONG_BUFF spells now tracked by Buff Reminders |
 | Druid: Claw and Rake as selectable abilities                       | 1.0.52  | Added to LibSpellDB + cooldownPriority display     |
 | Earth Shield party/raid tracking                                   | 1.0.51  | Covered by Buff Reminders with party/raid target config |
+| Configurable Bar/Icon Position                                     | 1.0.53  | Layout tab with element reordering and per-element gaps |

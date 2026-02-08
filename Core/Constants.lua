@@ -178,6 +178,22 @@ C.MANA_SPIKE_THRESHOLD = 0.10
 C.SPELL_ID_ADRENALINE_RUSH = 13750
 
 -------------------------------------------------------------------------------
+-- Layout Element Keys
+-------------------------------------------------------------------------------
+
+-- All HUD elements that participate in vertical layout ordering.
+-- Keys are used in layout.elementOrder and layout.gaps.
+C.LAYOUT_ELEMENTS = {
+    procTracker  = "Proc Tracker",
+    healthBar    = "Health Bar",
+    resourceBar  = "Resource Bar",
+    comboPoints  = "Combo Points",
+    primaryRow   = "Primary Row",
+    secondaryRow = "Secondary Row",
+    utilityRow   = "Utility Row",
+}
+
+-------------------------------------------------------------------------------
 -- Default Settings
 -------------------------------------------------------------------------------
 
@@ -212,9 +228,30 @@ C.DEFAULTS = {
             dimTransition = true,        -- Smooth alpha transition for dim on cooldown (vs instant)
         },
 
-        -- Layout settings (spacing between stacked bars)
+        -- Layout settings (unified element ordering and spacing)
         layout = {
-            iconRowGap = 2,  -- Gap between icon row top and first bar's bottom
+            -- Element stacking order, top to bottom.
+            -- All 7 HUD elements are positioned in this order by Layout.lua.
+            elementOrder = {
+                "procTracker",
+                "healthBar",
+                "resourceBar",
+                "comboPoints",
+                "primaryRow",
+                "secondaryRow",
+                "utilityRow",
+            },
+            -- Gap (in pixels) above each element (between it and the element above it).
+            -- First visible element's gap is ignored.
+            gaps = {
+                procTracker  = 0,
+                healthBar    = 6,   -- was procTracker.gapAboveHealthBar
+                resourceBar  = 0,
+                comboPoints  = 0,
+                primaryRow   = 2,   -- was layout.iconRowGap
+                secondaryRow = 1,   -- was icons.rowSpacing + icons.primarySecondaryGap
+                utilityRow   = 17,  -- was icons.rowSpacing + icons.sectionGap
+            },
         },
 
         -- Resource bar settings (mana/rage/energy)
@@ -280,7 +317,6 @@ C.DEFAULTS = {
             width = 230,     -- Total width (matches resource bar by default)
             barHeight = 6,
             barSpacing = 2,  -- Horizontal spacing between bars
-            offsetY = 2,     -- Gap between resource bar bottom and combo points top
             color = { r = 1.0, g = 0.82, b = 0.0 },  -- Yellow-gold (matches energy theme)
         },
 
@@ -289,7 +325,6 @@ C.DEFAULTS = {
             enabled = true,
             iconSize = 26,
             iconSpacing = 6,  -- spacing between icons
-            gapAboveHealthBar = 6,  -- gap between health bar and proc icons
             showDuration = true,  -- show remaining time text on procs
             showInactiveIcons = false,  -- Only show when active (not exposed in UI)
             inactiveAlpha = 0.4,
@@ -306,9 +341,7 @@ C.DEFAULTS = {
             iconAspectRatio = 1.0,  -- Width:Height ratio (1.0 = square, 1.33 = 4:3 wide)
             iconZoom = 0.20,        -- How much to zoom into icon textures (0 = none, 0.20 = 10% cropped from each edge)
             iconSpacing = 1,        -- Horizontal spacing between icons
-            rowSpacing = 1,         -- Vertical spacing between rows
-            primarySecondaryGap = 0, -- Extra gap between primary and secondary rows
-            sectionGap = 16,        -- Extra gap before utility/misc section
+            rowSpacing = 1,         -- Vertical spacing between sub-rows within a flow-wrapped row
             scale = 1.0,            -- Global scale multiplier
             
             -- Alpha settings

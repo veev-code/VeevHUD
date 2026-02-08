@@ -22,8 +22,8 @@ function HealthBar:Initialize()
     self.Utils = addon.Utils
     self.C = addon.Constants
 
-    -- Register with layout system (priority 40, no gap below)
-    addon.Layout:RegisterElement("healthBar", self, 40, 0)
+    -- Register with layout system
+    addon.Layout:RegisterElement("healthBar", self)
 
     -- Register events
     self.Events:RegisterEvent(self, "UNIT_HEALTH", self.OnHealthUpdate)

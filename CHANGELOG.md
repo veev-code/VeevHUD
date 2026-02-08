@@ -1,5 +1,12 @@
 # VeevHUD Changelog
 
+## [1.0.53] - 2026-02-08
+
+### Added
+
+- **Configurable Element Order** — New "Layout" tab in settings lets you reorder all HUD elements: Proc Tracker, Health Bar, Resource Bar, Combo Points, Primary Row, Secondary Row, and Utility Row. Move elements up or down to put bars below icons, rearrange icon rows, or any custom stacking order. Per-element gap sliders control the spacing between each pair of adjacent elements. *(FionaSilberpfeil, Shadowhawk)*
+- **Settings migration** — Existing users' custom gap values (icon row gap, combo point offset, section gap, etc.) are automatically migrated to the new unified layout system. No manual reconfiguration needed.
+
 ## [1.0.52] - 2026-02-08
 
 ### Added

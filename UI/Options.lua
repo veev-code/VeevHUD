@@ -216,17 +216,9 @@ function Options:ApplySettingChange(path)
 	SafeCall(addon.OnProfileChanged, addon)
 end
 
--- Recalculate positions for all vertically-stacked bar elements
+-- Recalculate positions for all vertically-stacked HUD elements
 function Options:RefreshAllBarPositions()
-	local resourceBar = addon:GetModule("ResourceBar")
-	local healthBar = addon:GetModule("HealthBar")
-	local comboPoints = addon:GetModule("ComboPoints")
-	local procTracker = addon:GetModule("ProcTracker")
-
-	if resourceBar and resourceBar.Refresh then resourceBar:Refresh() end
-	if healthBar and healthBar.Refresh then healthBar:Refresh() end
-	if comboPoints and comboPoints.Refresh then comboPoints:Refresh() end
-	if procTracker and procTracker.Refresh then procTracker:Refresh() end
+	addon.Layout:Refresh()
 end
 
 -------------------------------------------------------------------------------
@@ -439,6 +431,155 @@ function Options:BuildOptionsTable()
 		end
 	end
 
+	---------------------------------------------------------------------------
+	-- Dynamic Layout Element Order UI
+	---------------------------------------------------------------------------
+
+	local layoutArgs = {}
+
+	-- Helper: check if an element key is hidden for the current class
+	local function isElementHidden(key)
+		if key == "comboPoints" then
+			return addon.playerClass ~= C.CLASS.ROGUE and addon.playerClass ~= C.CLASS.DRUID
+		end
+		return false
+	end
+
+	local function rebuildLayoutArgs()
+		-- Clear existing args
+		for k in pairs(layoutArgs) do
+			layoutArgs[k] = nil
+		end
+
+		local db = addon.db.profile.layout
+		local order = db.elementOrder
+		local orderLen = #order
+
+		-- Find first and last visible positions (for disabling Move buttons)
+		local firstVisiblePos, lastVisiblePos
+		for i, key in ipairs(order) do
+			if not isElementHidden(key) then
+				if not firstVisiblePos then firstVisiblePos = i end
+				lastVisiblePos = i
+			end
+		end
+
+		for i, key in ipairs(order) do
+			local displayName = C.LAYOUT_ELEMENTS[key]
+			if not displayName then break end
+
+			local idx = i
+			local base = i * 10
+
+			-- Hidden function for comboPoints (class-conditional)
+			local elemHiddenFn
+			if key == "comboPoints" then
+				elemHiddenFn = function()
+					return addon.playerClass ~= C.CLASS.ROGUE and addon.playerClass ~= C.CLASS.DRUID
+				end
+			end
+
+			-- Move Up button
+			layoutArgs["up" .. i] = {
+				type = "execute",
+				name = "Up",
+				order = base,
+				width = 0.5,
+				hidden = elemHiddenFn,
+				disabled = idx == (firstVisiblePos or 1),
+				func = function()
+					local o = addon.db.profile.layout.elementOrder
+					local g = addon.db.profile.layout.gaps
+					local target = idx - 1
+					while target >= 1 do
+						if not isElementHidden(o[target]) then break end
+						target = target - 1
+					end
+					if target < 1 then return end
+					for p = idx, target + 1, -1 do
+						local kA, kB = o[p - 1], o[p]
+						g[kA], g[kB] = g[kB], g[kA]
+						o[p - 1], o[p] = o[p], o[p - 1]
+					end
+					addon.Layout:Refresh()
+					rebuildLayoutArgs()
+					LibStub("AceConfigRegistry-3.0"):NotifyChange(ADDON_NAME)
+				end,
+			}
+
+			-- Element name label
+			layoutArgs["name" .. i] = {
+				type = "description",
+				name = "|cffffd100" .. displayName .. "|r",
+				order = base + 1,
+				width = 0.7,
+				fontSize = "medium",
+				hidden = elemHiddenFn,
+			}
+
+			-- Move Down button
+			layoutArgs["dn" .. i] = {
+				type = "execute",
+				name = "Down",
+				order = base + 2,
+				width = 0.5,
+				hidden = elemHiddenFn,
+				disabled = idx == (lastVisiblePos or orderLen),
+				func = function()
+					local o = addon.db.profile.layout.elementOrder
+					local g = addon.db.profile.layout.gaps
+					local target = idx + 1
+					while target <= #o do
+						if not isElementHidden(o[target]) then break end
+						target = target + 1
+					end
+					if target > #o then return end
+					for p = idx, target - 1 do
+						local kA, kB = o[p], o[p + 1]
+						g[kA], g[kB] = g[kB], g[kA]
+						o[p], o[p + 1] = o[p + 1], o[p]
+					end
+					addon.Layout:Refresh()
+					rebuildLayoutArgs()
+					LibStub("AceConfigRegistry-3.0"):NotifyChange(ADDON_NAME)
+				end,
+			}
+
+			-- Gap slider between this element and the next
+			if i < orderLen then
+				local nextKey = order[i + 1]
+				local gapKey = nextKey
+
+				-- Hide gap if the element below it is hidden
+				local gapHiddenFn
+				if nextKey == "comboPoints" then
+					gapHiddenFn = function()
+						return addon.playerClass ~= C.CLASS.ROGUE and addon.playerClass ~= C.CLASS.DRUID
+					end
+				end
+
+				layoutArgs["gap" .. i] = {
+					type = "range",
+					name = "Gap",
+					desc = "Pixels of space between the two adjacent elements.",
+					min = -20, max = 200, step = 1,
+					order = base + 5,
+					width = "full",
+					hidden = gapHiddenFn,
+					get = function() return addon.db.profile.layout.gaps[gapKey] or 0 end,
+					set = function(_, val)
+						addon.db.profile.layout.gaps[gapKey] = val
+						addon.Layout:Refresh()
+					end,
+				}
+			end
+		end
+	end
+
+	rebuildLayoutArgs()
+
+	---------------------------------------------------------------------------
+
 	local optionsTable = {
 		type = "group",
 		name = "VeevHUD",
@@ -568,30 +709,21 @@ function Options:BuildOptionsTable()
 							},
 						},
 					},
-					layout = {
-						type = "group",
-						name = "Layout",
-						inline = true,
-						order = 4,
-						args = {
-							iconRowGap = {
-								type = "range",
-								name = "Icon Row Gap",
-								desc = "The vertical space (in pixels) between your ability icon rows and the bars above them (health bar, resource bar, or combo points). Increase for more breathing room, decrease to keep things compact.",
-								min = -10, max = 100, step = 1,
-								arg = "layout.iconRowGap",
-								order = 1,
-							},
-						},
 					},
-				},
+			},
+
+			layout = {
+				type = "group",
+				name = "Layout",
+				order = 2,
+				args = layoutArgs,
 			},
 
 			icons = {
 				type = "group",
 				name = "Icons",
 				childGroups = "tab",
-				order = 2,
+				order = 3,
 				args = {
 					appearance = {
 						type = "group",
@@ -659,27 +791,11 @@ function Options:BuildOptionsTable()
 									},
 									rowSpacing = {
 										type = "range",
-										name = "Row Spacing",
-										desc = "The vertical gap in pixels between rows of icons (e.g., between Primary and Secondary rows). Set to 0 for rows to touch. Negative values allow overlap, which may look better with certain skins.",
+										name = "Sub-Row Spacing",
+										desc = "The vertical gap in pixels between sub-rows within a flow-wrapped icon row (e.g., when a Utility row wraps to multiple lines). For spacing between Primary, Secondary, and Utility rows, use the Element Order section in General.",
 										min = -10, max = 40, step = 1,
 										arg = "icons.rowSpacing",
 										order = 2,
-									},
-									primarySecondaryGap = {
-										type = "range",
-										name = "Primary/Secondary Gap",
-										desc = "Extra vertical gap between the Primary and Secondary rows, added on top of the base Row Spacing. Helps visually separate your main rotation abilities from your secondary cooldowns. Set to 0 to use only the base row spacing.",
-										min = -10, max = 200, step = 1,
-										arg = "icons.primarySecondaryGap",
-										order = 3,
-									},
-									sectionGap = {
-										type = "range",
-										name = "Utility Section Gap",
-										desc = "Extra vertical space before the Utility row. Creates a visible gap between your damage/healing abilities and your utility spells (interrupts, dispels, cooldowns, etc.).",
-										min = -10, max = 200, step = 1,
-										arg = "icons.sectionGap",
-										order = 4,
 									},
 								},
 							},
@@ -1055,7 +1171,7 @@ function Options:BuildOptionsTable()
 				type = "group",
 				name = "Bars",
 				childGroups = "tab",
-				order = 3,
+				order = 4,
 				args = {
 					resource = {
 						type = "group",
@@ -1257,7 +1373,6 @@ function Options:BuildOptionsTable()
 									width = { type = "range", name = "Width", desc = "The total width of the combo points display in pixels.", min = 100, max = 600, step = 1, arg = "comboPoints.width", order = 1 },
 									barHeight = { type = "range", name = "Bar Height", desc = "The height of each combo point bar in pixels. Smaller values create a more subtle display.", min = 2, max = 30, step = 1, arg = "comboPoints.barHeight", order = 2 },
 									barSpacing = { type = "range", name = "Bar Spacing", desc = "The gap in pixels between each individual combo point segment.", min = 0, max = 20, step = 1, arg = "comboPoints.barSpacing", order = 3 },
-									offsetY = { type = "range", name = "Gap Above Icons", desc = "Extra vertical space in pixels between the combo points display and the ability icon rows below it.", min = 0, max = 120, step = 1, arg = "comboPoints.offsetY", order = 4 },
 								},
 							},
 							appearance = {
@@ -1287,7 +1402,6 @@ function Options:BuildOptionsTable()
 								args = {
 									iconSize = { type = "range", name = "Icon Size", desc = "How big the proc icons are in pixels. These are typically smaller than ability icons since they're just indicators. 20-28 pixels works well for most people.", min = 12, max = 140, step = 1, arg = "procTracker.iconSize", order = 1 },
 									iconSpacing = { type = "range", name = "Icon Spacing", desc = "The gap in pixels between each proc icon when multiple procs are active at once.", min = 0, max = 40, step = 1, arg = "procTracker.iconSpacing", order = 2 },
-									gapAboveHealthBar = { type = "range", name = "Gap Above Health Bar", desc = "The gap in pixels between the health bar and the proc icons. Increase if procs feel too close to the health bar.", min = 0, max = 200, step = 1, arg = "procTracker.gapAboveHealthBar", order = 3 },
 								},
 							},
 							effects = {
@@ -1313,14 +1427,14 @@ function Options:BuildOptionsTable()
 				type = "group",
 				name = "Rows",
 				childGroups = "tab",
-				order = 4,
+				order = 5,
 				args = rowArgs,
 			},
 
 			spells = {
 				type = "group",
 				name = "Spells",
-				order = 5,
+				order = 6,
 				args = {
 					_desc = {
 						type = "description",
@@ -1358,7 +1472,7 @@ function Options:BuildOptionsTable()
 			support = {
 				type = "group",
 				name = "Support",
-				order = 7,
+				order = 8,
 				args = {
 					discordInfo = {
 						type = "description",

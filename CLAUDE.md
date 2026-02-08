@@ -102,21 +102,28 @@ Single `eventFrame` for all events. CLEU events are parsed and dispatched by sub
 
 ### Layout System (`Core/Layout.lua`)
 
-Vertical stacking from icon rows upward, priority-ordered:
+Unified vertical stacking for all 7 HUD elements. Order is user-configurable via `layout.elementOrder`. Elements stack downward, anchored so Primary Row's top edge stays at a fixed Y offset (`PRIMARY_TOP_OFFSET = -9`).
 
-| Priority | Element      |
-|----------|-------------|
-| 10       | ComboPoints  |
-| 20       | EnergyTicker |
-| 30       | ResourceBar  |
-| 40       | HealthBar    |
-| 50       | ProcTracker  |
+Default element order (top to bottom):
+1. Proc Tracker
+2. Health Bar
+3. Resource Bar
+4. Combo Points
+5. Primary Row
+6. Secondary Row
+7. Utility Row
+
+Per-element gaps configured via `layout.gaps` (pixels above each element, skipped for first visible).
 
 ```lua
-addon.Layout:RegisterElement(name, module, priority, gap)
+-- Bar modules:
+addon.Layout:RegisterElement(key, module)
 -- Module must implement:
-function Module:GetLayoutHeight()
-function Module:SetLayoutPosition(y)
+function Module:GetLayoutHeight()     -- returns pixel height (0 if hidden)
+function Module:SetLayoutPosition(y)  -- positions at given center Y
+
+-- Icon row modules (via closures):
+addon.Layout:RegisterRowElement(key, getHeightFn, setPositionFn)
 ```
 
 ### Database Pattern (`Core/Database.lua`)
@@ -285,5 +292,5 @@ LibStub, CallbackHandler-1.0, AceAddon-3.0, AceEvent-3.0, AceHook-3.0, AceConsol
 - Config reads: Direct access via `addon.db.profile.X.Y` — no inline fallbacks
 - Icon frames: Created as Buttons for Masque compatibility
 - Bar creation: `addon.Utils:CreateStatusBar(parent, width, height)` — creates bar + background
-- Layout: `addon.Layout:RegisterElement(name, module, priority, gap)`
+- Layout: `addon.Layout:RegisterElement(key, module)` or `addon.Layout:RegisterRowElement(key, getHeightFn, setPositionFn)`
 - Animations: `addon.Animations:PlayScalePunch(frame)` (custom OnUpdate, avoids WoW Scale animation bugs)

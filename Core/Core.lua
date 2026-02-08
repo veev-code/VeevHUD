@@ -93,6 +93,9 @@ function addon:OnProfileChanged()
     -- This is triggered by manual profile switches and by LibDualSpec when specs change.
     if self.fatalError then return end
 
+    -- Migrate old gap settings for the new profile (idempotent)
+    self.Database:MigrateLayoutGaps()
+
     -- Snapshot the previous aspect ratio before refreshing (profile is already switched).
     local prevAspectRatio = self._lastAspectRatio
 

@@ -31,10 +31,8 @@ function ProcTracker:Initialize()
     -- Load LibSpellDB for proc data
     self.LibSpellDB = LibStub and LibStub("LibSpellDB-1.0", true)
     
-    -- Register with layout system (priority 50 = above health bar, gap from settings)
-    local db = addon.db and addon.db.profile and addon.db.profile.procTracker
-    local gap = db and db.gapAboveHealthBar
-    addon.Layout:RegisterElement("procTracker", self, 50, gap)
+    -- Register with layout system
+    addon.Layout:RegisterElement("procTracker", self)
     
     -- Register events
     self.Events:RegisterEvent(self, "UNIT_AURA", self.OnAuraUpdate)
@@ -658,9 +656,6 @@ end
 function ProcTracker:Refresh()
     -- Re-apply config settings to existing frames
     local db = addon.db.profile.procTracker
-    
-    -- Update layout gap from settings
-    addon.Layout:SetElementGap("procTracker", db.gapAboveHealthBar)
     
     -- Create frames if they don't exist and we should have them
     if not self.container and db.enabled and addon.hudFrame then

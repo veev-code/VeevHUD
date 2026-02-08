@@ -97,10 +97,8 @@ function ComboPoints:Initialize()
     -- Combo point bar frames
     self.bars = {}
     
-    -- Register with layout system (priority 10 = closest to icons, gap from settings)
-    local db = addon.db and addon.db.profile and addon.db.profile.comboPoints
-    local gap = db and db.offsetY
-    addon.Layout:RegisterElement("comboPoints", self, 10, gap)
+    -- Register with layout system
+    addon.Layout:RegisterElement("comboPoints", self)
     
     -- Register events
     -- UNIT_POWER_UPDATE fires when combo points change (powerType = "COMBO_POINTS")
@@ -315,9 +313,6 @@ end
 function ComboPoints:Refresh()
     local db = addon.db and addon.db.profile and addon.db.profile.comboPoints
     if not db then return end
-    
-    -- Update layout gap from settings
-    addon.Layout:SetElementGap("comboPoints", db.offsetY)
     
     -- Create frames if they don't exist and we should have them
     if not self.container and db.enabled and addon.hudFrame then

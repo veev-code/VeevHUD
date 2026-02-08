@@ -1,21 +1,24 @@
 --[[
     VeevHUD - Layout Manager
-    
-    Centralized layout system for positioning HUD elements.
-    Each element registers with the layout manager and provides:
+
+    Centralized layout system for ALL HUD element positioning.
+
+    All 7 HUD elements (4 bars + 3 icon rows) are stacked vertically in a
+    user-configurable order. Each element registers with the layout manager
+    and provides:
       - GetLayoutHeight(): returns the height this element needs (0 if hidden)
       - SetLayoutPosition(centerY): positions the element at the given Y offset
-    
-    Elements are stacked upward from the icon row (bottom) to procTracker (top).
-    No element needs to know about any other element - the layout manager
-    handles all positioning based on what's visible.
-    
-    Layout order (bottom to top, by priority):
-      10: ComboPoints
-      20: EnergyTicker (part of ResourceBar, separate slot)
-      30: ResourceBar
-      40: HealthBar
-      50: ProcTracker
+
+    The layout algorithm:
+      1. Reads elementOrder from profile to determine stacking sequence
+      2. Stacks elements downward from Y=0, applying per-element gaps
+      3. Offsets the entire stack so Primary Row's top edge stays at a fixed
+         Y position (PRIMARY_TOP_OFFSET), ensuring icon rows don't shift when
+         bars above them appear or disappear
+
+    Element keys (matching C.LAYOUT_ELEMENTS):
+      procTracker, healthBar, resourceBar, comboPoints,
+      primaryRow, secondaryRow, utilityRow
 ]]
 
 local ADDON_NAME, addon = ...
@@ -27,48 +30,89 @@ addon.Layout = Layout
 -- Configuration
 -------------------------------------------------------------------------------
 
--- Base Y offset: the TOP of the icon row (where bars start stacking from)
--- All bars stack UPWARD from this position
--- Icons top is at approximately -9 with default settings (14px resource bar / 2 + 2px gap)
--- Value is relative to HUD center (Y=0)
-Layout.baseOffset = -9  -- Icons top edge
+-- Fixed Y position for Primary Row's top edge (relative to hudFrame center).
+-- This value preserves backwards compatibility with the old layout where icon
+-- rows started at approximately Y = -9.
+local PRIMARY_TOP_OFFSET = -9
 
 -------------------------------------------------------------------------------
 -- Element Registry
 -------------------------------------------------------------------------------
 
 -- Registered layout elements
--- Key: element name, Value: { module, priority, gap }
+-- Key: element key (string), Value: { module, getHeight, setPosition }
 Layout.elements = {}
 
 --[[
     Register a layout element.
-    
-    @param name     Unique identifier for this element
-    @param module   The module instance (must implement GetLayoutHeight and SetLayoutPosition)
-    @param priority Lower numbers are positioned closer to icons (stacked first)
-                    Recommended: 10=ComboPoints, 20=EnergyTicker, 30=ResourceBar, 40=HealthBar, 50=ProcTracker
-    @param gap      Spacing (in pixels) BELOW this element (between its bottom and the top of the previous element)
+
+    @param key      Element key (must match a key in C.LAYOUT_ELEMENTS)
+    @param module   Table with GetLayoutHeight() and SetLayoutPosition(centerY) methods
 ]]
-function Layout:RegisterElement(name, module, priority, gap)
-    self.elements[name] = {
-        name = name,
+function Layout:RegisterElement(key, module)
+    self.elements[key] = {
+        key = key,
         module = module,
-        priority = priority or 50,
-        gap = gap or 0,
     }
-    addon.Utils:LogDebug("Layout: Registered element", name, "priority:", priority, "gap:", gap)
+    addon.Utils:LogDebug("Layout: Registered element", key)
 end
 
 --[[
-    Update the gap for an existing element.
-    Useful when element spacing changes based on settings.
-    @param name The element name
-    @param gap  New gap value
+    Register an icon row element.
+    Icon rows use function callbacks instead of module methods, since CooldownIcons
+    manages all 3 rows and routes by row index.
+
+    @param key        Element key ("primaryRow", "secondaryRow", "utilityRow")
+    @param getHeight  Function() -> number (row pixel height, 0 if hidden)
+    @param setPosition Function(topY) -> nil (position row at given Y offset)
 ]]
-function Layout:SetElementGap(name, gap)
-    if self.elements[name] then
-        self.elements[name].gap = gap
+function Layout:RegisterRowElement(key, getHeight, setPosition)
+    self.elements[key] = {
+        key = key,
+        getHeight = getHeight,
+        setPosition = setPosition,
+    }
+    addon.Utils:LogDebug("Layout: Registered row element", key)
+end
+
+-------------------------------------------------------------------------------
+-- Height / Position Dispatch
+-------------------------------------------------------------------------------
+
+-- Get the pixel height of a layout element (0 if hidden or unregistered)
+function Layout:GetElementHeight(key)
+    local elem = self.elements[key]
+    if not elem then return 0 end
+
+    -- Row elements use direct function callbacks
+    if elem.getHeight then
+        return elem.getHeight()
+    end
+
+    -- Bar elements use module methods
+    local module = elem.module
+    if module and module.GetLayoutHeight then
+        return module:GetLayoutHeight()
+    end
+
+    return 0
+end
+
+-- Position a layout element at the given center Y offset
+function Layout:SetElementPosition(key, centerY, topY)
+    local elem = self.elements[key]
+    if not elem then return end
+
+    -- Row elements receive topY (they anchor from top edge)
+    if elem.setPosition then
+        elem.setPosition(topY)
+        return
+    end
+
+    -- Bar elements receive centerY
+    local module = elem.module
+    if module and module.SetLayoutPosition then
+        module:SetLayoutPosition(centerY)
     end
 end
 
@@ -78,85 +122,99 @@ end
 
 --[[
     Refresh all element positions.
-    
-    Called automatically when any element's visibility changes.
-    
-    The layout algorithm uses SIMPLE UPWARD STACKING from the icon row:
-    1. Icons are the true anchor (fixed position)
-    2. All bars stack UPWARD from baseOffset (just above icons)
-    3. Elements are positioned in priority order (lowest priority = closest to icons)
-    
-    Gap semantics:
-    - gap is space ABOVE this element (between its top and the next element's bottom)
-    - For attached sub-elements (like energy ticker), gap represents the extra space
-      that hangs below the element
+
+    Called when any element's visibility changes, settings change, or
+    element order is modified.
+
+    Algorithm:
+      1. Stack all visible elements downward from Y=0
+      2. Compute offset to anchor Primary Row's top at PRIMARY_TOP_OFFSET
+      3. Apply offset to all element positions
 ]]
 function Layout:Refresh()
     if not addon.hudFrame then return end
-    
-    -- Collect all visible elements
-    local visibleElements = {}
-    
-    for _, element in pairs(self.elements) do
-        local module = element.module
-        if module and module.GetLayoutHeight then
-            local height = module:GetLayoutHeight()
-            if height > 0 then
-                table.insert(visibleElements, element)
+
+    local db = addon.db and addon.db.profile
+    if not db or not db.layout then return end
+
+    local order = db.layout.elementOrder
+    local gaps = db.layout.gaps
+    if not order or not gaps then return end
+
+    -- Phase 1: Collect visible elements and stack downward from Y=0
+    local visible = {}
+    local currentY = 0
+    local primaryTopY = nil
+    local visibleCount = 0
+
+    for _, key in ipairs(order) do
+        local height = self:GetElementHeight(key)
+        if height > 0 then
+            visibleCount = visibleCount + 1
+
+            -- Apply gap (space above this element), skip for first visible element
+            local gap = 0
+            if visibleCount > 1 then
+                gap = gaps[key] or 0
             end
+            currentY = currentY - gap
+
+            local topY = currentY
+            local centerY = currentY - height / 2
+            local bottomY = currentY - height
+
+            table.insert(visible, {
+                key = key,
+                height = height,
+                topY = topY,
+                centerY = centerY,
+                bottomY = bottomY,
+            })
+
+            -- Track primary row position for anchoring
+            if key == "primaryRow" then
+                primaryTopY = topY
+            end
+
+            currentY = bottomY
         end
     end
-    
-    -- Sort by priority ascending (lowest priority = closest to icons, stacks first)
-    table.sort(visibleElements, function(a, b) return a.priority < b.priority end)
-    
-    -- Stack upward from baseOffset (icons top)
-    -- currentY tracks the top of the previous element (or icons top initially)
-    local currentY = self.baseOffset
-    
-    -- Get configurable icon row gap (default 2)
-    local iconRowGap = 2
-    if addon.db and addon.db.profile and addon.db.profile.layout then
-        iconRowGap = addon.db.profile.layout.iconRowGap
+
+    -- Phase 2: Compute offset to anchor Primary Row at PRIMARY_TOP_OFFSET
+    local offset = 0
+    if primaryTopY then
+        offset = PRIMARY_TOP_OFFSET - primaryTopY
+    else
+        -- Primary row not visible: center the entire stack at hudFrame center
+        local stackHeight = -currentY  -- currentY is negative, so negate
+        offset = stackHeight / 2
     end
-    
-    for i, element in ipairs(visibleElements) do
-        local module = element.module
-        local height = module:GetLayoutHeight()
-        
-        -- Gap is space between previous element's top and this element's bottom
-        -- First visible element gets minimum gap from icons (configurable)
-        local gap = element.gap
-        if i == 1 and gap < iconRowGap then
-            gap = iconRowGap
-        end
-        
-        local bottom = currentY + gap
-        local centerY = bottom + (height / 2)
-        local top = bottom + height
-        
-        if module.SetLayoutPosition then
-            module:SetLayoutPosition(centerY)
-        end
-        
-        -- Move currentY to this element's top for next iteration
-        currentY = top
+
+    -- Phase 3: Apply positions with offset
+    for _, elem in ipairs(visible) do
+        self:SetElementPosition(elem.key, elem.centerY + offset, elem.topY + offset)
     end
-    
-    addon.Utils:LogDebug("Layout: Refreshed, elements:", #visibleElements, "top:", currentY)
+
+    addon.Utils:LogDebug("Layout: Refreshed, elements:", visibleCount, "offset:", offset)
 end
 
 -------------------------------------------------------------------------------
 -- Debug
 -------------------------------------------------------------------------------
 
---[[
-    Debug function to print current layout state.
-]]
 function Layout:PrintDebug()
     print("|cff00ff00VeevHUD Layout Debug:|r")
-    print("  Base offset (icons top):", self.baseOffset)
-    
+    print("  PRIMARY_TOP_OFFSET:", PRIMARY_TOP_OFFSET)
+
+    local db = addon.db and addon.db.profile
+    if not db or not db.layout then
+        print("  |cffff0000No layout config found|r")
+        return
+    end
+
+    local order = db.layout.elementOrder
+    local gaps = db.layout.gaps
+
     -- Show ticker state if ResourceBar module exists
     local resourceBar = addon.ResourceBar
     if resourceBar then
@@ -164,53 +222,56 @@ function Layout:PrintDebug()
         local tickerVisible = resourceBar.ticker and resourceBar.ticker:IsShown()
         print("  Ticker: height=" .. tickerHeight .. ", visible=" .. tostring(tickerVisible or false))
     end
-    
-    -- Collect all elements
+
+    -- Simulate the stacking algorithm
+    local currentY = 0
+    local primaryTopY = nil
+    local visibleCount = 0
     local allElements = {}
-    for _, element in pairs(self.elements) do
-        local module = element.module
-        local height = 0
-        if module and module.GetLayoutHeight then
-            height = module:GetLayoutHeight()
-        end
-        element._debugHeight = height
-        table.insert(allElements, element)
-    end
-    
-    -- Sort by priority (lowest first = closest to icons)
-    table.sort(allElements, function(a, b) return a.priority < b.priority end)
-    
-    -- Get configurable icon row gap (default 2)
-    local iconRowGap = 2
-    if addon.db and addon.db.profile and addon.db.profile.layout then
-        iconRowGap = addon.db.profile.layout.iconRowGap
-    end
-    
-    -- Calculate positions with upward stacking (same logic as Refresh)
-    local currentY = self.baseOffset
-    local visibleIndex = 0
-    
-    for _, element in ipairs(allElements) do
-        local height = element._debugHeight
+
+    for _, key in ipairs(order) do
+        local height = self:GetElementHeight(key)
         local status = height > 0 and "|cff00ff00visible|r" or "|cff888888hidden|r"
-        local centerY = "n/a"
-        local bottom = "n/a"
-        local effectiveGap = element.gap
-        
+        local gap = 0
+        local topY, centerY
+
         if height > 0 then
-            visibleIndex = visibleIndex + 1
-            -- First visible element gets minimum gap from icons (configurable)
-            if visibleIndex == 1 and effectiveGap < iconRowGap then
-                effectiveGap = iconRowGap
+            visibleCount = visibleCount + 1
+            if visibleCount > 1 then
+                gap = gaps[key] or 0
             end
-            bottom = currentY + effectiveGap
-            centerY = bottom + (height / 2)
-            currentY = bottom + height  -- top of this element
+            currentY = currentY - gap
+            topY = currentY
+            centerY = currentY - height / 2
+            if key == "primaryRow" then
+                primaryTopY = topY
+            end
+            currentY = currentY - height
         end
-        
-        print(string.format("  [%d] %s: height=%d, gap=%d (eff:%d), bottom=%s, centerY=%s %s", 
-            element.priority, element.name, height, element.gap, effectiveGap, tostring(bottom), tostring(centerY), status))
+
+        table.insert(allElements, {
+            key = key, height = height, gap = gap,
+            topY = topY, centerY = centerY, status = status,
+        })
     end
-    
-    print("  Stack top:", currentY)
+
+    local offset = 0
+    if primaryTopY then
+        offset = PRIMARY_TOP_OFFSET - primaryTopY
+    else
+        local stackHeight = -currentY
+        offset = stackHeight / 2
+    end
+
+    print("  Offset:", offset, "(primaryTopY:", tostring(primaryTopY), ")")
+
+    for i, elem in ipairs(allElements) do
+        local finalCenter = elem.centerY and (elem.centerY + offset) or "n/a"
+        local finalTop = elem.topY and (elem.topY + offset) or "n/a"
+        print(string.format("  [%d] %s: height=%d, gap=%d, top=%s, center=%s %s",
+            i, elem.key, elem.height, elem.gap,
+            tostring(finalTop), tostring(finalCenter), elem.status))
+    end
+
+    print("  Stack bottom:", currentY + offset)
 end
