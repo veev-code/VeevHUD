@@ -79,6 +79,16 @@ Dynamic Sort is disabled by default.
 
 Small icons above the health bar for important temporary buffs: Enrage, Flurry, Clearcasting, and more. They appear only when active, with configurable glows, backdrop halo, slide animations, and duration text.
 
+### Buff Reminders
+
+Large, semi-transparent icons that appear when you're missing an important long-duration buff — Battle Shout, Inner Fire, poisons, weapon imbues, Mark of the Wild, and more. Think of them as a gentle nudge to rebuff, separate from the main HUD's rotational tracking.
+
+*   **Works out of the box** — Pre-configured for every class with sensible defaults
+*   **Buff group awareness** — Understands equivalent buffs (Fortitude / Prayer of Fortitude), exclusive buffs (Battle Shout / Commanding Shout), and weapon enchants (rogue poisons on both MH and OH)
+*   **Smart pre-requisites** — Only reminds when the spell is known, you have the resources, and you're not resting, mounted, or on a taxi
+*   **Per-spell configuration** — Enable/disable individually, set time-remaining and stack thresholds, choose combat state (in combat / out of combat / any), and track against yourself, party, or raid
+*   **WeakAura-style animations** — Shrink-in, pulse, and grow-out effects with configurable icon size and opacity
+
 ### Health & Resource Bars
 
 Compact bars positioned with your HUD show health and mana/rage/energy at a glance.
@@ -98,6 +108,7 @@ VeevHUD is designed to work great out of the box, but nearly everything is confi
 *   **Bars** — Proc tracker, health bar, resource bar (with energy ticker and mana ticker sub-tabs), and combo points — each with size, text format, gradient, spark, and class coloring options
 *   **Rows** — Per-row settings for Primary, Secondary, and Utility: icon size, max icons, and flow layout (utility row wraps into multiple lines)
 *   **Spells** — Per-spell control: enable/disable, move between rows, adjust priority order via drag-and-drop
+*   **Buff Reminders** — Toggle the feature, adjust icon size/opacity/position, and configure individual spell reminders (enable/disable, thresholds, combat state, tracking scope, group priority)
 *   **Profiles** — Save and switch between configuration profiles. Automatic per-spec profile switching via LibDualSpec (dual spec users get separate profiles for each spec).
 
 Access settings via **/vh** in chat, or **ESC → Options → AddOns → VeevHUD**. Every setting shows its default value in the tooltip.

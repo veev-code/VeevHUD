@@ -8,8 +8,7 @@ Consolidated from Discord/Reddit feedback, internal ideas, and bug reports.
 
 Reported missing or broken spell support (not confirmed fixed):
 
-- **Shaman:** Weapon buff durations not tracked. *(Shadowhawk)*
-- **General:** Inconsistent buff tracking — some long buffs (Thorns, weapon buffs) track while others don't. *(Shadowhawk)*
+- **Druid:** Claw and Rake not available as selectable abilities. *(Soveliss)*
 
 ---
 
@@ -18,6 +17,7 @@ Reported missing or broken spell support (not confirmed fixed):
 - **Masque reload required on icon size / aspect ratio change** — Changing icon size or aspect ratio with Masque installed currently requires a UI reload. Investigate whether Masque's `ReSkin()` or `Group:ReSkin()` API can be called to update button skins in-place without a full reload.
 - **Desperate Prayer row assignment** — Should default to Utility row, not Primary/Secondary.
 - **Timer text rounding** — Buff/debuff minute display rounds *down* while WoW's native buff bar rounds *up* (e.g., addon shows "3m" when WoW shows "4m"). *(Shadowhawk)*
+- **Resource-gated cooldown transition** — When an ability comes off cooldown but the player lacks the resource (e.g., rage) to cast it, the icon transition is jarring — it briefly looks ready, then snaps to the "not usable" state instead of filling smoothly. Investigate a more seamless visual path for this case.
 
 ---
 
@@ -40,14 +40,15 @@ These were requested by multiple people or have strong gameplay impact.
 
 ## Feature Requests — Medium Priority
 
+- **Custom Buff/Debuff Display Near Health Bar** — Let users select arbitrary important buffs and debuffs to display near the health bar (extending beyond just procs), keeping all critical info in one place. *(Soveliss)*
+
 - **Configurable Bar/Icon Position** — Allow icons to appear above the health/resource bars instead of only below. Options: above primary, between primary/secondary, between secondary/utility, below all. *(FionaSilberpfeil, Shadowhawk)*
 - **Trinket Tracking** — Track trinket use/on-use cooldowns and proc buffs. Consider smart row assignment (throughput trinkets → secondary row, utility → utility row). *(Independent-Bother17)*
-- **Battle Shout / Short Buff Tracking** — Battle Shout doesn't appear in spell list. Also applies to other short-duration party buffs that need reapplication reminders. *(Shadowhawk, anonymous French warrior)*
-- **Missing Buff Alert / Inverse Glow** — Glow or visual indicator when an important buff is *missing* (e.g., Battle Shout fell off, self-buff expired). Opposite of the current "active proc" glow. *(Shadowhawk)*
 - **Grouped Category Icons** — Instead of separate icons for every totem/seal/blessing, show one icon per category (e.g., one Earth Totem icon, one Seal icon) that reflects whichever is currently active. Reduces icon clutter for Shamans and Paladins. *(Shadowhawk)*
-- **Track Shared Debuffs from Any Caster** — Debuffs like Faerie Fire and Sunder Armor should show on your HUD even when applied by another player, since only one instance of the debuff matters. *(Artvil)*
+- **Track Shared Debuffs from Any Caster** — Debuffs like Faerie Fire and Sunder Armor should show on your HUD even when applied by another player, since only one instance of the debuff matters. Should also handle cross-ability equivalence (e.g., Sunder Armor and Expose Armor share the same armor-reduction debuff slot). *(Artvil)*
 - **Totem Duration Tracking** — Basic duration tracking shipped in 1.0.50. Still considering a more comprehensive totem model (grouped category icons, element-aware UI). *(Shadowhawk)*
 - **Dual Countdown on Icons (CD + Debuff)** — For abilities where both a cooldown and a debuff matter (e.g., Mangle Cat — no CD but debuff is key), show a secondary timer in an icon corner so both can be tracked on one icon without adding a separate icon. *(Artvil)*
+- **Single-Application Buff Tracking** — Track buffs that can only exist on one target at a time (e.g., Prayer of Mending) regardless of current target. Show duration/stacks even when a different unit is targeted. *(Earth Shield tracking covered by Buff Reminders.)*
 - **Health Bar Improvements** — Potential enhancements:
   - Text options: max health, health deficit, whole numbers (not just "k" abbreviation)
 
@@ -56,8 +57,8 @@ These were requested by multiple people or have strong gameplay impact.
 ## Feature Requests — Low Priority / Ideas
 
 - **PvP Trinket Tracking** — Track PvP trinket cooldown.
-- **WoW Animation API** — Migrate animations to use WoW's built-in Animation system for smoother/more efficient playback.
-- **Separate Movable Buffs Bar** — A dedicated area for tracking buffs that can be positioned independently from the main HUD stack. *(Shadowhawk)*
+- **WoW Animation API** — Migrate animations to use WoW's built-in Animation system for smoother/more efficient playback. *(Buff Reminders already uses native Animation API; consider migrating other modules.)*
+- **Separate Movable Buffs Bar** — A dedicated area for tracking arbitrary buffs that can be positioned independently from the main HUD stack. *(Shadowhawk)* *(Maintenance buffs now covered by Buff Reminders; this request is for broader arbitrary buff tracking.)*
 
 ---
 
@@ -123,3 +124,11 @@ Items from feedback that have been completed, with the version they shipped in.
 | Health bar: custom color picker                                    | 1.0.41  | Beyond class-colored toggle *(Shadowhawk)*         |
 | Ultrawide monitor support: expanded X/Y offset range               | 1.0.49  | Range beyond ±500 px for ultrawide resolutions     |
 | Shaman: Totem duration tracking                                    | 1.0.50  | All totems show active duration countdown, 1-per-element enforced |
+| Buff Reminders                                                     | 1.0.51  | Missing/expiring buff alerts with per-spell config, BuffGroup-aware, WeakAura-style animations |
+| Battle Shout / Short Buff Tracking                                 | 1.0.51  | Covered by Buff Reminders (all LONG_BUFF spells)   |
+| Missing Buff Alert / Inverse Glow                                  | 1.0.51  | Covered by Buff Reminders                          |
+| Buff Expiry Reminders                                              | 1.0.51  | Covered by Buff Reminders with time threshold config |
+| Lightning Shield Stack Tracking                                    | 1.0.51  | Covered by Buff Reminders with min stacks config   |
+| Shaman: Weapon buff duration tracking                              | 1.0.51  | Buff Reminders tracks weapon enchants via GetWeaponEnchantInfo |
+| Long buff tracking consistency (Thorns, weapon buffs, etc.)        | 1.0.51  | All LONG_BUFF spells now tracked by Buff Reminders |
+| Earth Shield party/raid tracking                                   | 1.0.51  | Covered by Buff Reminders with party/raid target config |

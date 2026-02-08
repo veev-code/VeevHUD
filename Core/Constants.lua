@@ -394,6 +394,24 @@ C.DEFAULTS = {
             keybindTextSize = 12,  -- Font size in pixels for keybind text
         },
         
+        -- Buff Reminders (long-duration buff tracking, separate from HUD)
+        buffReminders = {
+            enabled = true,
+            iconSize = 128,
+            iconSpacing = 8,
+            alpha = 0.25,     -- Semi-transparent reminder (not meant to obscure gameplay)
+            anchor = {
+                point = "BOTTOM",
+                relativePoint = "TOP",
+                x = 0,
+                y = 24,  -- Positioned above main HUD
+            },
+            -- Per-spell overrides stored sparsely:
+            -- spellConfig[spellID] = { enabled, timeRemaining, minStacks, combatState, trackTarget, priority }
+            -- Absence = use computed defaults
+            spellConfig = {},
+        },
+
         -- Per-spec spell configuration (sparse storage)
         -- Format: spellConfig[specKey][spellID] = { enabled, rowIndex, order }
         -- specKey = "CLASS_SPEC" (e.g., "WARRIOR_FURY")

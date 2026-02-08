@@ -1,5 +1,31 @@
 # VeevHUD Changelog
 
+## [1.0.51] - 2026-02-08
+
+### Added
+
+- **Buff Reminders** — A new feature that shows large, semi-transparent reminder icons when you're missing an important long-duration buff. Works out of the box for every class with sensible defaults — just install and go. Covers all maintenance buffs: Battle Shout, Inner Fire, Mark of the Wild, Fortitude, weapon enchants, and many more. *(Shadowhawk, anonymous French warrior)*
+  - **Buff group awareness** — Understands equivalent buffs (Fortitude / Prayer of Fortitude share one reminder), exclusive buffs (Battle Shout / Commanding Shout — configure which to prioritize), and weapon enchants (rogue poisons check both MH and OH; shaman imbues check based on weapon setup)
+  - **Smart pre-requisites** — Reminders only appear when the spell is known, you have the resources to cast it, and you're not resting, mounted, or on a taxi
+  - **Per-spell configuration** — Enable/disable individually, set time-remaining and stack thresholds (Inner Fire, Water Shield, Lightning Shield), choose combat state (in combat / out of combat / any), and track against yourself, party, or raid
+  - **Intelligent defaults** — Purgeable long-duration buffs (Fortitude, MOTW) default to out-of-combat only; short/non-purgeable buffs (Battle Shout, Demon Armor) default to any. Situational buffs (Water Walking, Detect Invisibility, Righteous Fury) are disabled by default
+  - **Permanent aura handling** — Auras and aspects (Trueshot Aura, Devotion Aura, Aspect of the Hawk) are treated as toggles with no time threshold or party tracking, since allies are either in range or not
+  - **WeakAura-style animations** — Shrink-in, pulse, and grow-out effects using WoW's native Animation API. Smooth flicker-free pulse via ordered REPEAT animations
+  - **Live preview** — A "Show Preview" button in settings displays a sample reminder icon so you can see your size/opacity/position changes in real-time
+  - **Configurable appearance** — Icon size (up to 400px), opacity, spacing, and position offset relative to the HUD
+  - **Migration notice** — Existing users see a one-time popup explaining the new feature and how to configure or disable it
+- **Buff Reminder options tab** — New "Buff Reminders" tab in `/vh` settings with a Settings sub-tab (master toggle, appearance, position, preview) and a Spells sub-tab (per-spell enable/disable, thresholds, combat state, tracking scope, and group priority). Spells are sorted with important buffs first, situational buffs last.
+
+### Fixed
+
+- **Options initialization order** — Fixed a race condition where the options panel could build its UI before other modules (like Buff Reminders) were initialized, causing incorrect default values to appear. Options table construction is now deferred until the panel is first opened.
+
+### LibSpellDB Updates
+- New `BuffGroups` system for modeling relationships between related buffs (equivalent and exclusive groups), with weapon enchant support for poisons and imbues
+- Comprehensive long-duration buff data added for all 9 classes with `LONG_BUFF` tags, `dispelType` fields, and group membership
+- New `SITUATIONAL` tag for niche utility spells (Water Walking, Detect Invisibility, etc.)
+- New APIs: `GetDispelType()`, `GetBuffGroup()`, `GetBuffGroupSpells()`, `IsInBuffGroup()`, `GetBuffGroupRelationship()`
+
 ## [1.0.50] - 2026-02-07
 
 ### Added
