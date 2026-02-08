@@ -12,6 +12,7 @@
 ]]
 
 local ADDON_NAME, addon = ...
+local C = addon.Constants
 
 local BuffReminders = {}
 addon:RegisterModule("BuffReminders", BuffReminders)
@@ -346,7 +347,11 @@ local function SetupAnimations(frame)
     -- When shrink-in finishes, restore scale and start the pulse loop
     startGroup:SetScript("OnFinished", function()
         frame:SetScale(1)
-        if frame:IsShown() and frame._brPulseGroup then
+        frame._brVisible = true
+        -- frame is the visual child; check the positioning parent's visibility
+        local posFrame = frame:GetParent()
+        if posFrame:IsShown() and frame._brPulseGroup
+           and addon.db.profile.buffReminders.pulseEnabled then
             frame._brPulseGroup:Play()
         end
     end)
@@ -395,10 +400,12 @@ local function SetupAnimations(frame)
     -- When grow-out finishes, hide the frame and check if container can hide
     finishGroup:SetScript("OnFinished", function()
         frame:SetScale(1)
-        frame:Hide()
         frame:SetAlpha(0)
+        -- frame is the visual child; hide the positioning parent
+        local posFrame = frame:GetParent()
+        posFrame:Hide()
         -- If no visible icons remain and no other frames are animating out, hide container
-        local container = frame:GetParent()
+        local container = posFrame:GetParent()
         if container and container:IsShown() then
             local anyVisible = false
             for _, child in pairs(BuffReminders.iconPool) do
@@ -416,84 +423,143 @@ local function SetupAnimations(frame)
     frame._brFinishGroup = finishGroup
 end
 
--- Stop all animations on a frame
+-- Stop all animations on a frame (animations live on frame.visual)
 local function AnimStopAll(frame)
-    if frame._brStartGroup then frame._brStartGroup:Stop() end
-    if frame._brPulseGroup then frame._brPulseGroup:Stop() end
-    if frame._brFinishGroup then frame._brFinishGroup:Stop() end
+    local v = frame.visual or frame
+    if v._brStartGroup then v._brStartGroup:Stop() end
+    if v._brPulseGroup then v._brPulseGroup:Stop() end
+    if v._brFinishGroup then v._brFinishGroup:Stop() end
 end
 
 -- Start appear animation on a frame
 local function AnimAppear(frame)
     AnimStopAll(frame)
-    frame:SetAlpha(0)
+    local v = frame.visual or frame
+    v._brVisible = false
+    v:SetAlpha(0)
     frame:Show()
-    frame._brStartGroup:Play()
+    v:Show()
+    v._brStartGroup:Play()
 end
 
 -- Start disappear animation on a frame (will Hide when done via OnFinished)
 local function AnimDisappear(frame)
-    if frame._brFinishGroup and frame._brFinishGroup:IsPlaying() then return end
+    local v = frame.visual or frame
+    if v._brFinishGroup and v._brFinishGroup:IsPlaying() then return end
     AnimStopAll(frame)
-    frame:SetAlpha(1)
-    frame._brFinishGroup:Play()
+    v._brVisible = false
+    v:SetAlpha(1)
+    v._brFinishGroup:Play()
 end
 
 -- Immediately stop and hide (no animation)
 local function AnimStop(frame)
     AnimStopAll(frame)
-    frame:SetAlpha(0)
+    local v = frame.visual or frame
+    v._brVisible = false
+    v:SetAlpha(0)
     frame:Hide()
 end
 
 -- Check if a frame is in the pulsing (fully visible) state
 local function AnimIsPulsing(frame)
-    return frame._brPulseGroup and frame._brPulseGroup:IsPlaying()
+    local v = frame.visual or frame
+    return v._brPulseGroup and v._brPulseGroup:IsPlaying()
 end
 
 -- Check if a frame is actively animating in (shrink-in still playing)
 local function AnimIsAppearing(frame)
-    return frame._brStartGroup and frame._brStartGroup:IsPlaying()
+    local v = frame.visual or frame
+    return v._brStartGroup and v._brStartGroup:IsPlaying()
 end
 
 -------------------------------------------------------------------------------
 -- Icon Creation and Management
 -------------------------------------------------------------------------------
 
-function BuffReminders:GetOrCreateIcon(index)
-    if self.iconPool[index] then
-        return self.iconPool[index]
+function BuffReminders:GetOrCreateIcon(key)
+    if self.iconPool[key] then
+        return self.iconPool[key]
     end
 
     local db = addon.db and addon.db.profile and addon.db.profile.buffReminders
     local iconSize = db and db.iconSize or 64
 
-    -- Frame for animations (scale/alpha)
+    -- Positioning frame: anchored by LayoutIcons, never scaled
     local frame = CreateFrame("Frame", nil, self.containerFrame)
     frame:SetSize(iconSize, iconSize)
     frame:SetFrameStrata("HIGH")
     frame:SetFrameLevel(20)
 
-    -- Spell icon texture — no zoom, use the game's built-in icon border
-    local icon = frame:CreateTexture(nil, "ARTWORK")
+    -- Visual frame: child that receives scale/alpha animations.
+    -- Centered on the positioning frame so SetScale() on this child
+    -- doesn't shift the icon's anchor position.
+    local visual = CreateFrame("Frame", nil, frame)
+    visual:SetSize(iconSize, iconSize)
+    visual:SetPoint("CENTER")
+
+    -- Spell icon texture on the visual frame
+    local icon = visual:CreateTexture(nil, "ARTWORK")
     icon:SetAllPoints()
     frame.icon = icon
+    frame.visual = visual
 
-    -- Build animation groups (native WoW API - safe without CooldownFrameTemplate)
-    SetupAnimations(frame)
+    -- Text overlay frame: child of positioning frame (not visual) so it
+    -- is unaffected by scale animations. Higher frame level to render on top.
+    local textFrame = CreateFrame("Frame", nil, frame)
+    textFrame:SetAllPoints(frame)
+    textFrame:SetFrameLevel(frame:GetFrameLevel() + 5)
+    frame.textFrame = textFrame
+
+    -- Cooldown/duration text (center, matching CooldownIcons style)
+    local fontSize = math.max(14, math.floor(iconSize * 0.38))
+    local text = textFrame:CreateFontString(nil, "OVERLAY", nil, 7)
+    text:SetFont(addon:GetFont(), fontSize, "OUTLINE")
+    text:SetPoint("CENTER", textFrame, "CENTER", 0, 0)
+    text:SetTextColor(C.COLORS.TEXT.r, C.COLORS.TEXT.g, C.COLORS.TEXT.b)
+    text:SetShadowOffset(0.5, -0.5)
+    text:SetShadowColor(0, 0, 0, 0.5)
+    frame.text = text
+
+    -- Stacks text (top right, matching CooldownIcons style)
+    local stacksFontSize = math.max(10, math.floor(iconSize * 0.26))
+    local stacks = textFrame:CreateFontString(nil, "OVERLAY", nil, 7)
+    stacks:SetFont(addon:GetFont(), stacksFontSize, "OUTLINE")
+    stacks:SetPoint("TOPRIGHT", textFrame, "TOPRIGHT", 2, 2)
+    stacks:SetJustifyH("RIGHT")
+    stacks:SetJustifyV("TOP")
+    stacks:SetTextColor(C.COLORS.TEXT.r, C.COLORS.TEXT.g, C.COLORS.TEXT.b)
+    frame.stacks = stacks
+
+    -- Build animation groups on the visual frame
+    SetupAnimations(visual)
 
     frame:Hide()
 
-    self.iconPool[index] = frame
+    self.iconPool[key] = frame
     return frame
 end
 
 function BuffReminders:UpdateIconSize()
     local db = addon.db and addon.db.profile and addon.db.profile.buffReminders
     local iconSize = db and db.iconSize or 64
+    local fontSize = math.max(14, math.floor(iconSize * 0.38))
+    local stacksFontSize = math.max(10, math.floor(iconSize * 0.26))
 
     for _, frame in pairs(self.iconPool) do
         frame:SetSize(iconSize, iconSize)
+        if frame.visual then
+            frame.visual:SetSize(iconSize, iconSize)
+        end
+        if frame.textFrame then
+            frame.textFrame:SetAllPoints(frame)
+        end
+        if frame.text then
+            frame.text:SetFont(addon:GetFont(), fontSize, "OUTLINE")
+        end
+        if frame.stacks then
+            frame.stacks:SetFont(addon:GetFont(), stacksFontSize, "OUTLINE")
+        end
     end
 end
 
@@ -852,11 +918,11 @@ function BuffReminders:OnUpdate()
     local mounted = IsMounted()
     local onTaxi = UnitOnTaxi("player")
     
-    if resting then
+    if resting and not db.buffReminders.showWhileResting then
         self:HideAll()
         return
     end
-    if mounted then
+    if mounted and not db.buffReminders.showWhileMounted then
         self:HideAll()
         return
     end
@@ -886,10 +952,36 @@ function BuffReminders:OnUpdate()
             -- Get highest known rank for icon
             local highestRank = self.LibSpellDB:GetHighestKnownRank(displaySpellID)
             
+            -- Fetch remaining/stacks for text display (only meaningful
+            -- when buff exists but is expiring or low on stacks)
+            local config = self:GetSpellConfig(spellID)
+            local alertRemaining, alertStacks
+            if config then
+                local showTime = config.timeRemaining and config.timeRemaining > 0
+                local showStacks = config.minStacks and config.minStacks > 0
+                if showTime or showStacks then
+                    local found, remaining, stacks
+                    if reminder.buffGroup then
+                        local groupInfo = self.LibSpellDB.BuffGroups[reminder.buffGroup]
+                        if groupInfo then
+                            found, remaining, stacks = self:IsBuffGroupOnUnit("player", groupInfo.spells)
+                        end
+                    else
+                        found, remaining, stacks = self:IsBuffOnUnit("player", spellID)
+                    end
+                    if found then
+                        if showTime then alertRemaining = remaining end
+                        if showStacks then alertStacks = stacks end
+                    end
+                end
+            end
+
             table.insert(alertList, {
                 spellID = spellID,
                 displaySpellID = highestRank or displaySpellID,
                 reminder = reminder,
+                remaining = alertRemaining,
+                stacks = alertStacks,
             })
         end
     end
@@ -982,11 +1074,12 @@ function BuffReminders:UpdateVisibleIcons(alertList)
         return
     end
 
-    -- Create/update icons for each alert
+    -- Create/update icons for each alert, keyed by spellID so each spell
+    -- gets a stable frame that persists across updates
     for i, alert in ipairs(alertList) do
-        local frame = self:GetOrCreateIcon(i)
-        local sameSpell = frame._brSpellID == alert.spellID
-        local wasAlreadyShown = sameSpell and (AnimIsPulsing(frame) or AnimIsAppearing(frame))
+        local frame = self:GetOrCreateIcon(alert.spellID)
+        local v = frame.visual or frame
+        local wasAlreadyShown = frame:IsShown() and (AnimIsPulsing(frame) or AnimIsAppearing(frame) or v._brVisible)
 
         -- Tag the frame with its current spell
         frame._brSpellID = alert.spellID
@@ -1000,6 +1093,23 @@ function BuffReminders:UpdateVisibleIcons(alertList)
         -- Animate: appear with shrink-in (or keep pulsing if already shown)
         if not wasAlreadyShown then
             AnimAppear(frame)
+        end
+
+        -- Update duration/stacks text (after AnimAppear so frame is visible
+        -- and font strings can resolve their anchor positions)
+        if frame.text then
+            if alert.remaining and alert.remaining > 0 and alert.remaining < 999999 then
+                frame.text:SetText(self.Utils:FormatCooldown(alert.remaining))
+            else
+                frame.text:SetText("")
+            end
+        end
+        if frame.stacks then
+            if alert.stacks then
+                frame.stacks:SetText(alert.stacks)
+            else
+                frame.stacks:SetText("")
+            end
         end
 
         table.insert(self.visibleIcons, frame)
@@ -1086,8 +1196,8 @@ function BuffReminders:ShowPreview()
     if not self.initialized then return end
     if not self.containerFrame then return end
 
-    -- Use existing icon slot 1 or create one
-    local frame = self:GetOrCreateIcon(999)  -- High index to avoid clashing with real icons
+    -- Use a unique key that won't collide with spellID-keyed pool entries
+    local frame = self:GetOrCreateIcon("preview")
 
     -- Pick an icon for this class
     local previewSpellID = PREVIEW_ICONS[self.playerClass] or 2457

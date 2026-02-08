@@ -1,5 +1,20 @@
 # VeevHUD Changelog
 
+## [1.0.57] - 2026-02-08
+
+### Added
+
+- **Buff Reminders: Pulse Animation Toggle** — New option under Buff Reminders > Behavior to disable the breathing pulse effect. Icons still appear and disappear with animation but remain static while visible.
+- **Buff Reminders: Show While Resting/Mounted** — New options to keep buff reminders visible in inns/cities and while mounted. Both default to off (existing behavior).
+- **Buff Reminders: Duration & Stack Text** — When a spell's time threshold or min stacks setting is greater than zero, the remaining duration or current stack count is now shown directly on the reminder icon, matching the style of the main HUD cooldown icons.
+- **Buff Reminders: Time Threshold Max** — Increased the maximum configurable time threshold from 5 minutes to 10 minutes.
+
+### LibSpellDB Updates
+- Added `name` and `description` fields to all 451 spell entries (sourced from Wowhead TBC tooltips)
+- Comprehensive cooldown/duration audit against Wowhead TBC database — 30+ corrections across all classes
+- Druid: Omen of Clarity now marked as `dispelType = "Magic"` (purgeable), so Buff Reminders defaults to combat-aware visibility
+- Added audit tooling (`Tools/wowhead_audit.py`) for ongoing spell data maintenance
+
 ## [1.0.56] - 2026-02-08
 
 ### Added

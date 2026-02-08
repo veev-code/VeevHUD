@@ -1649,7 +1649,7 @@ function Options:BuildBuffRemindersOptions()
 							type = "range",
 							name = "Time Threshold",
 							desc = "Show the reminder when the buff has less than this many seconds remaining. Set to 0 to only remind when the buff is completely missing.",
-							min = 0, max = 300, step = 5,
+							min = 0, max = 600, step = 5,
 							hidden = not spellData.duration or spellData.duration == 0,  -- Hide for permanent auras/toggles
 							disabled = isSpellDisabled,
 							get = function()
@@ -1825,7 +1825,7 @@ function Options:BuildBuffRemindersOptions()
 				args = {
 					description = {
 						type = "description",
-						name = "Buff Reminders show a large, semi-transparent icon when a long-duration buff you should maintain is missing or about to expire. They are separate from the main HUD icons and only appear when action is needed.\n\nReminders automatically check that you know the spell, have the resources to cast it, and aren't resting, mounted, or on a taxi. Use the Spells tab to configure individual reminders.\n",
+						name = "Buff Reminders show a large, semi-transparent icon when a long-duration buff you should maintain is missing or about to expire. They are separate from the main HUD icons and only appear when action is needed.\n\nReminders automatically check that you know the spell and have the resources to cast it. Use the Spells tab to configure individual reminders.\n",
 						fontSize = "medium",
 						order = 0,
 					},
@@ -1870,6 +1870,39 @@ function Options:BuildBuffRemindersOptions()
 								min = 0.1, max = 1.0, step = 0.05,
 								isPercent = true,
 								arg = "buffReminders.alpha",
+								order = 3,
+							},
+						},
+					},
+					behavior = {
+						type = "group",
+						name = "Behavior",
+						inline = true,
+						order = 2.5,
+						disabled = function()
+							local db = addon.db and addon.db.profile
+							return db and not db.buffReminders.enabled
+						end,
+						args = {
+							pulseEnabled = {
+								type = "toggle",
+								name = "Pulse Animation",
+								desc = "When enabled, reminder icons gently pulse to draw attention.",
+								arg = "buffReminders.pulseEnabled",
+								order = 1,
+							},
+							showWhileResting = {
+								type = "toggle",
+								name = "Show While Resting",
+								desc = "Show buff reminders while in inns and cities.",
+								arg = "buffReminders.showWhileResting",
+								order = 2,
+							},
+							showWhileMounted = {
+								type = "toggle",
+								name = "Show While Mounted",
+								desc = "Show buff reminders while mounted.",
+								arg = "buffReminders.showWhileMounted",
 								order = 3,
 							},
 						},
