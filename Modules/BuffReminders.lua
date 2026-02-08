@@ -77,20 +77,20 @@ function BuffReminders:GetSpellDefaults(spellID)
         defaults.combatState = COMBAT_STATE.OOC
     end
     
-    -- Determine track target based on auraTarget
+    -- Flag whether this spell supports group tracking (Party/Raid).
     -- Permanent buffs (no duration) are auras/toggles — allies either have it
     -- from being in range or they don't. Party tracking is not meaningful.
+    -- Default trackTarget is always PLAYER; users opt into Party/Raid.
+    defaults.groupTrackable = false
     if spellData.duration and spellData.duration > 0 then
         local auraTarget = LibSpellDB:GetAuraTarget(spellID)
         if auraTarget == "ally" then
-            defaults.trackTarget = TRACK_TARGET.PARTY
+            defaults.groupTrackable = true
         elseif auraTarget == "none" then
-            -- "none" for buff reminders typically means party/raid buff
-            -- (totems use "none" but LONG_BUFF party buffs also use it)
             if spellData.tags then
                 for _, tag in ipairs(spellData.tags) do
                     if tag == "BUFF" or tag == "LONG_BUFF" then
-                        defaults.trackTarget = TRACK_TARGET.PARTY
+                        defaults.groupTrackable = true
                         break
                     end
                 end

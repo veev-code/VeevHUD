@@ -1584,7 +1584,7 @@ function Options:BuildBuffRemindersOptions()
 							desc = "Who to check for this buff.\n\n|cffffffffPlayer|r: Only check yourself.\n|cffffffffParty|r: Check all party members (or only yourself if solo).\n|cffffffffRaid|r: Check all raid members (downsizes to party if not in a raid).",
 							values = trackTargetValues,
 							sorting = {"player", "party", "raid"},
-							hidden = defaultTrackTarget == "player",  -- Hide for self-only buffs / weapon enchants
+							hidden = not (defaults and defaults.groupTrackable),  -- Hide for self-only buffs / weapon enchants
 							disabled = isSpellDisabled,
 							get = function()
 								local db = addon.db and addon.db.profile and addon.db.profile.buffReminders

@@ -1,5 +1,20 @@
 # VeevHUD Changelog
 
+## [1.0.52] - 2026-02-08
+
+### Added
+
+- **Druid: Claw and Rake** — Now available as selectable abilities on the Feral Druid HUD. Rake shows energy prediction first, then displays the active debuff when you have enough energy to reapply. *(Soveliss)*
+
+### Changed
+
+- **Improved aura display for cooldown-priority abilities** — Spells like Mortal Strike, Bloodthirst, Rake, Hemorrhage, and Mangle now show their active buff or debuff once the cooldown finishes, instead of hiding the aura entirely. Stack counts (e.g., Bloodthirst heal charges) always display.
+- **Buff Reminders: default tracking scope** — All buff reminders now default to tracking yourself only. Party and Raid tracking are available as opt-in options for group-oriented buffs like Fortitude and Mark of the Wild.
+
+### LibSpellDB Updates
+- Added Claw (6 ranks) and Rake (5 ranks) for Feral Druid
+- Renamed `ignoreAura` to `cooldownPriority` — aura display is now suppressed only while on cooldown, rather than hidden entirely
+
 ## [1.0.51] - 2026-02-08
 
 ### Added

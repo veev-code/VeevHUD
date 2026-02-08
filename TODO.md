@@ -131,4 +131,5 @@ Items from feedback that have been completed, with the version they shipped in.
 | Lightning Shield Stack Tracking                                    | 1.0.51  | Covered by Buff Reminders with min stacks config   |
 | Shaman: Weapon buff duration tracking                              | 1.0.51  | Buff Reminders tracks weapon enchants via GetWeaponEnchantInfo |
 | Long buff tracking consistency (Thorns, weapon buffs, etc.)        | 1.0.51  | All LONG_BUFF spells now tracked by Buff Reminders |
+| Druid: Claw and Rake as selectable abilities                       | 1.0.52  | Added to LibSpellDB + cooldownPriority display     |
 | Earth Shield party/raid tracking                                   | 1.0.51  | Covered by Buff Reminders with party/raid target config |
