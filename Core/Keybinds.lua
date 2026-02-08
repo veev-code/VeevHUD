@@ -352,19 +352,37 @@ end
 -- Handles direct spells AND macros that cast the spell
 -- Supports Bartender4, ElvUI, and default UI
 -- Returns the formatted keybind string (e.g., "SX") or nil if not found
+--
+-- Two-pass scan: first looks for an exact spell ID match (same rank),
+-- then falls back to name-based matching (any rank) and macro detection.
+-- This ensures max-rank keybinds are preferred over low-rank ones when
+-- both are present on the action bar.
 function Keybinds:GetKeybindForSpell(spellID)
     if not spellID then return nil end
-    
+
     -- Check cache first
     local cached = self._cache[spellID]
     if cached ~= nil then
         return cached or nil  -- cached is false if not found, or string if found
     end
-    
+
     -- Determine max slots to scan based on addon
     local maxSlots = _G["Bartender4"] and MAX_SLOTS_BARTENDER4 or MAX_SLOTS_DEFAULT
-    
-    -- Scan all action bar slots
+
+    -- Pass 1: Exact spell ID match only (prefer same-rank keybinds)
+    for slot = 1, maxSlots do
+        local actionType, actionID = GetActionInfo(slot)
+        if actionType == "spell" and actionID == spellID then
+            local key = GetKeybindForSlot(slot)
+            if key then
+                local formatted = self:FormatKeybind(key)
+                self._cache[spellID] = formatted
+                return formatted
+            end
+        end
+    end
+
+    -- Pass 2: Name-based match (any rank) and macro detection
     for slot = 1, maxSlots do
         if SlotContainsSpell(slot, spellID) then
             local key = GetKeybindForSlot(slot)
@@ -373,10 +391,9 @@ function Keybinds:GetKeybindForSpell(spellID)
                 self._cache[spellID] = formatted
                 return formatted
             end
-            -- Found spell but no keybind on this slot - continue searching
         end
     end
-    
+
     -- Not found or no keybind
     self._cache[spellID] = false
     return nil

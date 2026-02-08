@@ -1,5 +1,22 @@
 # VeevHUD Changelog
 
+## [1.0.56] - 2026-02-08
+
+### Added
+
+- **Totemic Call Support** — Casting Totemic Call now instantly clears all active totem duration timers on the HUD, instead of waiting for each totem to expire individually. *(Shadowhawk)*
+
+### Fixed
+
+- **Keybind display for ranked spells** — When multiple ranks of a spell are on your action bar, the keybind shown on icons now correctly prefers the exact rank match. Previously, a lower-rank keybind could display instead of the max-rank one.
+- **Cooldown text: m:ss format for 1–5 minute durations** — Durations between 1 and 5 minutes now show as `m:ss` (e.g., `2:30`) instead of rounding to whole minutes, giving more precise feedback on long cooldowns.
+
+### LibSpellDB Updates
+- Added Totemic Call (36936) with `clearsTotems` field for totem-recall detection
+- Fixed Searing Totem duration: 55s → 60s
+- Fixed Healing Stream Totem duration: 60s → 120s
+- Fixed Mana Spring Totem duration: 60s → 120s
+
 ## [1.0.55] - 2026-02-08
 
 ### Fixed
