@@ -20,6 +20,7 @@ Reported missing or broken spell support (not confirmed fixed):
 - **Resource-gated cooldown transition** — When an ability comes off cooldown but the player lacks the resource (e.g., rage) to cast it, the icon transition is jarring — it briefly looks ready, then snaps to the "not usable" state instead of filling smoothly. Investigate a more seamless visual path for this case.
 - **Absorb Shields not working** — Not displaying on health bar at all
 - Grow out animation on buff reminders can end somewhat abruptly
+- Usable mana prediction is sometimes off
 
 ---
 
@@ -35,7 +36,6 @@ These were requested by multiple people or have strong gameplay impact.
   - Paladin: seal twist timing window
   *(Togg, Shadowhawk, Artvil, RidiculedDaily, anonymous French warrior)*
 - **Built-in Cast Bar** — Replace Blizzard's default cast bar with one integrated into the HUD layout. *(Togg)*
-- **Druid: Form-Conditional Abilities** — Option to show/hide abilities based on current shapeshift form (e.g., hide caster spells in Cat Form, hide Cat abilities in caster form). *(Birdehh, Shadowhawk)*
 - **Druid: Mana Bar in Forms** — Show mana bar alongside energy/rage bar while shapeshifted, so Druids can monitor mana for shifting back. *(Birdehh, Shadowhawk)*
 
 ---
@@ -135,3 +135,4 @@ Items from feedback that have been completed, with the version they shipped in.
 | Druid: Claw and Rake as selectable abilities                       | 1.0.52  | Added to LibSpellDB + cooldownPriority display     |
 | Earth Shield party/raid tracking                                   | 1.0.51  | Covered by Buff Reminders with party/raid target config |
 | Configurable Bar/Icon Position                                     | 1.0.53  | Layout tab with element reordering and per-element gaps |
+| Druid: Form-Conditional Abilities                                  | 1.0.59  | Cat/bear form filtering with last-form memory          |

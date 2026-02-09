@@ -1,5 +1,16 @@
 # VeevHUD Changelog
 
+## [1.0.59] - 2026-02-08
+
+### Added
+
+- **Druid: Form-Conditional Abilities** — Feral druid abilities now dynamically filter based on your current shapeshift form. Cat abilities (Mangle, Shred, Rake, etc.) show in Cat Form; bear abilities (Mangle, Lacerate, Swipe, etc.) show in Bear Form. Shared abilities (Faerie Fire, Barkskin, etc.) always show. When in caster, travel, or aquatic form, your last cat/bear form's abilities remain visible. Defaults to cat on login. Only active for feral spec — balance and resto druids are unaffected. *(Birdehh, Shadowhawk)*
+
+### LibSpellDB Updates
+- New `CAT_FORM` and `BEAR_FORM` category tags for classifying feral druid spells by required form
+- 19 feral druid spells tagged: 9 cat-form, 10 bear-form
+- TBC_Rotations.md comprehensively rewritten against Wowhead/Icy Veins TBC Classic guides
+
 ## [1.0.58] - 2026-02-08
 
 ### Fixed

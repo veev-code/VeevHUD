@@ -88,6 +88,9 @@ CooldownIcons.iconsByRow = {}
 -- Spell to row assignment cache
 CooldownIcons.spellAssignments = {}
 
+-- Feral druid form tracking (session state, default to cat)
+CooldownIcons.activeFeralForm = "CAT"
+
 -- Icon naming counter for Masque
 CooldownIcons.iconCounter = 0
 
@@ -154,6 +157,11 @@ function CooldownIcons:Initialize()
     self.Events:RegisterEvent(self, "ACTIONBAR_SHOWGRID", self.OnActionBarChanged)
     self.Events:RegisterEvent(self, "ACTIONBAR_HIDEGRID", self.OnActionBarChanged)
 
+    -- Feral druid form tracking: rebuild rows when switching between cat/bear
+    if addon.playerClass == self.C.CLASS.DRUID then
+        self.Events:RegisterEvent(self, "UPDATE_SHAPESHIFT_FORM", self.OnShapeshiftFormChanged)
+    end
+
     self.Utils:LogInfo("CooldownIcons initialized")
 end
 
@@ -194,6 +202,26 @@ function CooldownIcons:OnPlayerEnteringWorld()
         self:RebuildAllRows()
         self:UpdateAllIcons()
     end)
+end
+
+function CooldownIcons:OnShapeshiftFormChanged()
+    local C = self.C
+    local form = GetShapeshiftForm()
+    local newFeralForm
+    if form == C.DRUID_FORM.CAT then
+        newFeralForm = "CAT"
+    elseif form == C.DRUID_FORM.BEAR then
+        newFeralForm = "BEAR"
+    end
+    -- Only update if switching between cat/bear (ignore caster/travel/aquatic)
+    if newFeralForm and newFeralForm ~= self.activeFeralForm then
+        self.activeFeralForm = newFeralForm
+        self.Utils:LogDebug("CooldownIcons: Feral form changed to", newFeralForm)
+        self:RebuildAllRows()
+        self:UpdateAllIcons()
+        self:RepositionRows()
+        self:RefreshIconPositions()
+    end
 end
 
 function CooldownIcons:OnSpellUpdate()
@@ -957,22 +985,35 @@ function CooldownIcons:RebuildAllRows()
     -- Assign each tracked spell to a row based on tags (or spellConfig override)
     local rowConfigs = addon.db.profile.rows
     local spellCfg = addon:GetSpellConfig()
+    local isFeralDruid = addon.playerClass == "DRUID" and addon.playerSpec == "FERAL"
 
     for spellID, trackedData in pairs(trackedSpells) do
         local spellData = trackedData.spellData
         local assigned = false
         local cfg = spellCfg[spellID] or {}
-        
+
+        -- Skip spells for the wrong feral form
+        local skipForm = false
+        if isFeralDruid then
+            local isCatSpell = LibSpellDB:HasTag(spellID, "CAT_FORM")
+            local isBearSpell = LibSpellDB:HasTag(spellID, "BEAR_FORM")
+            if (isCatSpell and self.activeFeralForm ~= "CAT") or
+               (isBearSpell and self.activeFeralForm ~= "BEAR") then
+                skipForm = true
+            end
+        end
+
+        if not skipForm then
         -- Check if spell has a row override in spellConfig
         if cfg.rowIndex then
             local rowIndex = cfg.rowIndex
             local rowConfig = rowConfigs[rowIndex]
-            
+
             if rowConfig and rowConfig.enabled then
                 if not self.iconsByRow[rowIndex] then
                     self.iconsByRow[rowIndex] = {}
                 end
-                
+
                 if #self.iconsByRow[rowIndex] < rowConfig.maxIcons then
                     table.insert(self.iconsByRow[rowIndex], {
                         spellID = spellID,  -- Canonical ID for identification
@@ -985,7 +1026,7 @@ function CooldownIcons:RebuildAllRows()
                 end
             end
         end
-        
+
         -- Default: Find first matching row based on tags
         if not assigned then
             for rowIndex, rowConfig in ipairs(rowConfigs) do
@@ -1014,6 +1055,7 @@ function CooldownIcons:RebuildAllRows()
                 end
             end
         end
+        end -- not skipForm
     end
 
     -- Sort spells within each row
