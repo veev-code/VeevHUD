@@ -295,6 +295,15 @@ C.DEFAULTS = {
                 sparkWidth = 12,      -- Width of the spark overlay (larger for visibility)
                 sparkHeight = 2.0,    -- Height multiplier relative to bar height
             },
+            -- Druid secondary mana bar (shows mana while in Cat/Bear Form)
+            druidManaBar = {
+                enabled = true,
+                height = 4,
+                textFormat = "none",
+                textSize = 9,
+                showSpark = true,
+                color = { r = 0.00, g = 0.00, b = 1.00 },
+            },
         },
 
         -- Health bar settings

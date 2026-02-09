@@ -1303,6 +1303,34 @@ function Options:BuildOptionsTable()
 							sparkHeight = { type = "range", name = "Spark Height", desc = "How tall the mana tick spark is relative to the resource bar. Values above 1.0 make it extend beyond the bar edges.", min = 0.5, max = 4.0, step = 0.1, arg = "resourceBar.manaTicker.sparkHeight", order = 4, disabled = function() return addon.db and addon.db.profile and not addon.db.profile.resourceBar.manaTicker.enabled end },
 						},
 					},
+				druidManaBar = {
+					type = "group",
+					name = "Mana Bar (Druid)",
+					order = 6,
+					hidden = function() return addon.playerClass ~= C.CLASS.DRUID end,
+					args = {
+						desc = {
+							type = "description",
+							name = "Shows a secondary mana bar below the resource bar while in Cat Form or Bear Form, so you can monitor mana for shifting and casting.",
+							order = 0,
+						},
+						enabled = { type = "toggle", name = "Enabled", desc = "Show a secondary mana bar below the resource bar while shapeshifted.", arg = "resourceBar.druidManaBar.enabled", order = 1, disabled = function() return addon.db and addon.db.profile and not addon.db.profile.resourceBar.enabled end },
+						height = { type = "range", name = "Height", desc = "How tall the secondary mana bar is in pixels.", min = 2, max = 30, step = 1, arg = "resourceBar.druidManaBar.height", order = 2, disabled = function() return addon.db and addon.db.profile and not addon.db.profile.resourceBar.druidManaBar.enabled end },
+						showSpark = { type = "toggle", name = "Show Spark", desc = "Shows a glowing spark at the current fill position on the mana bar.", arg = "resourceBar.druidManaBar.showSpark", order = 3, disabled = function() return addon.db and addon.db.profile and not addon.db.profile.resourceBar.druidManaBar.enabled end },
+						color = { type = "color", name = "Color", desc = "The color used for the secondary mana bar.", hasAlpha = false, get = colorGet, set = colorSet, arg = "resourceBar.druidManaBar.color", order = 4, disabled = function() return addon.db and addon.db.profile and not addon.db.profile.resourceBar.druidManaBar.enabled end },
+						textSettings = {
+							type = "group",
+							name = "Text",
+							inline = true,
+							order = 5,
+							disabled = function() return addon.db and addon.db.profile and not addon.db.profile.resourceBar.druidManaBar.enabled end,
+							args = {
+								textFormat = { type = "select", name = "Text Format", desc = "What text to display on the mana bar.", values = textFormatValues, arg = "resourceBar.druidManaBar.textFormat", order = 1 },
+								textSize = { type = "range", name = "Text Size", desc = "Font size for the mana bar text.", min = 6, max = 18, step = 1, arg = "resourceBar.druidManaBar.textSize", order = 2 },
+							},
+						},
+					},
+				},
 					health = {
 						type = "group",
 						name = "Health Bar",

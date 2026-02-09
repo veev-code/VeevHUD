@@ -36,7 +36,6 @@ These were requested by multiple people or have strong gameplay impact.
   - Paladin: seal twist timing window
   *(Togg, Shadowhawk, Artvil, RidiculedDaily, anonymous French warrior)*
 - **Built-in Cast Bar** — Replace Blizzard's default cast bar with one integrated into the HUD layout. *(Togg)*
-- **Druid: Mana Bar in Forms** — Show mana bar alongside energy/rage bar while shapeshifted, so Druids can monitor mana for shifting back. *(Birdehh, Shadowhawk)*
 
 ---
 
@@ -136,3 +135,4 @@ Items from feedback that have been completed, with the version they shipped in.
 | Earth Shield party/raid tracking                                   | 1.0.51  | Covered by Buff Reminders with party/raid target config |
 | Configurable Bar/Icon Position                                     | 1.0.53  | Layout tab with element reordering and per-element gaps |
 | Druid: Form-Conditional Abilities                                  | 1.0.59  | Cat/bear form filtering with last-form memory          |
+| Druid: Mana Bar in Forms                                           | 1.0.60  | Secondary mana bar in Cat/Bear Form with color/spark/text config |

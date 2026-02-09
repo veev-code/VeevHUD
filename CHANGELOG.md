@@ -1,5 +1,11 @@
 # VeevHUD Changelog
 
+## [1.0.60] - 2026-02-08
+
+### Added
+
+- **Druid: Mana Bar in Cat/Bear Form** — A secondary mana bar now appears below the resource bar when shapeshifted into Cat or Bear Form, so you can monitor mana for shifting and casting without leaving form. Includes configurable height, color picker, spark toggle, and text format. The mana ticker also moves to the secondary bar while in form. Enabled by default for all Druid specs. *(Birdehh, Shadowhawk)*
+
 ## [1.0.59] - 2026-02-08
 
 ### Added

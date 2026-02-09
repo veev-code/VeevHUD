@@ -42,29 +42,38 @@ end
 function ResourceBar:OnPlayerEnteringWorld()
     self:UpdatePowerType()
     self:UpdateBar()
-    
+
     -- Initialize form tracking for druids
     local TickTracker = addon.TickTracker
     if TickTracker and TickTracker.InitFormTracking then
         TickTracker:InitFormTracking()
     end
+
+    -- Initialize druid mana bar visibility based on current form
+    self:UpdateDruidManaBarVisibility()
 end
 
 function ResourceBar:OnPowerUpdate(event, unit, powerType)
     if unit == "player" then
         self:UpdateBar()
+        if powerType == "MANA" then
+            self:UpdateDruidManaBar()
+        end
     end
 end
 
 function ResourceBar:OnShapeshiftChange()
     self:UpdatePowerType()
     self:UpdateBar()
-    
+
     -- Notify TickTracker of form change (for druid powershifting support)
     local TickTracker = addon.TickTracker
     if TickTracker and TickTracker.OnShapeshiftChange then
         TickTracker:OnShapeshiftChange()
     end
+
+    -- Show/hide druid secondary mana bar based on current form
+    self:UpdateDruidManaBarVisibility()
 end
 
 -------------------------------------------------------------------------------
@@ -83,15 +92,23 @@ function ResourceBar:GetLayoutHeight()
 
     -- Include border in visual height (1px top + 1px bottom = 2px total)
     -- Include energy ticker height (bar-style ticker hangs below resource bar)
-    return db.height + 2 + self:GetTickerHeight()
+    -- Include druid mana bar height (when visible in Cat/Bear Form)
+    return db.height + 2 + self:GetTickerHeight() + self:GetManaBarHeight()
 end
 
 -- Position this element at the given Y offset (center of element)
 function ResourceBar:SetLayoutPosition(centerY)
     if not self.bar then return end
-    
+
+    -- Sub-elements (energy ticker bar, druid mana bar) hang below the main bar.
+    -- The layout system allocates space for the full composite height, so shift
+    -- the main bar upward by half the sub-element height to keep it centered
+    -- within its visual area rather than the entire allocation.
+    local subHeight = self:GetTickerHeight() + self:GetManaBarHeight()
+    local barOffset = subHeight / 2
+
     self.bar:ClearAllPoints()
-    self.bar:SetPoint("CENTER", self.bar:GetParent(), "CENTER", 0, centerY)
+    self.bar:SetPoint("CENTER", self.bar:GetParent(), "CENTER", 0, centerY + barOffset)
 end
 
 -------------------------------------------------------------------------------
@@ -132,6 +149,9 @@ function ResourceBar:CreateFrames(parent)
     -- Mana ticker (shows progress to next mana tick, only in 5SR)
     self:CreateManaTicker(bar, db)
 
+    -- Druid secondary mana bar (shows mana while in Cat/Bear Form)
+    self:CreateDruidManaBar(bar, db)
+
     -- Predicted cost overlay (darkened section showing pending resource deduction)
     self:CreateCostOverlay(bar)
 
@@ -159,7 +179,8 @@ function ResourceBar:RegisterUpdateIfNeeded()
     local energyTickerEnabled = tickerDb and tickerDb.enabled
     local manaTickerEnabled = manaTickerDb and manaTickerDb.enabled
     local needsEnergyTicker = energyTickerEnabled and isEnergy
-    local needsManaTicker = manaTickerEnabled and isMana
+    local druidManaBarVisible = self.manaBar and self.manaBar:IsShown()
+    local needsManaTicker = manaTickerEnabled and (isMana or druidManaBarVisible)
     
     -- Also need updates for mana rate tracking when prediction mode is enabled
     local isPredictionMode = iconsDb.resourceDisplayMode == self.C.RESOURCE_DISPLAY_MODE.PREDICTION
@@ -337,6 +358,234 @@ end
 
 function ResourceBar:CreateTickerGradient(ticker)
     self.tickerGradient = self.Utils:CreateBarGradient(ticker)
+end
+
+-------------------------------------------------------------------------------
+-- Druid Secondary Mana Bar
+-- Shows mana alongside energy/rage while shapeshifted into Cat or Bear Form
+-------------------------------------------------------------------------------
+
+function ResourceBar:CreateDruidManaBar(bar, db)
+    if addon.playerClass ~= self.C.CLASS.DRUID then return end
+    local manaDb = db.druidManaBar
+    if not manaDb or not manaDb.enabled then return end
+
+    local manaBar = self.Utils:CreateStatusBar(bar, db.width, manaDb.height)
+    manaBar:SetPoint("TOP", bar, "BOTTOM", 0, -1 - self:GetTickerHeight())
+    manaBar:SetMinMaxValues(0, 1)
+    manaBar:SetValue(0)
+    self.manaBar = manaBar
+
+    -- Color from config
+    local mc = manaDb.color
+    manaBar:SetStatusBarColor(mc.r, mc.g, mc.b)
+    manaBar.bg:SetVertexColor(mc.r * 0.2, mc.g * 0.2, mc.b * 0.2)
+
+    -- Border
+    self.manaBarBorder = self.Utils:CreateBarBorder(manaBar)
+
+    -- Gradient overlay
+    if addon.db.profile.appearance.showGradient then
+        self.manaBarGradient = self.Utils:CreateBarGradient(manaBar)
+    end
+
+    -- Spark (scaled to mana bar height)
+    if manaDb.showSpark then
+        local spark = manaBar:CreateTexture(nil, "OVERLAY")
+        spark:SetTexture([[Interface\CastingBar\UI-CastingBar-Spark]])
+        spark:SetBlendMode("ADD")
+        spark:SetSize(db.sparkWidth, manaDb.height + db.sparkOverflow)
+        spark:SetPoint("CENTER", manaBar, "LEFT", 0, 0)
+        spark:SetAlpha(0.9)
+        self.manaBarSpark = spark
+    end
+
+    -- Text
+    local text = manaBar:CreateFontString(nil, "OVERLAY")
+    text:SetFont(addon:GetFont(), manaDb.textSize, "OUTLINE")
+    text:SetPoint("CENTER")
+    self.manaBarText = text
+
+    -- Start hidden (shown by UpdateDruidManaBarVisibility on form change)
+    manaBar:Hide()
+end
+
+function ResourceBar:GetManaBarHeight()
+    if addon.playerClass ~= self.C.CLASS.DRUID then return 0 end
+    local db = addon.db.profile.resourceBar
+    local manaDb = db.druidManaBar
+    if not manaDb or not manaDb.enabled then return 0 end
+    if not self.manaBar or not self.manaBar:IsShown() then return 0 end
+    return manaDb.height + 1
+end
+
+function ResourceBar:UpdateDruidManaBarVisibility()
+    if not self.manaBar then return end
+
+    -- Respect the enabled setting
+    local db = addon.db.profile.resourceBar
+    local manaDb = db.druidManaBar
+    if not manaDb or not manaDb.enabled then
+        local wasVisible = self.manaBar:IsShown()
+        self.manaBar:Hide()
+        if wasVisible then
+            addon.Layout:Refresh()
+            self:RegisterUpdateIfNeeded()
+        end
+        return
+    end
+
+    local form = GetShapeshiftForm()
+    local C = self.C
+    local inForm = (form == C.DRUID_FORM.CAT or form == C.DRUID_FORM.BEAR)
+    local wasVisible = self.manaBar:IsShown()
+
+    if inForm then
+        -- Reposition below bar + ticker (ticker height may have changed)
+        local db = addon.db.profile.resourceBar
+        local manaDb = db.druidManaBar
+        self.manaBar:ClearAllPoints()
+        self.manaBar:SetPoint("TOP", self.bar, "BOTTOM", 0, -1 - self:GetTickerHeight())
+        self.manaBar:Show()
+        self:UpdateDruidManaBar()
+    else
+        self.manaBar:Hide()
+    end
+
+    if wasVisible ~= self.manaBar:IsShown() then
+        addon.Layout:Refresh()
+        -- Mana ticker may need to start/stop updating for the druid mana bar
+        self:RegisterUpdateIfNeeded()
+    end
+end
+
+function ResourceBar:UpdateDruidManaBar()
+    if not self.manaBar or not self.manaBar:IsShown() then return end
+    local mana = UnitPower("player", self.C.POWER_TYPE.MANA)
+    local maxMana = UnitPowerMax("player", self.C.POWER_TYPE.MANA)
+    if maxMana == 0 then maxMana = 1 end
+    local percent = mana / maxMana
+    self.manaBar:SetValue(percent)
+
+    -- Update spark position
+    self:UpdateManaBarSpark(percent)
+
+    local db = addon.db.profile.resourceBar.druidManaBar
+    if self.manaBarText and db.textFormat and db.textFormat ~= self.C.TEXT_FORMAT.NONE then
+        self.manaBarText:SetText(self.Utils:FormatBarText(mana, maxMana, percent, db.textFormat))
+    elseif self.manaBarText then
+        self.manaBarText:SetText("")
+    end
+end
+
+function ResourceBar:UpdateManaBarSpark(percent)
+    if not self.manaBarSpark then return end
+
+    local manaDb = addon.db.profile.resourceBar.druidManaBar
+    if not manaDb.showSpark then
+        self.manaBarSpark:Hide()
+        return
+    end
+
+    local db = addon.db.profile.resourceBar
+    if db.sparkHideFullEmpty then
+        if percent <= 0 or percent >= 1 then
+            self.manaBarSpark:Hide()
+            return
+        else
+            self.manaBarSpark:Show()
+        end
+    end
+
+    local barWidth = self.manaBar:GetWidth()
+    local sparkX = barWidth * percent
+    self.manaBarSpark:ClearAllPoints()
+    self.manaBarSpark:SetPoint("CENTER", self.manaBar, "LEFT", sparkX, 0)
+end
+
+function ResourceBar:RefreshDruidManaBar()
+    local db = addon.db.profile.resourceBar
+    local manaDb = db.druidManaBar
+    local enabled = manaDb and manaDb.enabled and addon.playerClass == self.C.CLASS.DRUID
+
+    if enabled then
+        -- Create if it doesn't exist yet
+        if not self.manaBar and self.bar then
+            self:CreateDruidManaBar(self.bar, db)
+        end
+
+        if self.manaBar then
+            -- Update size and position
+            self.manaBar:SetSize(db.width, manaDb.height)
+            self.manaBar:ClearAllPoints()
+            self.manaBar:SetPoint("TOP", self.bar, "BOTTOM", 0, -1 - self:GetTickerHeight())
+
+            -- Update texture
+            local barTexture = addon:GetBarTexture()
+            self.manaBar:SetStatusBarTexture(barTexture)
+            if self.manaBar.bg then
+                self.manaBar.bg:SetTexture(barTexture)
+            end
+
+            -- Update color
+            local mc = manaDb.color
+            self.manaBar:SetStatusBarColor(mc.r, mc.g, mc.b)
+            if self.manaBar.bg then
+                self.manaBar.bg:SetVertexColor(mc.r * 0.2, mc.g * 0.2, mc.b * 0.2)
+            end
+
+            -- Update border
+            if not self.manaBarBorder then
+                self.manaBarBorder = self.Utils:CreateBarBorder(self.manaBar)
+            end
+
+            -- Toggle gradient
+            local appearanceDb = addon.db.profile.appearance
+            if appearanceDb.showGradient then
+                if not self.manaBarGradient then
+                    self.manaBarGradient = self.Utils:CreateBarGradient(self.manaBar)
+                end
+                if self.manaBarGradient then
+                    self.manaBarGradient:Show()
+                end
+            else
+                if self.manaBarGradient then
+                    self.manaBarGradient:Hide()
+                end
+            end
+
+            -- Update spark
+            if manaDb.showSpark then
+                if not self.manaBarSpark then
+                    local spark = self.manaBar:CreateTexture(nil, "OVERLAY")
+                    spark:SetTexture([[Interface\CastingBar\UI-CastingBar-Spark]])
+                    spark:SetBlendMode("ADD")
+                    spark:SetPoint("CENTER", self.manaBar, "LEFT", 0, 0)
+                    spark:SetAlpha(0.9)
+                    self.manaBarSpark = spark
+                end
+                self.manaBarSpark:SetSize(db.sparkWidth, manaDb.height + db.sparkOverflow)
+                self.manaBarSpark:Show()
+            else
+                if self.manaBarSpark then
+                    self.manaBarSpark:Hide()
+                end
+            end
+
+            -- Update text font
+            if self.manaBarText then
+                self.manaBarText:SetFont(addon:GetFont(), manaDb.textSize, "OUTLINE")
+            end
+        end
+    else
+        -- Hide if disabled or not a druid
+        if self.manaBar then
+            self.manaBar:Hide()
+        end
+    end
+
+    -- Update visibility based on current form
+    self:UpdateDruidManaBarVisibility()
 end
 
 -------------------------------------------------------------------------------
@@ -693,16 +942,16 @@ function ResourceBar:OnUpdate()
     -- Energy ticker updates
     self:UpdateEnergyTicker()
     
-    -- Mana rate tracking (for prediction mode) and mana ticker
+    -- Mana rate tracking (for prediction mode) — only when main bar shows mana
     if self.powerType == self.C.POWER_TYPE.MANA then
         local ResourcePrediction = addon.ResourcePrediction
         if ResourcePrediction then
             ResourcePrediction:RecordManaSample()
         end
-        
-        -- Mana ticker updates (shows tick progress when in 5SR)
-        self:UpdateManaTicker()
     end
+
+    -- Mana ticker updates (on main bar when mana, or on druid mana bar in form)
+    self:UpdateManaTicker()
 end
 
 function ResourceBar:UpdateEnergyTicker()
@@ -804,26 +1053,47 @@ end
 
 function ResourceBar:UpdateManaTicker()
     if not self.manaTickerSpark then return end
-    if not self.bar then return end
-    
+
     local db = addon.db.profile.resourceBar
     local manaTickerDb = db.manaTicker
-    
+
     if not manaTickerDb or not manaTickerDb.enabled then
         self.manaTickerSpark:Hide()
         return
     end
+
+    -- Determine which bar shows mana: druid mana bar in form, or main bar in caster
+    local targetBar
+    if self.manaBar and self.manaBar:IsShown() then
+        targetBar = self.manaBar
+    elseif self.powerType == self.C.POWER_TYPE.MANA and self.bar then
+        targetBar = self.bar
+    else
+        self.manaTickerSpark:Hide()
+        return
+    end
+
+    -- Re-parent spark to the correct bar if needed
+    if self.manaTickerSpark:GetParent() ~= targetBar then
+        self.manaTickerSpark:SetParent(targetBar)
+        -- Resize spark for the target bar's height
+        local sparkWidth = manaTickerDb.sparkWidth
+        local sparkHeightMult = manaTickerDb.sparkHeight
+        local barHeight = (targetBar == self.manaBar) and db.druidManaBar.height or db.height
+        self.manaTickerSpark:SetSize(sparkWidth, barHeight * sparkHeightMult)
+    end
+
     local style = manaTickerDb.style
-    
+
     local currentMana = UnitPower("player", self.C.POWER_TYPE.MANA)
     local maxMana = UnitPowerMax("player", self.C.POWER_TYPE.MANA)
-    
+
     -- Hide when at max mana
     if currentMana >= maxMana then
         self.manaTickerSpark:Hide()
         return
     end
-    
+
     -- Check visibility based on style
     if style == "outside5sr" then
         -- Only show when OUTSIDE the 5-second rule (full spirit regen)
@@ -834,17 +1104,17 @@ function ResourceBar:UpdateManaTicker()
         end
     end
     -- style == "nextfreetick": show progress toward first free tick (works inside or outside 5SR)
-    
+
     -- Get tick progress from TickTracker
     local TickTracker = addon.TickTracker
     if not TickTracker then
         self.manaTickerSpark:Hide()
         return
     end
-    
+
     -- Record mana sample for tick detection
     TickTracker:RecordManaSample()
-    
+
     -- Use appropriate progress function based on style
     local tickProgress
     if style == "nextfulltick" then
@@ -854,19 +1124,19 @@ function ResourceBar:UpdateManaTicker()
         -- Normal 2-second tick cycle progress
         tickProgress = TickTracker:GetManaTickProgress()
     end
-    
+
     -- Hide when no progress
     if tickProgress <= 0 then
         self.manaTickerSpark:Hide()
         return
     end
-    
-    -- Show and position spark on resource bar
+
+    -- Show and position spark on target bar
     self.manaTickerSpark:Show()
-    local barWidth = self.bar:GetWidth()
+    local barWidth = targetBar:GetWidth()
     local sparkX = barWidth * tickProgress
     self.manaTickerSpark:ClearAllPoints()
-    self.manaTickerSpark:SetPoint("CENTER", self.bar, "LEFT", sparkX, 0)
+    self.manaTickerSpark:SetPoint("CENTER", targetBar, "LEFT", sparkX, 0)
 end
 
 -------------------------------------------------------------------------------
@@ -950,7 +1220,10 @@ function ResourceBar:Refresh()
     
     -- Refresh energy ticker
     self:RefreshEnergyTicker()
-    
+
+    -- Refresh druid mana bar
+    self:RefreshDruidManaBar()
+
     self:UpdatePowerType()
     self:UpdateBar()
     
