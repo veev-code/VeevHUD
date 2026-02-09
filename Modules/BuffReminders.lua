@@ -221,9 +221,20 @@ end
 
 function BuffReminders:CreateFrames(parent)
     if self.containerFrame then return end
-    
-    -- Container frame, anchored relative to the HUD
-    local container = CreateFrame("Frame", "VeevHUDBuffReminders", UIParent)
+
+    -- Reuse existing named frame if present (named frames survive /reload
+    -- even though our Lua references are wiped, creating ghost icons)
+    local container = _G["VeevHUDBuffReminders"]
+    if container then
+        -- Hide orphaned children from previous load
+        for _, child in ipairs({container:GetChildren()}) do
+            child:Hide()
+        end
+        container:Hide()
+        container:ClearAllPoints()
+    else
+        container = CreateFrame("Frame", "VeevHUDBuffReminders", UIParent)
+    end
     container:SetSize(400, 60)
     container:SetFrameStrata("MEDIUM")
     container:SetFrameLevel(15)

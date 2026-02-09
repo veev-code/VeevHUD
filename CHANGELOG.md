@@ -1,5 +1,14 @@
 # VeevHUD Changelog
 
+## [1.0.65] - 2026-02-09
+
+### Fixed
+
+- **Buff Reminders: Ghost icons on /reload** — Defensive fix to reuse the existing container frame after a UI reload, preventing orphaned icon frames that could linger at stale positions.
+
+### LibSpellDB Updates
+- **Priest racial abilities** — 8 race-restricted priest spells now tracked: Starshards, Elune's Grace (Night Elf), Feedback (Human), Symbol of Hope (Draenei), Touch of Weakness (Undead/Blood Elf), Hex of Weakness, Shadowguard (Troll), Consume Magic (Blood Elf). Chastise, Desperate Prayer, and Devouring Plague now correctly restricted to their respective races.
+
 ## [1.0.64] - 2026-02-09
 
 ### LibSpellDB Updates
