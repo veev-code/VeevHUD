@@ -301,8 +301,10 @@ C.DEFAULTS = {
                 height = 4,
                 textFormat = "none",
                 textSize = 9,
-                showSpark = true,
+                showSpark = false,
                 color = { r = 0.00, g = 0.00, b = 1.00 },
+                showFormCostMarker = false,
+                showManaTicker = false,
             },
         },
 

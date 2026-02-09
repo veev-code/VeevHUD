@@ -1,5 +1,16 @@
 # VeevHUD Changelog
 
+## [1.0.61] - 2026-02-09
+
+### Added
+
+- **Druid Mana Bar: Form Cost Marker** — Optional vertical line that appears on the mana bar when your mana drops below the cost of re-entering your current shapeshift form. Shows at a glance whether you can safely shift out and back. Disabled by default (enable in Resource Bar > Mana Bar (Druid)).
+- **Druid Mana Bar: Mana Ticker Toggle** — New option to show or hide the mana tick spark on the secondary mana bar. Disabled by default for a cleaner look.
+
+### Changed
+
+- **Druid Mana Bar: Spark off by default** — The fill position spark is now disabled by default on the secondary mana bar. The thin bar is readable without it, and it reduces visual clutter when combined with the mana ticker or form cost marker. Can still be enabled in options.
+
 ## [1.0.60] - 2026-02-08
 
 ### Added

@@ -1318,11 +1318,13 @@ function Options:BuildOptionsTable()
 						height = { type = "range", name = "Height", desc = "How tall the secondary mana bar is in pixels.", min = 2, max = 30, step = 1, arg = "resourceBar.druidManaBar.height", order = 2, disabled = function() return addon.db and addon.db.profile and not addon.db.profile.resourceBar.druidManaBar.enabled end },
 						showSpark = { type = "toggle", name = "Show Spark", desc = "Shows a glowing spark at the current fill position on the mana bar.", arg = "resourceBar.druidManaBar.showSpark", order = 3, disabled = function() return addon.db and addon.db.profile and not addon.db.profile.resourceBar.druidManaBar.enabled end },
 						color = { type = "color", name = "Color", desc = "The color used for the secondary mana bar.", hasAlpha = false, get = colorGet, set = colorSet, arg = "resourceBar.druidManaBar.color", order = 4, disabled = function() return addon.db and addon.db.profile and not addon.db.profile.resourceBar.druidManaBar.enabled end },
+						showManaTicker = { type = "toggle", name = "Show Mana Ticker", desc = "Shows the mana tick spark on this bar while in form. When disabled, the mana ticker only appears on the main resource bar in caster form.", arg = "resourceBar.druidManaBar.showManaTicker", order = 5, disabled = function() return addon.db and addon.db.profile and not addon.db.profile.resourceBar.druidManaBar.enabled end },
+						showFormCostMarker = { type = "toggle", name = "Form Cost Marker", desc = "Shows a vertical line on the mana bar when your mana is too low to re-enter your current shapeshift form. The line indicates the mana threshold needed, so you can see how close you are to being able to shift back.", arg = "resourceBar.druidManaBar.showFormCostMarker", order = 6, disabled = function() return addon.db and addon.db.profile and not addon.db.profile.resourceBar.druidManaBar.enabled end },
 						textSettings = {
 							type = "group",
 							name = "Text",
 							inline = true,
-							order = 5,
+							order = 7,
 							disabled = function() return addon.db and addon.db.profile and not addon.db.profile.resourceBar.druidManaBar.enabled end,
 							args = {
 								textFormat = { type = "select", name = "Text Format", desc = "What text to display on the mana bar.", values = textFormatValues, arg = "resourceBar.druidManaBar.textFormat", order = 1 },

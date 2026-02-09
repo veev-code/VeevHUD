@@ -400,6 +400,13 @@ function ResourceBar:CreateDruidManaBar(bar, db)
         self.manaBarSpark = spark
     end
 
+    -- Form cost marker (vertical line showing mana cost of current form)
+    local marker = manaBar:CreateTexture(nil, "OVERLAY")
+    marker:SetColorTexture(1, 1, 1, 0.7)
+    marker:SetSize(2, manaDb.height)
+    marker:Hide()
+    self.formCostMarker = marker
+
     -- Text
     local text = manaBar:CreateFontString(nil, "OVERLAY")
     text:SetFont(addon:GetFont(), manaDb.textSize, "OUTLINE")
@@ -409,6 +416,12 @@ function ResourceBar:CreateDruidManaBar(bar, db)
     -- Start hidden (shown by UpdateDruidManaBarVisibility on form change)
     manaBar:Hide()
 end
+
+-- Spell IDs for shapeshift forms (used by form cost marker)
+local FORM_SPELL_IDS = {
+    [1] = { 5487, 9634 },  -- Bear Form, Dire Bear Form
+    [3] = { 768 },         -- Cat Form
+}
 
 function ResourceBar:GetManaBarHeight()
     if addon.playerClass ~= self.C.CLASS.DRUID then return 0 end
@@ -467,8 +480,9 @@ function ResourceBar:UpdateDruidManaBar()
     local percent = mana / maxMana
     self.manaBar:SetValue(percent)
 
-    -- Update spark position
+    -- Update spark and form cost marker positions
     self:UpdateManaBarSpark(percent)
+    self:UpdateFormCostMarker()
 
     local db = addon.db.profile.resourceBar.druidManaBar
     if self.manaBarText and db.textFormat and db.textFormat ~= self.C.TEXT_FORMAT.NONE then
@@ -476,6 +490,61 @@ function ResourceBar:UpdateDruidManaBar()
     elseif self.manaBarText then
         self.manaBarText:SetText("")
     end
+end
+
+function ResourceBar:UpdateFormCostMarker()
+    if not self.formCostMarker then return end
+
+    local manaDb = addon.db.profile.resourceBar.druidManaBar
+    if not manaDb.showFormCostMarker then
+        self.formCostMarker:Hide()
+        return
+    end
+
+    local form = GetShapeshiftForm()
+    local formSpells = FORM_SPELL_IDS[form]
+    if not formSpells then
+        self.formCostMarker:Hide()
+        return
+    end
+
+    -- Get mana cost of the current form spell (try each variant, e.g., Bear vs Dire Bear)
+    local formCost = 0
+    for _, spellID in ipairs(formSpells) do
+        if IsSpellKnown(spellID) and GetSpellPowerCost then
+            local costTable = GetSpellPowerCost(spellID)
+            if costTable and costTable[1] then
+                formCost = costTable[1].cost or 0
+                if formCost > 0 then break end
+            end
+        end
+    end
+
+    if formCost <= 0 then
+        self.formCostMarker:Hide()
+        return
+    end
+
+    local maxMana = UnitPowerMax("player", self.C.POWER_TYPE.MANA)
+    if maxMana <= 0 then
+        self.formCostMarker:Hide()
+        return
+    end
+
+    -- Only show when mana is insufficient to re-enter form
+    local currentMana = UnitPower("player", self.C.POWER_TYPE.MANA)
+    if currentMana >= formCost then
+        self.formCostMarker:Hide()
+        return
+    end
+
+    local markerPercent = formCost / maxMana
+    local barWidth = self.manaBar:GetWidth()
+    local markerX = barWidth * markerPercent
+
+    self.formCostMarker:ClearAllPoints()
+    self.formCostMarker:SetPoint("CENTER", self.manaBar, "LEFT", markerX, 0)
+    self.formCostMarker:Show()
 end
 
 function ResourceBar:UpdateManaBarSpark(percent)
@@ -571,6 +640,15 @@ function ResourceBar:RefreshDruidManaBar()
                     self.manaBarSpark:Hide()
                 end
             end
+
+            -- Update form cost marker
+            if not self.formCostMarker then
+                local marker = self.manaBar:CreateTexture(nil, "OVERLAY")
+                marker:SetColorTexture(1, 1, 1, 0.7)
+                marker:Hide()
+                self.formCostMarker = marker
+            end
+            self.formCostMarker:SetSize(2, manaDb.height)
 
             -- Update text font
             if self.manaBarText then
@@ -1064,7 +1142,8 @@ function ResourceBar:UpdateManaTicker()
 
     -- Determine which bar shows mana: druid mana bar in form, or main bar in caster
     local targetBar
-    if self.manaBar and self.manaBar:IsShown() then
+    local manaDb = db.druidManaBar
+    if self.manaBar and self.manaBar:IsShown() and manaDb.showManaTicker then
         targetBar = self.manaBar
     elseif self.powerType == self.C.POWER_TYPE.MANA and self.bar then
         targetBar = self.bar
