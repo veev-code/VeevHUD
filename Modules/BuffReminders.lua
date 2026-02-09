@@ -145,9 +145,6 @@ function BuffReminders:Initialize()
         return
     end
     
-    -- Migrate stale settings from older versions
-    self:MigrateSettings()
-    
     -- Build the list of buff reminders for this class
     self:BuildReminderList()
     
@@ -155,27 +152,6 @@ function BuffReminders:Initialize()
     self.Utils:LogInfo("BuffReminders: Initialized with", #self.reminders, "reminders for", self.playerClass)
     for _, r in ipairs(self.reminders) do
         self.Utils:LogDebug("BuffReminders: Tracking spell", r.spellID, r.spellData.name or "?", "group:", r.buffGroup or "none")
-    end
-end
-
-function BuffReminders:MigrateSettings()
-    local db = addon.db and addon.db.profile and addon.db.profile.buffReminders
-    if not db then return end
-    
-    -- v1 → v2: Remove iconZoom (now always 0), reset alpha to new default
-    if db.iconZoom ~= nil then
-        db.iconZoom = nil
-        self.Utils:LogDebug("BuffReminders: Migrated - removed iconZoom")
-    end
-    if db.alpha and db.alpha > 0.5 then
-        -- Old default was 1.0; migrate to new semi-transparent default
-        db.alpha = 0.25
-        self.Utils:LogDebug("BuffReminders: Migrated - alpha reset to 0.25")
-    end
-    if db.iconSize and db.iconSize <= 64 then
-        -- Old default was 64; migrate to new larger default
-        db.iconSize = 128
-        self.Utils:LogDebug("BuffReminders: Migrated - iconSize reset to 128")
     end
 end
 
@@ -299,9 +275,8 @@ end
 
 function BuffReminders:UpdateAlpha()
     if not self.containerFrame then return end
-    local db = addon.db and addon.db.profile and addon.db.profile.buffReminders
-    local alpha = db and db.alpha or 0.25
-    self.containerFrame:SetAlpha(alpha)
+    local db = addon.db.profile.buffReminders
+    self.containerFrame:SetAlpha(db.alpha)
 end
 
 -------------------------------------------------------------------------------
@@ -482,8 +457,8 @@ function BuffReminders:GetOrCreateIcon(key)
         return self.iconPool[key]
     end
 
-    local db = addon.db and addon.db.profile and addon.db.profile.buffReminders
-    local iconSize = db and db.iconSize or 64
+    local db = addon.db.profile.buffReminders
+    local iconSize = db.iconSize
 
     -- Positioning frame: anchored by LayoutIcons, never scaled
     local frame = CreateFrame("Frame", nil, self.containerFrame)
@@ -541,8 +516,8 @@ function BuffReminders:GetOrCreateIcon(key)
 end
 
 function BuffReminders:UpdateIconSize()
-    local db = addon.db and addon.db.profile and addon.db.profile.buffReminders
-    local iconSize = db and db.iconSize or 64
+    local db = addon.db.profile.buffReminders
+    local iconSize = db.iconSize
     local fontSize = math.max(14, math.floor(iconSize * 0.38))
     local stacksFontSize = math.max(10, math.floor(iconSize * 0.26))
 
@@ -564,9 +539,9 @@ function BuffReminders:UpdateIconSize()
 end
 
 function BuffReminders:LayoutIcons()
-    local db = addon.db and addon.db.profile and addon.db.profile.buffReminders
-    local iconSize = db and db.iconSize or 64
-    local spacing = db and db.iconSpacing or 8
+    local db = addon.db.profile.buffReminders
+    local iconSize = db.iconSize
+    local spacing = db.iconSpacing
 
     local numVisible = #self.visibleIcons
     if numVisible == 0 then

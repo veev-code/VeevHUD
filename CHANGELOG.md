@@ -1,5 +1,11 @@
 # VeevHUD Changelog
 
+## [1.0.63] - 2026-02-09
+
+### Fixed
+
+- **Buff Reminders: Settings not persisting** — Icon Opacity and Icon Size were resetting on every reload due to a migration function that ran unconditionally. Removed the stale migration and fixed inline fallbacks to properly use AceDB defaults.
+
 ## [1.0.62] - 2026-02-09
 
 ### Added
