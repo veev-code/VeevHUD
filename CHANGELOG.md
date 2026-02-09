@@ -1,5 +1,11 @@
 # VeevHUD Changelog
 
+## [1.0.62] - 2026-02-09
+
+### Added
+
+- **Buff Reminders: Respect Resource Cost** — New toggle under Buff Reminders > Behavior. When enabled (default), buff reminders only appear when you have enough resources to cast the spell — for example, Battle Shout only reminds when you have enough rage. Uncheck to always show reminders for missing buffs regardless of your current resource level. *(Shadowhawk)*
+
 ## [1.0.61] - 2026-02-09
 
 ### Added

@@ -767,8 +767,14 @@ function BuffReminders:ShouldRemind(reminder)
     -- Check if spell is usable (has enough resources, correct form, etc.)
     local isUsable, notEnoughResources = IsUsableSpell(highestRank)
     if not isUsable then
-        self.Utils:LogDebug("BuffReminders: " .. (spellData.name or spellID) .. " - not usable (rank " .. highestRank .. ", noResources=" .. tostring(notEnoughResources) .. ")")
-        return false
+        -- If only lacking resources, optionally still show the reminder
+        local db = addon.db.profile.buffReminders
+        if notEnoughResources and not db.respectResourceCost then
+            -- Spell is known and valid, just can't afford it right now — still remind
+        else
+            self.Utils:LogDebug("BuffReminders: " .. (spellData.name or spellID) .. " - not usable (rank " .. highestRank .. ", noResources=" .. tostring(notEnoughResources) .. ")")
+            return false
+        end
     end
     
     -- Spell-based weapon enchants (shaman imbues) pass through IsSpellKnown/IsUsableSpell above,

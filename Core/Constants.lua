@@ -447,6 +447,7 @@ C.DEFAULTS = {
             pulseEnabled = true,
             showWhileResting = false,
             showWhileMounted = false,
+            respectResourceCost = true,
             anchor = {
                 point = "BOTTOM",
                 relativePoint = "TOP",
