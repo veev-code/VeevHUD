@@ -1,5 +1,12 @@
 # VeevHUD Changelog
 
+## [1.0.58] - 2026-02-08
+
+### Fixed
+
+- **Spell Configuration: Empty rows disappearing** — Removing all spells from a row (e.g., Secondary) no longer causes the row to vanish from the Spell Configuration window. Empty rows now remain visible and can still receive spells via drag-and-drop.
+- **Buff Reminders: Duration/stacks text** — Duration and stack count text on reminder icons now only appears when the specific threshold is violated (e.g., time remaining below threshold), rather than showing whenever the setting was configured.
+
 ## [1.0.57] - 2026-02-08
 
 ### Added

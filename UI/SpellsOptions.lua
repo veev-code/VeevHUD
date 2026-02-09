@@ -447,17 +447,18 @@ function SpellsOptions:RefreshSpellList()
         -- Display the 3 main rows
         for rowIndex, rowConfig in ipairs(rowConfigs) do
             local spells = rowSpells[rowIndex]
-            if spells and #spells > 0 then
-                -- Row header
-                yOffset = self:CreateRowHeader(rowIndex, rowConfig.name, yOffset)
-                
-                -- Spell entries
+
+            -- Always show row header (even when empty) so it remains a drop target
+            yOffset = self:CreateRowHeader(rowIndex, rowConfig.name, yOffset)
+
+            -- Spell entries
+            if spells then
                 for i, spellInfo in ipairs(spells) do
                     yOffset = self:CreateSpellEntry(spellInfo, rowIndex, i, yOffset)
                 end
-                
-                yOffset = yOffset - 8  -- Gap between rows
             end
+
+            yOffset = yOffset - 8  -- Gap between rows
         end
         
         -- Display "Available" section (untracked spells the player knows)
