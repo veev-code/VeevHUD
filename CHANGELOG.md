@@ -1,5 +1,10 @@
 # VeevHUD Changelog
 
+## [1.0.64] - 2026-02-09
+
+### LibSpellDB Updates
+- **Druid: Rake DoT tracking** — Rake now prioritizes showing the active DoT duration on its icon, so you can track when it needs refreshing. Previously the icon showed energy prediction even while the DoT was active.
+
 ## [1.0.63] - 2026-02-09
 
 ### Fixed
