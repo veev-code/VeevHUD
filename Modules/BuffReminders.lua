@@ -970,8 +970,12 @@ function BuffReminders:OnUpdate()
                         found, remaining, stacks = self:IsBuffOnUnit("player", spellID)
                     end
                     if found then
-                        if showTime then alertRemaining = remaining end
-                        if showStacks then alertStacks = stacks end
+                        if showTime and remaining < config.timeRemaining then
+                            alertRemaining = remaining
+                        end
+                        if showStacks and stacks < config.minStacks then
+                            alertStacks = stacks
+                        end
                     end
                 end
             end
