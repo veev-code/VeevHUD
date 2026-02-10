@@ -185,6 +185,7 @@ C.SPELL_ID_ADRENALINE_RUSH = 13750
 -- Keys are used in layout.elementOrder and layout.gaps.
 C.LAYOUT_ELEMENTS = {
     procTracker  = "Proc Tracker",
+    totemBar     = "Totem Bar",
     healthBar    = "Health Bar",
     resourceBar  = "Resource Bar",
     comboPoints  = "Combo Points",
@@ -234,6 +235,7 @@ C.DEFAULTS = {
             -- All 7 HUD elements are positioned in this order by Layout.lua.
             elementOrder = {
                 "procTracker",
+                "totemBar",
                 "healthBar",
                 "resourceBar",
                 "comboPoints",
@@ -245,6 +247,7 @@ C.DEFAULTS = {
             -- First visible element's gap is ignored.
             gaps = {
                 procTracker  = 0,
+                totemBar     = 4,
                 healthBar    = 6,   -- was procTracker.gapAboveHealthBar
                 resourceBar  = 0,
                 comboPoints  = 0,
@@ -344,6 +347,13 @@ C.DEFAULTS = {
             backdropGlowSize = 2.2,  -- Multiplier for glow size relative to icon
             backdropGlowColor = {1.0, 0.7, 0.35},  -- Warm orange-gold (alpha controlled by intensity)
             slideAnimation = true,  -- Smooth sliding when procs appear/disappear
+        },
+
+        -- Totem Bar settings (Shaman only - 4 element slots)
+        totemBar = {
+            enabled = true,
+            iconSize = 36,
+            iconSpacing = 4,
         },
 
         -- Icon display settings (defaults, rows can override)

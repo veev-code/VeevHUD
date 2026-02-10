@@ -987,6 +987,10 @@ function CooldownIcons:RebuildAllRows()
     local spellCfg = addon:GetSpellConfig()
     local isFeralDruid = addon.playerClass == "DRUID" and addon.playerSpec == "FERAL"
 
+    -- Check if TotemBar is active (zero-CD element-tagged totems move to totem bar)
+    local totemBarMod = addon:GetModule("TotemBar")
+    local totemBarActive = totemBarMod and totemBarMod.IsActive and totemBarMod:IsActive()
+
     for spellID, trackedData in pairs(trackedSpells) do
         local spellData = trackedData.spellData
         local assigned = false
@@ -1013,7 +1017,20 @@ function CooldownIcons:RebuildAllRows()
             end
         end
 
-        if not skipForm then
+        -- Skip zero-CD element-tagged totems when TotemBar is active
+        -- (they only appear in the totem bar element slots)
+        local skipTotemBar = false
+        if totemBarActive and not skipForm then
+            local hasElementTag = LibSpellDB:HasTag(spellID, "TOTEM_EARTH")
+                or LibSpellDB:HasTag(spellID, "TOTEM_FIRE")
+                or LibSpellDB:HasTag(spellID, "TOTEM_WATER")
+                or LibSpellDB:HasTag(spellID, "TOTEM_AIR")
+            if hasElementTag and (spellData.cooldown or 0) == 0 then
+                skipTotemBar = true
+            end
+        end
+
+        if not skipForm and not skipTotemBar then
         -- Check if spell has a row override in spellConfig
         if cfg.rowIndex then
             local rowIndex = cfg.rowIndex
@@ -1065,7 +1082,7 @@ function CooldownIcons:RebuildAllRows()
                 end
             end
         end
-        end -- not skipForm
+        end -- not skipForm and not skipTotemBar
     end
 
     -- Sort spells within each row
@@ -1315,12 +1332,15 @@ function CooldownIcons:SetupIcon(frame, spellID, actualSpellID, spellData, rowCo
     
     -- Check if this is a reactive spell (Execute, Revenge, Overpower)
     -- These allow repeated ready glows based on condition changes (e.g., target HP)
+    -- Also check if this is an element-tagged totem (for TotemBar aura suppression)
     frame.isReactive = false
+    frame.isTotem = false
     if spellData.tags then
         for _, tag in ipairs(spellData.tags) do
             if tag == "REACTIVE" then
                 frame.isReactive = true
-                break
+            elseif tag == "TOTEM_EARTH" or tag == "TOTEM_FIRE" or tag == "TOTEM_WATER" or tag == "TOTEM_AIR" then
+                frame.isTotem = true
             end
         end
     end
@@ -1672,10 +1692,20 @@ function CooldownIcons:UpdateIconState(frame, db)
         end
     end
 
+    -- Suppress aura display for element-tagged TOTEM spells when TotemBar is active
+    -- (TotemBar element slots already show active state; avoid duplication on cooldown icon)
+    if frame.isTotem then
+        local totemBarMod = addon:GetModule("TotemBar")
+        if totemBarMod and totemBarMod.IsActive and totemBarMod:IsActive() then
+            auraActive = false
+            auraRemaining, auraDuration, auraStacks = 0, 0, 0
+        end
+    end
+
     -- Get cooldown info (including actual start time for accurate spiral)
     -- Use actualSpellID (the rank the player knows) for WoW API calls
     local remaining, duration, cdEnabled, cdStartTime = self.Utils:GetSpellCooldown(actualSpellID)
-    
+
     -- GCD override protection: The WoW API can briefly return GCD info (1.5s duration)
     -- instead of the actual cooldown for certain spells (e.g., Blood Fury variants 33697, 33702).
     -- This causes the icon to briefly show as "ready" during GCD when it's actually on cooldown.

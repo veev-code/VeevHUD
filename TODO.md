@@ -43,9 +43,7 @@ These were requested by multiple people or have strong gameplay impact.
 - **Custom Buff/Debuff Display Near Health Bar** — Let users select arbitrary important buffs and debuffs to display near the health bar (extending beyond just procs), keeping all critical info in one place. *(Soveliss)*
 
 - **Trinket Tracking** — Track trinket use/on-use cooldowns and proc buffs. Consider smart row assignment (throughput trinkets → secondary row, utility → utility row). *(Independent-Bother17)*
-- **Grouped Category Icons** — Instead of separate icons for every totem/seal/blessing, show one icon per category (e.g., one Earth Totem icon, one Seal icon) that reflects whichever is currently active. Reduces icon clutter for Shamans and Paladins. *(Shadowhawk)*
 - **Track Shared Debuffs from Any Caster** — Debuffs like Faerie Fire and Sunder Armor should show on your HUD even when applied by another player, since only one instance of the debuff matters. Should also handle cross-ability equivalence (e.g., Sunder Armor and Expose Armor share the same armor-reduction debuff slot). *(Artvil)*
-- **Totem Duration Tracking** — Basic duration tracking shipped in 1.0.50. Still considering a more comprehensive totem model (grouped category icons, element-aware UI). *(Shadowhawk)*
 - **Dual Countdown on Icons (CD + Debuff)** — For abilities where both a cooldown and a debuff matter (e.g., Mangle Cat — no CD but debuff is key), show a secondary timer in an icon corner so both can be tracked on one icon without adding a separate icon. *(Artvil)*
 - **Health Bar Improvements** — Potential enhancements:
   - Text options: max health, health deficit, whole numbers (not just "k" abbreviation)
@@ -57,6 +55,7 @@ These were requested by multiple people or have strong gameplay impact.
 - **PvP Trinket Tracking** — Track PvP trinket cooldown.
 - **WoW Animation API** — Migrate animations to use WoW's built-in Animation system for smoother/more efficient playback. *(Buff Reminders already uses native Animation API; consider migrating other modules.)*
 - **Separate Movable Buffs Bar** — A dedicated area for tracking arbitrary buffs that can be positioned independently from the main HUD stack. *(Shadowhawk)* *(Maintenance buffs now covered by Buff Reminders; this request is for broader arbitrary buff tracking.)*
+- **Consume Relationship on Icons** — Spells that consume another spell's effect (e.g., Conflagrate consumes Immolate) could show the remaining duration of the consumed effect on their icon, warning players when consuming would be wasteful. Would need a new LibSpellDB field like `consumes = {spellID}` and VeevHUD display logic.
 
 ---
 
@@ -136,3 +135,5 @@ Items from feedback that have been completed, with the version they shipped in.
 | Druid: Mana Bar in Forms                                           | 1.0.60  | Secondary mana bar in Cat/Bear Form with color/spark/text config |
 | Masque reload on icon size / aspect ratio change                   | 1.0.69  | ReSkin() API used instead of reload; Masque groups for Procs and Buff Reminders |
 | Single-application buff tracking (Prayer of Mending, Earth Shield) | 1.0.70  | `singleTarget` spells track across all targets like CC_HARD |
+| Grouped Category Icons (Shaman totems)                             | 1.0.72  | Dedicated 4-slot Totem Bar with per-element tracking         |
+| Totem Duration Tracking (comprehensive element-aware UI)           | 1.0.72  | Totem Bar with active/expired/out-of-range states            |

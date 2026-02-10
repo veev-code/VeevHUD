@@ -137,6 +137,18 @@ function Options:ApplySettingChange(path)
 		end
 		return
 	end
+	if path:match("^totemBar%.") then
+		local m = addon:GetModule("TotemBar")
+		SafeCall(m and m.Refresh, m)
+		-- Toggling totemBar.enabled affects which totems appear in CooldownIcons rows
+		if path:match("enabled") then
+			local cooldownIcons = addon:GetModule("CooldownIcons")
+			if cooldownIcons and cooldownIcons.Refresh then
+				cooldownIcons:Refresh()
+			end
+		end
+		return
+	end
 
 	-- Keybind text: lightweight updates (no full icon refresh needed)
 	if path == "icons.showKeybindText" then
@@ -154,12 +166,16 @@ function Options:ApplySettingChange(path)
 		return
 	end
 
-	-- Aspect ratio affects both HUD icons and proc tracker; may trigger Masque reload
+	-- Aspect ratio affects HUD icons, proc tracker, and totem bar
 	if path == "icons.iconAspectRatio" then
 		local cooldownIcons = addon:GetModule("CooldownIcons")
 		local procTracker = addon:GetModule("ProcTracker")
+		local totemBar = addon:GetModule("TotemBar")
 		if procTracker and procTracker.Refresh then
 			procTracker:Refresh()
+		end
+		if totemBar and totemBar.Refresh then
+			totemBar:Refresh()
 		end
 		if cooldownIcons and cooldownIcons.Refresh then
 			cooldownIcons:Refresh()
@@ -1422,6 +1438,26 @@ function Options:BuildOptionsTable()
 									backdropGlowIntensity = { type = "range", name = "Backdrop Glow Intensity", desc = "Controls the brightness of the soft colored halo that appears behind each proc icon. Higher values make the glow more prominent. Set to 0 to turn it off completely.", min = 0, max = 0.8, step = 0.05, arg = "procTracker.backdropGlowIntensity", order = 3 },
 									backdropGlowSize = { type = "range", name = "Backdrop Glow Size", desc = "How far the backdrop glow extends outward from each proc icon. Larger values create a wider, softer halo.", min = 0.5, max = 6.0, step = 0.1, arg = "procTracker.backdropGlowSize", order = 4 },
 									slideAnimation = { type = "toggle", name = "Slide Animation", desc = "When procs appear or disappear, the remaining icons smoothly slide to re-center instead of snapping instantly. Disable for instant repositioning.", arg = "procTracker.slideAnimation", order = 5 },
+								},
+							},
+						},
+					},
+					totembar = {
+						type = "group",
+						name = "Totem Bar",
+						order = 2,
+						hidden = function() return addon.playerClass ~= C.CLASS.SHAMAN end,
+						args = {
+							enabled = { type = "toggle", name = "Enabled", desc = "Shows a dedicated totem element bar with four slots (Fire, Earth, Water, Air). Each slot displays the currently active totem for that element with a duration countdown, or a dimmed icon of the last totem you placed. Zero-cooldown totems are removed from the normal icon rows and only appear here.", arg = "totemBar.enabled", order = 1 },
+							layout = {
+								type = "group",
+								name = "Layout",
+								inline = true,
+								order = 2,
+								disabled = function() return addon.db and addon.db.profile and not addon.db.profile.totemBar.enabled end,
+								args = {
+									iconSize = { type = "range", name = "Icon Size", desc = "The size of each totem element slot icon in pixels.", min = 16, max = 80, step = 1, arg = "totemBar.iconSize", order = 1 },
+									iconSpacing = { type = "range", name = "Icon Spacing", desc = "The gap in pixels between each totem element slot.", min = 0, max = 40, step = 1, arg = "totemBar.iconSpacing", order = 2 },
 								},
 							},
 						},

@@ -1,5 +1,18 @@
 # VeevHUD Changelog
 
+## [1.0.72] - 2026-02-10
+
+### Added
+
+- **Shaman: Totem Bar** — A dedicated 4-slot element display (Fire, Earth, Water, Air) that replaces the old approach of mixing totems into normal cooldown icon rows. Each slot shows the currently active totem for that element with a duration countdown spiral and timer text. When a totem expires, the slot shows a dimmed icon of the last totem you placed for that element. Slots stay hidden until you cast your first totem of that element. Zero-cooldown totems (Windfury, Searing, Stoneskin, etc.) are removed from the normal icon rows and only appear in the Totem Bar. Cooldown totems (Earthbind, Grounding, Mana Tide, etc.) appear in both the Totem Bar and their normal cooldown row. Totemic Call correctly clears all active totem states. Configurable under Options > Bars > Totem Bar with icon size and spacing controls. *(Shadowhawk)*
+- **Shaman: Totem Range Detection** — When you move out of range of a totem that buffs your party (Windfury, Strength of Earth, Grace of Air, etc.), its Totem Bar slot dims to 30% opacity while the countdown timer keeps running — so you can tell at a glance that you've walked too far. Totems that don't apply a party buff (Searing, Earthbind, etc.) always show as in-range since there's nothing meaningful to check.
+
+### LibSpellDB Updates
+
+- New `appliesBuff` field on 12 Shaman totems mapping summon spell to party buff spell IDs (used for range detection)
+- Added Wrath of Air Totem (spell 3738)
+- Mage: Scorch now maps to its Fire Vulnerability debuff via `triggersAuras`, enabling target debuff tracking
+
 ## [1.0.71] - 2026-02-10
 
 ### Fixed

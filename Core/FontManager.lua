@@ -124,6 +124,11 @@ function FontManager:RefreshAllFonts()
     if procTracker and procTracker.RefreshFonts then
         procTracker:RefreshFonts(fontPath)
     end
+
+    local totemBar = addon:GetModule("TotemBar")
+    if totemBar and totemBar.RefreshFonts then
+        totemBar:RefreshFonts(fontPath)
+    end
 end
 
 -------------------------------------------------------------------------------
