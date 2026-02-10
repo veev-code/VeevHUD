@@ -1,5 +1,11 @@
 # VeevHUD Changelog
 
+## [1.0.68] - 2026-02-09
+
+### Fixed
+
+- **GCD-only predictions on non-predictable resources** — Fixed v1.0.67 regression where spells on GCD would show spurious prediction timers even when the resource type (e.g., rage) has no prediction model. GCD now only extends predictions when a real resource prediction is active.
+
 ## [1.0.67] - 2026-02-09
 
 ### Fixed

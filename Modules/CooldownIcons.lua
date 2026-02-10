@@ -1886,10 +1886,15 @@ function CooldownIcons:UpdateIconState(frame, db)
             local isOffCooldown = self.Utils:IsOffCooldown(remaining, duration)
             local cdRemaining = isOffCooldown and 0 or remaining
             
-            -- Use max of cooldown, GCD, and resource prediction
-            -- GCD is excluded from cdRemaining (IsOffCooldown treats GCD as "ready")
-            -- but the spell still can't be cast until GCD expires
-            local effectiveWait = math.max(cdRemaining, remaining or 0, timeUntilAffordable)
+            -- Use max of cooldown and resource prediction
+            -- When a resource prediction is active, also extend by GCD since the
+            -- spell can't be cast until both resource AND GCD are ready.
+            -- GCD alone should NOT create a prediction (e.g., rage spells where
+            -- prediction returns 0 because rage is unpredictable).
+            local effectiveWait = math.max(cdRemaining, timeUntilAffordable)
+            if timeUntilAffordable > 0 and remaining and remaining > 0 then
+                effectiveWait = math.max(effectiveWait, remaining)
+            end
             
             -- Detect if resources changed (need to restart prediction)
             -- Covers both spending (cast mid-prediction) and gaining (Furor, ticks)
