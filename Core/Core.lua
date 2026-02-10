@@ -55,9 +55,6 @@ function addon:OnAddonLoaded()
     -- Initialize saved variables with defaults (AceDB + legacy migration)
     self.Database:Initialize()
 
-    -- Snapshot initial aspect ratio for Masque reload detection on profile changes.
-    self._lastAspectRatio = self.db and self.db.profile and self.db.profile.icons
-        and self.db.profile.icons.iconAspectRatio
 
     -- Get LibSpellDB reference
     if LibStub then
@@ -95,9 +92,6 @@ function addon:OnProfileChanged()
 
     -- Migrate old gap settings for the new profile (idempotent)
     self.Database:MigrateLayoutGaps()
-
-    -- Snapshot the previous aspect ratio before refreshing (profile is already switched).
-    local prevAspectRatio = self._lastAspectRatio
 
     -- Update anchor/scale (safe if HUD isn't created yet).
     if self.hudFrame then
@@ -138,16 +132,6 @@ function addon:OnProfileChanged()
         self:UpdateVisibility()
     end
 
-    -- Track aspect ratio and prompt reload if Masque needs it.
-    local newAspectRatio = self.db and self.db.profile and self.db.profile.icons
-        and self.db.profile.icons.iconAspectRatio
-    self._lastAspectRatio = newAspectRatio
-    if prevAspectRatio and newAspectRatio and prevAspectRatio ~= newAspectRatio then
-        local cooldownIcons = self:GetModule("CooldownIcons")
-        if cooldownIcons and cooldownIcons.MasqueGroup then
-            StaticPopup_Show("VEEVHUD_RELOAD_UI")
-        end
-    end
 end
 
 function addon:OnPlayerLogin()

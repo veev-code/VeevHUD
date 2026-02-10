@@ -14,7 +14,6 @@ Reported missing or broken spell support (not confirmed fixed):
 
 ## Bugs
 
-- **Masque reload required on icon size / aspect ratio change** — Changing icon size or aspect ratio with Masque installed currently requires a UI reload. Investigate whether Masque's `ReSkin()` or `Group:ReSkin()` API can be called to update button skins in-place without a full reload.
 - **Desperate Prayer row assignment** — Should default to Utility row, not Primary/Secondary.
 - **Timer text rounding** — Buff/debuff minute display rounds *down* while WoW's native buff bar rounds *up* (e.g., addon shows "3m" when WoW shows "4m"). *(Shadowhawk)*
 - **Resource-gated cooldown transition** — When an ability comes off cooldown but the player lacks the resource (e.g., rage) to cast it, the icon transition is jarring — it briefly looks ready, then snaps to the "not usable" state instead of filling smoothly. Investigate a more seamless visual path for this case.
@@ -136,3 +135,4 @@ Items from feedback that have been completed, with the version they shipped in.
 | Configurable Bar/Icon Position                                     | 1.0.53  | Layout tab with element reordering and per-element gaps |
 | Druid: Form-Conditional Abilities                                  | 1.0.59  | Cat/bear form filtering with last-form memory          |
 | Druid: Mana Bar in Forms                                           | 1.0.60  | Secondary mana bar in Cat/Bear Form with color/spark/text config |
+| Masque reload on icon size / aspect ratio change                   | 1.0.69  | ReSkin() API used instead of reload; Masque groups for Procs and Buff Reminders |

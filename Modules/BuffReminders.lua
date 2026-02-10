@@ -38,6 +38,7 @@ BuffReminders.iconPool = {}       -- Recycled icon frames
 BuffReminders.visibleIcons = {}   -- Currently visible icon frames
 BuffReminders.containerFrame = nil
 BuffReminders.initialized = false
+BuffReminders.iconCounter = 0     -- Unique frame names for Masque
 
 -------------------------------------------------------------------------------
 -- Computed Defaults Per Spell
@@ -139,7 +140,13 @@ function BuffReminders:Initialize()
     self.LibSpellDB = addon.LibSpellDB
     self.playerClass = addon.playerClass
     self.playerGUID = UnitGUID("player")
-    
+
+    -- Initialize Masque support if available
+    local MSQ = LibStub and LibStub("Masque", true)
+    if MSQ then
+        self.MasqueGroup = MSQ:Group("VeevHUD", "Buff Reminders")
+    end
+
     if not self.LibSpellDB then
         self.Utils:LogError("BuffReminders: LibSpellDB not available")
         return
@@ -465,18 +472,38 @@ function BuffReminders:GetOrCreateIcon(key)
     frame:SetFrameStrata("HIGH")
     frame:SetFrameLevel(20)
 
-    -- Visual frame: child that receives scale/alpha animations.
+    -- Visual frame: Button (for Masque compatibility) that receives scale/alpha animations.
     -- Centered on the positioning frame so SetScale() on this child
     -- doesn't shift the icon's anchor position.
-    local visual = CreateFrame("Frame", nil, frame)
+    local buttonName = "VeevHUDBuff" .. self.iconCounter
+    self.iconCounter = self.iconCounter + 1
+    local visual = CreateFrame("Button", buttonName, frame)
     visual:SetSize(iconSize, iconSize)
     visual:SetPoint("CENTER")
+    visual:EnableMouse(false)  -- Click-through
 
     -- Spell icon texture on the visual frame
-    local icon = visual:CreateTexture(nil, "ARTWORK")
+    local icon = visual:CreateTexture(buttonName .. "Icon", "ARTWORK")
     icon:SetAllPoints()
     frame.icon = icon
+    visual.Icon = icon  -- Masque reference
     frame.visual = visual
+
+    -- Normal texture for Masque compatibility (hidden by default)
+    local normalTexture = visual:CreateTexture(buttonName .. "NormalTexture", "OVERLAY")
+    normalTexture:SetAllPoints()
+    normalTexture:SetTexture([[Interface\Buttons\UI-Quickslot2]])
+    normalTexture:SetAlpha(0)
+    visual:SetNormalTexture(normalTexture)
+    visual.NormalTexture = normalTexture
+
+    -- Register with Masque if available
+    if self.MasqueGroup then
+        self.MasqueGroup:AddButton(visual, {
+            Icon = icon,
+            Normal = normalTexture,
+        })
+    end
 
     -- Text overlay frame: child of positioning frame (not visual) so it
     -- is unaffected by scale animations. Higher frame level to render on top.
@@ -534,6 +561,11 @@ function BuffReminders:UpdateIconSize()
         if frame.stacks then
             frame.stacks:SetFont(addon:GetFont(), stacksFontSize, "OUTLINE")
         end
+    end
+
+    -- Tell Masque to re-apply skins at new icon sizes
+    if self.MasqueGroup then
+        self.MasqueGroup:ReSkin()
     end
 end
 

@@ -3000,10 +3000,15 @@ function CooldownIcons:Refresh()
         end
         
     end
-    
+
+    -- Tell Masque to re-apply skins at new icon sizes
+    if self.MasqueGroup then
+        self.MasqueGroup:ReSkin()
+    end
+
     self:RebuildAllRows()
     self:UpdateAllIcons()
-    
+
     -- Reapply texcoords (ensures aspect ratio cropping is applied)
     self:ApplyIconTexCoords()
     

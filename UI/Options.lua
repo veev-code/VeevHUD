@@ -20,18 +20,6 @@ Options._registered = false
 -- Utilities
 -------------------------------------------------------------------------------
 
--- Static popup for reload UI prompt (Masque compatibility with aspect ratio changes)
-StaticPopupDialogs["VEEVHUD_RELOAD_UI"] = StaticPopupDialogs["VEEVHUD_RELOAD_UI"] or {
-	text = "Changing icon size or aspect ratio with Masque installed requires a UI reload.\n\nReload now?",
-	button1 = "Reload",
-	button2 = "Later",
-	OnAccept = function()
-		ReloadUI()
-	end,
-	timeout = 0,
-	whileDead = true,
-	hideOnEscape = true,
-}
 
 local function SafeCall(method, ...)
 	if not method then return end
@@ -191,17 +179,6 @@ function Options:ApplySettingChange(path)
 		SafeCall(addon.Layout and addon.Layout.Refresh, addon.Layout)
 		local icons = addon:GetModule("CooldownIcons")
 		SafeCall(icons and icons.Refresh, icons)
-		-- Icon size changes require reload with Masque (same as aspect ratio)
-		-- Debounce so the popup only appears after the slider is released
-		if path:match("%.iconSize$") and icons and icons.MasqueGroup then
-			if Options._masqueReloadTimer then
-				Options._masqueReloadTimer:Cancel()
-			end
-			Options._masqueReloadTimer = C_Timer.NewTimer(0.5, function()
-				Options._masqueReloadTimer = nil
-				StaticPopup_Show("VEEVHUD_RELOAD_UI")
-			end)
-		end
 		return
 	end
 
@@ -749,18 +726,17 @@ function Options:BuildOptionsTable()
 										name = "Aspect Ratio",
 										desc = "Makes icons shorter to create a more vertically compact HUD. Width stays the same while height shrinks, cropping the top/bottom of icon textures. The health and resource bars stay in place; ability rows shift up to fill the space. Affects both HUD icons and proc icons.",
 										values = {
-											[1.0] = "1:1 (Square)",
-											[1.33] = "4:3 (Compact)",
-											[2.0] = "2:1 (Ultra Compact)",
+											[1.0] = "Square (1:1)",
+											[1.165] = "Slightly Compact",
+											[1.33] = "Compact (4:3)",
+											[1.665] = "Very Compact",
+											[2.0] = "Ultra Compact (2:1)",
 										},
+										sorting = {1.0, 1.165, 1.33, 1.665, 2.0},
 										arg = "icons.iconAspectRatio",
 										set = function(info, value)
 											addon.Database:SetOverride(info.arg, value)
 											Options:ApplySettingChange(info.arg)
-											local cooldownIcons = addon:GetModule("CooldownIcons")
-											if cooldownIcons and cooldownIcons.MasqueGroup then
-												StaticPopup_Show("VEEVHUD_RELOAD_UI")
-											end
 										end,
 										order = 1,
 									},

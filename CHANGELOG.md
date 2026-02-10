@@ -1,5 +1,17 @@
 # VeevHUD Changelog
 
+## [1.0.69] - 2026-02-09
+
+### Added
+
+- **Masque: Proc Tracker support** — Proc icons now appear as a separate "Procs" group in Masque, skinnable independently from cooldown icons.
+- **Masque: Buff Reminders support** — Buff reminder icons now appear as a "Buff Reminders" group in Masque.
+- **Aspect Ratio: Two new options** — "Slightly Compact" and "Very Compact" fill the gaps between Square, Compact (4:3), and Ultra Compact (2:1).
+
+### Fixed
+
+- **Masque: No reload required** — Changing icon size or aspect ratio with Masque installed no longer requires a UI reload. The reload popup has been removed.
+
 ## [1.0.68] - 2026-02-09
 
 ### Fixed

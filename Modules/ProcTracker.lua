@@ -27,9 +27,16 @@ function ProcTracker:Initialize()
     
     -- Icon frames
     self.icons = {}
-    
+    self.iconCounter = 0
+
     -- Load LibSpellDB for proc data
     self.LibSpellDB = LibStub and LibStub("LibSpellDB-1.0", true)
+
+    -- Initialize Masque support if available
+    local MSQ = LibStub and LibStub("Masque", true)
+    if MSQ then
+        self.MasqueGroup = MSQ:Group("VeevHUD", "Procs")
+    end
     
     -- Register with layout system
     addon.Layout:RegisterElement("procTracker", self)
@@ -170,8 +177,10 @@ end
 function ProcTracker:CreateProcIcon(parent, procData, index, size, iconWidth, iconHeight, spacing, db)
     local xOffset = (index - 1) * (iconWidth + spacing) - (parent:GetWidth() / 2) + (iconWidth / 2)
     
-    -- Use nil name to create anonymous frame (named frames can't be recreated)
-    local frame = CreateFrame("Button", nil, parent)
+    -- Named frame for Masque compatibility
+    local buttonName = "VeevHUDProc" .. self.iconCounter
+    self.iconCounter = self.iconCounter + 1
+    local frame = CreateFrame("Button", buttonName, parent)
     frame:SetSize(iconWidth, iconHeight)
     frame:SetPoint("CENTER", parent, "CENTER", xOffset, 0)
     frame:EnableMouse(false)  -- Click-through
@@ -210,8 +219,9 @@ function ProcTracker:CreateProcIcon(parent, procData, index, size, iconWidth, ic
     frame.border = border
     
     -- Icon texture (ARTWORK layer - above border)
-    local icon = frame:CreateTexture(nil, "ARTWORK")
+    local icon = frame:CreateTexture(buttonName .. "Icon", "ARTWORK")
     icon:SetAllPoints()
+    frame.Icon = icon  -- Masque reference
     -- Apply texcoords with zoom and aspect ratio cropping (will be reapplied in ApplyIconTexCoords)
     local zoomPerEdge = addon.db.profile.icons.iconZoom / 2
     local left, right, top, bottom = self.Utils:GetIconTexCoords(zoomPerEdge)
@@ -251,8 +261,16 @@ function ProcTracker:CreateProcIcon(parent, procData, index, size, iconWidth, ic
     stacks:SetTextColor(self.C.COLORS.TEXT.r, self.C.COLORS.TEXT.g, self.C.COLORS.TEXT.b)
     frame.stacks = stacks
     
+    -- Normal texture for Masque compatibility (hidden by default)
+    local normalTexture = frame:CreateTexture(buttonName .. "NormalTexture", "OVERLAY")
+    normalTexture:SetAllPoints()
+    normalTexture:SetTexture([[Interface\Buttons\UI-Quickslot2]])
+    normalTexture:SetAlpha(0)  -- Hidden, Masque will use if configured
+    frame:SetNormalTexture(normalTexture)
+    frame.NormalTexture = normalTexture
+
     -- Cooldown spiral for duration
-    local cooldown = CreateFrame("Cooldown", nil, frame, "CooldownFrameTemplate")
+    local cooldown = CreateFrame("Cooldown", buttonName .. "Cooldown", frame, "CooldownFrameTemplate")
     cooldown:SetAllPoints(icon)
     cooldown:SetDrawEdge(false)
     cooldown:SetDrawBling(false)
@@ -261,10 +279,26 @@ function ProcTracker:CreateProcIcon(parent, procData, index, size, iconWidth, ic
     cooldown:SetReverse(true)  -- Fills as time passes
     cooldown:Hide()
     frame.cooldown = cooldown
-    
+    frame.Cooldown = cooldown  -- Masque reference
+
     -- Hide external cooldown text (OmniCC, ElvUI) - we use our own
     self:ConfigureCooldownText(cooldown)
-    
+
+    -- Register with Masque if available
+    if self.MasqueGroup then
+        self.MasqueGroup:AddButton(frame, {
+            Icon = icon,
+            Cooldown = cooldown,
+            Normal = normalTexture,
+            Count = stacks,
+        })
+        -- Hide manual border — Masque provides its own
+        border:Hide()
+    else
+        -- Apply built-in Classic Enhanced style when Masque is not installed
+        addon.IconStyling:Apply(frame, size)
+    end
+
     -- Set initial state (inactive)
     frame:SetAlpha(db.inactiveAlpha)
     icon:SetDesaturated(true)
@@ -709,9 +743,17 @@ function ProcTracker:Refresh()
             -- Reset slide animation position so RepositionIcons will snap to new position
             frame.currentX = nil
             frame.targetX = nil
+
+            -- Update built-in style if Masque is not installed
+            addon.IconStyling:Update(frame, iconSize, self.MasqueGroup ~= nil)
+        end
+
+        -- Tell Masque to re-apply skins at new icon sizes
+        if self.MasqueGroup then
+            self.MasqueGroup:ReSkin()
         end
     end
-    
+
     -- Apply texcoords for aspect ratio cropping
     self:ApplyIconTexCoords()
     
