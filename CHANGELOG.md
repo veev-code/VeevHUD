@@ -1,5 +1,17 @@
 # VeevHUD Changelog
 
+## [1.0.67] - 2026-02-09
+
+### Fixed
+
+- **Druid: Energy prediction accuracy** — Fixed two bugs that caused energy predictions to show wildly wrong values (e.g., 6s for Shred) after shifting into Cat Form. The tick timer is now correctly tracked as continuous across form changes, and Furor energy gains properly restart predictions instead of being ignored.
+- **Resource predictions now factor in GCD** — Predictions previously ended before the spell was actually usable if the GCD was still running. The countdown now accounts for GCD as a constraint, preventing predictions from finishing ~0.2s early.
+- **Prediction countdown text continues through GCD** — When a resource prediction countdown is active and the resource arrives while the GCD is still ticking, the countdown text now seamlessly continues to zero instead of disappearing.
+
+### Improved
+
+- **New user experience** — First-time users who dismiss the welcome popup no longer see migration notices for features that already existed when they installed.
+
 ## [1.0.66] - 2026-02-09
 
 ### Added

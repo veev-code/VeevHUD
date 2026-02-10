@@ -171,6 +171,25 @@ end
 -- Show Logic
 -------------------------------------------------------------------------------
 
+-- Mark all registered migrations as shown (used when a new user dismisses the
+-- welcome popup so they don't see migration notices for pre-existing features)
+function MigrationManager:MarkAllShown()
+    local migrationsShown
+    if addon.db and addon.db.global then
+        addon.db.global.migrationsShown = addon.db.global.migrationsShown or {}
+        migrationsShown = addon.db.global.migrationsShown
+    elseif VeevHUDDB then
+        VeevHUDDB.migrationsShown = VeevHUDDB.migrationsShown or {}
+        migrationsShown = VeevHUDDB.migrationsShown
+    else
+        return
+    end
+
+    for _, migration in ipairs(migrations) do
+        migrationsShown[migration.id] = true
+    end
+end
+
 -- Find and show the next applicable migration
 function MigrationManager:ShowNext()
     local migrationsShown = (addon.db and addon.db.global and addon.db.global.migrationsShown) or (VeevHUDDB and VeevHUDDB.migrationsShown)

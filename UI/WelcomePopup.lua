@@ -89,6 +89,8 @@ function WelcomePopup:CreateDialog()
         elseif VeevHUDDB then
             VeevHUDDB.welcomeShown = true
         end
+        -- New users don't need migration notices for pre-existing features
+        addon.MigrationManager:MarkAllShown()
     end)
     
     self.dialog = dialog

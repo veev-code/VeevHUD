@@ -283,6 +283,32 @@ LibStub, CallbackHandler-1.0, AceAddon-3.0, AceEvent-3.0, AceHook-3.0, AceConsol
 - `check <id>` — Diagnose why a spell isn't showing
 - `layout` — Print layout debug info
 
+## Debug Logging
+
+VeevHUD has built-in persistent debug logging that makes it easy to diagnose timing-sensitive issues (tick tracking, predictions, form changes, etc.) without needing to reproduce them live.
+
+### Workflow
+1. **Enable debug mode**: `/vh debug` in-game
+2. **Play and reproduce the issue** (e.g., shift into cat form, wait for energy prediction)
+3. **Reload UI**: `/reload` — this flushes logs to SavedVariables
+4. **Read the log file**: `WTF/Account/<account>/SavedVariables/VeevHUD.lua` — the `VeevHUDLog` table contains timestamped entries
+
+### How to add debug logging
+- **In services** (TickTracker, ResourcePrediction): Use the local `TickLog()`/`DebugLog()` helpers already defined at the top of each file. These only fire when debug mode is on.
+- **In modules**: Call `addon.Utils:LogDebug(source, message)` directly.
+- **Deduplication**: For logs inside hot paths (per-frame updates), use a `lastLogKey` pattern to avoid flooding — only log when inputs change. See `ResourcePrediction.lastEnergyPredLogKey` for an example.
+- All logs go through `Core/Logger.lua` which gates on `debugMode` and writes to `VeevHUDLog` SavedVariable.
+
+### Key log prefixes
+- `[TickTracker] TICK` — Energy/mana tick observed (with interval)
+- `[TickTracker] PHANTOM` — Inferred tick when at full energy
+- `[TickTracker] FORM` — Druid shapeshift transitions
+- `[EPRED]` — Energy prediction calculations (spell, energy, needed, ticks, timing)
+- `[ESYNC]` — Energy tick detected by ResourcePrediction before TickTracker
+- `[PRED]` — Mana prediction calculations
+- `[COST]` — Spell cost info when prediction is needed
+- `[SYNC]` — Mana tick detected by ResourcePrediction before TickTracker
+
 ## Code Conventions
 
 - Modules: `local M = {}; M.addon = addon; addon:RegisterModule("Name", M)`

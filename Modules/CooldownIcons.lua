@@ -1854,6 +1854,11 @@ function CooldownIcons:UpdateIconState(frame, db)
     if isPredictionMode and hasResourceCost and not skipPrediction then
         if canAfford then
             -- Can afford now - clear any prediction state
+            -- If prediction was counting down and GCD is still blocking,
+            -- remember to show text through the GCD for visual continuity
+            if frame.predictionActive and self.Utils:IsOnGCD(remaining, duration) then
+                frame.gcdContinueText = true
+            end
             -- Reset ready glow tracking so it can trigger on this transition
             if frame.predictionActive then
                 frame.readyGlowShown = false  -- Allow ready glow to show
@@ -1864,6 +1869,7 @@ function CooldownIcons:UpdateIconState(frame, db)
             frame.predictionFallback = false
             frame.predictionLastPower = nil
         else
+            frame.gcdContinueText = nil  -- Back to prediction mode
             -- Can't afford - calculate time until affordable
             local ResourcePrediction = addon.ResourcePrediction
             if ResourcePrediction then
@@ -1880,26 +1886,28 @@ function CooldownIcons:UpdateIconState(frame, db)
             local isOffCooldown = self.Utils:IsOffCooldown(remaining, duration)
             local cdRemaining = isOffCooldown and 0 or remaining
             
-            -- Use max of cooldown and resource prediction
-            local effectiveWait = math.max(cdRemaining, timeUntilAffordable)
+            -- Use max of cooldown, GCD, and resource prediction
+            -- GCD is excluded from cdRemaining (IsOffCooldown treats GCD as "ready")
+            -- but the spell still can't be cast until GCD expires
+            local effectiveWait = math.max(cdRemaining, remaining or 0, timeUntilAffordable)
             
-            -- Detect if resources were spent (need to restart prediction)
-            -- This handles the case where user casts something else mid-prediction
-            local resourcesSpent = frame.predictionActive and frame.predictionLastPower and currentPower < frame.predictionLastPower
-            
+            -- Detect if resources changed (need to restart prediction)
+            -- Covers both spending (cast mid-prediction) and gaining (Furor, ticks)
+            local resourcesChanged = frame.predictionActive and frame.predictionLastPower and currentPower ~= frame.predictionLastPower
+
             -- If prediction is already active and in fallback mode, stay in fallback
             -- (don't restart prediction spiral after fallback was triggered)
-            if frame.predictionFallback and not resourcesSpent then
+            if frame.predictionFallback and not resourcesChanged then
                 inPredictionFallback = true
             elseif effectiveWait > 0 then
-                if not frame.predictionActive or resourcesSpent then
-                    -- Start new prediction (or restart because resources were spent)
+                if not frame.predictionActive or resourcesChanged then
+                    -- Start new prediction (or restart because resources changed)
                     frame.predictionActive = true
                     frame.predictionStartTime = GetTime()
                     frame.predictionDuration = effectiveWait
                     frame.predictionFallback = false
                     -- Reset ready glow so it can trigger when prediction completes
-                    if not resourcesSpent then
+                    if not resourcesChanged then
                         frame.readyGlowShown = false
                     end
                 end
@@ -1936,6 +1944,11 @@ function CooldownIcons:UpdateIconState(frame, db)
         frame.predictionStartTime = nil
         frame.predictionDuration = nil
         frame.predictionFallback = false
+    end
+
+    -- Clear GCD text continuation flag when no longer on GCD
+    if frame.gcdContinueText and not self.Utils:IsOnGCD(remaining, duration) then
+        frame.gcdContinueText = nil
     end
 
     -- Get charges
@@ -2177,6 +2190,12 @@ function CooldownIcons:UpdateIconState(frame, db)
         -- Show prediction remaining time (waiting for resources)
         -- Use same color as cooldown text for consistency
         frame.text:SetText(self.Utils:FormatCooldown(predictionRemaining))
+        frame.text:SetTextColor(self.C.COLORS.TEXT.r, self.C.COLORS.TEXT.g, self.C.COLORS.TEXT.b)
+    elseif frame.gcdContinueText and remaining > 0 and showTextForRow then
+        -- Prediction just ended but GCD still blocking — continue countdown text
+        -- GCD alone doesn't show text (too noisy), but if a prediction was already
+        -- counting down, the text should seamlessly reach 0
+        frame.text:SetText(self.Utils:FormatCooldown(remaining))
         frame.text:SetTextColor(self.C.COLORS.TEXT.r, self.C.COLORS.TEXT.g, self.C.COLORS.TEXT.b)
     elseif showAuraActive and auraDisplayRemaining > 0 and showTextForRow then
         -- Show aura remaining time

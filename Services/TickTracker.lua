@@ -542,25 +542,42 @@ function TickTracker:OnShapeshiftChange()
         self.formChangeTime = now
     end
     
-    -- Entering cat form - RESETS the energy tick timer
-    -- This is the core mechanic that makes powershifting work in TBC:
-    -- - Druid waits for a tick, then immediately shifts out and back in
-    -- - Gets Furor/Wolfshead energy instantly
-    -- - Tick timer resets, so next tick is 2s away
-    -- - Net gain: got the tick + bonus energy in rapid succession
+    -- Entering cat form — advance phantom ticks to maintain tick cycle
+    -- The server tick cycle is continuous across form changes (confirmed via
+    -- debug logs: first tick after form entry arrives at variable intervals,
+    -- not a fixed 2s). We catch up phantom ticks for the time spent out of
+    -- cat form so predictions are immediately accurate on re-entry.
     if nowInEnergyForm and not wasInEnergyForm then
         local timeSinceFormChange = self.formChangeTime > 0 and (now - self.formChangeTime) or 0
-        
-        -- Reset tick timer - entering Cat Form starts a fresh 2-second cycle
-        self.lastEnergyTickTime = now
-        self.hasConfirmedTick = true  -- Form entry gives us confirmed timing (we know next tick is 2s away)
-        
-        -- Reset sample to avoid misinterpreting Furor/Wolfshead energy as a tick
+
+        -- Catch up phantom ticks for time spent out of cat form
+        -- (RecordEnergySample only runs while resource bar shows energy)
+        if self.lastEnergyTickTime > 0 then
+            local timeSinceLastTick = now - self.lastEnergyTickTime
+            if timeSinceLastTick >= C.TICK_RATE then
+                local ticksMissed = math.floor(timeSinceLastTick / C.TICK_RATE)
+                self.lastEnergyTickTime = self.lastEnergyTickTime + (ticksMissed * C.TICK_RATE)
+                TickLog(string.format("FORM entered cat form, caught up %d phantom ticks", ticksMissed))
+            end
+        end
+        -- hasConfirmedTick stays as-is from previous cat form session.
+        -- On very first cat form entry (no prior tick data), it remains false
+        -- and predictions use the worst-case fallback until first real tick.
+
+        -- Reset energy sample to prevent Furor/Wolfshead energy from being
+        -- misinterpreted as an energy tick by RecordEnergySample
         local currentEnergy = UnitPower("player", C.POWER_TYPE.ENERGY)
         self.lastSampleEnergy = currentEnergy
-        
-        TickLog(string.format("FORM entered cat form, timeOutOfForm=%.3fs, RESET tick timer, energy=%d (Furor/Wolfshead)",
-            timeSinceFormChange, currentEnergy))
+
+        -- Sync ResourcePrediction to prevent ESYNC from misinterpreting Furor
+        local RP = addon.ResourcePrediction
+        if RP then
+            RP.lastPredictionEnergy = currentEnergy
+        end
+
+        TickLog(string.format("FORM entered cat form, timeOutOfForm=%.3fs, energy=%d, maxEnergy=%d, lastTickTime=%.3f, confirmed=%s",
+            timeSinceFormChange, currentEnergy, UnitPowerMax("player", C.POWER_TYPE.ENERGY),
+            self.lastEnergyTickTime, tostring(self.hasConfirmedTick)))
     end
     
     self.lastKnownForm = form

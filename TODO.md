@@ -83,7 +83,7 @@ Items from feedback that have been completed, with the version they shipped in.
 | Mongoose Bite                                                    | 1.0.37  | Added to Hunter spell list                     |
 | Hunter's Mark                                                    | 1.0.37  | Added to Hunter spell list                     |
 | Energy ticker at full energy option                              | 1.0.36  | "Show at Full Energy" toggle, default ON       |
-| Druid powershifting energy tick reset                            | 1.0.36  | Tick timer resets on Cat Form entry            |
+| Druid powershifting energy tick reset                            | 1.0.36  | Tick timer tracking on Cat Form entry (corrected in 1.0.67: continuous tick cycle, no reset) |
 | Duplicate racial icons (Blood Fury, etc.)                        | 1.0.36  | Fixed via spell variant deduplication          |
 | Cooldown finish sparkle (bling)                                  | 1.0.34  | Per-row configurable                           |
 | Smooth dim transition                                            | 1.0.34  | Gradual fade on cooldown                       |
