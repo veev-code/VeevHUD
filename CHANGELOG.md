@@ -1,5 +1,11 @@
 # VeevHUD Changelog
 
+## [1.0.71] - 2026-02-10
+
+### Fixed
+
+- **Proc Tracker: Stack count position** — Fixed v1.0.69 regression where Masque moved proc stack counts (e.g., Flurry stacks) from the top-right corner to the bottom-right. Stack text is now positioned independently of Masque skinning.
+
 ## [1.0.70] - 2026-02-09
 
 ### Added

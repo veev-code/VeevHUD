@@ -290,7 +290,6 @@ function ProcTracker:CreateProcIcon(parent, procData, index, size, iconWidth, ic
             Icon = icon,
             Cooldown = cooldown,
             Normal = normalTexture,
-            Count = stacks,
         })
         -- Hide manual border — Masque provides its own
         border:Hide()
