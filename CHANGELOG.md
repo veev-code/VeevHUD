@@ -1,5 +1,16 @@
 # VeevHUD Changelog
 
+## [1.0.70] - 2026-02-09
+
+### Added
+
+- **Single-Target Aura Tracking** — Spells that can only be active on one target at a time now track their aura regardless of your current target, just like hard CC already does. Affected spells: Prayer of Mending (shows remaining charges even when targeting the boss), Earth Shield (shows charges on the tank while healing others), and Slow (shows duration when you switch targets).
+
+### LibSpellDB Updates
+
+- New `singleTarget` field and `IsSingleTarget()` API for spells limited to one active target at a time
+- 12 spells tagged: Polymorph, Sap, Fear, Banish, Enslave Demon, Hibernate, Mind Control, Shackle Undead, Turn Undead, Prayer of Mending, Earth Shield, Slow
+
 ## [1.0.69] - 2026-02-09
 
 ### Added

@@ -47,7 +47,6 @@ These were requested by multiple people or have strong gameplay impact.
 - **Track Shared Debuffs from Any Caster** — Debuffs like Faerie Fire and Sunder Armor should show on your HUD even when applied by another player, since only one instance of the debuff matters. Should also handle cross-ability equivalence (e.g., Sunder Armor and Expose Armor share the same armor-reduction debuff slot). *(Artvil)*
 - **Totem Duration Tracking** — Basic duration tracking shipped in 1.0.50. Still considering a more comprehensive totem model (grouped category icons, element-aware UI). *(Shadowhawk)*
 - **Dual Countdown on Icons (CD + Debuff)** — For abilities where both a cooldown and a debuff matter (e.g., Mangle Cat — no CD but debuff is key), show a secondary timer in an icon corner so both can be tracked on one icon without adding a separate icon. *(Artvil)*
-- **Single-Application Buff Tracking** — Track buffs that can only exist on one target at a time (e.g., Prayer of Mending) regardless of current target. Show duration/stacks even when a different unit is targeted. *(Earth Shield tracking covered by Buff Reminders.)*
 - **Health Bar Improvements** — Potential enhancements:
   - Text options: max health, health deficit, whole numbers (not just "k" abbreviation)
 
@@ -136,3 +135,4 @@ Items from feedback that have been completed, with the version they shipped in.
 | Druid: Form-Conditional Abilities                                  | 1.0.59  | Cat/bear form filtering with last-form memory          |
 | Druid: Mana Bar in Forms                                           | 1.0.60  | Secondary mana bar in Cat/Bear Form with color/spark/text config |
 | Masque reload on icon size / aspect ratio change                   | 1.0.69  | ReSkin() API used instead of reload; Masque groups for Procs and Buff Reminders |
+| Single-application buff tracking (Prayer of Mending, Earth Shield) | 1.0.70  | `singleTarget` spells track across all targets like CC_HARD |

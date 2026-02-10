@@ -33,7 +33,7 @@ Above the ability rows, you'll find **Health & Resource Bars** and a **Proc Trac
 Icons don't just show cooldowns — they show your **applied effects**. Cast a stun? The icon displays the stun duration on your target, then transitions to the cooldown after it expires.
 
 *   **Rotational abilities** follow your current target — DoTs track your enemy, heals track your friendly target (or yourself by default)
-*   **Cooldowns and CC** always show when active, regardless of your current target
+*   **Cooldowns, CC, and single-target effects** always show when active, regardless of your current target — if a spell can only be on one target at a time (Polymorph, Prayer of Mending, Earth Shield, etc.), VeevHUD tracks it
 *   **Lockout awareness** — Lockouts from abilities like Power Word: Shield (Weakened Soul) and Paladin immunities (Forbearance) show whichever restriction is longer, so you always know when you can cast again
 *   **Target-of-target support** — Healers can target the boss while tracking HoTs on the tank
 

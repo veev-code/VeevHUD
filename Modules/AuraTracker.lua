@@ -687,23 +687,25 @@ end
 -------------------------------------------------------------------------------
 
 -- Determine the aura type for targeting logic based on the SOURCE spell ID
--- Returns: isHelpful, isSelfOnly, isCC, isRotational
+-- Returns: isHelpful, isSelfOnly, isCC, isRotational, isSingleTarget
 -- isHelpful: true for buffs/heals, false for hostile debuffs
 -- isSelfOnly: true for self-only buffs (Recklessness, etc.)
 -- isCC: true for CC spells (track across all targets)
 -- isRotational: true for ROTATIONAL spells (follow target context for buffs)
+-- isSingleTarget: true for spells that can only be active on one target at a time
 function AuraTracker:GetAuraType(spellID)
     local isHelpful = false
     local isSelfOnly = true  -- Default to self-only, will be overridden by IsSelfOnly
     local isCC = false
     local isRotational = false
-    
+    local isSingleTarget = false
+
     -- Resolve to canonical ID for consistent lookup
     local canonicalID = spellID
     if self.LibSpellDB then
         canonicalID = self.LibSpellDB:GetCanonicalSpellID(spellID) or spellID
     end
-    
+
     -- Use LibSpellDB's centralized logic
     if self.LibSpellDB then
         if self.LibSpellDB.IsSelfOnly then
@@ -712,15 +714,18 @@ function AuraTracker:GetAuraType(spellID)
         if self.LibSpellDB.IsRotational then
             isRotational = self.LibSpellDB:IsRotational(canonicalID)
         end
+        if self.LibSpellDB.IsSingleTarget then
+            isSingleTarget = self.LibSpellDB:IsSingleTarget(canonicalID)
+        end
     end
-    
+
     -- Check spellToAuraMap for explicit type info from triggersAuras
     local auraInfos = self.spellToAuraMap[canonicalID]
     if auraInfos and auraInfos[1] then
         local auraInfo = auraInfos[1]
         isHelpful = auraInfo.type == "BUFF"
     end
-    
+
     -- Check LibSpellDB for spell data and tags (using canonical ID)
     if self.LibSpellDB then
         local spellData = self.LibSpellDB:GetSpellInfo(canonicalID)
@@ -734,7 +739,7 @@ function AuraTracker:GetAuraType(spellID)
                     end
                     -- Helpful tags (if not already determined from auraInfos)
                     if not auraInfos then
-                        if tag == "HOT" or tag == "HAS_HOT" or tag == "HEAL_SINGLE" or tag == "HEAL_AOE" 
+                        if tag == "HOT" or tag == "HAS_HOT" or tag == "HEAL_SINGLE" or tag == "HEAL_AOE"
                            or tag == "BUFF" or tag == "HAS_BUFF" or tag == "EXTERNAL_DEFENSIVE"
                            or tag == SUMMON_TAG or tag == TOTEM_TAG then
                             isHelpful = true
@@ -744,27 +749,28 @@ function AuraTracker:GetAuraType(spellID)
             end
         end
     end
-    
-    return isHelpful, isSelfOnly, isCC, isRotational
+
+    return isHelpful, isSelfOnly, isCC, isRotational, isSingleTarget
 end
 
 -- Determine the aura type for targeting logic based on the AURA spell ID
 -- This is used when we have the aura ID from combat log and need to check its specific tags
--- Returns: isHelpful, isSelfOnly, isCC, isRotational, sourceSpellID
+-- Returns: isHelpful, isSelfOnly, isCC, isRotational, sourceSpellID, isSingleTarget
 function AuraTracker:GetAuraTypeForAuraID(auraSpellID)
     local isHelpful = false
     local isSelfOnly = true  -- Default to self-only, will be overridden
     local isCC = false
     local isRotational = false
+    local isSingleTarget = false
     local sourceSpellID = nil
-    
+
     -- First, check if this aura ID has specific tag info from LibSpellDB
     if self.LibSpellDB and self.LibSpellDB.GetAuraInfo then
         local auraInfo = self.LibSpellDB:GetAuraInfo(auraSpellID)
         if auraInfo then
             sourceSpellID = auraInfo.sourceSpellID
             isHelpful = auraInfo.type == "BUFF"
-            
+
             -- Use centralized logic based on source spell
             if sourceSpellID then
                 if self.LibSpellDB.IsSelfOnly then
@@ -773,42 +779,49 @@ function AuraTracker:GetAuraTypeForAuraID(auraSpellID)
                 if self.LibSpellDB.IsRotational then
                     isRotational = self.LibSpellDB:IsRotational(sourceSpellID)
                 end
+                if self.LibSpellDB.IsSingleTarget then
+                    isSingleTarget = self.LibSpellDB:IsSingleTarget(sourceSpellID)
+                end
             end
-            
+
             -- Check aura-specific tags
             if auraInfo.tags then
                 for _, tag in ipairs(auraInfo.tags) do
                     if tag == "CC_HARD" then
                         isCC = true
                     end
-                    if tag == "HOT" or tag == "HAS_HOT" or tag == "HEAL_SINGLE" or tag == "HEAL_AOE" 
+                    if tag == "HOT" or tag == "HAS_HOT" or tag == "HEAL_SINGLE" or tag == "HEAL_AOE"
                        or tag == "BUFF" or tag == "HAS_BUFF" or tag == "EXTERNAL_DEFENSIVE"
                        or tag == SUMMON_TAG or tag == TOTEM_TAG then
                         isHelpful = true
                     end
                 end
             end
-            
-            return isHelpful, isSelfOnly, isCC, isRotational, sourceSpellID
+
+            return isHelpful, isSelfOnly, isCC, isRotational, sourceSpellID, isSingleTarget
         end
     end
-    
+
     -- Fall back to checking auraToSpellMap (local cache)
     sourceSpellID = self.auraToSpellMap[auraSpellID]
     if sourceSpellID then
         -- Get the source spell's aura type
-        isHelpful, isSelfOnly, isCC, isRotational = self:GetAuraType(sourceSpellID)
-        return isHelpful, isSelfOnly, isCC, isRotational, sourceSpellID
+        local st
+        isHelpful, isSelfOnly, isCC, isRotational, st = self:GetAuraType(sourceSpellID)
+        isSingleTarget = st
+        return isHelpful, isSelfOnly, isCC, isRotational, sourceSpellID, isSingleTarget
     end
-    
+
     -- If not found as a triggered aura, try as a regular spell (same-ID aura)
     local canonicalID = auraSpellID
     if self.LibSpellDB then
         canonicalID = self.LibSpellDB:GetCanonicalSpellID(auraSpellID) or auraSpellID
     end
-    
-    isHelpful, isSelfOnly, isCC, isRotational = self:GetAuraType(canonicalID)
-    return isHelpful, isSelfOnly, isCC, isRotational, canonicalID
+
+    local st
+    isHelpful, isSelfOnly, isCC, isRotational, st = self:GetAuraType(canonicalID)
+    isSingleTarget = st
+    return isHelpful, isSelfOnly, isCC, isRotational, canonicalID, isSingleTarget
 end
 
 -------------------------------------------------------------------------------
@@ -905,14 +918,20 @@ end
 
 -- Get relevant target GUID for a specific AURA (using aura-specific tags)
 -- Returns: relevantGUID, shouldCheckAllTargets
--- shouldCheckAllTargets: true for CC and non-rotational helpful buffs (Pain Suppression, Fear Ward)
+-- shouldCheckAllTargets: true for CC, single-target spells, and non-rotational helpful buffs
 function AuraTracker:GetRelevantTargetGUIDForAura(auraSpellID)
-    local isHelpful, isSelfOnly, isCC, isRotational = self:GetAuraTypeForAuraID(auraSpellID)
+    local isHelpful, isSelfOnly, isCC, isRotational, _, isSingleTarget = self:GetAuraTypeForAuraID(auraSpellID)
     local playerGUID = self.playerGUID
-    
+
     -- CC spells track across all targets - return nil to signal this
     if isCC then
         return nil, true  -- nil GUID, checkAllTargets = true
+    end
+
+    -- Single-target spells (can only be active on one target) track across all targets
+    -- e.g. Prayer of Mending, Earth Shield, Slow
+    if isSingleTarget then
+        return nil, true
     end
     
     -- For helpful spells (buffs/heals), check selfOnly and rotational status

@@ -41,7 +41,7 @@ VeevHUD is a lightweight, WeakAuras-inspired heads-up display addon for World of
 
 ### Modules (`Modules/`)
 - `SpellTracker.lua` — Determines which spells to track based on spec, tags, known status, user overrides
-- `AuraTracker.lua` — Tracks buffs/debuffs applied by player spells via CLEU events
+- `AuraTracker.lua` — Tracks buffs/debuffs applied by player spells via CLEU events. CC_HARD and `singleTarget` spells track across all targets regardless of current target.
 - `CooldownIcons.lua` — Main icon display: rows, cooldown spirals, resource cost, glows, sorting, queued highlight
 - `ResourceBar.lua` — Resource bar (mana/rage/energy) with predicted cost overlay and tickers
 - `HealthBar.lua` — Health bar with heal prediction, absorb shield, and over-absorb glow overlays
