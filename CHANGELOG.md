@@ -1,10 +1,17 @@
 # VeevHUD Changelog
 
+## [1.0.66] - 2026-02-09
+
+### Added
+
+- **Druid: Per-Spell Form Visibility** — Feral druids can now override which form each spell appears in. A clickable form label (Cat / Bear / Any) appears next to each spell in the Spell Configuration panel. Gold text indicates a custom override; grey text shows the tag-based default. Disabled spells cannot be cycled until re-enabled. *(Soveliss)*
+- **Druid: Spell Config Info Text** — Feral druids see an explanation at the top of the Spell Configuration panel describing how form filtering works and how to override it per spell.
+
+### Changed
+
+- **Buff Reminders: Reverted ghost frame fix** — Removed the v1.0.65 defensive frame-reuse code for /reload, which addressed a bug that could not be reproduced. Simpler code path restored.
+
 ## [1.0.65] - 2026-02-09
-
-### Fixed
-
-- **Buff Reminders: Ghost icons on /reload** — Defensive fix to reuse the existing container frame after a UI reload, preventing orphaned icon frames that could linger at stale positions.
 
 ### LibSpellDB Updates
 - **Priest racial abilities** — 8 race-restricted priest spells now tracked: Starshards, Elune's Grace (Night Elf), Feedback (Human), Symbol of Hope (Draenei), Touch of Weakness (Undead/Blood Elf), Hex of Weakness, Shadowguard (Troll), Consume Magic (Blood Elf). Chastise, Desperate Prayer, and Devouring Plague now correctly restricted to their respective races.

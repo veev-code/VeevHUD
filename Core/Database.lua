@@ -299,7 +299,7 @@ function Database:IsSpellConfigModified(spellID, specKey)
     local spellConfig = addon.db and addon.db.profile and addon.db.profile.spellConfig
     if spellConfig and spellConfig[specKey] and spellConfig[specKey][spellID] then
         local cfg = spellConfig[specKey][spellID]
-        return cfg.enabled ~= nil or cfg.rowIndex ~= nil or cfg.order ~= nil
+        return cfg.enabled ~= nil or cfg.rowIndex ~= nil or cfg.order ~= nil or cfg.druidForm ~= nil
     end
     return false
 end

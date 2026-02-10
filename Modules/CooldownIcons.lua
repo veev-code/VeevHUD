@@ -992,14 +992,24 @@ function CooldownIcons:RebuildAllRows()
         local assigned = false
         local cfg = spellCfg[spellID] or {}
 
-        -- Skip spells for the wrong feral form
+        -- Skip spells for the wrong feral form (respects per-spell druidForm override)
         local skipForm = false
         if isFeralDruid then
-            local isCatSpell = LibSpellDB:HasTag(spellID, "CAT_FORM")
-            local isBearSpell = LibSpellDB:HasTag(spellID, "BEAR_FORM")
-            if (isCatSpell and self.activeFeralForm ~= "CAT") or
-               (isBearSpell and self.activeFeralForm ~= "BEAR") then
-                skipForm = true
+            local formOverride = cfg.druidForm  -- "CAT", "BEAR", "ANY", or nil
+            if formOverride == "ANY" then
+                skipForm = false
+            elseif formOverride == "CAT" then
+                skipForm = (self.activeFeralForm ~= "CAT")
+            elseif formOverride == "BEAR" then
+                skipForm = (self.activeFeralForm ~= "BEAR")
+            else
+                -- Default: tag-based filtering
+                local isCatSpell = LibSpellDB:HasTag(spellID, "CAT_FORM")
+                local isBearSpell = LibSpellDB:HasTag(spellID, "BEAR_FORM")
+                if (isCatSpell and self.activeFeralForm ~= "CAT") or
+                   (isBearSpell and self.activeFeralForm ~= "BEAR") then
+                    skipForm = true
+                end
             end
         end
 

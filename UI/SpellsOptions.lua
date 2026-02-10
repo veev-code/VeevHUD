@@ -392,6 +392,8 @@ function SpellsOptions:GetDefaultValue(spellID, field)
         return AVAILABLE_ROW_INDEX  -- Default to available section if no row
     elseif field == "order" then
         return nil  -- Default is nil (use priority-based sorting)
+    elseif field == "druidForm" then
+        return nil  -- Default is tag-based (nil = use LibSpellDB tags)
     end
     return nil
 end
@@ -435,7 +437,18 @@ function SpellsOptions:RefreshSpellList()
     -- Build content
     local yOffset = 0
     local rowConfigs = addon.db.profile.rows
-    
+
+    -- Druid-specific explanation
+    if addon.playerClass == "DRUID" and addon.playerSpec == "FERAL" then
+        local druidInfo = self.scrollChild:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+        druidInfo:SetPoint("TOPLEFT", self.scrollChild, "TOPLEFT", 10, yOffset)
+        druidInfo:SetWidth(460)
+        druidInfo:SetJustifyH("LEFT")
+        druidInfo:SetText("|cff888888Feral Druid: Spells are filtered by your last used form — Cat Form abilities hide in Bear Form and vice versa. In caster or travel form, your last Cat/Bear form is remembered. Click the form label (Cat/Bear/Any) next to any spell to override this.|r")
+        local infoHeight = druidInfo:GetStringHeight() + 8
+        yOffset = yOffset - infoHeight
+    end
+
     if totalSpells == 0 then
         -- Show message when no spells are found
         local noSpellsMsg = self.scrollChild:CreateFontString(nil, "ARTWORK", "GameFontNormal")
@@ -754,9 +767,9 @@ function SpellsOptions:CreateSpellEntry(spellInfo, rowIndex, index, yOffset)
     
     checkbox:SetScript("OnClick", function(self)
         local enabled = self:GetChecked()
-        
+
         SpellsOptions:SetSpellOverride(spellInfo.spellID, "enabled", enabled)
-        
+
         -- If enabling a spell from the Available section, move it to its default row
         -- BUT only if it doesn't already have a rowIndex override (user previously configured it)
         if enabled and spellInfo.isAvailable then
@@ -771,14 +784,107 @@ function SpellsOptions:CreateSpellEntry(spellInfo, rowIndex, index, yOffset)
                 SpellsOptions:SetSpellOverride(spellInfo.spellID, "rowIndex", defaultRow)
             end
         end
-        
+
         SpellsOptions:RefreshSpellList()
     end)
     frame.checkbox = checkbox
-    
+
+    -- Druid form selector (Feral only)
+    local dragAnchor = checkbox  -- Default: drag handle anchors to checkbox
+    if addon.playerClass == "DRUID" and addon.playerSpec == "FERAL" then
+        local LibSpellDB = addon.LibSpellDB
+        local sid = spellInfo.spellID
+
+        -- Determine tag-based default for this spell
+        local tagDefault = "ANY"
+        if LibSpellDB and LibSpellDB:HasTag(sid, "CAT_FORM") then
+            tagDefault = "CAT"
+        elseif LibSpellDB and LibSpellDB:HasTag(sid, "BEAR_FORM") then
+            tagDefault = "BEAR"
+        end
+
+        -- Display labels
+        local formLabels = { CAT = "Cat", BEAR = "Bear", ANY = "Any" }
+        -- Cycle order
+        local cycleOrder = { "CAT", "BEAR", "ANY" }
+
+        local formBtn = CreateFrame("Button", nil, frame)
+        formBtn:SetPoint("LEFT", checkbox, "RIGHT", 4, 0)
+        formBtn:SetSize(36, 20)
+
+        local formText = formBtn:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+        formText:SetPoint("CENTER")
+
+        -- Get current override
+        local cfg = addon:GetSpellConfigForSpell(sid)
+        local currentOverride = cfg.druidForm  -- nil, "CAT", "BEAR", or "ANY"
+        local effectiveForm = currentOverride or tagDefault
+
+        -- Update display
+        local function UpdateFormDisplay()
+            formText:SetText(formLabels[effectiveForm] or "Any")
+            if not spellInfo.enabled then
+                -- Spell disabled: extra dim
+                formText:SetTextColor(0.3, 0.3, 0.3)
+            elseif currentOverride then
+                -- Override active: gold text
+                formText:SetTextColor(1, 0.82, 0)
+            else
+                -- Default: dimmed grey
+                formText:SetTextColor(0.5, 0.5, 0.5)
+            end
+        end
+        UpdateFormDisplay()
+
+        formBtn:SetScript("OnClick", function()
+            if not spellInfo.enabled then return end
+            -- Find current position in cycle
+            local currentIdx = 0
+            for i, v in ipairs(cycleOrder) do
+                if effectiveForm == v then
+                    currentIdx = i
+                    break
+                end
+            end
+            -- Advance to next
+            local nextIdx = (currentIdx % #cycleOrder) + 1
+            local nextForm = cycleOrder[nextIdx]
+
+            -- If next matches tag default, store nil (clear override)
+            if nextForm == tagDefault then
+                currentOverride = nil
+                effectiveForm = tagDefault
+            else
+                currentOverride = nextForm
+                effectiveForm = nextForm
+            end
+
+            SpellsOptions:SetSpellOverride(sid, "druidForm", currentOverride)
+            UpdateFormDisplay()
+        end)
+
+        formBtn:SetScript("OnEnter", function(self)
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            GameTooltip:AddLine("Form Visibility")
+            GameTooltip:AddLine("Click to cycle: Cat / Bear / Any", 1, 1, 1, true)
+            if currentOverride then
+                GameTooltip:AddLine("Currently overridden (gold = custom)", 1, 0.82, 0)
+            else
+                GameTooltip:AddLine("Using default (based on spell tags)", 0.5, 0.5, 0.5)
+            end
+            GameTooltip:Show()
+        end)
+        formBtn:SetScript("OnLeave", function()
+            GameTooltip:Hide()
+        end)
+
+        frame.formBtn = formBtn
+        dragAnchor = formBtn  -- Drag handle anchors to form button instead
+    end
+
     -- Drag handle (use simple :: symbol that renders in all fonts)
     local dragHandle = CreateFrame("Button", nil, frame)
-    dragHandle:SetPoint("LEFT", checkbox, "RIGHT", 8, 0)
+    dragHandle:SetPoint("LEFT", dragAnchor, "RIGHT", 8, 0)
     dragHandle:SetSize(20, 20)
     
     local dragText = dragHandle:CreateFontString(nil, "ARTWORK", "GameFontNormal")
