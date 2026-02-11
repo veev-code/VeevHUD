@@ -1,5 +1,17 @@
 # VeevHUD Changelog
 
+## [1.0.75] - 2026-02-11
+
+### Fixed
+
+- **Desperate Prayer row assignment** — Now correctly defaults to the Utility row (personal defensive) instead of the Secondary row. Self-only emergency heals are categorized as defensives, not healing throughput.
+
+### LibSpellDB Updates
+
+- **Priest: Improved default spell config** — Binding Heal and Circle of Healing no longer appear on the HUD (spammable fillers with no cooldown). Inner Focus now shows for Holy priests. Shadowfiend now shows for all priest specs (trainable at 66, not Shadow-only). Holy Fire removed from default display (niche in TBC).
+- **Mage: Ice Block** — Fixed duplicate entry that incorrectly showed Ice Block for Arcane and Fire specs (Frost talent in TBC)
+- **Hunter: Steady Shot** — No longer appears on the HUD (spammable filler with no cooldown, like Lightning Bolt and Shadow Bolt)
+
 ## [1.0.74] - 2026-02-10
 
 ### Changed

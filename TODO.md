@@ -14,7 +14,6 @@ Reported missing or broken spell support (not confirmed fixed):
 
 ## Bugs
 
-- **Desperate Prayer row assignment** — Should default to Utility row, not Primary/Secondary.
 - **Timer text rounding** — Buff/debuff minute display rounds *down* while WoW's native buff bar rounds *up* (e.g., addon shows "3m" when WoW shows "4m"). *(Shadowhawk)*
 - **Resource-gated cooldown transition** — When an ability comes off cooldown but the player lacks the resource (e.g., rage) to cast it, the icon transition is jarring — it briefly looks ready, then snaps to the "not usable" state instead of filling smoothly. Investigate a more seamless visual path for this case.
 - **Absorb Shields not working** — Not displaying on health bar at all
@@ -137,3 +136,4 @@ Items from feedback that have been completed, with the version they shipped in.
 | Single-application buff tracking (Prayer of Mending, Earth Shield) | 1.0.70  | `singleTarget` spells track across all targets like CC_HARD |
 | Grouped Category Icons (Shaman totems)                             | 1.0.72  | Dedicated 4-slot Totem Bar with per-element tracking         |
 | Totem Duration Tracking (comprehensive element-aware UI)           | 1.0.72  | Totem Bar with active/expired/out-of-range states            |
+| Desperate Prayer row assignment                                    | 1.0.75  | Retagged PERSONAL_DEFENSIVE; defaults to Utility row         |

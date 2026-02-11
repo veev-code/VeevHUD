@@ -234,13 +234,27 @@ Notable defaults:
 
 ## Row Configuration
 
-Rows defined in `Constants.DEFAULTS.profile.rows`:
+Rows defined in `Constants.DEFAULTS.profile.rows`. Spells assigned to the **first matching row** (no duplicates).
 
 1. **Primary** (iconSize: 56) — Tags: `ROTATIONAL`, `CORE_ROTATION`
-2. **Secondary** (iconSize: 48) — Tags: `DPS`, `HEAL`, `MAINTENANCE`, `AOE`, `EXTERNAL_DEFENSIVE`
-3. **Utility** (iconSize: 42, flowLayout) — Tags: `CC_BREAK`, `INTERRUPT`, `CC_HARD`, `CC_SOFT`, `MOVEMENT`, `DEFENSIVE`, etc.
+2. **Secondary** (iconSize: 48) — Tags: `DPS`, `HEAL`, `MAINTENANCE`, `AOE`, `EXTERNAL_DEFENSIVE`, `RESOURCE`
+3. **Utility** (iconSize: 42, flowLayout) — Tags: `CC_BREAK`, `INTERRUPT`, `CC_HARD`, `CC_SOFT`, `MOVEMENT`, `DEFENSIVE`, `PERSONAL_DEFENSIVE`, etc.
 
-Spells assigned to the **first matching row** (no duplicates).
+### Default Config Design Philosophy
+
+The default spell config should produce sensible out-of-box defaults for every class/spec with zero user configuration. The guiding principles:
+
+**Primary Row** — Core rotation abilities used on cooldown every fight. Must have a meaningful cooldown (not spammable fillers). The "heartbeat" of your spec's gameplay loop.
+
+**Secondary Row** — Throughput cooldowns that boost output when used at the right time: offensive CDs, healing CDs, resource generation CDs, maintenance buffs/debuffs. For **healer specs**, this row should contain abilities castable on allies (your raid-healing toolkit). Self-only heals/defensives do not belong here.
+
+**Utility Row** — Combat utility that doesn't directly increase throughput: personal defensives (self-only survival CDs), crowd control, interrupts, dispels, movement abilities.
+
+**Excluded from tracking** — Spammable fillers (no cooldown, mana-gated only), out-of-combat abilities, long-duration buffs (30+ min). These are tagged `FILLER`, `OUT_OF_COMBAT`, or `LONG_BUFF` in LibSpellDB. **Exception**: rage/energy-gated abilities without cooldowns are NOT fillers — they are `ROTATIONAL` because resource prediction on the icon is valuable (e.g., Slam, Sinister Strike, Shred).
+
+**Spec relevance** — Spells should only appear for specs that realistically use them in their default role. Damage abilities should not default-show for healer specs. Niche/situational cross-role spells belong in the Available pool for manual enabling.
+
+For tagging guidelines (FILLER vs ROTATIONAL, PERSONAL_DEFENSIVE vs HEAL, specs/talent rules), see **LibSpellDB CLAUDE.md → Tagging Guidelines**.
 
 ## Key Global Variables
 
