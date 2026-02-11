@@ -8,6 +8,13 @@
 
 local ADDON_NAME, addon = ...
 
+-- Localized WoW API functions (hot path)
+local GetTime = GetTime
+local UnitGUID = UnitGUID
+local UnitExists = UnitExists
+local UnitIsEnemy = UnitIsEnemy
+local UnitIsFriend = UnitIsFriend
+
 local AuraTracker = {}
 addon:RegisterModule("AuraTracker", AuraTracker)
 
@@ -78,10 +85,14 @@ function AuraTracker:Initialize()
     self.Utils:LogDebug("AuraTracker initialized")
 end
 
+-- Cached results of GetTriggeredAuraIDs (stable until BuildAuraMappings)
+AuraTracker._triggeredAuraIDsCache = {}
+
 function AuraTracker:BuildAuraMappings()
     local spellTracker = addon:GetModule("SpellTracker")
     if not spellTracker then return end
-    
+
+    wipe(self._triggeredAuraIDsCache)
     wipe(self.auraToSpellMap)
     wipe(self.spellToAuraMap)
     wipe(self.rankToBaseMap)
@@ -835,6 +846,10 @@ end
 --   - A different aura ID (20511 Cower) on the main target
 --   - The same spell ID (5246 Fear) on secondary targets
 function AuraTracker:GetTriggeredAuraIDs(sourceSpellID)
+    -- Return cached result if available (cache cleared on BuildAuraMappings)
+    local cached = self._triggeredAuraIDsCache[sourceSpellID]
+    if cached then return cached end
+
     -- First resolve to canonical (base) spell ID for lookup
     local canonicalID = sourceSpellID
     if self.LibSpellDB then
@@ -877,7 +892,63 @@ function AuraTracker:GetTriggeredAuraIDs(sourceSpellID)
         end
     end
     
+    self._triggeredAuraIDsCache[sourceSpellID] = ids
     return ids
+end
+
+--[[
+    Get combined aura state for a source spell (replaces separate IsAuraActive + GetAuraRemaining)
+    Returns: isActive, remaining, duration, stacks
+    Avoids duplicate iteration and temporary table allocations.
+]]
+function AuraTracker:GetAuraState(sourceSpellID)
+    local auraIDs = self:GetTriggeredAuraIDs(sourceSpellID)
+    local currentTime = GetTime()
+
+    local bestRemaining, bestDuration, bestStacks = 0, 0, 0
+    local bestPriority = 0
+    local isActive = false
+
+    for arrayIndex, auraID in ipairs(auraIDs) do
+        local targets = self.activeAuras[auraID]
+        if targets then
+            local relevantGUID, checkAllTargets = self:GetRelevantTargetGUIDForAura(auraID)
+            local priority = self:GetAuraPriority(auraID, arrayIndex)
+
+            if checkAllTargets then
+                for _, auraData in pairs(targets) do
+                    local expiration = type(auraData) == "table" and auraData.expiration or auraData
+                    local remaining = expiration - currentTime
+                    if remaining > 0 then
+                        isActive = true
+                        if priority > bestPriority or (priority == bestPriority and remaining > bestRemaining) then
+                            bestPriority = priority
+                            bestRemaining = remaining
+                            bestDuration = type(auraData) == "table" and auraData.duration or 0
+                            bestStacks = type(auraData) == "table" and auraData.stacks or 0
+                        end
+                    end
+                end
+            else
+                if relevantGUID and targets[relevantGUID] then
+                    local auraData = targets[relevantGUID]
+                    local expiration = type(auraData) == "table" and auraData.expiration or auraData
+                    local remaining = expiration - currentTime
+                    if remaining > 0 then
+                        isActive = true
+                        if priority > bestPriority or (priority == bestPriority and remaining > bestRemaining) then
+                            bestPriority = priority
+                            bestRemaining = remaining
+                            bestDuration = type(auraData) == "table" and auraData.duration or 0
+                            bestStacks = type(auraData) == "table" and auraData.stacks or 0
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    return isActive, bestRemaining, bestDuration, bestStacks
 end
 
 -- Check if ANY of a source spell's auras is currently active
@@ -916,6 +987,37 @@ function AuraTracker:IsAuraActiveForSourceSpell(sourceSpellID)
     return false
 end
 
+-- Cached target context (refreshed once per update cycle by CacheTargetContext)
+AuraTracker._targetGUID = nil
+AuraTracker._targetIsEnemy = false
+AuraTracker._targetIsFriend = false
+AuraTracker._ttGUID = nil
+AuraTracker._ttIsEnemy = false
+AuraTracker._ttIsFriend = false
+AuraTracker._useTargettarget = false
+
+-- Call once per update cycle to cache unit state for all aura checks
+function AuraTracker:CacheTargetContext()
+    local db = addon.db.profile.icons
+    self._useTargettarget = db.auraTargettargetSupport
+
+    self._targetGUID = UnitGUID("target")
+    local targetExists = UnitExists("target")
+    self._targetIsEnemy = targetExists and UnitIsEnemy("player", "target") or false
+    self._targetIsFriend = targetExists and UnitIsFriend("player", "target") or false
+
+    if self._useTargettarget then
+        self._ttGUID = UnitGUID("targettarget")
+        local ttExists = self._ttGUID and UnitExists("targettarget")
+        self._ttIsEnemy = ttExists and UnitIsEnemy("player", "targettarget") or false
+        self._ttIsFriend = ttExists and UnitIsFriend("player", "targettarget") or false
+    else
+        self._ttGUID = nil
+        self._ttIsEnemy = false
+        self._ttIsFriend = false
+    end
+end
+
 -- Get relevant target GUID for a specific AURA (using aura-specific tags)
 -- Returns: relevantGUID, shouldCheckAllTargets
 -- shouldCheckAllTargets: true for CC, single-target spells, and non-rotational helpful buffs
@@ -949,24 +1051,15 @@ function AuraTracker:GetRelevantTargetGUIDForAura(auraSpellID)
     end
     
     -- Rotational spells follow target context (heals check friendly target, DoTs check enemy target)
-    -- Check if targettarget support is enabled
-    local db = addon.db.profile.icons
-    local useTargettarget = db.auraTargettargetSupport
-    
-    local targetGUID = UnitGUID("target")
-    local targetExists = UnitExists("target")
-    local targetIsEnemy = targetExists and UnitIsEnemy("player", "target")
-    local targetIsFriend = targetExists and UnitIsFriend("player", "target")
-    
-    -- Only check targettarget if the setting is enabled
-    local targettargetGUID, targettargetIsEnemy, targettargetIsFriend = nil, false, false
-    if useTargettarget then
-        targettargetGUID = UnitGUID("targettarget")
-        local targettargetExists = UnitExists("targettarget")
-        targettargetIsEnemy = targettargetExists and UnitIsEnemy("player", "targettarget")
-        targettargetIsFriend = targettargetExists and UnitIsFriend("player", "targettarget")
-    end
-    
+    -- Uses cached target context from CacheTargetContext() (called once per update cycle)
+    local targetGUID = self._targetGUID
+    local targetIsEnemy = self._targetIsEnemy
+    local targetIsFriend = self._targetIsFriend
+    local useTargettarget = self._useTargettarget
+    local targettargetGUID = self._ttGUID
+    local targettargetIsEnemy = self._ttIsEnemy
+    local targettargetIsFriend = self._ttIsFriend
+
     if targetIsEnemy then
         if isHelpful then
             if useTargettarget and targettargetIsFriend then

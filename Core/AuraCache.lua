@@ -9,6 +9,11 @@
 
 local ADDON_NAME, addon = ...
 
+-- Localized WoW API functions (hot path)
+local UnitGUID = UnitGUID
+local UnitBuff = UnitBuff
+local UnitDebuff = UnitDebuff
+
 addon.Utils = addon.Utils or {}
 local Utils = addon.Utils
 

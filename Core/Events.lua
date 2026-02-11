@@ -4,6 +4,9 @@
 
 local ADDON_NAME, addon = ...
 
+-- Localized WoW API functions (hot path)
+local CombatLogGetCurrentEventInfo = CombatLogGetCurrentEventInfo
+
 addon.Events = {}
 local Events = addon.Events
 
@@ -65,6 +68,8 @@ end)
 
 local cleuCallbacks = {}
 local cleuRegistered = false
+-- Reusable table for CLEU event data (avoids allocation per event)
+local cleuEventData = {}
 
 function Events:RegisterCLEU(owner, subEvent, callback)
     if not cleuCallbacks[subEvent] then
@@ -84,25 +89,23 @@ end
 eventFrame:SetScript("OnEvent", function(self, event, ...)
     if event == "COMBAT_LOG_EVENT_UNFILTERED" then
         local timestamp, subEvent, hideCaster, sourceGUID, sourceName, sourceFlags, sourceRaidFlags,
-              destGUID, destName, destFlags, destRaidFlags = CombatLogGetCurrentEventInfo()
+              destGUID, destName, destFlags, destRaidFlags, spellID, spellName, spellSchool = CombatLogGetCurrentEventInfo()
 
         if cleuCallbacks[subEvent] then
-            -- Get additional args based on sub-event
-            local _, _, _, _, _, _, _, _, _, _, _, spellID, spellName, spellSchool = CombatLogGetCurrentEventInfo()
+            -- Reuse table to avoid per-event allocation
+            cleuEventData.timestamp = timestamp
+            cleuEventData.sourceGUID = sourceGUID
+            cleuEventData.sourceName = sourceName
+            cleuEventData.sourceFlags = sourceFlags
+            cleuEventData.destGUID = destGUID
+            cleuEventData.destName = destName
+            cleuEventData.destFlags = destFlags
+            cleuEventData.spellID = spellID
+            cleuEventData.spellName = spellName
+            cleuEventData.spellSchool = spellSchool
 
             for owner, callback in pairs(cleuCallbacks[subEvent]) do
-                local success, err = pcall(callback, owner, subEvent, {
-                    timestamp = timestamp,
-                    sourceGUID = sourceGUID,
-                    sourceName = sourceName,
-                    sourceFlags = sourceFlags,
-                    destGUID = destGUID,
-                    destName = destName,
-                    destFlags = destFlags,
-                    spellID = spellID,
-                    spellName = spellName,
-                    spellSchool = spellSchool,
-                })
+                local success, err = pcall(callback, owner, subEvent, cleuEventData)
                 if not success then
                     addon.Utils:Debug("CLEU error [" .. subEvent .. "]: " .. tostring(err))
                 end
@@ -123,44 +126,30 @@ end)
 -------------------------------------------------------------------------------
 
 local updateCallbacks = {}
-local updateTicker = nil
 
 function Events:RegisterUpdate(owner, interval, callback)
+    -- Cancel existing ticker for this owner
+    if updateCallbacks[owner] and updateCallbacks[owner].ticker then
+        updateCallbacks[owner].ticker:Cancel()
+    end
+
     updateCallbacks[owner] = {
         interval = interval,
         callback = callback,
-        elapsed = 0,
-    }
-
-    -- Start ticker if not running
-    if not updateTicker then
-        updateTicker = C_Timer.NewTicker(0.01, function()
-            for owner, data in pairs(updateCallbacks) do
-                data.elapsed = data.elapsed + 0.01
-                if data.elapsed >= data.interval then
-                    data.elapsed = 0
-                    local success, err = pcall(data.callback, owner)
-                    if not success then
-                        addon.Utils:LogError("Update error:", tostring(err))
-                    end
-                end
+        ticker = C_Timer.NewTicker(interval, function()
+            local success, err = pcall(callback, owner)
+            if not success then
+                addon.Utils:LogError("Update error:", tostring(err))
             end
-        end)
-    end
+        end),
+    }
 end
 
 function Events:UnregisterUpdate(owner)
-    updateCallbacks[owner] = nil
-
-    -- Stop ticker if no callbacks
-    local hasCallbacks = false
-    for _ in pairs(updateCallbacks) do
-        hasCallbacks = true
-        break
-    end
-
-    if not hasCallbacks and updateTicker then
-        updateTicker:Cancel()
-        updateTicker = nil
+    if updateCallbacks[owner] then
+        if updateCallbacks[owner].ticker then
+            updateCallbacks[owner].ticker:Cancel()
+        end
+        updateCallbacks[owner] = nil
     end
 end

@@ -76,6 +76,24 @@
 local ADDON_NAME, addon = ...
 local C = addon.Constants
 
+-- Localized WoW API functions (hot path)
+local GetTime = GetTime
+local GetSpellInfo = GetSpellInfo
+local UnitExists = UnitExists
+local UnitIsEnemy = UnitIsEnemy
+local UnitIsFriend = UnitIsFriend
+local UnitAffectingCombat = UnitAffectingCombat
+local IsResting = IsResting
+local IsUsableSpell = IsUsableSpell
+local IsCurrentSpell = IsCurrentSpell
+local IsSpellOverlayed = IsSpellOverlayed
+local UnitGUID = UnitGUID
+local UnitPower = UnitPower
+local UnitPowerMax = UnitPowerMax
+
+-- Cached GetTime() value, set once per UpdateAllIcons cycle
+local now = 0
+
 local CooldownIcons = {}
 addon:RegisterModule("CooldownIcons", CooldownIcons)
 
@@ -395,12 +413,12 @@ function CooldownIcons:GetPlayerBuff(spellID)
     if aura then
         local remaining = 0
         if aura.expirationTime and aura.expirationTime > 0 then
-            remaining = aura.expirationTime - GetTime()
+            remaining = aura.expirationTime - now
             if remaining < 0 then remaining = 0 end
         end
         return true, remaining, aura.duration or 0, aura.count or 0
     end
-    
+
     return false, 0, 0, 0
 end
 
@@ -440,16 +458,16 @@ function CooldownIcons:GetRelevantBuff(spellID, checkSelfOnly)
     end
     
     local aura = self.Utils:GetCachedBuff(unit, spellID, spellName)
-    
+
     if aura then
         local remaining = 0
         if aura.expirationTime and aura.expirationTime > 0 then
-            remaining = aura.expirationTime - GetTime()
+            remaining = aura.expirationTime - now
             if remaining < 0 then remaining = 0 end
         end
         return true, remaining, aura.duration or 0, aura.count or 0
     end
-    
+
     return false, 0, 0, 0
 end
 
@@ -497,12 +515,12 @@ function CooldownIcons:GetTargetLockoutDebuff(debuffSpellID, isSelfOnly)
     if aura then
         local remaining = 0
         if aura.expirationTime and aura.expirationTime > 0 then
-            remaining = aura.expirationTime - GetTime()
+            remaining = aura.expirationTime - now
             if remaining < 0 then remaining = 0 end
         end
         return true, remaining, aura.duration or 0, aura.expirationTime or 0
     end
-    
+
     return false, 0, 0, 0
 end
 
@@ -1389,7 +1407,15 @@ end
 function CooldownIcons:UpdateAllIcons()
     if not self.rows then return end
 
+    now = GetTime()
     local db = addon.db.profile.icons
+    self._iconsDb = db  -- Cache for per-frame resource animation hooks
+
+    -- Cache target context once for all aura checks this cycle
+    local auraTracker = addon:GetModule("AuraTracker")
+    if auraTracker and auraTracker.CacheTargetContext then
+        auraTracker:CacheTargetContext()
+    end
 
     for rowIndex, rowFrame in pairs(self.rows) do
         if rowFrame then
@@ -1652,12 +1678,19 @@ function CooldownIcons:UpdateIconState(frame, db)
     local auraActive = false
     local auraRemaining, auraDuration, auraStacks = 0, 0, 0
     local spellData = frame.spellData
-    
+
+    -- Pre-compute spell targeting behavior (reused for buff checks and lockout checks)
+    local checkSelfOnly = true
+    if addon.LibSpellDB then
+        local isSelfOnly = addon.LibSpellDB:IsSelfOnly(spellData)
+        local isRotational = addon.LibSpellDB:IsRotational(spellData)
+        checkSelfOnly = isSelfOnly or not isRotational
+    end
+
     if db.showAuraTracking then
         local auraTracker = addon:GetModule("AuraTracker")
-        auraActive = auraTracker and auraTracker:IsAuraActive(spellID)
-        if auraTracker then
-            auraRemaining, auraDuration, auraStacks = auraTracker:GetAuraRemaining(spellID)
+        if auraTracker and auraTracker.GetAuraState then
+            auraActive, auraRemaining, auraDuration, auraStacks = auraTracker:GetAuraState(spellID)
         end
         
         -- For shared CD abilities (Reck/Retal/SWall), also check buffs directly
@@ -1666,18 +1699,6 @@ function CooldownIcons:UpdateIconState(frame, db)
         local shouldCheckBuff = true
         
         if shouldCheckBuff then
-            -- Determine buff tracking behavior:
-            -- - Self-only spells: always check self
-            -- - Rotational spells that can target others: check relevant target (ally if targeting ally)
-            -- - Non-rotational spells that can target others: check self (always track behavior)
-            local checkSelfOnly = true
-            if addon.LibSpellDB then
-                local isSelfOnly = addon.LibSpellDB:IsSelfOnly(spellData)
-                local isRotational = addon.LibSpellDB:IsRotational(spellData)
-                -- Only follow target context for rotational spells that can target others
-                checkSelfOnly = isSelfOnly or not isRotational
-            end
-            
             local isBuffActive, buffRemaining, buffDuration, buffStacks = self:GetRelevantBuff(actualSpellID, checkSelfOnly)
             if isBuffActive then
                 -- Always prefer buff data for permanent buffs (duration=0)
@@ -1718,7 +1739,7 @@ function CooldownIcons:UpdateIconState(frame, db)
     elseif duration > 0 and duration <= GCD_THRESHOLD and frame.actualCdStart and frame.actualCdDuration then
         -- API returned GCD-like duration, but we have a tracked real cooldown
         -- Check if the tracked cooldown should still be active
-        local trackedRemaining = (frame.actualCdStart + frame.actualCdDuration) - GetTime()
+        local trackedRemaining = (frame.actualCdStart + frame.actualCdDuration) - now
         if trackedRemaining > GCD_THRESHOLD then
             -- Real cooldown is still active and longer than GCD - use tracked values
             cdStartTime = frame.actualCdStart
@@ -1761,17 +1782,7 @@ function CooldownIcons:UpdateIconState(frame, db)
     local lockoutIsLimitingFactor = false  -- Track if lockout (not CD) is what's limiting us
     
     if spellData and spellData.targetLockoutDebuff then
-        -- Determine lockout checking behavior (same logic as buff tracking):
-        -- - Self-only spells: always check self
-        -- - Rotational spells that can target others: check relevant target
-        -- - Non-rotational spells: check self (major cooldowns, always track)
-        local checkSelfOnly = true
-        if addon.LibSpellDB then
-            local isSelfOnly = addon.LibSpellDB:IsSelfOnly(spellData)
-            local isRotational = addon.LibSpellDB:IsRotational(spellData)
-            checkSelfOnly = isSelfOnly or not isRotational
-        end
-        targetLockoutActive, targetLockoutRemaining, targetLockoutDuration, targetLockoutExpiration = 
+        targetLockoutActive, targetLockoutRemaining, targetLockoutDuration, targetLockoutExpiration =
             self:GetTargetLockoutDebuff(spellData.targetLockoutDebuff, checkSelfOnly)
         
         if targetLockoutActive and targetLockoutRemaining > 0 then
@@ -1829,8 +1840,8 @@ function CooldownIcons:UpdateIconState(frame, db)
 
         -- Transition: unusable -> usable: start timer
         if isUsable and not wasUsableForWindow then
-            frame.reactiveWindowStart = GetTime()
-            frame.reactiveWindowExpires = GetTime() + frame.reactiveWindow
+            frame.reactiveWindowStart = now
+            frame.reactiveWindowExpires = now + frame.reactiveWindow
         end
 
         -- Transition: usable -> unusable: clear timer (cast or conditions lost)
@@ -1840,7 +1851,7 @@ function CooldownIcons:UpdateIconState(frame, db)
         end
 
         -- Natural expiration
-        if frame.reactiveWindowExpires and GetTime() >= frame.reactiveWindowExpires then
+        if frame.reactiveWindowExpires and now >= frame.reactiveWindowExpires then
             frame.reactiveWindowStart = nil
             frame.reactiveWindowExpires = nil
         end
@@ -1938,7 +1949,7 @@ function CooldownIcons:UpdateIconState(frame, db)
                 if not frame.predictionActive or resourcesChanged then
                     -- Start new prediction (or restart because resources changed)
                     frame.predictionActive = true
-                    frame.predictionStartTime = GetTime()
+                    frame.predictionStartTime = now
                     frame.predictionDuration = effectiveWait
                     frame.predictionFallback = false
                     -- Reset ready glow so it can trigger when prediction completes
@@ -1952,7 +1963,7 @@ function CooldownIcons:UpdateIconState(frame, db)
                 
                 -- Calculate remaining time from when prediction started
                 -- Use stored values to ensure smooth countdown (no recalculation mid-prediction)
-                local elapsed = GetTime() - frame.predictionStartTime
+                local elapsed = now - frame.predictionStartTime
                 predictionRemaining = math.max(0, frame.predictionDuration - elapsed)
                 predictionDuration = frame.predictionDuration
                 predictionStartTime = frame.predictionStartTime
@@ -2014,7 +2025,7 @@ function CooldownIcons:UpdateIconState(frame, db)
     -- window (e.g., Victory Rush 20s after kill). This reuses all existing aura display
     -- infrastructure (glow, countdown spiral, duration text) with no changes to that code.
     if frame.reactiveWindow and frame.reactiveWindowExpires then
-        local rwRemaining = frame.reactiveWindowExpires - GetTime()
+        local rwRemaining = frame.reactiveWindowExpires - now
         if rwRemaining > 0 then
             auraActive = true
             auraRemaining = rwRemaining
@@ -2175,7 +2186,7 @@ function CooldownIcons:UpdateIconState(frame, db)
         elseif showAuraActive and auraDisplayDuration > 0 then
             -- Show aura duration spiral (remaining = bright, elapsed = dark)
             frame.cooldown:SetReverse(true)  -- Swipe fills as time passes (elapsed = dark)
-            local start = GetTime() - (auraDisplayDuration - auraDisplayRemaining)
+            local start = now - (auraDisplayDuration - auraDisplayRemaining)
             -- Only update if cooldown changed to avoid visual glitches
             if frame.lastCdStart ~= start or frame.lastCdDuration ~= auraDisplayDuration then
                 frame.cooldown:SetCooldown(start, auraDisplayDuration)
@@ -2283,8 +2294,8 @@ function CooldownIcons:UpdateIconState(frame, db)
                 end
                 
                 -- Only delay if cast feedback just played (within last 0.2s = total punch duration)
-                local castFeedbackPlaying = frame._lastCastFeedbackTime and 
-                    (GetTime() - frame._lastCastFeedbackTime) < 0.2
+                local castFeedbackPlaying = frame._lastCastFeedbackTime and
+                    (now - frame._lastCastFeedbackTime) < 0.2
                 local dimDelay = castFeedbackPlaying and 0.08 or 0
                 
                 -- Speed of 6 means ~0.12s for 0.7 alpha change (1.0 -> 0.3)
@@ -2458,9 +2469,7 @@ function CooldownIcons:UpdateResourceDisplay(frame, spellID, cooldownRemaining, 
     if not frame.resourceOnUpdate then
         frame.resourceOnUpdate = true
         frame:HookScript("OnUpdate", function(f, elapsed)
-            -- Get fresh db reference each frame
-            local freshDb = addon.db.profile.icons
-            self:AnimateResourceDisplay(f, elapsed, freshDb)
+            self:AnimateResourceDisplay(f, elapsed, self._iconsDb)
         end)
     end
     
@@ -2704,23 +2713,23 @@ function CooldownIcons:UpdateReadyGlow(frame, spellID, remaining, duration, isUs
         if isAlmostReady and effectiveUsable and canAfford and inCombat then
             showReadyGlow = true
             frame.readyGlowShown = true
-            frame.readyGlowExpires = GetTime() + glowDuration
-            
+            frame.readyGlowExpires = now + glowDuration
+
         -- Condition 2: Just became usable while off CD (canAfford is implicit in effectiveUsable when off CD)
         elseif isOffCooldown and effectiveUsable and canAfford and not wasUsable and inCombat then
             showReadyGlow = true
             frame.readyGlowShown = true
-            frame.readyGlowExpires = GetTime() + glowDuration
+            frame.readyGlowExpires = now + glowDuration
         end
     end
-    
+
     -- Check if existing ready glow should continue
     -- Cancel early if player can no longer afford the spell (e.g. spent rage on something else)
     if not canAfford then
         frame.readyGlowExpires = nil
-    elseif frame.readyGlowExpires and frame.readyGlowExpires > GetTime() then
+    elseif frame.readyGlowExpires and frame.readyGlowExpires > now then
         showReadyGlow = true
-    elseif frame.readyGlowExpires and frame.readyGlowExpires <= GetTime() then
+    elseif frame.readyGlowExpires and frame.readyGlowExpires <= now then
         -- Glow expired
         frame.readyGlowExpires = nil
     end

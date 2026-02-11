@@ -1,5 +1,20 @@
 # VeevHUD Changelog
 
+## [1.0.74] - 2026-02-10
+
+### Changed
+
+- **Performance: Reduced CPU usage** — Broad optimization pass across the addon's hot paths (icon updates, aura tracking, event handling):
+  - Eliminated redundant WoW API calls per update cycle by caching target state and time values once per frame
+  - Combined duplicate aura queries (active check + remaining time) into a single pass
+  - Replaced the central 100 Hz polling ticker with individual timers at each module's actual update rate
+  - Removed per-event table allocations in combat log processing (reuses a single table)
+  - Localized frequently-called WoW API functions across all hot-path modules
+
+### LibSpellDB Updates
+
+- `IsRotational()`, `GetAuraTarget()`, and `GetSortedSpells()` all received algorithmic performance improvements (O(n) → O(1) lookups, pre-computed sort keys)
+
 ## [1.0.73] - 2026-02-10
 
 ### LibSpellDB Updates

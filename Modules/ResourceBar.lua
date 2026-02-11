@@ -5,6 +5,14 @@
 
 local ADDON_NAME, addon = ...
 
+-- Localized WoW API functions (hot path)
+local UnitPower = UnitPower
+local UnitPowerMax = UnitPowerMax
+local UnitPowerType = UnitPowerType
+local GetTime = GetTime
+local GetShapeshiftForm = GetShapeshiftForm
+local IsSpellKnown = IsSpellKnown
+
 local ResourceBar = {}
 addon:RegisterModule("ResourceBar", ResourceBar)
 
