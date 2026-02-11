@@ -1,5 +1,11 @@
 # VeevHUD Changelog
 
+## [1.0.73] - 2026-02-10
+
+### LibSpellDB Updates
+
+- **Paladin: Missing seals** — Added Seal of Wisdom, Seal of Light, Seal of Justice, and Seal of Vengeance to the spell database. These now appear on Paladin cooldown icon rows. Seal of Blood also now appears for Protection Paladins (previously Retribution only).
+
 ## [1.0.72] - 2026-02-10
 
 ### Added
