@@ -1,5 +1,12 @@
 # VeevHUD Changelog
 
+## [1.0.76] - 2026-02-11
+
+### LibSpellDB Updates
+
+- **Totem Bar: Fixed Mana Tide, Windfury, and Flametongue Totems always appearing dimmed** — These totems were incorrectly configured for buff-based range detection, but none of them apply a standard player buff (Mana Tide pulses mana, Windfury/Flametongue apply weapon enchants). They now show at full brightness when active with a duration countdown. *(Thanks Ven for reporting)*
+- **Totem Bar: Added Fire Resistance Totem and Nature Resistance Totem** — Both were missing from the spell database. Fire Resistance Totem (Water element) and Nature Resistance Totem (Air element) now appear on the Totem Bar with buff-based range detection. *(Thanks Ven for reporting)*
+
 ## [1.0.75] - 2026-02-11
 
 ### Fixed
