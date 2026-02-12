@@ -1471,7 +1471,6 @@ function Options:BuildOptionsTable()
 						type = "group",
 						name = "Swing Bar",
 						order = 3,
-						hidden = function() return addon.playerClass == C.CLASS.DRUID end,
 						args = {
 							classInfo = {
 								type = "description",
@@ -1504,6 +1503,8 @@ function Options:BuildOptionsTable()
 										return "|cff888888Tracks your wand auto-attack timer. Only appears while actively wanding and auto-hides when you stop.|r\n"
 									elseif class == C.CLASS.ROGUE then
 										return "|cff888888Tracks your melee swing timer. Shows separate main-hand and off-hand bars when dual-wielding.|r\n"
+									elseif class == C.CLASS.DRUID then
+										return "|cff888888Tracks your melee swing timer in Cat or Bear Form. Bear Form's 2.5s swing is useful for timing Maul. Auto-hides when not actively swinging.|r\n"
 									end
 									return ""
 								end,

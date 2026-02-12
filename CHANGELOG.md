@@ -1,5 +1,11 @@
 # VeevHUD Changelog
 
+## [1.0.79] - 2026-02-12
+
+### Changed
+
+- **Swing Timer: Druid support** — Druids now have access to the swing timer (previously disabled entirely). Tracks melee swings in Cat and Bear Form, adapts to form-change speed differences, and auto-hides when not actively swinging. Configurable under Options > Bars > Swing Bar.
+
 ## [1.0.78] - 2026-02-12
 
 ### LibSpellDB Updates

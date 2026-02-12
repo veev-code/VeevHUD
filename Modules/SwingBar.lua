@@ -171,9 +171,6 @@ SwingBar.offBar = nil
 function SwingBar:Initialize()
     local class = addon.playerClass
 
-    -- Druid: skip entirely (1.0s cat = no value, bear Maul niche)
-    if class == "DRUID" then return end
-
     self.Events = addon.Events
     self.Utils = addon.Utils
     self.C = addon.Constants
@@ -660,7 +657,6 @@ end
 -------------------------------------------------------------------------------
 
 function SwingBar:IsActive()
-    if addon.playerClass == "DRUID" then return false end
     local db = addon.db and addon.db.profile and addon.db.profile.swingBar
     return db and db.enabled
 end
@@ -701,8 +697,6 @@ end
 -------------------------------------------------------------------------------
 
 function SwingBar:CreateFrames(parent)
-    if addon.playerClass == "DRUID" then return end
-
     local db = addon.db.profile.swingBar
     if not db.enabled then return end
 
@@ -1012,8 +1006,6 @@ end
 -------------------------------------------------------------------------------
 
 function SwingBar:Refresh()
-    if addon.playerClass == "DRUID" then return end
-
     local db = addon.db.profile.swingBar
 
     -- Create frames if needed
