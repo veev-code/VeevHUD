@@ -1,5 +1,23 @@
 # VeevHUD Changelog
 
+## [1.0.77] - 2026-02-12
+
+### Added
+
+- **Swing Timer** — A new auto-attack swing timer bar that adapts to your class and spec:
+  - **Hunter** — Color-coded clip zones show when it's safe to weave shots versus when you'd clip your next Auto Shot. 2-color and 3-color modes available. Background zone previews let you anticipate upcoming transitions. Optional melee weaving mode shows both ranged and melee bars simultaneously for advanced hunters.
+  - **Enhancement Shaman / Fury Warrior** — Dual-wield bars colored by swing synchronization for Flurry and Windfury optimization. Green when synced, red when drifted apart.
+  - **Retribution Paladin** — Highlights the twist window at the end of each swing for seal twisting timing.
+  - **All melee classes** — Basic MH/OH swing bars with automatic dual-wield detection.
+  - **Wand users** — Wand auto-attack timer that auto-hides when you stop.
+  - Configurable under Options > Bars > Swing Bar with layout, color, text, and per-class options. *(Togg, Shadowhawk, Artvil, RidiculedDaily, anonymous French warrior)*
+
+### Changed
+
+- **Buff Reminders: Separate weapon enchant icons** — Dual-wielding classes (Shaman, Rogue, etc.) now see separate reminder icons for main-hand and off-hand when weapon enchants are missing or expiring. Each icon shows the actual weapon instead of the spell icon, so you can tell at a glance which hand needs enchanting.
+- **Totem Bar** — Duration text scaled down to better match cooldown icon proportions.
+- **Bar borders** — Adjacent bars (health, resource, combo points, swing timer) no longer have doubled-up borders where they meet.
+
 ## [1.0.76] - 2026-02-11
 
 ### LibSpellDB Updates

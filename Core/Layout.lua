@@ -3,7 +3,7 @@
 
     Centralized layout system for ALL HUD element positioning.
 
-    All 7 HUD elements (4 bars + 3 icon rows) are stacked vertically in a
+    All HUD elements (bars + icon rows) are stacked vertically in a
     user-configurable order. Each element registers with the layout manager
     and provides:
       - GetLayoutHeight(): returns the height this element needs (0 if hidden)
@@ -17,8 +17,8 @@
          bars above them appear or disappear
 
     Element keys (matching C.LAYOUT_ELEMENTS):
-      procTracker, healthBar, resourceBar, comboPoints,
-      primaryRow, secondaryRow, utilityRow
+      procTracker, totemBar, healthBar, resourceBar, comboPoints,
+      swingBar, primaryRow, secondaryRow, utilityRow
 ]]
 
 local ADDON_NAME, addon = ...
@@ -109,10 +109,10 @@ function Layout:SetElementPosition(key, centerY, topY)
         return
     end
 
-    -- Bar elements receive centerY
+    -- Bar elements receive centerY and topY
     local module = elem.module
     if module and module.SetLayoutPosition then
-        module:SetLayoutPosition(centerY)
+        module:SetLayoutPosition(centerY, topY)
     end
 end
 

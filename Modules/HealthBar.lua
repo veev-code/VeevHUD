@@ -110,12 +110,13 @@ function HealthBar:GetLayoutHeight()
     return db.height + 2
 end
 
--- Position this element at the given Y offset (center of element)
-function HealthBar:SetLayoutPosition(centerY)
+-- Position this element at the given Y offset.
+-- Uses topY: bar starts 1px below allocation top (room for full border's top edge).
+function HealthBar:SetLayoutPosition(centerY, topY)
     if not self.playerBar then return end
-    
+
     self.playerBar:ClearAllPoints()
-    self.playerBar:SetPoint("CENTER", self.playerBar:GetParent(), "CENTER", 0, centerY)
+    self.playerBar:SetPoint("TOP", self.playerBar:GetParent(), "CENTER", 0, topY - 1)
 end
 
 -------------------------------------------------------------------------------
@@ -173,11 +174,14 @@ function HealthBar:CreatePlayerBar(parent)
     self:UpdatePlayerBar()
 
     -- Smooth updates (uses global animation setting)
+    -- Frame OnUpdate for frame-rate synced smooth animation
     local animDb = addon.db.profile.animations
     if animDb.smoothBars then
-        self.Events:RegisterUpdate(self, 0.02, self.SmoothUpdatePlayer)
         self.playerTargetValue = 1
         self.playerCurrentValue = 1
+        self.playerBar:SetScript("OnUpdate", function()
+            self:SmoothUpdatePlayer()
+        end)
     end
 end
 

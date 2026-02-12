@@ -83,6 +83,16 @@ Small icons above the health bar for important temporary buffs: Enrage, Flurry, 
 
 Large, semi-transparent icons that nudge you to rebuff when missing important long-duration buffs. Pre-configured per class, with awareness of buff equivalents (Fortitude / Prayer of Fortitude), exclusive buffs, and weapon enchants. Only triggers when the spell is known and usable. Per-spell config for thresholds, combat state, and group scope.
 
+### Swing Timer
+
+A swing timer bar that adapts to your class and spec. Beyond showing basic auto-attack progress, it surfaces spec-specific mechanics:
+
+*   **Hunter** — Color-coded clip zones show when it's safe to weave shots versus when you'd clip your next Auto Shot
+*   **Enhancement Shaman / Fury Warrior** — Dual-wield bars colored by swing synchronization for Flurry and Windfury optimization
+*   **Retribution Paladin** — Highlights the twist window at the end of each swing for seal twisting
+
+Each class feature is independently toggleable with configurable colors.
+
 ### Health & Resource Bars
 
 Compact bars positioned with your HUD show health and mana/rage/energy at a glance.
@@ -99,7 +109,7 @@ VeevHUD is designed to work great out of the box, but nearly everything is confi
 
 *   **General** — Position (horizontal + vertical offset), global scale, font, visibility (out-of-combat fade, hide on flight path), smooth bar/dim animations, layout spacing
 *   **Icons** — Appearance (aspect ratio, zoom, spacing, gaps), alpha (ready/cooldown), cooldown display (text, spiral, bling, GCD, dim-on-cooldown), resource display (prediction/fill/bar), and behavior (aura tracking, cast feedback, ready glow, dynamic sort, range indicator, keybind text)
-*   **Bars** — Proc tracker, health bar, resource bar (with energy ticker and mana ticker sub-tabs), and combo points — each with size, text format, gradient, spark, and class coloring options
+*   **Bars** — Proc tracker, health bar, resource bar (with energy ticker and mana ticker sub-tabs), combo points, and swing timer — each with size, text format, gradient, spark, and class coloring options
 *   **Rows** — Per-row settings for Primary, Secondary, and Utility: icon size, max icons, and flow layout (utility row wraps into multiple lines)
 *   **Spells** — Per-spell control: enable/disable, move between rows, adjust priority order via drag-and-drop
 *   **Buff Reminders** — Toggle the feature, adjust icon size/opacity/position, and configure individual spell reminders (enable/disable, thresholds, combat state, tracking scope, group priority)

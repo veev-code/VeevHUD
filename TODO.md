@@ -26,13 +26,6 @@ Reported missing or broken spell support (not confirmed fixed):
 
 These were requested by multiple people or have strong gameplay impact.
 
-- **Weapon Swing Timer** — Highly requested across multiple classes. Should include:
-  - Basic MH/OH swing bars for all melee
-  - Hunter: auto shot timer with shot-clipping indicator (show safe window for casting without delaying auto shot)
-  - Enhancement Shaman: MH/OH sync bar (warn when swings are >0.5s apart for Windfury optimization)
-  - Arms Warrior: slam cast timing indicator
-  - Paladin: seal twist timing window
-  *(Togg, Shadowhawk, Artvil, RidiculedDaily, anonymous French warrior)*
 - **Built-in Cast Bar** — Replace Blizzard's default cast bar with one integrated into the HUD layout. *(Togg)*
 
 ---
@@ -137,3 +130,4 @@ Items from feedback that have been completed, with the version they shipped in.
 | Grouped Category Icons (Shaman totems)                             | 1.0.72  | Dedicated 4-slot Totem Bar with per-element tracking         |
 | Totem Duration Tracking (comprehensive element-aware UI)           | 1.0.72  | Totem Bar with active/expired/out-of-range states            |
 | Desperate Prayer row assignment                                    | 1.0.75  | Retagged PERSONAL_DEFENSIVE; defaults to Utility row         |
+| Weapon Swing Timer (all classes + spec-specific mechanics)         | 1.0.77  | Hunter clip zones, Enh/Fury sync, Ret twist window, wand support |

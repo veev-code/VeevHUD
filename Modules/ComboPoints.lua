@@ -72,16 +72,17 @@ function ComboPoints:GetLayoutHeight()
         return 0
     end
     
-    -- Include border in visual height (1px top + 1px bottom = 2px total)
-    return db.barHeight + 2
+    -- Include border in visual height (skipTop: 1px bottom only)
+    return db.barHeight + 1
 end
 
--- Position this element at the given Y offset (center of element)
-function ComboPoints:SetLayoutPosition(centerY)
+-- Position this element at the given Y offset.
+-- Uses topY to anchor from top edge (skipTop border = no top overhang).
+function ComboPoints:SetLayoutPosition(centerY, topY)
     if not self.container then return end
-    
+
     self.container:ClearAllPoints()
-    self.container:SetPoint("CENTER", self.container:GetParent(), "CENTER", 0, centerY)
+    self.container:SetPoint("TOP", self.container:GetParent(), "CENTER", 0, topY)
 end
 
 -------------------------------------------------------------------------------
@@ -232,8 +233,8 @@ function ComboPoints:CreateComboPointBar(parent, index, db, barWidth)
     highlight:Hide()
     bar.highlight = highlight
     
-    -- Border (subtle dark outline)
-    local border = self.Utils:CreateBarBorder(bar)
+    -- Border (subtle dark outline, skipTop: resource bar above provides the separator)
+    local border = self.Utils:CreateBarBorder(bar, true)
     bar.border = border
     
     bar.index = index

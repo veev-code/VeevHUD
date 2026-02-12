@@ -147,7 +147,10 @@ C.COLORS = {
 
 -- Global Cooldown threshold - cooldowns at or below this duration are considered GCD
 -- Used to distinguish between "on GCD" (brief lockout) vs "on real cooldown" (ability CD)
-C.GCD_THRESHOLD = 1.5
+-- Set to 2.0 rather than 1.5 because wand auto-attacks report GetSpellCooldown duration
+-- equal to the wand's attack speed (typically 1.5-1.9s), which must not be treated as a
+-- real cooldown. No TBC ability has a real cooldown between 1.5s and 5s.
+C.GCD_THRESHOLD = 2.0
 
 -- Reference UI scale - the UI scale VeevHUD was designed at
 -- Used to auto-compensate so the HUD appears the same size regardless of player's UI scale
@@ -189,6 +192,7 @@ C.LAYOUT_ELEMENTS = {
     healthBar    = "Health Bar",
     resourceBar  = "Resource Bar",
     comboPoints  = "Combo Points",
+    swingBar     = "Swing Bar",
     primaryRow   = "Primary Row",
     secondaryRow = "Secondary Row",
     utilityRow   = "Utility Row",
@@ -232,13 +236,14 @@ C.DEFAULTS = {
         -- Layout settings (unified element ordering and spacing)
         layout = {
             -- Element stacking order, top to bottom.
-            -- All 7 HUD elements are positioned in this order by Layout.lua.
+            -- All HUD elements are positioned in this order by Layout.lua.
             elementOrder = {
                 "procTracker",
                 "totemBar",
                 "healthBar",
                 "resourceBar",
                 "comboPoints",
+                "swingBar",
                 "primaryRow",
                 "secondaryRow",
                 "utilityRow",
@@ -251,6 +256,7 @@ C.DEFAULTS = {
                 healthBar    = 6,   -- was procTracker.gapAboveHealthBar
                 resourceBar  = 0,
                 comboPoints  = 0,
+                swingBar     = 0,
                 primaryRow   = 2,   -- was layout.iconRowGap
                 secondaryRow = 1,   -- was icons.rowSpacing + icons.primarySecondaryGap
                 utilityRow   = 17,  -- was icons.rowSpacing + icons.sectionGap
@@ -354,6 +360,32 @@ C.DEFAULTS = {
             enabled = true,
             iconSize = 36,
             iconSpacing = 4,
+        },
+
+        -- Swing Bar settings (weapon swing timer)
+        swingBar = {
+            enabled = true,
+            width = 230,
+            height = 4,              -- Single weapon bar height (hunter ranged, melee 2H, ret)
+            wandHeight = 2,          -- Single bar height for wand users
+            dualWieldHeight = 2,     -- Per-bar height for dual-wield
+            dualWieldSpacing = 1,    -- Gap between MH and OH bars
+            showText = false,        -- Timer countdown text (default OFF)
+            textSize = 10,
+            showSpark = true,
+            sparkWidth = 8,
+            color = { r = 1.0, g = 1.0, b = 1.0 },           -- Neutral fill
+            safeColor = { r = 0.3, g = 0.9, b = 0.3 },        -- Green
+            dangerColor = { r = 0.9, g = 0.2, b = 0.2 },      -- Red
+            cautionColor = { r = 0.9, g = 0.8, b = 0.2 },     -- Yellow (Hunter 3-color)
+            syncThreshold = 0.5,     -- Enhancement/Fury sync threshold (seconds)
+            enableSyncColors = true, -- Enhancement/Fury: color bars by sync status
+            hunterThreeColor = false, -- Hunter: false = 2-color, true = 3-color with Multi-Shot zone
+            enableClipZones = true,  -- Hunter: color bar by safe/clip zones
+            enableTwistWindow = true, -- Ret Paladin: green zone at end for twist timing
+            enableMeleeWeaving = false, -- Hunter: show both ranged + melee bars for weaving
+            zoneAlpha = 0.4,         -- Alpha of zone background indicators
+            hideDelay = 1.5,         -- Seconds after last swing before auto-hiding
         },
 
         -- Icon display settings (defaults, rows can override)

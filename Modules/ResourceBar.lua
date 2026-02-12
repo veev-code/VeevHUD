@@ -98,25 +98,20 @@ function ResourceBar:GetLayoutHeight()
         return 0
     end
 
-    -- Include border in visual height (1px top + 1px bottom = 2px total)
+    -- Include border in visual height (skipTop: 1px bottom only)
     -- Include energy ticker height (bar-style ticker hangs below resource bar)
     -- Include druid mana bar height (when visible in Cat/Bear Form)
-    return db.height + 2 + self:GetTickerHeight() + self:GetManaBarHeight()
+    return db.height + 1 + self:GetTickerHeight() + self:GetManaBarHeight()
 end
 
--- Position this element at the given Y offset (center of element)
-function ResourceBar:SetLayoutPosition(centerY)
+-- Position this element at the given Y offset.
+-- Uses topY to anchor from top edge (skipTop border = no top overhang,
+-- so top of bar must align exactly with allocation top for clean adjacency).
+function ResourceBar:SetLayoutPosition(centerY, topY)
     if not self.bar then return end
 
-    -- Sub-elements (energy ticker bar, druid mana bar) hang below the main bar.
-    -- The layout system allocates space for the full composite height, so shift
-    -- the main bar upward by half the sub-element height to keep it centered
-    -- within its visual area rather than the entire allocation.
-    local subHeight = self:GetTickerHeight() + self:GetManaBarHeight()
-    local barOffset = subHeight / 2
-
     self.bar:ClearAllPoints()
-    self.bar:SetPoint("CENTER", self.bar:GetParent(), "CENTER", 0, centerY + barOffset)
+    self.bar:SetPoint("TOP", self.bar:GetParent(), "CENTER", 0, topY)
 end
 
 -------------------------------------------------------------------------------
@@ -174,12 +169,14 @@ function ResourceBar:CreateFrames(parent)
 end
 
 function ResourceBar:RegisterUpdateIfNeeded()
+    if not self.bar then return end
+
     local animDb = addon.db.profile.animations
     local db = addon.db.profile.resourceBar
     local tickerDb = db.energyTicker
     local manaTickerDb = db.manaTicker
     local iconsDb = addon.db.profile.icons
-    
+
     -- Need updates if smooth bars enabled OR if ticker is enabled and we have energy/mana
     local needsSmoothUpdate = animDb.smoothBars
     local isEnergy = self.powerType == self.C.POWER_TYPE.ENERGY
@@ -189,16 +186,21 @@ function ResourceBar:RegisterUpdateIfNeeded()
     local needsEnergyTicker = energyTickerEnabled and isEnergy
     local druidManaBarVisible = self.manaBar and self.manaBar:IsShown()
     local needsManaTicker = manaTickerEnabled and (isMana or druidManaBarVisible)
-    
+
     -- Also need updates for mana rate tracking when prediction mode is enabled
     local isPredictionMode = iconsDb.resourceDisplayMode == self.C.RESOURCE_DISPLAY_MODE.PREDICTION
     local needsManaTracking = isPredictionMode and isMana
-    
+
     if needsSmoothUpdate or needsEnergyTicker or needsManaTicker or needsManaTracking then
-        self.Events:RegisterUpdate(self, 0.02, self.OnUpdate)
-        self.updateRegistered = true
+        -- Use frame OnUpdate for frame-rate synced smooth animation
+        if not self.updateRegistered then
+            self.bar:SetScript("OnUpdate", function()
+                self:OnUpdate()
+            end)
+            self.updateRegistered = true
+        end
     elseif self.updateRegistered then
-        self.Events:UnregisterUpdate(self)
+        self.bar:SetScript("OnUpdate", nil)
         self.updateRegistered = false
     end
 end
@@ -219,7 +221,7 @@ function ResourceBar:CreateSpark(bar, db)
 end
 
 function ResourceBar:CreateBorder(bar)
-    self.border = self.Utils:CreateBarBorder(bar)
+    self.border = self.Utils:CreateBarBorder(bar, true)  -- skipTop: health bar above provides the separator
 end
 
 function ResourceBar:CreateGradient(bar)

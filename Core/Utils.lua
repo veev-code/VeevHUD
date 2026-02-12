@@ -232,33 +232,37 @@ end
 -- Bar Utilities (shared by HealthBar and ResourceBar)
 -------------------------------------------------------------------------------
 
--- Create a dark border with shadow around a status bar
--- Returns: border frame (shadow is parented to border)
-function Utils:CreateBarBorder(bar)
-    local border = CreateFrame("Frame", nil, bar, "BackdropTemplate")
-    border:SetPoint("TOPLEFT", -1, 1)
-    border:SetPoint("BOTTOMRIGHT", 1, -1)
-    border:SetBackdrop({
-        edgeFile = "Interface\\Buttons\\WHITE8X8",
-        edgeSize = 1,
-    })
-    border:SetBackdropBorderColor(0, 0, 0, 1)
-    border:SetFrameLevel(bar:GetFrameLevel() - 1)
-    border:EnableMouse(false)
+-- Create a dark border around a status bar using individual 1px edge textures.
+-- @param bar      The status bar frame to border
+-- @param skipTop  If true, omit the top edge so adjacent stacked bars share a
+--                 single 1px separator (the bottom edge of the bar above).
+-- Returns: border frame
+function Utils:CreateBarBorder(bar, skipTop)
+    local borderFrame = CreateFrame("Frame", nil, bar)
+    borderFrame:SetPoint("TOPLEFT", -1, skipTop and 0 or 1)
+    borderFrame:SetPoint("BOTTOMRIGHT", 1, -1)
+    borderFrame:SetFrameLevel(bar:GetFrameLevel() - 1)
+    borderFrame:EnableMouse(false)
 
-    -- Outer shadow for depth
-    local shadow = CreateFrame("Frame", nil, border, "BackdropTemplate")
-    shadow:SetPoint("TOPLEFT", -1, 1)
-    shadow:SetPoint("BOTTOMRIGHT", 1, -1)
-    shadow:SetBackdrop({
-        edgeFile = "Interface\\Buttons\\WHITE8X8",
-        edgeSize = 1,
-    })
-    shadow:SetBackdropBorderColor(0, 0, 0, 0.5)
-    shadow:EnableMouse(false)
-    shadow:SetFrameLevel(border:GetFrameLevel() - 1)
+    local function edge(p1, p2, dim)
+        local t = borderFrame:CreateTexture(nil, "ARTWORK")
+        t:SetTexture("Interface\\Buttons\\WHITE8X8")
+        t:SetVertexColor(0, 0, 0, 1)
+        t:SetPoint(p1)
+        t:SetPoint(p2)
+        if dim == "h" then t:SetHeight(1) else t:SetWidth(1) end
+        return t
+    end
 
-    return border
+    edge("TOPLEFT", "BOTTOMLEFT", "w")      -- Left
+    edge("TOPRIGHT", "BOTTOMRIGHT", "w")     -- Right
+    edge("BOTTOMLEFT", "BOTTOMRIGHT", "h")   -- Bottom
+
+    if not skipTop then
+        edge("TOPLEFT", "TOPRIGHT", "h")     -- Top
+    end
+
+    return borderFrame
 end
 
 -- Create a horizontal gradient overlay on a status bar (darker left, lighter right)

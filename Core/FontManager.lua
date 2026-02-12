@@ -129,6 +129,11 @@ function FontManager:RefreshAllFonts()
     if totemBar and totemBar.RefreshFonts then
         totemBar:RefreshFonts(fontPath)
     end
+
+    local swingBar = addon:GetModule("SwingBar")
+    if swingBar and swingBar.RefreshFonts then
+        swingBar:RefreshFonts(fontPath)
+    end
 end
 
 -------------------------------------------------------------------------------

@@ -31,6 +31,14 @@ local TRACK_TARGET = {
     RAID = "raid",
 }
 
+-- Check if offhand slot contains a weapon (not shield/held-in-offhand/empty)
+local function HasOffhandWeapon()
+    local itemID = GetInventoryItemID("player", 17)  -- INVSLOT_OFFHAND
+    if not itemID then return false end
+    local _, _, _, _, _, _, _, _, equipLoc = GetItemInfo(itemID)
+    return equipLoc == "INVTYPE_WEAPON" or equipLoc == "INVTYPE_WEAPONOFFHAND"
+end
+
 -- Active reminders state
 BuffReminders.reminders = {}      -- Array of active reminder configs
 BuffReminders.activeAlerts = {}   -- spellID -> true for currently shown reminders
@@ -644,43 +652,55 @@ function BuffReminders:IsBuffGroupOnUnit(unit, groupSpells)
 end
 
 -- Check if weapon enchants need reminding (for rogue poisons, shaman imbues)
--- Checks both MH and OH (if player is dual-wielding with a weapon in OH).
--- GetWeaponEnchantInfo returns nil for OH values when no OH weapon exists
--- (e.g., shield or empty), vs false when a weapon exists but has no enchant.
+-- Returns nil when no reminder needed, or a table with per-hand detail:
+--   { needsMH = bool, needsOH = bool, mhRemaining = number|nil, ohRemaining = number|nil }
+-- Uses HasOffhandWeapon() to distinguish OH weapons from shields/empty.
 function BuffReminders:CheckWeaponEnchants(config)
-    local hasMHEnchant, mhExpiration, _, hasOHEnchant, ohExpiration = GetWeaponEnchantInfo()
-    
-    -- Check main hand
-    if not hasMHEnchant then
-        self.Utils:LogDebug("BuffReminders: weapon enchant - MH missing enchant")
-        return true
+    local hasMH, mhExp, _, _, hasOH, ohExp = GetWeaponEnchantInfo()
+    local hasOHWeapon = HasOffhandWeapon()
+    local result = { needsMH = false, needsOH = false, mhRemaining = nil, ohRemaining = nil }
+
+    self.Utils:LogDebug("BuffReminders: CheckWeaponEnchants -"
+        .. " hasMH=" .. tostring(hasMH)
+        .. " mhExp=" .. tostring(mhExp)
+        .. " hasOH=" .. tostring(hasOH)
+        .. " ohExp=" .. tostring(ohExp)
+        .. " hasOHWeapon=" .. tostring(hasOHWeapon))
+
+    -- MH missing enchant
+    if not hasMH then
+        result.needsMH = true
     end
-    
-    -- Check off hand: hasOHEnchant is nil if no OH weapon (shield/empty),
-    -- false if OH weapon exists but has no enchant, true if enchanted.
-    -- Only remind if there IS an OH weapon without an enchant.
-    if hasOHEnchant == false then
-        self.Utils:LogDebug("BuffReminders: weapon enchant - OH weapon exists but no enchant")
-        return true
+
+    -- OH: only check if player has an offhand weapon (not shield/relic/empty)
+    if hasOHWeapon and not hasOH then
+        result.needsOH = true
     end
-    
-    -- Check time remaining thresholds
+
+    -- Expiration thresholds
     if config.timeRemaining and config.timeRemaining > 0 then
-        local mhRemaining = (mhExpiration or 0) / 1000
-        if mhRemaining > 0 and mhRemaining < config.timeRemaining then
-            self.Utils:LogDebug("BuffReminders: weapon enchant - MH expiring soon (" .. mhRemaining .. "s)")
-            return true
+        if hasMH then
+            local r = (mhExp or 0) / 1000
+            if r > 0 and r < config.timeRemaining then
+                result.needsMH = true
+                result.mhRemaining = r
+            end
         end
-        if hasOHEnchant then
-            local ohRemaining = (ohExpiration or 0) / 1000
-            if ohRemaining > 0 and ohRemaining < config.timeRemaining then
-                self.Utils:LogDebug("BuffReminders: weapon enchant - OH expiring soon (" .. ohRemaining .. "s)")
-                return true
+        if hasOH then
+            local r = (ohExp or 0) / 1000
+            if r > 0 and r < config.timeRemaining then
+                result.needsOH = true
+                result.ohRemaining = r
             end
         end
     end
-    
-    return false
+
+    self.Utils:LogDebug("BuffReminders: CheckWeaponEnchants result -"
+        .. " needsMH=" .. tostring(result.needsMH)
+        .. " needsOH=" .. tostring(result.needsOH))
+
+    if not result.needsMH and not result.needsOH then return nil end
+    return result
 end
 
 -- Check if a buff needs reminding based on config
@@ -951,54 +971,82 @@ function BuffReminders:OnUpdate()
         local shouldRemind = self:ShouldRemind(reminder)
         if shouldRemind then
             local spellID = reminder.spellID
-            newAlerts[spellID] = true
-            
-            -- Determine which spell icon to show
-            local displaySpellID = spellID
-            
-            -- For buff groups, show the best spell to cast
-            if reminder.buffGroup then
-                displaySpellID = self:GetBestSpellForGroup(reminder.buffGroup, spellID)
-            end
-            
-            -- Get highest known rank for icon
-            local highestRank = self.LibSpellDB:GetHighestKnownRank(displaySpellID)
-            
-            -- Fetch remaining/stacks for text display (only meaningful
-            -- when buff exists but is expiring or low on stacks)
-            local config = self:GetSpellConfig(spellID)
-            local alertRemaining, alertStacks
-            if config then
-                local showTime = config.timeRemaining and config.timeRemaining > 0
-                local showStacks = config.minStacks and config.minStacks > 0
-                if showTime or showStacks then
-                    local found, remaining, stacks
-                    if reminder.buffGroup then
-                        local groupInfo = self.LibSpellDB.BuffGroups[reminder.buffGroup]
-                        if groupInfo then
-                            found, remaining, stacks = self:IsBuffGroupOnUnit("player", groupInfo.spells)
+
+            if type(shouldRemind) == "table" and shouldRemind.needsMH ~= nil then
+                -- Weapon enchant: separate alerts per hand with weapon icons
+                if shouldRemind.needsMH then
+                    local mhIcon = GetInventoryItemTexture("player", 16)  -- INVSLOT_MAINHAND
+                    newAlerts["weaponMH"] = true
+                    table.insert(alertList, {
+                        spellID = spellID,
+                        key = "weaponMH",
+                        iconOverride = mhIcon,
+                        reminder = reminder,
+                        remaining = shouldRemind.mhRemaining,
+                    })
+                end
+                if shouldRemind.needsOH then
+                    local ohIcon = GetInventoryItemTexture("player", 17)  -- INVSLOT_OFFHAND
+                    newAlerts["weaponOH"] = true
+                    table.insert(alertList, {
+                        spellID = spellID,
+                        key = "weaponOH",
+                        iconOverride = ohIcon,
+                        reminder = reminder,
+                        remaining = shouldRemind.ohRemaining,
+                    })
+                end
+            else
+                -- Normal buff reminder
+                newAlerts[spellID] = true
+
+                -- Determine which spell icon to show
+                local displaySpellID = spellID
+
+                -- For buff groups, show the best spell to cast
+                if reminder.buffGroup then
+                    displaySpellID = self:GetBestSpellForGroup(reminder.buffGroup, spellID)
+                end
+
+                -- Get highest known rank for icon
+                local highestRank = self.LibSpellDB:GetHighestKnownRank(displaySpellID)
+
+                -- Fetch remaining/stacks for text display (only meaningful
+                -- when buff exists but is expiring or low on stacks)
+                local config = self:GetSpellConfig(spellID)
+                local alertRemaining, alertStacks
+                if config then
+                    local showTime = config.timeRemaining and config.timeRemaining > 0
+                    local showStacks = config.minStacks and config.minStacks > 0
+                    if showTime or showStacks then
+                        local found, remaining, stacks
+                        if reminder.buffGroup then
+                            local groupInfo = self.LibSpellDB.BuffGroups[reminder.buffGroup]
+                            if groupInfo then
+                                found, remaining, stacks = self:IsBuffGroupOnUnit("player", groupInfo.spells)
+                            end
+                        else
+                            found, remaining, stacks = self:IsBuffOnUnit("player", spellID)
                         end
-                    else
-                        found, remaining, stacks = self:IsBuffOnUnit("player", spellID)
-                    end
-                    if found then
-                        if showTime and remaining < config.timeRemaining then
-                            alertRemaining = remaining
-                        end
-                        if showStacks and stacks < config.minStacks then
-                            alertStacks = stacks
+                        if found then
+                            if showTime and remaining < config.timeRemaining then
+                                alertRemaining = remaining
+                            end
+                            if showStacks and stacks < config.minStacks then
+                                alertStacks = stacks
+                            end
                         end
                     end
                 end
-            end
 
-            table.insert(alertList, {
-                spellID = spellID,
-                displaySpellID = highestRank or displaySpellID,
-                reminder = reminder,
-                remaining = alertRemaining,
-                stacks = alertStacks,
-            })
+                table.insert(alertList, {
+                    spellID = spellID,
+                    displaySpellID = highestRank or displaySpellID,
+                    reminder = reminder,
+                    remaining = alertRemaining,
+                    stacks = alertStacks,
+                })
+            end
         end
     end
     
@@ -1064,10 +1112,12 @@ function BuffReminders:GetBestSpellForGroup(groupName, defaultSpellID)
 end
 
 function BuffReminders:UpdateVisibleIcons(alertList)
-    -- Build a set of currently active spellIDs for diffing
+    -- Build a set of currently active keys for diffing
+    -- Uses alert.key (for weapon enchant MH/OH) or alert.spellID as fallback
     local newSpellSet = {}
     for _, alert in ipairs(alertList) do
-        newSpellSet[alert.spellID] = true
+        local alertKey = alert.key or alert.spellID
+        newSpellSet[alertKey] = true
     end
 
     -- Animate out any previously visible icons that are no longer needed
@@ -1090,20 +1140,26 @@ function BuffReminders:UpdateVisibleIcons(alertList)
         return
     end
 
-    -- Create/update icons for each alert, keyed by spellID so each spell
+    -- Create/update icons for each alert, keyed so each alert
     -- gets a stable frame that persists across updates
     for i, alert in ipairs(alertList) do
-        local frame = self:GetOrCreateIcon(alert.spellID)
+        local alertKey = alert.key or alert.spellID
+        local frame = self:GetOrCreateIcon(alertKey)
         local v = frame.visual or frame
         local wasAlreadyShown = frame:IsShown() and (AnimIsPulsing(frame) or AnimIsAppearing(frame) or v._brVisible)
 
-        -- Tag the frame with its current spell
-        frame._brSpellID = alert.spellID
+        -- Tag the frame with its current key
+        frame._brSpellID = alertKey
 
-        -- Set icon texture
-        local _, _, spellIcon = GetSpellInfo(alert.displaySpellID)
-        if spellIcon then
-            frame.icon:SetTexture(spellIcon)
+        -- Set icon texture: weapon enchant alerts use the weapon's inventory icon,
+        -- normal alerts use the spell icon
+        if alert.iconOverride then
+            frame.icon:SetTexture(alert.iconOverride)
+        else
+            local _, _, spellIcon = GetSpellInfo(alert.displaySpellID)
+            if spellIcon then
+                frame.icon:SetTexture(spellIcon)
+            end
         end
 
         -- Animate: appear with shrink-in (or keep pulsing if already shown)

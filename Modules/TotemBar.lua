@@ -438,7 +438,7 @@ function TotemBar:CreateSlotFrame(parent, element, index, iconWidth, iconHeight,
     textContainer:SetFrameLevel(frame:GetFrameLevel() + 10)
 
     -- Duration text (center)
-    local fontSize = math.max(10, math.floor(db.iconSize * 0.5))
+    local fontSize = math.max(10, math.floor(db.iconSize * 0.38))
     local text = textContainer:CreateFontString(nil, "OVERLAY", nil, 7)
     text:SetFont(addon:GetFont(), fontSize, "OUTLINE")
     text:SetPoint("CENTER", frame, "CENTER", 0, 0)
@@ -648,7 +648,7 @@ end
 
 function TotemBar:RefreshFonts(fontPath)
     local db = addon.db.profile.totemBar
-    local fontSize = math.max(10, math.floor(db.iconSize * 0.5))
+    local fontSize = math.max(10, math.floor(db.iconSize * 0.38))
 
     for _, element in ipairs(ELEMENT_ORDER) do
         local frame = self.slots[element]
