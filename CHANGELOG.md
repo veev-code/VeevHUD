@@ -1,5 +1,18 @@
 # VeevHUD Changelog
 
+## [1.0.81] - 2026-02-12
+
+### Fixed
+
+- **Totem timer stuck after totem dies** — When a totem was destroyed (e.g., Grounding Totem absorbing a spell, or a totem being killed by damage), the totem bar continued showing its duration ticking down instead of clearing. Now uses the game's native totem state events for reliable destruction detection. *(Thanks bewz for reporting)*
+- **Searing Totem showing wrong duration** — Lower ranks of Searing Totem all showed 60s duration. Now uses rank-specific durations: Rank 1 = 30s, Rank 2 = 35s, up to Rank 7 = 60s. *(Thanks bewz for reporting)*
+
+### LibSpellDB Updates
+
+- Added **Magma Totem** (5 ranks, fire element) — now appears on the totem bar. *(Thanks bewz for reporting)*
+- Added per-rank duration support for Searing Totem.
+- New `GetSpellDuration()` API for rank-specific duration lookups.
+
 ## [1.0.80] - 2026-02-12
 
 ### Added

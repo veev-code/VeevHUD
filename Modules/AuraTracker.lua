@@ -47,6 +47,14 @@ local TOTEM_ELEMENT_TAGS = {
     "TOTEM_EARTH", "TOTEM_FIRE", "TOTEM_WATER", "TOTEM_AIR",
 }
 
+-- WoW totem slot index -> element tag (GetTotemInfo slot mapping)
+local TOTEM_SLOT_TO_ELEMENT = {
+    [1] = "TOTEM_FIRE",
+    [2] = "TOTEM_EARTH",
+    [3] = "TOTEM_WATER",
+    [4] = "TOTEM_AIR",
+}
+
 -------------------------------------------------------------------------------
 -- Initialization
 -------------------------------------------------------------------------------
@@ -76,7 +84,11 @@ function AuraTracker:Initialize()
 
     -- Register for totem recall detection (Totemic Call destroys all totems)
     self.Events:RegisterCLEU(self, "SPELL_CAST_SUCCESS", self.OnSpellCastSuccess)
-    
+
+    -- Register for totem destruction via game event (handles all destruction cases:
+    -- killed by damage, grounding absorb, zone transition, etc.)
+    self.Events:RegisterEvent(self, "PLAYER_TOTEM_UPDATE", self.OnPlayerTotemUpdate)
+
     -- Periodic cleanup of expired auras
     self.cleanupTicker = C_Timer.NewTicker(1, function()
         self:CleanupExpiredAuras()
@@ -468,6 +480,28 @@ function AuraTracker:OnSpellCastSuccess(subEvent, data)
     end
 end
 
+-- Game event callback for totem state changes (summoned, destroyed, expired, replaced)
+-- This is the reliable detection path — CLEU UNIT_DIED/UNIT_DESTROYED may not fire for
+-- all destruction cases (e.g., Grounding Totem absorbing a spell).
+function AuraTracker:OnPlayerTotemUpdate(event, slot)
+    if not slot then return end
+
+    local elementTag = TOTEM_SLOT_TO_ELEMENT[slot]
+    if not elementTag then return end
+
+    local trackedSpellID = self.totemElementToSpell[elementTag]
+    if not trackedSpellID then return end  -- Not tracking any totem for this element
+
+    local haveTotem, totemName, startTime, duration = GetTotemInfo(slot)
+    if not haveTotem or duration == 0 then
+        -- Totem is gone — clear tracking
+        self.Utils:LogInfo("AuraTracker: Totem destroyed (PLAYER_TOTEM_UPDATE slot", slot .. "), clearing", trackedSpellID)
+        self:ClearSummonTracking(trackedSpellID)
+        self:ClearTotemElementForSpell(trackedSpellID)
+        self:NotifyAuraChange(trackedSpellID, false)
+    end
+end
+
 -- CLEU callback for pet/guardian summons
 function AuraTracker:OnSummonEvent(subEvent, data)
     local spellID = data.spellID
@@ -488,7 +522,12 @@ function AuraTracker:OnSummonEvent(subEvent, data)
     local summonInfo = self.summonSpells[baseSpellID]
     if not summonInfo then return end
 
-    local duration = summonInfo.duration
+    -- Use rank-specific duration if available (e.g., Searing Totem ranks have different durations)
+    local duration
+    if self.LibSpellDB and self.LibSpellDB.GetSpellDuration then
+        duration = self.LibSpellDB:GetSpellDuration(spellID)
+    end
+    duration = duration or summonInfo.duration
     if not duration or duration <= 0 then return end
 
     local totemElementTag = summonInfo.totemElementTag
