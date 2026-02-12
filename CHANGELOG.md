@@ -1,5 +1,23 @@
 # VeevHUD Changelog
 
+## [1.0.80] - 2026-02-12
+
+### Added
+
+- **Proc Tracker: Ally-targeted procs** — Procs that buff allies (Inspiration, Ancestral Fortitude, Healing Way) now show on the Proc Tracker. The icon lights up when the buff is active on your friendly target, your target's target (if target-of-target support is enabled), or yourself as fallback. Procs with `onAlly` in LibSpellDB are automatically detected.
+
+### Changed
+
+- **Swing Timer: Melee on all classes** — All classes now have access to the melee swing timer (previously limited to melee/hunter). For Mage, Priest, and Warlock, melee and wand bars are mutually exclusive — only the most recently used attack type is shown. The bar auto-hides when not swinging.
+
+### Fixed
+
+- **Proc-tagged spells no longer appear on CooldownIcons rows** — Spells like Inspiration that are tagged as procs in LibSpellDB now correctly appear only in the Proc Tracker, not on the secondary/utility rows.
+
+### LibSpellDB Updates
+
+- Added 4 new proc definitions: Inspiration (Priest), Ancestral Fortitude (Shaman), Healing Way (Shaman), Ferocious Inspiration (Hunter).
+
 ## [1.0.79] - 2026-02-12
 
 ### Changed

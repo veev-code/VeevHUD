@@ -28,8 +28,8 @@
        - Prot Warrior: Single MH bar. Neutral only.
        - Rogue (all): Single or dual bar. Neutral only.
        - Prot/Holy Paladin: Single MH bar. Neutral only.
-       - Mage/Priest/Warlock: Single ranged bar. Neutral only (wand tracking).
-       - Druid: Not initialized (1.0s cat = no value, bear Maul niche).
+       - Mage/Priest/Warlock: Single bar. Mutually exclusive melee/wand (most recent shown).
+       - Druid: Single bar. Neutral only.
 
     4. AUTO-HIDE
        - Bar appears when a swing timer starts.
@@ -180,7 +180,7 @@ function SwingBar:Initialize()
     -- Class detection
     self.isHunter = (class == "HUNTER")
     self.isWand = (class == "MAGE") or (class == "PRIEST") or (class == "WARLOCK")
-    self.isRanged = self.isHunter or self.isWand
+    self.isRanged = self.isHunter  -- Wand classes start in melee mode, switch dynamically
 
     -- Spec-dependent features (updated on spec change)
     self:UpdateSpecFeatures()
@@ -235,7 +235,7 @@ end
 function SwingBar:UpdateWeaponSpeeds()
     local meleeWeaving = self.isHunter and addon.db.profile.swingBar.enableMeleeWeaving
 
-    if self.isRanged then
+    if self.isRanged or self.isWand then
         local speed = UnitRangedDamage("player")
         if speed and speed > 0 then
             self.prevRangedSpeed = self.rangedSpeed
@@ -243,8 +243,8 @@ function SwingBar:UpdateWeaponSpeeds()
         end
     end
 
-    -- Melee weaving: also read melee speeds while in ranged mode
-    if not self.isRanged or meleeWeaving then
+    -- Also read melee speeds for melee weaving and wand classes
+    if not self.isRanged or meleeWeaving or self.isWand then
         local mainSpeed, offSpeed = UnitAttackSpeed("player")
         if mainSpeed and mainSpeed > 0 then
             self.prevMainSpeed = self.mainSpeed
@@ -269,7 +269,7 @@ function SwingBar:CheckHasteChange()
     local speedChanged = false
     local meleeWeaving = self.isHunter and addon.db.profile.swingBar.enableMeleeWeaving
 
-    if self.isRanged then
+    if self.isRanged or self.isWand then
         local speed = UnitRangedDamage("player")
         if speed and speed > 0 and speed ~= self.rangedSpeed then
             local oldSpeed = self.rangedSpeed
@@ -281,7 +281,7 @@ function SwingBar:CheckHasteChange()
         end
     end
 
-    if not self.isRanged or meleeWeaving then
+    if not self.isRanged or meleeWeaving or self.isWand then
         local mainSpeed, offSpeed = UnitAttackSpeed("player")
         if mainSpeed and mainSpeed > 0 and mainSpeed ~= self.mainSpeed then
             local oldSpeed = self.mainSpeed
@@ -345,6 +345,9 @@ function SwingBar:OnSwingDamage(subEvent, data)
         self.mainTimer = self.mainSpeed
     end
 
+    -- Wand classes: melee swing switches display from wand to melee
+    if self.isWand then self.isRanged = false end
+
     self:OnSwingEvent()
 end
 
@@ -368,6 +371,9 @@ function SwingBar:OnSwingMissed(subEvent, data)
         else
             self.mainTimer = self.mainSpeed
         end
+
+        -- Wand classes: melee swing switches display from wand to melee
+        if self.isWand then self.isRanged = false end
 
         self:OnSwingEvent()
         return
@@ -437,6 +443,8 @@ function SwingBar:OnAutoRepeatStart()
         self:UpdateContainerSize()
         addon.Layout:Refresh()  -- Bar height may change between ranged/melee
     end
+    -- Wand classes: wanding switches display from melee to wand
+    if self.isWand then self.isRanged = true end
     self:UpdateWeaponSpeeds()
     self:OnSwingEvent()
 end
@@ -450,6 +458,8 @@ function SwingBar:OnAutoRepeatStop()
         self:UpdateContainerSize()
         addon.Layout:Refresh()  -- Bar height may change between ranged/melee
     end
+    -- Wand classes: wanding stopped, switch back to melee display
+    if self.isWand then self.isRanged = false end
 end
 
 function SwingBar:OnInventoryChanged(event, unit)
@@ -868,14 +878,14 @@ function SwingBar:UpdateBars(dt)
     -- Decrement timers
     local meleeWeaving = self.isHunter and db.enableMeleeWeaving
 
-    if self.isRanged then
+    if self.isRanged or self.isWand then
         if self.rangedTimer > 0 then
             self.rangedTimer = self.rangedTimer - dt
             if self.rangedTimer < 0 then self.rangedTimer = 0 end
         end
     end
 
-    if not self.isRanged or meleeWeaving then
+    if not self.isRanged or meleeWeaving or self.isWand then
         if self.mainTimer > 0 then
             self.mainTimer = self.mainTimer - dt
             if self.mainTimer < 0 then self.mainTimer = 0 end

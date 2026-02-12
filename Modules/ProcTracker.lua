@@ -24,7 +24,7 @@ function ProcTracker:Initialize()
     self.Utils = addon.Utils
     self.C = addon.Constants
     self.Animations = addon.Animations
-    
+
     -- Icon frames
     self.icons = {}
     self.iconCounter = 0
@@ -37,14 +37,15 @@ function ProcTracker:Initialize()
     if MSQ then
         self.MasqueGroup = MSQ:Group("VeevHUD", "Procs")
     end
-    
+
     -- Register with layout system
     addon.Layout:RegisterElement("procTracker", self)
-    
+
     -- Register events
     self.Events:RegisterEvent(self, "UNIT_AURA", self.OnAuraUpdate)
+    self.Events:RegisterEvent(self, "PLAYER_TARGET_CHANGED", self.OnTargetChanged)
     self.Events:RegisterEvent(self, "PLAYER_ENTERING_WORLD", self.OnPlayerEnteringWorld)
-    
+
     self.Utils:Debug("ProcTracker initialized")
 end
 
@@ -79,9 +80,13 @@ function ProcTracker:OnPlayerEnteringWorld()
 end
 
 function ProcTracker:OnAuraUpdate(event, unit)
-    if unit == "player" then
+    if unit == "player" or unit == "target" or unit == "targettarget" then
         self:UpdateAllProcs()
     end
+end
+
+function ProcTracker:OnTargetChanged()
+    self:UpdateAllProcs()
 end
 
 -------------------------------------------------------------------------------
@@ -130,7 +135,7 @@ function ProcTracker:CreateFrames(parent)
     
     -- Store for later reference
     self.classProcs = classProcs
-    
+
     -- Get width/height based on global aspect ratio (needed for sizing)
     local iconSize = db.iconSize
     local iconWidth, iconHeight = self.Utils:GetIconDimensions(iconSize)
@@ -361,19 +366,22 @@ function ProcTracker:UpdateProcIcon(frame, db)
         return
     end
     
-    -- Check if aura is active (buff on player or debuff on target)
-    local name, icon, count, debuffType, duration, expirationTime, source, isStealable, 
+    -- Check if aura is active (buff on player, debuff on target, or buff on ally)
+    local name, icon, count, debuffType, duration, expirationTime, source, isStealable,
           nameplateShowPersonal, spellId
-    
+
     local allRankIDs = procData.allRankIDs
     local isOnTarget = procData.procInfo and procData.procInfo.onTarget
+    local isOnAlly = procData.procInfo and procData.procInfo.onAlly
     if isOnTarget then
-        -- Check for debuff on target (check all ranks)
-        name, icon, count, debuffType, duration, expirationTime, source, isStealable, 
-              nameplateShowPersonal, spellId = self:FindDebuffOnTarget(spellID, allRankIDs)
+        -- Debuff on target (e.g., Deep Wounds) — name fallback for version-specific spell IDs
+        name, icon, count, debuffType, duration, expirationTime = self:FindDebuffOnTarget(spellID, allRankIDs, procData.name)
+    elseif isOnAlly then
+        -- Buff on ally (e.g., Inspiration) — name fallback for version-specific spell IDs
+        name, icon, count, debuffType, duration, expirationTime = self:FindBuffOnAlly(spellID, allRankIDs, procData.name)
     else
         -- Check for buff on player (check all ranks)
-        name, icon, count, debuffType, duration, expirationTime, source, isStealable, 
+        name, icon, count, debuffType, duration, expirationTime, source, isStealable,
               nameplateShowPersonal, spellId = self:FindBuffBySpellID(spellID, allRankIDs)
     end
     
@@ -618,11 +626,11 @@ function ProcTracker:FindBuffBySpellID(spellID, allRankIDs)
     return nil
 end
 
-function ProcTracker:FindDebuffOnTarget(spellID, allRankIDs)
-    -- Use cached debuff lookup on current target
+function ProcTracker:FindDebuffOnTarget(spellID, allRankIDs, spellName)
+    -- Use cached debuff lookup on current target (with name fallback for version-specific IDs)
     -- Only track debuffs applied by the player
-    local aura = self.Utils:GetCachedDebuff("target", spellID)
-    
+    local aura = self.Utils:GetCachedDebuff("target", spellID, spellName)
+
     if aura and aura.source == "player" then
         return aura.name, aura.icon, aura.count, aura.debuffType, aura.duration, 
                aura.expirationTime, aura.source, aura.isStealable, 
@@ -643,6 +651,47 @@ function ProcTracker:FindDebuffOnTarget(spellID, allRankIDs)
         end
     end
     
+    return nil
+end
+
+function ProcTracker:FindBuffOnAlly(spellID, allRankIDs, spellName)
+    -- Resolve which unit to check: friendly target, targettarget, or self
+    local unit = "player"
+    local useTargettarget = addon.db.profile.icons.auraTargettargetSupport
+
+    local targetExists = UnitExists("target")
+    if targetExists then
+        if UnitIsFriend("player", "target") then
+            unit = "target"
+        elseif UnitIsEnemy("player", "target") then
+            if useTargettarget and UnitExists("targettarget") and UnitIsFriend("player", "targettarget") then
+                unit = "targettarget"
+            end
+        end
+    end
+
+    -- Check primary spell ID (with name fallback — buff IDs may differ across game versions)
+    local aura = self.Utils:GetCachedBuff(unit, spellID, spellName)
+    if aura then
+        return aura.name, aura.icon, aura.count, aura.debuffType, aura.duration,
+               aura.expirationTime, aura.source, aura.isStealable,
+               aura.nameplateShowPersonal, aura.spellID
+    end
+
+    -- Check all rank IDs
+    if allRankIDs then
+        for rankID in pairs(allRankIDs) do
+            if rankID ~= spellID then
+                aura = self.Utils:GetCachedBuff(unit, rankID)
+                if aura then
+                    return aura.name, aura.icon, aura.count, aura.debuffType, aura.duration,
+                           aura.expirationTime, aura.source, aura.isStealable,
+                           aura.nameplateShowPersonal, aura.spellID
+                end
+            end
+        end
+    end
+
     return nil
 end
 

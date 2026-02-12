@@ -266,11 +266,13 @@ function SpellTracker:ShouldExcludeSpell(spellData)
             isOutOfCombat = true
         elseif tag == "LONG_BUFF" then
             isLongBuff = true
+        elseif tag == "PROC" then
+            return true  -- Procs belong in ProcTracker, not CooldownIcons
         elseif tag == "DEBUFF" or tag == "HOT" or tag == "BUFF" or tag == "HAS_BUFF" or tag == "HAS_DEBUFF" then
             hasTrackableDuration = true
         end
     end
-    
+
     -- Always exclude OUT_OF_COMBAT abilities (resurrects, etc.)
     if isOutOfCombat then
         return true
