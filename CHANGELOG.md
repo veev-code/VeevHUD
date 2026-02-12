@@ -1,5 +1,11 @@
 # VeevHUD Changelog
 
+## [1.0.78] - 2026-02-12
+
+### LibSpellDB Updates
+
+- **Warrior: Intercept disappearing at higher ranks** — Intercept was missing Rank 4 and Rank 5 from the spell database. Learning either rank caused Intercept to vanish from the HUD entirely. *(Thanks Caworder for reporting)*
+
 ## [1.0.77] - 2026-02-12
 
 ### Added
