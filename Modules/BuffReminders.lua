@@ -477,7 +477,7 @@ function BuffReminders:GetOrCreateIcon(key)
     -- Positioning frame: anchored by LayoutIcons, never scaled
     local frame = CreateFrame("Frame", nil, self.containerFrame)
     frame:SetSize(iconSize, iconSize)
-    frame:SetFrameStrata("HIGH")
+    frame:SetFrameStrata("MEDIUM")
     frame:SetFrameLevel(20)
 
     -- Visual frame: Button (for Masque compatibility) that receives scale/alpha animations.

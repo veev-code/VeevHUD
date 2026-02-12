@@ -1,5 +1,11 @@
 # VeevHUD Changelog
 
+## [1.0.82] - 2026-02-12
+
+### Fixed
+
+- **Buff Reminder icons drawing on top of game windows** — Buff reminder icons were rendered above native UI panels like the quest log, character sheet, and world map. They now correctly appear behind these windows while still staying above other VeevHUD elements. *(Thanks Shadowhawk for reporting)*
+
 ## [1.0.81] - 2026-02-12
 
 ### Fixed
