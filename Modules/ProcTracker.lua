@@ -460,6 +460,9 @@ function ProcTracker:UpdateProcIcon(frame, db)
         if db.activeGlow and not frame.glowActive then
             self:ShowProcGlow(frame)
             frame.glowActive = true
+        elseif not db.activeGlow and frame.glowActive then
+            self:HideProcGlow(frame)
+            frame.glowActive = false
         end
     else
         -- INACTIVE STATE: Hide by default, or show dimmed if configured

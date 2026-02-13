@@ -1100,6 +1100,28 @@ function CooldownIcons:RebuildAllRows()
                 end
             end
         end
+
+        -- Cascade: if spell's matching row was disabled, assign to the first enabled row with room
+        if not assigned then
+            for rowIndex, rowConfig in ipairs(rowConfigs) do
+                if rowConfig.enabled then
+                    if not self.iconsByRow[rowIndex] then
+                        self.iconsByRow[rowIndex] = {}
+                    end
+                    if #self.iconsByRow[rowIndex] < rowConfig.maxIcons then
+                        table.insert(self.iconsByRow[rowIndex], {
+                            spellID = spellID,
+                            actualSpellID = trackedData.actualSpellID or spellID,
+                            spellData = spellData,
+                            customOrder = cfg.order,
+                        })
+                        self.spellAssignments[spellID] = rowIndex
+                        assigned = true
+                        break
+                    end
+                end
+            end
+        end
         end -- not skipForm and not skipTotemBar
     end
 

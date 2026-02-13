@@ -16,7 +16,6 @@ Reported missing or broken spell support (not confirmed fixed):
 
 - **Timer text rounding** — Buff/debuff minute display rounds *down* while WoW's native buff bar rounds *up* (e.g., addon shows "3m" when WoW shows "4m"). *(Shadowhawk)*
 - **Resource-gated cooldown transition** — When an ability comes off cooldown but the player lacks the resource (e.g., rage) to cast it, the icon transition is jarring — it briefly looks ready, then snaps to the "not usable" state instead of filling smoothly. Investigate a more seamless visual path for this case.
-- **Absorb Shields not working** — Not displaying on health bar at all
 - Grow out animation on buff reminders can end somewhat abruptly
 - Usable mana prediction is sometimes off
 
@@ -131,3 +130,4 @@ Items from feedback that have been completed, with the version they shipped in.
 | Totem Duration Tracking (comprehensive element-aware UI)           | 1.0.72  | Totem Bar with active/expired/out-of-range states            |
 | Desperate Prayer row assignment                                    | 1.0.75  | Retagged PERSONAL_DEFENSIVE; defaults to Utility row         |
 | Weapon Swing Timer (all classes + spec-specific mechanics)         | 1.0.77  | Hunter clip zones, Enh/Fury sync, Ret twist window, wand support |
+| Absorb Shields not working                                        | 1.0.85  | Removed non-functional feature (Classic API lacks absorb support) |

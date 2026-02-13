@@ -702,6 +702,13 @@ function SwingBar:SetLayoutPosition(centerY, topY)
     self.container:SetPoint("TOP", self.container:GetParent(), "CENTER", 0, topY)
 end
 
+-- Toggle top border edge visibility (called by Layout when bar adjacency changes)
+function SwingBar:SetTopBorderShown(show)
+    if self.mainBar and self.mainBar.border then
+        self.mainBar.border:SetTopEdgeShown(show)
+    end
+end
+
 -------------------------------------------------------------------------------
 -- Frame Creation
 -------------------------------------------------------------------------------
@@ -752,6 +759,7 @@ function SwingBar:CreateBarFrame(barType, parent, db)
 
     -- Border (skipTop: bar above provides the separator)
     local border = self.Utils:CreateBarBorder(bar, true)
+    bar.border = border
 
     -- Gradient overlay
     local appearanceDb = addon.db.profile.appearance

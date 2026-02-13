@@ -224,12 +224,12 @@ function Options:BuildOptionsTable()
 	local screenHalfH = math.ceil((GetScreenHeight and GetScreenHeight() or 1080) / 200) * 100
 
 	local rowSettingAll = {
-		[C.ROW_SETTING.NONE] = "None",
-		[C.ROW_SETTING.PRIMARY] = "Primary",
-		[C.ROW_SETTING.PRIMARY_SECONDARY] = "Primary + Secondary",
-		[C.ROW_SETTING.SECONDARY_UTILITY] = "Secondary + Utility",
-		[C.ROW_SETTING.UTILITY] = "Utility",
-		[C.ROW_SETTING.ALL] = "All",
+		[C.ROW_SETTING.NONE] = "Off",
+		[C.ROW_SETTING.PRIMARY] = "Primary Row",
+		[C.ROW_SETTING.PRIMARY_SECONDARY] = "Primary + Secondary Rows",
+		[C.ROW_SETTING.SECONDARY_UTILITY] = "Secondary + Utility Rows",
+		[C.ROW_SETTING.UTILITY] = "Utility Row",
+		[C.ROW_SETTING.ALL] = "All Rows",
 	}
 
 	local rowSettingDynamicSort = PickValues(rowSettingAll,
@@ -239,7 +239,7 @@ function Options:BuildOptionsTable()
 	)
 
 	local resourceDisplayModeValues = {
-		[C.RESOURCE_DISPLAY_MODE.PREDICTION] = "Prediction (Recommended)",
+		[C.RESOURCE_DISPLAY_MODE.PREDICTION] = "Prediction",
 		[C.RESOURCE_DISPLAY_MODE.FILL] = "Fill",
 		[C.RESOURCE_DISPLAY_MODE.BAR] = "Bar",
 	}
@@ -654,6 +654,15 @@ function Options:BuildOptionsTable()
 								arg = "appearance.showGradient",
 								order = 3,
 							},
+							iconZoom = {
+								type = "range",
+								name = "Icon Zoom",
+								desc = "Zooms into each icon's artwork, cropping the edges. Affects ability rows, Proc Tracker, and Totem Bar. Useful for removing the default border that some spell textures have. 0% shows the full icon, 16% is a subtle crop.",
+								min = 0, max = 0.6, step = 0.01,
+								isPercent = true,
+								arg = "icons.iconZoom",
+								order = 4,
+							},
 						},
 					},
 					visibility = {
@@ -705,18 +714,11 @@ function Options:BuildOptionsTable()
 					},
 			},
 
-			layout = {
-				type = "group",
-				name = "Layout",
-				order = 2,
-				args = layoutArgs,
-			},
-
 			icons = {
 				type = "group",
-				name = "Icons",
+				name = "Ability Rows",
 				childGroups = "tab",
-				order = 3,
+				order = 2,
 				args = {
 					appearance = {
 						type = "group",
@@ -731,16 +733,16 @@ function Options:BuildOptionsTable()
 									return IsAddOnLoaded and IsAddOnLoaded("Masque")
 								end,
 							},
-							shapeAndZoom = {
+							shape = {
 								type = "group",
-								name = "Shape & Zoom",
+								name = "Shape",
 								inline = true,
 								order = 1,
 								args = {
 									iconAspectRatio = {
 										type = "select",
 										name = "Aspect Ratio",
-										desc = "Makes spell row icons shorter to create a more vertically compact HUD. Width stays the same while height shrinks, cropping the top/bottom of icon textures. The health and resource bars stay in place; ability rows shift up to fill the space. Proc Tracker and Totem Bar have their own aspect ratio settings.",
+										desc = "Makes ability icons wider and shorter (like widescreen). Proc Tracker and Totem Bar have their own settings under Modules.",
 										values = {
 											[1.0] = "Square (1:1)",
 											[1.165] = "Slightly Compact",
@@ -755,15 +757,6 @@ function Options:BuildOptionsTable()
 											Options:ApplySettingChange(info.arg)
 										end,
 										order = 1,
-									},
-									iconZoom = {
-										type = "range",
-										name = "Icon Zoom",
-										desc = "Zooms into each icon's artwork, cropping the edges. Useful for removing the default border that some spell textures have. 0% shows the full icon, 16% is a subtle crop, 30% is more aggressive.",
-										min = 0, max = 0.6, step = 0.01,
-										isPercent = true,
-										arg = "icons.iconZoom",
-										order = 2,
 									},
 								},
 							},
@@ -783,8 +776,8 @@ function Options:BuildOptionsTable()
 									},
 									rowSpacing = {
 										type = "range",
-										name = "Sub-Row Spacing",
-										desc = "The vertical gap in pixels between sub-rows within a flow-wrapped icon row (e.g., when a Utility row wraps to multiple lines). For spacing between Primary, Secondary, and Utility rows, use the Element Order section in General.",
+										name = "Wrap Row Spacing",
+										desc = "When a row wraps icons to a second line (flow layout), this is the gap between lines.",
 										min = -10, max = 40, step = 1,
 										arg = "icons.rowSpacing",
 										order = 2,
@@ -795,7 +788,7 @@ function Options:BuildOptionsTable()
 					},
 					alpha = {
 						type = "group",
-						name = "Alpha",
+						name = "Opacity",
 						order = 2,
 						args = {
 							opacity = {
@@ -806,7 +799,7 @@ function Options:BuildOptionsTable()
 								args = {
 									readyAlpha = {
 										type = "range",
-										name = "Ready Alpha",
+										name = "Ready Opacity",
 										desc = "How visible icons are when the ability is ready to use. 100% means fully visible, lower values make ready abilities slightly transparent. Most people want this at 100%.",
 										min = 0, max = 1.0, step = 0.05,
 										isPercent = true,
@@ -815,7 +808,7 @@ function Options:BuildOptionsTable()
 									},
 									cooldownAlpha = {
 										type = "range",
-										name = "Cooldown Alpha",
+										name = "Cooldown Opacity",
 										desc = "How visible icons are when on cooldown (for rows with Dim On Cooldown enabled). A lower value (like 30%) makes cooldown abilities fade out so you can focus on what's ready. Higher values keep them visible.",
 										min = 0, max = 1.0, step = 0.05,
 										isPercent = true,
@@ -832,8 +825,8 @@ function Options:BuildOptionsTable()
 								args = {
 									desaturateNoResources = {
 										type = "toggle",
-										name = "Desaturate Without Resources",
-										desc = "Turns icons grey when you can't use the ability — for example, not enough mana/rage/energy, wrong stance, or missing a required buff. Works the same way as WoW's default action bars.\n\nAutomatically disabled while resting in an inn or city to avoid constant grey-outs on combat abilities.",
+										name = "Grey Out When Not Usable",
+										desc = "Makes icons grey when you don't have enough mana, rage, or energy to use the ability, or when you're in the wrong stance. Works the same way as WoW's default action bars.\n\nAutomatically disabled while resting in an inn or city to avoid constant grey-outs on combat abilities.",
 										arg = "icons.desaturateNoResources",
 										order = 1,
 									},
@@ -894,7 +887,7 @@ function Options:BuildOptionsTable()
 									},
 									cooldownBlingRows = {
 										type = "select",
-										name = "Cooldown Bling",
+										name = "Cooldown Sparkle",
 										desc = "Shows WoW's native sparkle effect when a cooldown finishes. This is purely cooldown-based and does not indicate usability — the spell may still be unusable due to resources or other conditions.\n\nNote: This also triggers when the GCD finishes, matching WoW's default action bar behavior.",
 										values = rowSettingAll,
 										arg = "icons.cooldownBlingRows",
@@ -915,22 +908,22 @@ function Options:BuildOptionsTable()
 								inline = true,
 								order = 1,
 								args = {
-									resourceDisplayRows = {
-										type = "select",
-										name = "Rows",
-										desc = "Choose which rows show resource cost information on their icons. When enabled, you can see at a glance whether you have enough mana, rage, or energy to cast each ability. The visual style is controlled by Resource Display Mode below.",
-										values = rowSettingAll,
-										arg = "icons.resourceDisplayRows",
-										order = 1,
-									},
 									resourceDisplayMode = {
 										type = "select",
 										name = "Display Mode",
-										desc = "How ability icons show whether you can afford to cast them:\n\n'Fill' — Darkens the icon from top to bottom proportional to missing resources. Simple and easy to read.\n\n'Bar' — Shows a small colored bar at the bottom of each icon that fills up as you gain resources.\n\n'Prediction' (Recommended) — Extends the cooldown sweep to include resource regeneration time. Instead of just showing cooldown, the icon shows how long until you can actually cast — accounting for both cooldown AND resource cost. If an ability is off cooldown but you can't afford it, you'll see the sweep counting down to when you'll have enough.\n\nPrediction accuracy varies by resource: Energy and Mana predictions are very accurate (tick-aware). Rage falls back to Fill since rage income is unpredictable.",
+										desc = "How ability icons show whether you can afford to cast them:\n\n'Prediction' — Extends the cooldown sweep to include resource regeneration time. Instead of just showing cooldown, the icon shows how long until you can actually cast — accounting for both cooldown AND resource cost. If an ability is off cooldown but you can't afford it, you'll see the sweep counting down to when you'll have enough. Energy and Mana predictions are very accurate (tick-aware). Rage falls back to Fill since rage income is unpredictable.\n\n'Fill' — Darkens the icon from top to bottom proportional to missing resources. Simple and easy to read.\n\n'Bar' — Shows a small colored bar at the bottom of each icon that fills up as you gain resources.",
 										values = resourceDisplayModeValues,
+										sorting = {"prediction", "fill", "bar"},
 										arg = "icons.resourceDisplayMode",
+										order = 1,
+									},
+									resourceDisplayRows = {
+										type = "select",
+										name = "Rows",
+										desc = "Choose which rows show resource cost information on their icons. When enabled, you can see at a glance whether you have enough mana, rage, or energy to cast each ability.",
+										values = rowSettingAll,
+										arg = "icons.resourceDisplayRows",
 										order = 2,
-										disabled = function() return addon.db and addon.db.profile and addon.db.profile.icons.resourceDisplayRows == C.ROW_SETTING.NONE end,
 									},
 								},
 							},
@@ -941,25 +934,14 @@ function Options:BuildOptionsTable()
 								order = 2,
 								disabled = function() return addon.db and addon.db.profile and addon.db.profile.icons.resourceDisplayRows == C.ROW_SETTING.NONE end,
 								args = {
-									resourceBarHeight = {
-										type = "range",
-										name = "Bar Height",
-										desc = "Height of the small resource bar shown at the bottom of each icon. Only visible when Resource Display Mode is set to 'Bar'.",
-										min = 1, max = 16, step = 1,
-										arg = "icons.resourceBarHeight",
-										order = 1,
-										disabled = function()
-											return addon.db and addon.db.profile and addon.db.profile.icons and addon.db.profile.icons.resourceDisplayMode ~= C.RESOURCE_DISPLAY_MODE.BAR
-										end,
-									},
 									resourceFillAlpha = {
 										type = "range",
-										name = "Fill Alpha",
+										name = "Fill Opacity",
 										desc = "How dark the resource cost overlay appears on icons. Higher values make it more obvious when you can't afford an ability. Applies to Fill mode and Prediction mode's fill fallback (used for rage and when predictions are unavailable).",
 										min = 0.05, max = 1.0, step = 0.05,
 										isPercent = true,
 										arg = "icons.resourceFillAlpha",
-										order = 2,
+										order = 1,
 										disabled = function()
 											local icons = addon.db and addon.db.profile and addon.db.profile.icons
 											if not icons then return true end
@@ -967,13 +949,24 @@ function Options:BuildOptionsTable()
 											return mode ~= C.RESOURCE_DISPLAY_MODE.FILL and mode ~= C.RESOURCE_DISPLAY_MODE.PREDICTION
 										end,
 									},
+									resourceBarHeight = {
+										type = "range",
+										name = "Bar Height",
+										desc = "Height of the small resource bar shown at the bottom of each icon. Only visible when Resource Display Mode is set to 'Bar'.",
+										min = 1, max = 16, step = 1,
+										arg = "icons.resourceBarHeight",
+										order = 2,
+										disabled = function()
+											return addon.db and addon.db.profile and addon.db.profile.icons and addon.db.profile.icons.resourceDisplayMode ~= C.RESOURCE_DISPLAY_MODE.BAR
+										end,
+									},
 								},
 							},
 						},
 					},
-					behavior = {
+					effects = {
 						type = "group",
-						name = "Behavior",
+						name = "Effects",
 						order = 5,
 						args = {
 							auraTracking = {
@@ -992,7 +985,7 @@ function Options:BuildOptionsTable()
 									auraTargettargetSupport = {
 										type = "toggle",
 										name = "Target-of-Target Support",
-										desc = "Also tracks buffs and debuffs on your target's target. This is useful if you use target-of-target macros:\n\n- Target the boss, see your heals on the tank (the boss's target)\n- Target the tank, see your DoTs on the boss (the tank's target)\n\nExample macros:\n/cast [@target,help] [@targettarget,help] [@player] Renew\n/cast [@target,harm] [@targettarget,harm] [] Shadow Word: Pain",
+										desc = "Also check for your buffs and debuffs on your target's target. Useful for healers tracking HoTs on the tank's target.\n\nExamples:\n- Target the boss, see your heals on the tank (the boss's target)\n- Target the tank, see your DoTs on the boss (the tank's target)",
 										arg = "icons.auraTargettargetSupport",
 										order = 2,
 										disabled = function()
@@ -1003,7 +996,7 @@ function Options:BuildOptionsTable()
 							},
 							castFeedback = {
 								type = "group",
-								name = "Cast Feedback",
+								name = "Cast Pop",
 								inline = true,
 								order = 2,
 								args = {
@@ -1018,7 +1011,7 @@ function Options:BuildOptionsTable()
 									castFeedbackScale = {
 										type = "range",
 										name = "Scale",
-										desc = "How much the icon grows during the cast feedback animation. 110% is a subtle pop, 150%+ is more dramatic. Only applies if Cast Feedback is enabled.",
+										desc = "How much the icon briefly grows when you cast a spell. Higher values = bigger pop.",
 										min = 1.05, max = 2.0, step = 0.05,
 										isPercent = true,
 										arg = "icons.castFeedbackScale",
@@ -1045,8 +1038,8 @@ function Options:BuildOptionsTable()
 									},
 									readyGlowAlwaysRows = {
 										type = "select",
-										name = "Re-trigger",
-										desc = "Controls which rows re-trigger the ready glow each time an ability becomes usable. On these rows, the glow plays again every time usability changes (e.g., gaining enough resources, target entering Execute range). Rows not selected here play the glow only once per cooldown cycle.\n\nNote: Reactive abilities (like Execute or Overpower) always re-trigger regardless of this setting.",
+										name = "Repeat Glow",
+										desc = "Which rows re-trigger the glow whenever an ability becomes usable again (not just the first time).\n\nOn these rows, the glow plays again every time usability changes (e.g., gaining enough resources, target entering Execute range). Rows not selected here play the glow only once per cooldown cycle.\n\nNote: Reactive abilities (like Execute or Overpower) always re-trigger regardless of this setting.",
 										values = rowSettingAll,
 										arg = "icons.readyGlowAlwaysRows",
 										order = 2,
@@ -1067,8 +1060,8 @@ function Options:BuildOptionsTable()
 									},
 									readyGlowThreshold = {
 										type = "range",
-										name = "Anticipation",
-										desc = "How early (in seconds) the ready glow triggers before an ability finishes its cooldown. At 0, the glow only appears once the cooldown is fully complete. Higher values give you more advance notice.",
+										name = "Early Trigger",
+										desc = "Start the glow this many seconds before the cooldown finishes, so you can react sooner. At 0, the glow only appears once the cooldown is fully complete.",
 										min = 0, max = 2.0, step = 0.05,
 										arg = "icons.readyGlowThreshold",
 										order = 4,
@@ -1078,26 +1071,33 @@ function Options:BuildOptionsTable()
 									},
 								},
 							},
-						queuedHighlight = {
-							type = "group",
-							name = "Queued Highlight",
-							inline = true,
-							order = 4,
-							args = {
-								showQueuedHighlight = {
-									type = "toggle",
-									name = "Enabled",
-									desc = "Shows a highlight glow on ability icons that are queued as your next attack (e.g., Heroic Strike, Cleave, Maul). These \"next melee\" abilities queue up and execute on your next swing — the highlight confirms the ability is active and waiting.",
-									arg = "icons.showQueuedHighlight",
-									order = 1,
+							queuedHighlight = {
+								type = "group",
+								name = "Queued Highlight",
+								inline = true,
+								order = 4,
+								args = {
+									showQueuedHighlight = {
+										type = "toggle",
+										name = "Enabled",
+										desc = "Brightens the icon of your next queued ability. Most noticeable on \"next melee\" attacks like Heroic Strike or Maul that stay queued until your next swing, but you may also see a brief flash on any ability queued during a cast or GCD.",
+										arg = "icons.showQueuedHighlight",
+										order = 1,
+									},
 								},
 							},
 						},
-						rangeSorting = {
-							type = "group",
-							name = "Range & Sorting",
-							inline = true,
-							order = 5,
+					},
+					other = {
+						type = "group",
+						name = "Other",
+						order = 6,
+						args = {
+							rangeSorting = {
+								type = "group",
+								name = "Range & Sorting",
+								inline = true,
+								order = 1,
 								args = {
 									showRangeIndicator = {
 										type = "select",
@@ -1110,15 +1110,15 @@ function Options:BuildOptionsTable()
 									dynamicSortRows = {
 										type = "select",
 										name = "Dynamic Sorting",
-										desc = "Controls which rows dynamically reorder icons by 'actionable time' (least time remaining first).\n\nWhen enabled, the ability needing attention soonest is always on the left. Useful for DOT classes (see which debuff is closest to expiring) and cooldown-heavy classes (see which ability is ready next).\n\nTie-breaker: When multiple abilities are ready, they sort by their original row position — so your row order acts as a priority list and the leftmost icon is always the next best spell to cast.\n\nThe 'actionable time' is max(cooldown remaining, buff/debuff remaining).",
+										desc = "Automatically reorders icons left-to-right by remaining cooldown, so abilities that are almost ready appear first.\n\nUseful for DOT classes (see which debuff is closest to expiring) and cooldown-heavy classes (see which ability is ready next).\n\nTie-breaker: When multiple abilities are ready, they sort by their original row position — so your row order acts as a priority list and the leftmost icon is always the next best spell to cast.",
 										values = rowSettingDynamicSort,
 										arg = "icons.dynamicSortRows",
 										order = 2,
 									},
 									dynamicSortAnimation = {
 										type = "toggle",
-										name = "Sort Animation",
-										desc = "When dynamic sorting is enabled, icons slide smoothly to their new positions instead of snapping instantly. The animation is quick and snappy to avoid being distracting during combat. Disable for instant repositioning.",
+										name = "Smooth Sorting",
+										desc = "Icons slide smoothly into their new position when the sort order changes. Disable for instant repositioning.",
 										arg = "icons.dynamicSortAnimation",
 										order = 3,
 										disabled = function()
@@ -1127,11 +1127,11 @@ function Options:BuildOptionsTable()
 									},
 								},
 							},
-						keybinds = {
-							type = "group",
-							name = "Keybinds",
-							inline = true,
-							order = 6,
+							keybinds = {
+								type = "group",
+								name = "Keybinds",
+								inline = true,
+								order = 2,
 								args = {
 									showKeybindText = {
 										type = "select",
@@ -1163,7 +1163,7 @@ function Options:BuildOptionsTable()
 				type = "group",
 				name = "Bars",
 				childGroups = "tab",
-				order = 4,
+				order = 3,
 				args = {
 					resource = {
 						type = "group",
@@ -1372,8 +1372,6 @@ function Options:BuildOptionsTable()
 								disabled = function() return addon.db and addon.db.profile and not addon.db.profile.healthBar.enabled end,
 								args = {
 									showHealPrediction = { type = "toggle", name = "Heal Prediction", desc = "Shows a lighter overlay on the health bar representing incoming heals. The overlay extends from your current health into the missing health area, giving you a preview of where your health will be after heals land.", arg = "healthBar.showHealPrediction", order = 1 },
-									showAbsorbs = { type = "toggle", name = "Absorb Shields", desc = "Shows a shield-textured overlay on the health bar representing active absorb effects (e.g., Power Word: Shield). Absorbs are shown between your current health and heal prediction since they are guaranteed protection.", arg = "healthBar.showAbsorbs", order = 2 },
-									showOverAbsorbGlow = { type = "toggle", name = "Over-Absorb Glow", desc = "Shows a subtle glow at the right edge of the health bar when your absorb shields exceed your missing health. This indicates you have more shielding than you have room to display.", arg = "healthBar.showOverAbsorbGlow", order = 3, disabled = function() local db = addon.db and addon.db.profile and addon.db.profile.healthBar; return not db or not db.enabled or not db.showAbsorbs end },
 								},
 							},
 						},
@@ -1414,7 +1412,7 @@ function Options:BuildOptionsTable()
 						name = "Proc Tracker",
 						order = 1,
 						args = {
-							enabled = { type = "toggle", name = "Enabled", desc = "Shows small icons for important temporary buffs (procs) — like a Warrior's Enrage or Flurry, a Mage's Clearcasting, etc. These icons appear above the health bar and are only visible while the buff is active.", arg = "procTracker.enabled", order = 1 },
+							enabled = { type = "toggle", name = "Enabled", desc = "Shows small icons for important temporary buffs (procs) — like a Warrior's Enrage or Flurry, a Mage's Clearcasting, etc. These icons appear above the health bar and are only visible while the buff is active.\n\nYou can choose which procs to show under the Spells tab.", arg = "procTracker.enabled", order = 1 },
 							layout = {
 								type = "group",
 								name = "Layout",
@@ -1533,7 +1531,7 @@ function Options:BuildOptionsTable()
 											return "|cff888888Tracks your melee swing timer — a bar that fills up as your next auto-attack approaches. Auto-hides between pulls.|r\n"
 										end
 									elseif class == C.CLASS.MAGE or class == C.CLASS.PRIEST or class == C.CLASS.WARLOCK then
-										return "|cff888888Tracks your wand auto-attack timer. Only appears while actively wanding and auto-hides when you stop.|r\n"
+										return "|cff888888Tracks your auto-attack timer for wanding or melee. Only appears while actively attacking and auto-hides when you stop.|r\n"
 									elseif class == C.CLASS.ROGUE then
 										return "|cff888888Tracks your melee swing timer. Shows separate main-hand and off-hand bars when dual-wielding.|r\n"
 									elseif class == C.CLASS.DRUID then
@@ -1649,18 +1647,10 @@ function Options:BuildOptionsTable()
 				},
 			},
 
-			rows = {
-				type = "group",
-				name = "Rows",
-				childGroups = "tab",
-				order = 5,
-				args = rowArgs,
-			},
-
 			spells = {
 				type = "group",
 				name = "Spells",
-				order = 6,
+				order = 5,
 				args = {
 					_desc = {
 						type = "description",
@@ -1693,12 +1683,10 @@ function Options:BuildOptionsTable()
 				},
 			},
 
-			buffReminders = self:BuildBuffRemindersOptions(),
-
 			support = {
 				type = "group",
 				name = "Support",
-				order = 8,
+				order = 7,
 				args = {
 					discordInfo = {
 						type = "description",
@@ -1720,6 +1708,68 @@ function Options:BuildOptionsTable()
 
 			profiles = profilesOptions,
 		},
+	}
+
+	-- Inject per-row settings as sub-tabs of Ability Rows
+	for key, rowDef in pairs(rowArgs) do
+		rowDef.order = rowDef.order + 6  -- shift row orders to 7, 8, 9
+		if rowDef.name and not rowDef.name:match("Row$") then
+			rowDef.name = rowDef.name .. " Row"
+		end
+		optionsTable.args.icons.args[key] = rowDef
+	end
+
+	-- Restructure Bars: reorder sub-tabs
+	local barsArgs = optionsTable.args.bars.args
+	barsArgs.health.order = 1
+	barsArgs.resource.order = 2
+	barsArgs.combopoints.order = 3
+	barsArgs.swingbar.order = 4
+
+	-- Nest Energy Ticker, Mana Ticker, Druid Mana Bar as inline groups within Resource Bar
+	local resourceArgs = barsArgs.resource.args
+	barsArgs.energyTicker.inline = true
+	barsArgs.energyTicker.order = 10
+	resourceArgs.energyTicker = barsArgs.energyTicker
+	barsArgs.energyTicker = nil
+
+	barsArgs.manaTicker.inline = true
+	barsArgs.manaTicker.order = 11
+	resourceArgs.manaTicker = barsArgs.manaTicker
+	barsArgs.manaTicker = nil
+
+	barsArgs.druidManaBar.inline = true
+	barsArgs.druidManaBar.order = 12
+	resourceArgs.druidManaBar = barsArgs.druidManaBar
+	barsArgs.druidManaBar = nil
+
+	-- Create Modules tab: Proc Tracker, Totem Bar, Buff Reminders
+	barsArgs.procs.order = 1
+	barsArgs.totembar.order = 2
+	local buffRemindersOpts = self:BuildBuffRemindersOptions()
+	if buffRemindersOpts then
+		buffRemindersOpts.order = 3
+	end
+	optionsTable.args.modules = {
+		type = "group",
+		name = "Modules",
+		childGroups = "tab",
+		order = 4,
+		args = {
+			procs = barsArgs.procs,
+			totembar = barsArgs.totembar,
+			buffReminders = buffRemindersOpts,
+		},
+	}
+	barsArgs.procs = nil
+	barsArgs.totembar = nil
+
+	-- Create Advanced tab from Layout
+	optionsTable.args.advanced = {
+		type = "group",
+		name = "Layout",
+		order = 6,
+		args = layoutArgs,
 	}
 
 	-- Enrich all setting tooltips with their default values

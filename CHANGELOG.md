@@ -1,5 +1,28 @@
 # VeevHUD Changelog
 
+## [1.0.85] - 2026-02-13
+
+### Changed
+
+- **Config Panel Overhaul** — The settings panel has been reorganized for clarity:
+  - **Ability Rows** tab (formerly "Icons") — Now includes per-row settings (Primary, Secondary, Utility) that were previously in a separate "Rows" tab. Sub-tabs reorganized into Appearance, Opacity, Cooldowns, Resources, Effects, and Other.
+  - **Modules** tab (new) — Groups Proc Tracker, Totem Bar, and Buff Reminders in one place.
+  - **Bars** tab — Health Bar promoted to first position. Energy Ticker, Mana Ticker, and Druid Mana Bar are now inline sections within Resource Bar instead of separate sub-tabs.
+  - **Layout** tab — Element ordering and gap controls (previously embedded in General).
+  - Icon Zoom moved to General > Appearance since it affects all icon-based modules.
+- **Setting names simplified** — Alpha → Opacity, Cooldown Bling → Cooldown Sparkle, Cast Feedback → Cast Pop, Re-trigger → Repeat Glow, Anticipation → Early Trigger, Sort Animation → Smooth Sorting, Desaturate Without Resources → Grey Out When Not Usable. Tooltips rewritten in plain language throughout.
+- **Row dropdown labels updated** — "None" → "Off", "Primary" → "Primary Row", "All" → "All Rows", etc.
+- **Show GCD default** changed to Primary + Secondary rows (was Primary only).
+- **Default vertical offset** changed to -100 (was -84).
+
+### Fixed
+
+- **Disabling a row no longer hides its spells** — Previously, disabling the Secondary row would remove its spells entirely. Now, spells from a disabled row cascade to the first enabled row that has room.
+- **Missing top border when Health Bar is hidden** — Bars below the health bar (Resource Bar, Combo Points, Swing Bar) now correctly show their own top border when the bar above them is hidden.
+- **Proc Tracker: Active Glow toggle takes effect immediately** — Toggling off "Active Glow" in Proc Tracker settings now hides the glow on currently active procs, instead of only applying to newly triggered procs.
+- **Absorb Shields removed** — The Absorb Shield and Over-Absorb Glow options have been removed from the Health Bar. The Classic API does not support absorb tracking, so these features were non-functional.
+- **Swing Bar caster tooltip** — Now correctly mentions both melee and wanding (was "wanding only").
+
 ## [1.0.84] - 2026-02-12
 
 ### Fixed

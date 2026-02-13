@@ -43,11 +43,11 @@ Every visual element is designed to give you instant feedback:
 
 *   **Resource cost display** — Icons show whether you can afford to cast via a fill overlay, bar, or resource prediction (see below)
 *   **Usable glow** — A proc-style glow when abilities become usable (off cooldown + enough resources), with configurable persistent or one-shot modes
-*   **Grey out** — Unusable abilities turn grey (desaturate)
+*   **Grey out** — Abilities turn grey when you don't have enough resources
 *   **Range indicator** — Icons show a red overlay when your target is out of range, even during cooldown
-*   **Cast feedback** — A satisfying "pop" animation when you successfully cast (configurable scale)
+*   **Cast pop** — A satisfying "pop" animation when you successfully cast (configurable scale)
 *   **GCD display** — Global cooldown shown on configurable rows
-*   **Cooldown bling** — WoW's native sparkle effect when cooldowns finish (per-row configurable)
+*   **Cooldown sparkle** — WoW's native sparkle effect when cooldowns finish (per-row configurable)
 *   **Dim on cooldown** — Icons fade to a configurable alpha when on cooldown (per-row)
 *   **Keybind text** — Optional keyboard shortcut display on icons (scans your action bars, supports Bartender4, ElvUI, Dominos)
 *   **Summon stack count** — Spells that summon multiple pets (like Force of Nature) show how many remain alive
@@ -107,12 +107,12 @@ Compact bars positioned with your HUD show health and mana/rage/energy at a glan
 
 VeevHUD is designed to work great out of the box, but nearly everything is configurable. Settings are organized into tabs:
 
-*   **General** — Position (horizontal + vertical offset), global scale, font, visibility (out-of-combat fade, hide on flight path), smooth bar/dim animations, layout spacing
-*   **Icons** — Appearance (aspect ratio, zoom, spacing, gaps), alpha (ready/cooldown), cooldown display (text, spiral, bling, GCD, dim-on-cooldown), resource display (prediction/fill/bar), and behavior (aura tracking, cast feedback, ready glow, dynamic sort, range indicator, keybind text)
-*   **Bars** — Proc tracker, health bar, resource bar (with energy ticker and mana ticker sub-tabs), combo points, and swing timer — each with size, text format, gradient, spark, and class coloring options
-*   **Rows** — Per-row settings for Primary, Secondary, and Utility: icon size, max icons, and flow layout (utility row wraps into multiple lines)
+*   **General** — Position (horizontal + vertical offset), global scale, icon zoom, font, visibility (out-of-combat fade, hide on flight path), smooth bar/dim animations
+*   **Ability Rows** — Appearance (aspect ratio, spacing, gaps), opacity (ready/cooldown), cooldown display (text, spiral, sparkle, GCD, dim-on-cooldown), resource display (prediction/fill/bar), effects (aura tracking, cast pop, ready glow, queued highlight), other (range indicator, dynamic sort, keybind text), and per-row settings for Primary, Secondary, and Utility (icon size, max icons, flow layout)
+*   **Bars** — Health bar, resource bar (with energy ticker, mana ticker, and druid mana bar inline), combo points, and swing timer — each with size, text format, gradient, spark, and class coloring options
+*   **Modules** — Proc Tracker, Totem Bar, and Buff Reminders — secondary HUD features with their own appearance settings
 *   **Spells** — Per-spell control: enable/disable, move between rows, adjust priority order via drag-and-drop
-*   **Buff Reminders** — Toggle the feature, adjust icon size/opacity/position, and configure individual spell reminders (enable/disable, thresholds, combat state, tracking scope, group priority)
+*   **Layout** — Element ordering and per-element gap controls for the vertical HUD stack
 *   **Profiles** — Save and switch between configuration profiles. Automatic per-spec profile switching via LibDualSpec (dual spec users get separate profiles for each spec).
 
 Access settings via **/vh** in chat, or **ESC → Options → AddOns → VeevHUD**. Every setting shows its default value in the tooltip.

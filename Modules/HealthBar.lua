@@ -1,6 +1,6 @@
 --[[
     VeevHUD - Health Bar Module
-    Displays player health bar with heal prediction and absorb shields
+    Displays player health bar with heal prediction
 ]]
 
 local ADDON_NAME, addon = ...
@@ -10,8 +10,6 @@ addon:RegisterModule("HealthBar", HealthBar)
 
 -- Cache API functions (may be nil on some game versions)
 local UnitGetIncomingHeals = UnitGetIncomingHeals
-local UnitGetTotalAbsorbs = UnitGetTotalAbsorbs
-local UnitAura = UnitAura
 
 -------------------------------------------------------------------------------
 -- Initialization
@@ -35,27 +33,10 @@ function HealthBar:Initialize()
         self.Events:RegisterEvent(self, "UNIT_HEAL_PREDICTION", self.OnHealPredictionUpdate)
     end
 
-    -- Absorb shield events
-    if UnitGetTotalAbsorbs then
-        -- Modern API available (Retail/Mists+): use native event
-        self.Events:RegisterEvent(self, "UNIT_ABSORB_AMOUNT_CHANGED", self.OnAbsorbUpdate)
-    elseif UnitAura then
-        -- TBC/Anniversary fallback: scan UnitAura for absorb values
-        -- UNIT_AURA fires when auras are applied/removed/refreshed
-        self.Events:RegisterEvent(self, "UNIT_AURA", self.OnAbsorbUpdate)
-        -- SPELL_ABSORBED fires when a shield absorbs damage (aura value changes but UNIT_AURA doesn't fire)
-        self.Events:RegisterCLEU(self, "SPELL_ABSORBED", self.OnSpellAbsorbed)
-        self.useAuraAbsorbFallback = true
-    end
-
     self.Utils:Debug("HealthBar initialized")
 end
 
 function HealthBar:OnPlayerEnteringWorld()
-    -- Seed the absorb cache so overlays show immediately (before first UNIT_AURA)
-    if self.useAuraAbsorbFallback then
-        self.cachedAbsorbs = self:ScanAuraAbsorbs("player")
-    end
     self:UpdatePlayerBar()
 end
 
@@ -71,26 +52,6 @@ function HealthBar:OnHealPredictionUpdate(event, unit)
     end
 end
 
-function HealthBar:OnAbsorbUpdate(event, unit)
-    if unit == "player" then
-        -- When using UnitAura fallback, cache the scan result so UpdateOverlays
-        -- (which also runs on health/heal events) doesn't re-scan unnecessarily
-        if self.useAuraAbsorbFallback then
-            self.cachedAbsorbs = self:ScanAuraAbsorbs("player")
-        end
-        self:UpdateOverlays()
-    end
-end
-
--- CLEU handler: SPELL_ABSORBED fires when a shield absorbs damage.
--- UNIT_AURA doesn't fire for partial absorb depletion, so we need this
--- to keep the cached absorb value accurate as shields take hits.
-function HealthBar:OnSpellAbsorbed(subEvent, info)
-    if info.destGUID == UnitGUID("player") then
-        self.cachedAbsorbs = self:ScanAuraAbsorbs("player")
-        self:UpdateOverlays()
-    end
-end
 
 -------------------------------------------------------------------------------
 -- Layout System Integration
@@ -157,10 +118,8 @@ function HealthBar:CreatePlayerBar(parent)
     bar:SetStatusBarColor(r, g, b)
     bar.bg:SetVertexColor(r * 0.3, g * 0.3, b * 0.3)
 
-    -- Heal prediction and absorb overlays
+    -- Heal prediction overlay
     self:CreateHealPrediction(bar)
-    self:CreateAbsorbShield(bar)
-    self:CreateOverAbsorbGlow(bar)
 
     -- Text (create if any text format is enabled, above overlays)
     if db.textFormat and db.textFormat ~= self.C.TEXT_FORMAT.NONE then
@@ -194,87 +153,20 @@ function HealthBar:CreateGradient(bar)
 end
 
 -------------------------------------------------------------------------------
--- Absorb Amount Query
+-- Heal Prediction Overlay
 -------------------------------------------------------------------------------
 
--- Scans UnitAura for buffs with absorb values (17th return).
--- Used as fallback on TBC Classic / Anniversary Edition where UnitGetTotalAbsorbs doesn't exist.
-function HealthBar:ScanAuraAbsorbs(unit)
-    if not UnitAura then return 0 end
-    local total = 0
-    for i = 1, 40 do
-        local name, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, absorb = UnitAura(unit, i, "HELPFUL")
-        if not name then break end
-        if absorb and absorb > 0 then
-            total = total + absorb
-        end
-    end
-    return total
-end
-
--- Returns total absorb shield amount on the given unit.
--- Uses UnitGetTotalAbsorbs (Retail/Mists+) if available,
--- otherwise returns the cached UnitAura scan result (updated on UNIT_AURA).
-function HealthBar:GetTotalAbsorbs(unit)
-    if UnitGetTotalAbsorbs then
-        return UnitGetTotalAbsorbs(unit) or 0
-    end
-    -- Fallback: return cached value from last UNIT_AURA scan
-    -- Cache is populated by OnAbsorbUpdate, which fires on every UNIT_AURA event
-    return self.cachedAbsorbs or 0
-end
-
--------------------------------------------------------------------------------
--- Heal Prediction & Absorb Shield Overlays
--------------------------------------------------------------------------------
-
--- Absorb shield: tiled shield texture showing total absorb amount (guaranteed protection)
--- Positioned starting at right edge of health fill, growing right into missing health
--- Shown before heal prediction because absorbs are certain, heals are speculative
-function HealthBar:CreateAbsorbShield(bar)
-    -- Use Blizzard's built-in shield fill texture for visual consistency
-    -- ARTWORK sublevel 2: above StatusBar fill (sublevel 0)
-    local absorbBar = bar:CreateTexture(nil, "ARTWORK", nil, 2)
-    absorbBar:SetTexture([[Interface\RaidFrame\Shield-Fill]])
-    absorbBar:SetVertexColor(1, 1, 1, 0.5)
-    absorbBar:Hide()
-    self.absorbShield = absorbBar
-
-    -- Tiled overlay on top of the fill for the hatched shield look
-    local absorbOverlay = bar:CreateTexture(nil, "ARTWORK", nil, 3)
-    absorbOverlay:SetTexture([[Interface\RaidFrame\Shield-Overlay]], true, true)
-    absorbOverlay:SetHorizTile(true)
-    absorbOverlay:SetVertTile(true)
-    absorbOverlay:Hide()
-    self.absorbOverlay = absorbOverlay
-end
-
--- Heal prediction: lighter version of health bar color, shows incoming heals (speculative)
--- Positioned after absorb shield because heals may not land
+-- Heal prediction: lighter version of health bar color, shows incoming heals
 function HealthBar:CreateHealPrediction(bar)
     local barTexture = (addon.GetBarTexture and addon:GetBarTexture()) or self.C.TEXTURES.STATUSBAR
 
-    -- ARTWORK sublevel 4: above absorb shield
-    local healPredict = bar:CreateTexture(nil, "ARTWORK", nil, 4)
+    local healPredict = bar:CreateTexture(nil, "ARTWORK", nil, 2)
     healPredict:SetTexture(barTexture)
     healPredict:Hide()
     self.healPrediction = healPredict
 
     -- Set initial color (health bar color at 0.4 alpha)
     self:UpdateHealPredictionColor()
-end
-
--- Glow at the right edge of the bar when absorb shield exceeds missing health
-function HealthBar:CreateOverAbsorbGlow(bar)
-    local glow = bar:CreateTexture(nil, "OVERLAY", nil, 1)
-    glow:SetTexture([[Interface\RaidFrame\Shield-Overshield]])
-    glow:SetBlendMode("ADD")
-    glow:SetWidth(8)
-    glow:SetAlpha(0.6)
-    glow:SetPoint("TOPRIGHT", bar, "TOPRIGHT", 4, 0)
-    glow:SetPoint("BOTTOMRIGHT", bar, "BOTTOMRIGHT", 4, 0)
-    glow:Hide()
-    self.overAbsorbGlow = glow
 end
 
 -- Set heal prediction color to match health bar color at reduced alpha
@@ -288,9 +180,8 @@ end
 -- Overlay Update Logic
 -------------------------------------------------------------------------------
 
--- Master update for heal prediction + absorb overlays
--- Total projection never exceeds 100% of bar width
--- Respects per-overlay toggle settings
+-- Master update for heal prediction overlay
+-- Projection never exceeds 100% of bar width
 function HealthBar:UpdateOverlays()
     if not self.playerBar then return end
 
@@ -307,83 +198,20 @@ function HealthBar:UpdateOverlays()
     -- Available space to the right of the health fill (never exceed 100%)
     local availablePercent = 1 - healthPercent
 
-    -- 1. Absorb shield (guaranteed, already active — shown first after health)
-    local totalAbsorbs = 0
-    local absorbPercent = 0
-    if db.showAbsorbs then
-        totalAbsorbs = self:GetTotalAbsorbs("player")
-        if totalAbsorbs > 0 then
-            absorbPercent = totalAbsorbs / maxHealth
-            -- Clamp to available space
-            absorbPercent = math.min(absorbPercent, availablePercent)
-        end
-    end
-    self:PositionAbsorbShield(healthPercent, absorbPercent, barWidth)
-
-    -- 2. Incoming heals (speculative — shown after absorbs)
+    -- Incoming heals
     local healPercent = 0
     if db.showHealPrediction and UnitGetIncomingHeals then
         local incomingHeals = UnitGetIncomingHeals("player") or 0
         if incomingHeals > 0 then
             healPercent = incomingHeals / maxHealth
-            local remainingPercent = availablePercent - absorbPercent
-            -- Clamp to remaining space (absorb already used some)
-            healPercent = math.min(healPercent, math.max(0, remainingPercent))
+            healPercent = math.min(healPercent, availablePercent)
         end
     end
-    self:PositionHealPrediction(healthPercent, absorbPercent, healPercent, barWidth)
-
-    -- 3. Over-absorb glow (show only when absorb shields exceed missing health)
-    local showGlow = false
-    if db.showAbsorbs and db.showOverAbsorbGlow then
-        -- Glow only when absorbs alone overflow the bar (heals overflowing is just overheal, not noteworthy)
-        if totalAbsorbs > 0 and (health + totalAbsorbs) > maxHealth then
-            showGlow = true
-        end
-    end
-    if self.overAbsorbGlow then
-        if showGlow then
-            self.overAbsorbGlow:Show()
-        else
-            self.overAbsorbGlow:Hide()
-        end
-    end
+    self:PositionHealPrediction(healthPercent, healPercent, barWidth)
 end
 
--- Position the absorb shield texture (starts right after health fill)
-function HealthBar:PositionAbsorbShield(healthPercent, absorbPercent, barWidth)
-    if not self.absorbShield then return end
-
-    if absorbPercent <= 0 then
-        self.absorbShield:Hide()
-        if self.absorbOverlay then self.absorbOverlay:Hide() end
-        return
-    end
-
-    local absorbWidth = absorbPercent * barWidth
-    if absorbWidth < 1 then
-        self.absorbShield:Hide()
-        if self.absorbOverlay then self.absorbOverlay:Hide() end
-        return
-    end
-
-    local startX = healthPercent * barWidth
-
-    self.absorbShield:ClearAllPoints()
-    self.absorbShield:SetPoint("TOPLEFT", self.playerBar, "TOPLEFT", startX, 0)
-    self.absorbShield:SetPoint("BOTTOMLEFT", self.playerBar, "BOTTOMLEFT", startX, 0)
-    self.absorbShield:SetWidth(absorbWidth)
-    self.absorbShield:Show()
-
-    -- Tiled overlay tracks the fill exactly
-    if self.absorbOverlay then
-        self.absorbOverlay:SetAllPoints(self.absorbShield)
-        self.absorbOverlay:Show()
-    end
-end
-
--- Position the heal prediction texture (starts after absorb shield)
-function HealthBar:PositionHealPrediction(healthPercent, absorbPercent, healPercent, barWidth)
+-- Position the heal prediction texture (starts right after health fill)
+function HealthBar:PositionHealPrediction(healthPercent, healPercent, barWidth)
     if not self.healPrediction then return end
 
     if healPercent <= 0 then
@@ -397,7 +225,7 @@ function HealthBar:PositionHealPrediction(healthPercent, absorbPercent, healPerc
         return
     end
 
-    local startX = (healthPercent + absorbPercent) * barWidth
+    local startX = healthPercent * barWidth
 
     self.healPrediction:ClearAllPoints()
     self.healPrediction:SetPoint("TOPLEFT", self.playerBar, "TOPLEFT", startX, 0)
@@ -432,7 +260,7 @@ function HealthBar:UpdatePlayerBar()
         self:UpdateText(self.playerText, health, maxHealth, percent, db.textFormat)
     end
 
-    -- Update heal prediction and absorb overlays (positions depend on health %)
+    -- Update heal prediction overlay (position depends on health %)
     self:UpdateOverlays()
 end
 
@@ -528,8 +356,7 @@ function HealthBar:Refresh()
         if self.healPrediction then
             self.healPrediction:SetTexture(barTexture)
         end
-        -- Absorb shield uses Blizzard's Shield-Fill (unchanged by bar texture)
-        -- but update heal prediction color to match bar color
+        -- Update heal prediction color to match bar color
         self:UpdateHealPredictionColor()
     end
     

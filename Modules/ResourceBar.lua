@@ -114,6 +114,13 @@ function ResourceBar:SetLayoutPosition(centerY, topY)
     self.bar:SetPoint("TOP", self.bar:GetParent(), "CENTER", 0, topY)
 end
 
+-- Toggle top border edge visibility (called by Layout when bar adjacency changes)
+function ResourceBar:SetTopBorderShown(show)
+    if self.border then
+        self.border:SetTopEdgeShown(show)
+    end
+end
+
 -------------------------------------------------------------------------------
 -- Frame Creation
 -------------------------------------------------------------------------------

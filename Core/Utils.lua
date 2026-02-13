@@ -251,8 +251,24 @@ function Utils:CreateBarBorder(bar, skipTop)
     edge("TOPRIGHT", "BOTTOMRIGHT", "w")     -- Right
     edge("BOTTOMLEFT", "BOTTOMRIGHT", "h")   -- Bottom
 
-    if not skipTop then
-        edge("TOPLEFT", "TOPRIGHT", "h")     -- Top
+    local topEdge = edge("TOPLEFT", "TOPRIGHT", "h")  -- Top
+    borderFrame.topEdge = topEdge
+
+    if skipTop then
+        topEdge:Hide()
+    end
+
+    --- Show or hide the top border edge.
+    -- When a bar above is visible, the top edge can be hidden to avoid
+    -- a double-thick separator; when there is no bar above, show it.
+    function borderFrame:SetTopEdgeShown(show)
+        if show then
+            topEdge:Show()
+            borderFrame:SetPoint("TOPLEFT", -1, 1)
+        else
+            topEdge:Hide()
+            borderFrame:SetPoint("TOPLEFT", -1, 0)
+        end
     end
 
     return borderFrame

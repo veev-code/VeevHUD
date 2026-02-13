@@ -85,6 +85,15 @@ function ComboPoints:SetLayoutPosition(centerY, topY)
     self.container:SetPoint("TOP", self.container:GetParent(), "CENTER", 0, topY)
 end
 
+-- Toggle top border edge visibility (called by Layout when bar adjacency changes)
+function ComboPoints:SetTopBorderShown(show)
+    -- First bar is the topmost; its border determines the top edge
+    local firstBar = self.bars and self.bars[1]
+    if firstBar and firstBar.border then
+        firstBar.border:SetTopEdgeShown(show)
+    end
+end
+
 -------------------------------------------------------------------------------
 -- Initialization
 -------------------------------------------------------------------------------

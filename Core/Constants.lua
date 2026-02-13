@@ -218,7 +218,7 @@ C.DEFAULTS = {
             point = "CENTER",
             relativePoint = "CENTER",
             x = 0,
-            y = -84,  -- Default vertical offset
+            y = -100,  -- Default vertical offset
         },
 
         -- Visibility conditions
@@ -329,8 +329,6 @@ C.DEFAULTS = {
             classColored = true,
             color = { r = 0.0, g = 0.8, b = 0.0 },  -- Custom color when classColored is off (green default)
             showHealPrediction = true,   -- Show incoming heal overlay on bar
-            showAbsorbs = true,          -- Show absorb shield overlay on bar
-            showOverAbsorbGlow = true,   -- Show glow at bar edge when shield exceeds missing health
         },
 
         -- Combo points settings (for Rogues and Feral Druids)
@@ -417,7 +415,7 @@ C.DEFAULTS = {
             -- GCD display: which rows show the global cooldown spinner
             -- "none" = disabled, "primary" = Primary Row only, 
             -- "primary_secondary" = Primary + Secondary, "all" = everywhere
-            showGCDOn = "primary",
+            showGCDOn = "primary_secondary",
             
             -- Dim on cooldown: which rows fade to cooldownAlpha when on cooldown
             -- "none" = all rows stay full alpha, "utility" = Utility only,

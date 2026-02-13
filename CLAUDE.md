@@ -10,7 +10,7 @@ VeevHUD is a lightweight, WeakAuras-inspired heads-up display addon for World of
 - **3-row layout**: Primary (core rotation), Secondary (throughput CDs), Utility (CC/movement/defensives)
 - **Aura tracking**: Shows active buff/debuff durations on icons with visual glow
 - **Resource display**: Resource cost progress on icons (vertical fill or bottom bar)
-- **Health/resource bars**: With heal prediction, absorb shields, predicted cost overlays, tickers
+- **Health/resource bars**: With heal prediction, predicted cost overlays, tickers
 - **Proc tracker**: Horizontal proc buff icons with stack tracking and glow
 - **Masque support**: Compatible with Masque for icon skinning
 
@@ -44,7 +44,7 @@ VeevHUD is a lightweight, WeakAuras-inspired heads-up display addon for World of
 - `AuraTracker.lua` — Tracks buffs/debuffs applied by player spells via CLEU events. CC_HARD and `singleTarget` spells track across all targets regardless of current target.
 - `CooldownIcons.lua` — Main icon display: rows, cooldown spirals, resource cost, glows, sorting, queued highlight
 - `ResourceBar.lua` — Resource bar (mana/rage/energy) with predicted cost overlay and tickers
-- `HealthBar.lua` — Health bar with heal prediction, absorb shield, and over-absorb glow overlays
+- `HealthBar.lua` — Health bar with heal prediction overlay
 - `ComboPoints.lua` — Horizontal combo point bars with activation animation
 - `ProcTracker.lua` — Proc buff icons with stacks, glow, and configurable enable/disable
 - `BuffReminders.lua` — Buff reminder alerts for missing class/role buffs
@@ -227,7 +227,7 @@ Top-level keys:
 
 Notable defaults:
 - `resourceBar.showPredictedCost = true`
-- `healthBar.showHealPrediction = true`, `healthBar.showAbsorbs = true`, `healthBar.showOverAbsorbGlow = true`
+- `healthBar.showHealPrediction = true`
 - `icons.useOwnCooldownText = true`
 - `visibility.outOfCombatAlpha = 1.0`, `visibility.hideOnFlightPath = true`
 - `animations.smoothBars = true`, `animations.dimTransition = true`
