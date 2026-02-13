@@ -1,5 +1,15 @@
 # VeevHUD Changelog
 
+## [1.0.84] - 2026-02-12
+
+### Fixed
+
+- **Searing Totem duration still showing 60s for all ranks on Totem Bar** — The v1.0.81 fix for rank-specific durations was applied to AuraTracker but the Totem Bar had its own cached duration that bypassed the fix. All ranks now correctly display their actual duration (Rank 1 = 30s through Rank 7 = 60s). *(Thanks bewz for reporting)*
+
+### Changed
+
+- **Improved layout spacing when Totem Bar is hidden** — On non-Shaman classes (or when the Totem Bar is disabled), the gap between Proc Tracker and Health Bar now uses the larger of the two adjacent gaps instead of collapsing to a tiny 2px gap.
+
 ## [1.0.83] - 2026-02-12
 
 ### Added

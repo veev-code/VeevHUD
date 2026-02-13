@@ -249,11 +249,13 @@ C.DEFAULTS = {
                 "utilityRow",
             },
             -- Gap (in pixels) above each element (between it and the element above it).
-            -- First visible element's gap is ignored.
+            -- First visible element's gap is ignored. When an element is hidden,
+            -- its gap passes through: the next visible element uses the max of its
+            -- own gap and any hidden elements' gaps above it.
             gaps = {
                 procTracker  = 0,
-                totemBar     = 4,
-                healthBar    = 6,   -- was procTracker.gapAboveHealthBar
+                totemBar     = 6,
+                healthBar    = 2,
                 resourceBar  = 0,
                 comboPoints  = 0,
                 swingBar     = 0,

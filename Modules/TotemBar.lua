@@ -222,8 +222,12 @@ function TotemBar:OnSpellSummon(subEvent, data)
         state.petGUID = nil
     end
 
-    -- Set active state
-    local duration = totemInfo.duration
+    -- Set active state (use rank-specific duration when available, e.g. Searing Totem)
+    local duration
+    if self.LibSpellDB and self.LibSpellDB.GetSpellDuration then
+        duration = self.LibSpellDB:GetSpellDuration(spellID)
+    end
+    duration = duration or totemInfo.duration
     state.active = {
         spellID = canonicalID,
         expiration = GetTime() + duration,

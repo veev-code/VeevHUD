@@ -146,17 +146,20 @@ function Layout:Refresh()
     local currentY = 0
     local primaryTopY = nil
     local visibleCount = 0
+    local pendingGap = 0  -- max gap accumulated from hidden elements
 
     for _, key in ipairs(order) do
         local height = self:GetElementHeight(key)
         if height > 0 then
             visibleCount = visibleCount + 1
 
-            -- Apply gap (space above this element), skip for first visible element
+            -- Apply gap: use the larger of this element's own gap and any
+            -- hidden elements' gaps that were skipped above it
             local gap = 0
             if visibleCount > 1 then
-                gap = gaps[key] or 0
+                gap = math.max(gaps[key] or 0, pendingGap)
             end
+            pendingGap = 0
             currentY = currentY - gap
 
             local topY = currentY
@@ -177,6 +180,9 @@ function Layout:Refresh()
             end
 
             currentY = bottomY
+        else
+            -- Element hidden: accumulate its gap for the next visible element
+            pendingGap = math.max(pendingGap, gaps[key] or 0)
         end
     end
 
@@ -227,6 +233,7 @@ function Layout:PrintDebug()
     local currentY = 0
     local primaryTopY = nil
     local visibleCount = 0
+    local pendingGap = 0
     local allElements = {}
 
     for _, key in ipairs(order) do
@@ -238,8 +245,9 @@ function Layout:PrintDebug()
         if height > 0 then
             visibleCount = visibleCount + 1
             if visibleCount > 1 then
-                gap = gaps[key] or 0
+                gap = math.max(gaps[key] or 0, pendingGap)
             end
+            pendingGap = 0
             currentY = currentY - gap
             topY = currentY
             centerY = currentY - height / 2
@@ -247,6 +255,8 @@ function Layout:PrintDebug()
                 primaryTopY = topY
             end
             currentY = currentY - height
+        else
+            pendingGap = math.max(pendingGap, gaps[key] or 0)
         end
 
         table.insert(allElements, {
