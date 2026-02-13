@@ -55,6 +55,14 @@ local TOTEM_SLOT_TO_ELEMENT = {
     [4] = "TOTEM_AIR",
 }
 
+-- Reverse mapping: element tag -> totem slot (for polling GetTotemInfo)
+local TOTEM_ELEMENT_TO_SLOT = {
+    TOTEM_FIRE = 1,
+    TOTEM_EARTH = 2,
+    TOTEM_WATER = 3,
+    TOTEM_AIR = 4,
+}
+
 -------------------------------------------------------------------------------
 -- Initialization
 -------------------------------------------------------------------------------
@@ -490,9 +498,11 @@ function AuraTracker:OnPlayerTotemUpdate(event, slot)
     if not elementTag then return end
 
     local trackedSpellID = self.totemElementToSpell[elementTag]
-    if not trackedSpellID then return end  -- Not tracking any totem for this element
 
     local haveTotem, totemName, startTime, duration = GetTotemInfo(slot)
+
+    if not trackedSpellID then return end  -- Not tracking any totem for this element
+
     if not haveTotem or duration == 0 then
         -- Totem is gone — clear tracking
         self.Utils:LogInfo("AuraTracker: Totem destroyed (PLAYER_TOTEM_UPDATE slot", slot .. "), clearing", trackedSpellID)
@@ -658,6 +668,25 @@ function AuraTracker:CleanupExpiredAuras()
         end
     end
     
+    -- Validate active totems against GetTotemInfo.
+    -- PLAYER_TOTEM_UPDATE may not fire reliably when totems are killed in TBC.
+    for elementTag, spellID in pairs(self.totemElementToSpell) do
+        local slot = TOTEM_ELEMENT_TO_SLOT[elementTag]
+        if slot then
+            local haveTotem, totemName, startTime, duration = GetTotemInfo(slot)
+            if not haveTotem or duration == 0 then
+                self.Utils:LogInfo("AuraTracker: Totem gone (GetTotemInfo poll), clearing", spellID)
+                self:ClearSummonTracking(spellID)
+                self:NotifyAuraChange(spellID, false)
+                changed = true
+                -- ClearTotemElementForSpell modifies totemElementToSpell, so break
+                -- and let the next tick catch any remaining stale totems
+                self.totemElementToSpell[elementTag] = nil
+                break
+            end
+        end
+    end
+
     if changed then
         -- Update UI
         local cooldownIcons = addon:GetModule("CooldownIcons")

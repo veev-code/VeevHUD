@@ -60,7 +60,6 @@ local ELEMENT_TAGS = {
 --   elementState[element] = {
 --     active = { spellID, expiration, duration } or nil,
 --     lastUsed = { spellID, name, icon } or nil,
---     petGUID = string or nil,
 --   }
 TotemBar.elementState = {}
 
@@ -102,12 +101,13 @@ function TotemBar:Initialize()
     -- Register with layout system
     addon.Layout:RegisterElement("totemBar", self)
 
-    -- Register CLEU events for self-contained tracking
+    -- Register CLEU events for summon and recall tracking
     self.Events:RegisterCLEU(self, "SPELL_SUMMON", self.OnSpellSummon)
     self.Events:RegisterCLEU(self, "SPELL_CAST_SUCCESS", self.OnSpellCastSuccess)
-    self.Events:RegisterCLEU(self, "UNIT_DIED", self.OnUnitRemoved)
-    self.Events:RegisterCLEU(self, "UNIT_DESTROYED", self.OnUnitRemoved)
-    self.Events:RegisterCLEU(self, "UNIT_DISSIPATES", self.OnUnitRemoved)
+
+    -- PLAYER_TOTEM_UPDATE is the reliable detection path for totem destruction.
+    -- CLEU UNIT_DIED/UNIT_DESTROYED/UNIT_DISSIPATES do NOT fire for totems in TBC Anniversary.
+    self.Events:RegisterEvent(self, "PLAYER_TOTEM_UPDATE", self.OnPlayerTotemUpdate)
 
     -- Periodic cleanup for expired totems
     self.cleanupTicker = C_Timer.NewTicker(1, function()
@@ -217,11 +217,6 @@ function TotemBar:OnSpellSummon(subEvent, data)
     local state = self.elementState[element]
     if not state then return end
 
-    -- Element exclusivity: clear previous totem of the same element
-    if state.active and state.active.spellID ~= canonicalID then
-        state.petGUID = nil
-    end
-
     -- Set active state (use rank-specific duration when available, e.g. Searing Totem)
     local duration
     if self.LibSpellDB and self.LibSpellDB.GetSpellDuration then
@@ -240,11 +235,6 @@ function TotemBar:OnSpellSummon(subEvent, data)
         name = totemInfo.name,
         icon = totemInfo.icon,
     }
-
-    -- Track pet GUID for early cleanup on kill
-    if data.destGUID then
-        state.petGUID = data.destGUID
-    end
 
     self.Utils:LogInfo("TotemBar: Totem placed", totemInfo.name, element, duration .. "s")
 
@@ -265,22 +255,21 @@ function TotemBar:OnSpellCastSuccess(subEvent, data)
     end
 end
 
-function TotemBar:OnUnitRemoved(subEvent, data)
-    local destGUID = data.destGUID
-    if not destGUID then return end
+function TotemBar:OnPlayerTotemUpdate(event, slot)
+    if not slot then return end
 
-    -- Check if this is one of our tracked totem GUIDs
-    for _, element in ipairs(ELEMENT_ORDER) do
-        local state = self.elementState[element]
-        if state and state.petGUID == destGUID then
-            -- Totem was killed/destroyed — clear active but keep lastUsed
-            state.active = nil
-            state.petGUID = nil
-            self.Utils:LogInfo("TotemBar: Totem destroyed for", element)
-            self:UpdateAllSlots()
-            addon.Layout:Refresh()
-            return
-        end
+    local element = ELEMENT_ORDER[slot]
+    if not element then return end
+
+    local state = self.elementState[element]
+    if not state or not state.active then return end
+
+    local haveTotem, _, _, duration = GetTotemInfo(slot)
+    if not haveTotem or duration == 0 then
+        state.active = nil
+        self.Utils:LogInfo("TotemBar: Totem destroyed (PLAYER_TOTEM_UPDATE) for", element)
+        self:UpdateAllSlots()
+        addon.Layout:Refresh()
     end
 end
 
@@ -292,12 +281,13 @@ function TotemBar:CleanupExpired()
     local now = GetTime()
     local changed = false
 
-    for _, element in ipairs(ELEMENT_ORDER) do
+    for i, element in ipairs(ELEMENT_ORDER) do
         local state = self.elementState[element]
         if state and state.active then
-            if state.active.expiration <= now then
+            -- Check both timer expiry AND GetTotemInfo as a safety net
+            local haveTotem, _, _, duration = GetTotemInfo(i)
+            if (not haveTotem or duration == 0) or state.active.expiration <= now then
                 state.active = nil
-                state.petGUID = nil
                 changed = true
             end
         end
@@ -314,7 +304,6 @@ function TotemBar:ClearAllActive()
         local state = self.elementState[element]
         if state then
             state.active = nil
-            state.petGUID = nil
         end
     end
     self:UpdateAllSlots()

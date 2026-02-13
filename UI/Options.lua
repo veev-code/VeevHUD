@@ -16,6 +16,10 @@ addon.Options = Options
 Options.isConfigOpen = false
 Options._registered = false
 
+-- Screen-aware offset limits (full screen dimension in each direction, rounded up to nearest 100)
+local screenW = math.ceil((GetScreenWidth and GetScreenWidth() or 1920) / 100) * 100
+local screenH = math.ceil((GetScreenHeight and GetScreenHeight() or 1080) / 100) * 100
+
 -------------------------------------------------------------------------------
 -- Utilities
 -------------------------------------------------------------------------------
@@ -219,10 +223,6 @@ end
 -------------------------------------------------------------------------------
 
 function Options:BuildOptionsTable()
-	-- Screen-aware offset limits (half screen in each direction, rounded up to nearest 100)
-	local screenHalfW = math.ceil((GetScreenWidth and GetScreenWidth() or 1920) / 200) * 100
-	local screenHalfH = math.ceil((GetScreenHeight and GetScreenHeight() or 1080) / 200) * 100
-
 	local rowSettingAll = {
 		[C.ROW_SETTING.NONE] = "Off",
 		[C.ROW_SETTING.PRIMARY] = "Primary Row",
@@ -609,7 +609,7 @@ function Options:BuildOptionsTable()
 								type = "range",
 								name = "Horizontal Offset",
 								desc = "Moves the entire HUD left or right from the center of the screen. Negative values shift it left, positive values shift it right. The range adjusts to your screen resolution.",
-								min = -screenHalfW, max = screenHalfW, step = 1,
+								min = -screenW, max = screenW, step = 1,
 								arg = "anchor.x",
 								order = 3,
 							},
@@ -617,7 +617,7 @@ function Options:BuildOptionsTable()
 								type = "range",
 								name = "Vertical Offset",
 								desc = "Moves the entire HUD up or down on your screen. Negative values move it below center, positive values move it above. The range adjusts to your screen resolution.",
-								min = -screenHalfH, max = screenHalfH, step = 1,
+								min = -screenH, max = screenH, step = 1,
 								arg = "anchor.y",
 								order = 4,
 							},
@@ -2203,16 +2203,16 @@ function Options:BuildBuffRemindersOptions()
 							xOffset = {
 								type = "range",
 								name = "X Offset",
-								desc = "Horizontal offset of buff reminder icons relative to the HUD.",
-								min = -400, max = 400, step = 1,
+								desc = "Horizontal offset of buff reminder icons relative to the HUD. The range adjusts to your screen resolution.",
+								min = -screenW, max = screenW, step = 1,
 								arg = "buffReminders.anchor.x",
 								order = 1,
 							},
 							yOffset = {
 								type = "range",
 								name = "Y Offset",
-								desc = "Vertical offset of buff reminder icons relative to the HUD.",
-								min = -200, max = 200, step = 1,
+								desc = "Vertical offset of buff reminder icons relative to the HUD. The range adjusts to your screen resolution.",
+								min = -screenH, max = screenH, step = 1,
 								arg = "buffReminders.anchor.y",
 								order = 2,
 							},

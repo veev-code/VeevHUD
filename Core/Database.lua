@@ -36,10 +36,35 @@ function Database:Initialize()
     addon.db.global.migrationsShown = addon.db.global.migrationsShown or {}
 
     -- Hook profile change events so the HUD refreshes when profiles/specializations switch.
+    -- These use AceDB's standard callback mechanism (CallbackHandler dispatch).
     addon.db.RegisterCallback(addon, "OnNewProfile", "OnProfileChanged")
     addon.db.RegisterCallback(addon, "OnProfileChanged", "OnProfileChanged")
     addon.db.RegisterCallback(addon, "OnProfileCopied", "OnProfileChanged")
     addon.db.RegisterCallback(addon, "OnProfileReset", "OnProfileChanged")
+
+    -- Safety net: some CallbackHandler-1.0 versions have a bug where
+    -- db.callbacks:Fire() fails because Fire lives on the db object, not on the
+    -- registry table stored as db.callbacks. When this happens, profile data is
+    -- mutated but callbacks never dispatch — the HUD silently fails to refresh.
+    -- Wrap profile-mutating methods to guarantee OnProfileChanged always runs.
+    local function wrapProfileMethod(methodName)
+        local original = addon.db[methodName]
+        if not original then return end
+        addon.db[methodName] = function(self, ...)
+            local ok, err = pcall(original, self, ...)
+            if not ok then
+                -- Suppress the known CallbackHandler Fire error; re-raise anything else
+                if not err:find("'Fire'") then
+                    error(err, 2)
+                end
+            end
+            addon:OnProfileChanged()
+        end
+    end
+
+    wrapProfileMethod("ResetProfile")
+    wrapProfileMethod("SetProfile")
+    wrapProfileMethod("CopyProfile")
 
     -- Migrate old gap settings to unified layout.gaps (idempotent, per-profile)
     self:MigrateLayoutGaps()

@@ -1,5 +1,13 @@
 # VeevHUD Changelog
 
+## [1.0.86] - 2026-02-13
+
+### Fixed
+
+- **Totem Bar: totems killed by mobs now disappear immediately** — When a totem was killed by a mob, the Totem Bar continued showing it as active with a ticking timer. The bar now detects totem destruction via the game's native totem state events and clears the slot instantly. *(Thanks bewz for reporting)*
+- **Profile Reset now refreshes the HUD** — Using Reset Profile in the Profiles tab correctly reset settings values, but the HUD visuals didn't update until a `/reload`. The HUD now fully refreshes on profile reset, copy, and switch.
+- **Expanded position offset range** — The horizontal and vertical offset sliders (General and Buff Reminders) now scale to your full screen dimensions, so you can position the HUD or buff reminder icons anywhere on screen regardless of resolution or UI scale.
+
 ## [1.0.85] - 2026-02-13
 
 ### Changed
