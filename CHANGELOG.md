@@ -1,5 +1,11 @@
 # VeevHUD Changelog
 
+## [1.0.83] - 2026-02-12
+
+### Added
+
+- **Per-Module Aspect Ratio** — Proc Tracker and Totem Bar now have their own independent Aspect Ratio settings, separate from the spell icon rows. Set spell rows to Ultra Compact while keeping proc icons and totem icons square (or any other combination). New dropdowns appear under Modules > Proc Tracker > Layout and Modules > Totem Bar > Layout. *(Shadowhawk)*
+
 ## [1.0.82] - 2026-02-12
 
 ### Fixed

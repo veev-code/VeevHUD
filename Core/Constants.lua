@@ -344,6 +344,7 @@ C.DEFAULTS = {
         procTracker = {
             enabled = true,
             iconSize = 26,
+            iconAspectRatio = 1.0,  -- Independent aspect ratio (1.0 = square)
             iconSpacing = 6,  -- spacing between icons
             showDuration = true,  -- show remaining time text on procs
             showInactiveIcons = false,  -- Only show when active (not exposed in UI)
@@ -359,6 +360,7 @@ C.DEFAULTS = {
         totemBar = {
             enabled = true,
             iconSize = 36,
+            iconAspectRatio = 1.0,  -- Independent aspect ratio (1.0 = square)
             iconSpacing = 4,
         },
 

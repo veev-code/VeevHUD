@@ -132,7 +132,7 @@ function Options:ApplySettingChange(path)
 	if path:match("^procTracker%.") then
 		local m = addon:GetModule("ProcTracker")
 		SafeCall(m and m.Refresh, m)
-		if path:match("iconSize") then
+		if path:match("iconSize") or path:match("iconAspectRatio") then
 			self:RefreshAllBarPositions()
 		end
 		return
@@ -146,6 +146,9 @@ function Options:ApplySettingChange(path)
 			if cooldownIcons and cooldownIcons.Refresh then
 				cooldownIcons:Refresh()
 			end
+		end
+		if path:match("iconAspectRatio") then
+			self:RefreshAllBarPositions()
 		end
 		return
 	end
@@ -171,17 +174,9 @@ function Options:ApplySettingChange(path)
 		return
 	end
 
-	-- Aspect ratio affects HUD icons, proc tracker, and totem bar
+	-- Aspect ratio affects HUD spell icon rows only
 	if path == "icons.iconAspectRatio" then
 		local cooldownIcons = addon:GetModule("CooldownIcons")
-		local procTracker = addon:GetModule("ProcTracker")
-		local totemBar = addon:GetModule("TotemBar")
-		if procTracker and procTracker.Refresh then
-			procTracker:Refresh()
-		end
-		if totemBar and totemBar.Refresh then
-			totemBar:Refresh()
-		end
 		if cooldownIcons and cooldownIcons.Refresh then
 			cooldownIcons:Refresh()
 		end
@@ -745,7 +740,7 @@ function Options:BuildOptionsTable()
 									iconAspectRatio = {
 										type = "select",
 										name = "Aspect Ratio",
-										desc = "Makes icons shorter to create a more vertically compact HUD. Width stays the same while height shrinks, cropping the top/bottom of icon textures. The health and resource bars stay in place; ability rows shift up to fill the space. Affects both HUD icons and proc icons.",
+										desc = "Makes spell row icons shorter to create a more vertically compact HUD. Width stays the same while height shrinks, cropping the top/bottom of icon textures. The health and resource bars stay in place; ability rows shift up to fill the space. Proc Tracker and Totem Bar have their own aspect ratio settings.",
 										values = {
 											[1.0] = "Square (1:1)",
 											[1.165] = "Slightly Compact",
@@ -1429,6 +1424,25 @@ function Options:BuildOptionsTable()
 								args = {
 									iconSize = { type = "range", name = "Icon Size", desc = "How big the proc icons are in pixels. These are typically smaller than ability icons since they're just indicators. 20-28 pixels works well for most people.", min = 12, max = 140, step = 1, arg = "procTracker.iconSize", order = 1 },
 									iconSpacing = { type = "range", name = "Icon Spacing", desc = "The gap in pixels between each proc icon when multiple procs are active at once.", min = 0, max = 40, step = 1, arg = "procTracker.iconSpacing", order = 2 },
+									iconAspectRatio = {
+										type = "select",
+										name = "Aspect Ratio",
+										desc = "Makes proc icons shorter by shrinking height while keeping width the same. Useful if you want compact spell rows but prefer proc icons to stay more square and readable.",
+										values = {
+											[1.0] = "Square (1:1)",
+											[1.165] = "Slightly Compact",
+											[1.33] = "Compact (4:3)",
+											[1.665] = "Very Compact",
+											[2.0] = "Ultra Compact (2:1)",
+										},
+										sorting = {1.0, 1.165, 1.33, 1.665, 2.0},
+										arg = "procTracker.iconAspectRatio",
+										set = function(info, value)
+											addon.Database:SetOverride(info.arg, value)
+											Options:ApplySettingChange(info.arg)
+										end,
+										order = 3,
+									},
 								},
 							},
 							effects = {
@@ -1463,6 +1477,25 @@ function Options:BuildOptionsTable()
 								args = {
 									iconSize = { type = "range", name = "Icon Size", desc = "The size of each totem element slot icon in pixels.", min = 16, max = 80, step = 1, arg = "totemBar.iconSize", order = 1 },
 									iconSpacing = { type = "range", name = "Icon Spacing", desc = "The gap in pixels between each totem element slot.", min = 0, max = 40, step = 1, arg = "totemBar.iconSpacing", order = 2 },
+									iconAspectRatio = {
+										type = "select",
+										name = "Aspect Ratio",
+										desc = "Makes totem icons shorter by shrinking height while keeping width the same. Useful if you want compact spell rows but prefer totem icons to stay more square so duration text fits.",
+										values = {
+											[1.0] = "Square (1:1)",
+											[1.165] = "Slightly Compact",
+											[1.33] = "Compact (4:3)",
+											[1.665] = "Very Compact",
+											[2.0] = "Ultra Compact (2:1)",
+										},
+										sorting = {1.0, 1.165, 1.33, 1.665, 2.0},
+										arg = "totemBar.iconAspectRatio",
+										set = function(info, value)
+											addon.Database:SetOverride(info.arg, value)
+											Options:ApplySettingChange(info.arg)
+										end,
+										order = 3,
+									},
 								},
 							},
 						},

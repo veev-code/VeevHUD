@@ -33,24 +33,26 @@ local CLASSIC_ENHANCED = {
 -- Apply built-in styling to an icon frame (when Masque is not installed)
 -- frame: the icon button frame
 -- size: base icon size
-function IconStyling:Apply(frame, size)
+-- aspectRatio: width:height ratio (1.0 = square)
+function IconStyling:Apply(frame, size, aspectRatio)
     local Utils = addon.Utils
     local iconDb = addon.db.profile.icons
-    
+
     size = size or frame.iconSize or iconDb.iconSize
-    
+    aspectRatio = aspectRatio or 1.0
+
     -- Get actual icon dimensions (may be non-square with aspect ratio)
-    local iconWidth, iconHeight = Utils:GetIconDimensions(size)
-    
+    local iconWidth, iconHeight = Utils:GetIconDimensions(size, aspectRatio)
+
     -- Calculate scale factors for width and height separately
     local scaleW = iconWidth / 36
     local scaleH = iconHeight / 36
-    
+
     -- Apply icon TexCoords with configured zoom, adjusted for aspect ratio cropping
     -- iconZoom is total crop percentage; divide by 2 to get per-edge crop
     if frame.icon then
         local zoomPerEdge = iconDb.iconZoom / 2
-        local left, right, top, bottom = Utils:GetIconTexCoords(zoomPerEdge)
+        local left, right, top, bottom = Utils:GetIconTexCoords(zoomPerEdge, aspectRatio)
         frame.icon:SetTexCoord(left, right, top, bottom)
     end
     
@@ -101,29 +103,31 @@ end
 -- frame: the icon button frame
 -- size: new base icon size
 -- hasMasque: whether Masque is handling styling (skip if true)
-function IconStyling:Update(frame, size, hasMasque)
+-- aspectRatio: width:height ratio (1.0 = square)
+function IconStyling:Update(frame, size, hasMasque, aspectRatio)
+    aspectRatio = aspectRatio or 1.0
     if frame.hasBuiltInStyle then
         local Utils = addon.Utils
         local iconDb = addon.db.profile.icons
-        
+
         -- Recalculate sizes based on new icon size and aspect ratio
         size = size or frame.iconSize or iconDb.iconSize
-        local iconWidth, iconHeight = Utils:GetIconDimensions(size)
+        local iconWidth, iconHeight = Utils:GetIconDimensions(size, aspectRatio)
         local scaleW = iconWidth / 36
         local scaleH = iconHeight / 36
-        
+
         if frame.builtInBackdrop then
             local backdropWidth = CLASSIC_ENHANCED.BackdropSize * scaleW
             local backdropHeight = CLASSIC_ENHANCED.BackdropSize * scaleH
             frame.builtInBackdrop:SetSize(backdropWidth, backdropHeight)
         end
-        
+
         if frame.builtInNormal then
             local normalWidth = CLASSIC_ENHANCED.NormalSize * scaleW
             local normalHeight = CLASSIC_ENHANCED.NormalSize * scaleH
             frame.builtInNormal:SetSize(normalWidth, normalHeight)
         end
     elseif not hasMasque then
-        self:Apply(frame, size)
+        self:Apply(frame, size, aspectRatio)
     end
 end

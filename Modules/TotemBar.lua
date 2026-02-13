@@ -349,7 +349,7 @@ function TotemBar:GetLayoutHeight()
     if not anyVisible then return 0 end
 
     local db = addon.db.profile.totemBar
-    local _, iconHeight = self.Utils:GetIconDimensions(db.iconSize)
+    local _, iconHeight = self.Utils:GetIconDimensions(db.iconSize, db.iconAspectRatio)
     return iconHeight
 end
 
@@ -370,7 +370,7 @@ function TotemBar:CreateFrames(parent)
     if not db.enabled then return end
 
     local iconSize = db.iconSize
-    local iconWidth, iconHeight = self.Utils:GetIconDimensions(iconSize)
+    local iconWidth, iconHeight = self.Utils:GetIconDimensions(iconSize, db.iconAspectRatio)
     local spacing = db.iconSpacing
 
     -- Container frame
@@ -415,7 +415,7 @@ function TotemBar:CreateSlotFrame(parent, element, index, iconWidth, iconHeight,
 
     -- Apply texcoords with zoom
     local zoomPerEdge = addon.db.profile.icons.iconZoom / 2
-    local left, right, top, bottom = self.Utils:GetIconTexCoords(zoomPerEdge)
+    local left, right, top, bottom = self.Utils:GetIconTexCoords(zoomPerEdge, addon.db.profile.totemBar.iconAspectRatio)
     icon:SetTexCoord(left, right, top, bottom)
 
     -- Cooldown spiral for duration
@@ -446,7 +446,7 @@ function TotemBar:CreateSlotFrame(parent, element, index, iconWidth, iconHeight,
     frame.text = text
 
     -- Apply built-in icon styling
-    addon.IconStyling:Apply(frame, db.iconSize)
+    addon.IconStyling:Apply(frame, db.iconSize, db.iconAspectRatio)
 
     -- Start hidden (never-cast state)
     frame:Hide()
@@ -577,7 +577,7 @@ function TotemBar:RepositionSlots()
     if not self.container then return end
 
     local db = addon.db.profile.totemBar
-    local iconWidth, iconHeight = self.Utils:GetIconDimensions(db.iconSize)
+    local iconWidth, iconHeight = self.Utils:GetIconDimensions(db.iconSize, db.iconAspectRatio)
     local spacing = db.iconSpacing
 
     -- Collect visible slots
@@ -625,9 +625,9 @@ function TotemBar:Refresh()
         end
 
         -- Update icon sizes
-        local iconWidth, iconHeight = self.Utils:GetIconDimensions(db.iconSize)
+        local iconWidth, iconHeight = self.Utils:GetIconDimensions(db.iconSize, db.iconAspectRatio)
         local zoomPerEdge = addon.db.profile.icons.iconZoom / 2
-        local left, right, top, bottom = self.Utils:GetIconTexCoords(zoomPerEdge)
+        local left, right, top, bottom = self.Utils:GetIconTexCoords(zoomPerEdge, db.iconAspectRatio)
 
         for _, element in ipairs(ELEMENT_ORDER) do
             local frame = self.slots[element]
@@ -637,7 +637,7 @@ function TotemBar:Refresh()
                     frame.icon:SetTexCoord(left, right, top, bottom)
                 end
                 -- Update built-in style
-                addon.IconStyling:Update(frame, db.iconSize, false)
+                addon.IconStyling:Update(frame, db.iconSize, false, db.iconAspectRatio)
             end
         end
     end

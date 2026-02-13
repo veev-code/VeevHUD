@@ -617,7 +617,7 @@ function CooldownIcons:ApplyIconTexCoords()
     for _, rowFrame in ipairs(self.rows or {}) do
         for _, icon in ipairs(rowFrame.icons or {}) do
             if icon.icon then
-                local left, right, top, bottom = self.Utils:GetIconTexCoords(zoomPerEdge)
+                local left, right, top, bottom = self.Utils:GetIconTexCoords(zoomPerEdge, db.iconAspectRatio)
                 icon.icon:SetTexCoord(left, right, top, bottom)
             end
         end
@@ -650,7 +650,7 @@ function CooldownIcons:CreateRowFrames()
             end
 
             -- Get width/height based on aspect ratio
-            local rowIconWidth, rowIconHeight = self.Utils:GetIconDimensions(rowIconSize)
+            local rowIconWidth, rowIconHeight = self.Utils:GetIconDimensions(rowIconSize, iconDb.iconAspectRatio)
 
             self.Utils:LogInfo("Row", rowIndex, rowConfig.name, "iconSize:", rowIconSize, "iconWidth:", rowIconWidth, "maxIcons:", rowConfig.maxIcons)
 
@@ -739,7 +739,7 @@ function CooldownIcons:CreateIcon(parent, index, size)
     size = size or db.iconSize
     
     -- Get width/height based on aspect ratio (width = size * ratio, height = size)
-    local iconWidth, iconHeight = self.Utils:GetIconDimensions(size)
+    local iconWidth, iconHeight = self.Utils:GetIconDimensions(size, db.iconAspectRatio)
 
     -- Create as Button for Masque compatibility
     local buttonName = "VeevHUDIcon" .. (self.iconCounter or 0)
@@ -758,7 +758,7 @@ function CooldownIcons:CreateIcon(parent, index, size)
     -- Apply texcoords with zoom and aspect ratio cropping (uses setting, will be reapplied in ApplyIconTexCoords)
     -- iconZoom is total crop percentage; divide by 2 to get per-edge crop
     local zoomPerEdge = db.iconZoom / 2
-    local left, right, top, bottom = self.Utils:GetIconTexCoords(zoomPerEdge)
+    local left, right, top, bottom = self.Utils:GetIconTexCoords(zoomPerEdge, db.iconAspectRatio)
     icon:SetTexCoord(left, right, top, bottom)
     frame.icon = icon
     frame.Icon = icon  -- Masque reference
@@ -907,7 +907,7 @@ function CooldownIcons:CreateIcon(parent, index, size)
         })
     else
         -- Apply built-in Classic Enhanced style when Masque is not installed
-        addon.IconStyling:Apply(frame, size)
+        addon.IconStyling:Apply(frame, size, addon.db.profile.icons.iconAspectRatio)
     end
 
     return frame
@@ -3002,8 +3002,8 @@ function CooldownIcons:Refresh()
     for rowIndex, rowFrame in ipairs(self.rows or {}) do
         local rowConfig = rowConfigs[rowIndex] or {}
         local size = rowConfig.iconSize or iconDb.iconSize
-        local iconWidth, iconHeight = self.Utils:GetIconDimensions(size)
-        
+        local iconWidth, iconHeight = self.Utils:GetIconDimensions(size, iconDb.iconAspectRatio)
+
         rowFrame.iconSize = size
         rowFrame.iconWidth = iconWidth
         rowFrame.iconHeight = iconHeight
@@ -3035,7 +3035,7 @@ function CooldownIcons:Refresh()
             end
             
             -- Update built-in style if Masque is not installed
-            addon.IconStyling:Update(icon, size, self.MasqueGroup ~= nil)
+            addon.IconStyling:Update(icon, size, self.MasqueGroup ~= nil, addon.db.profile.icons.iconAspectRatio)
         end
         
     end

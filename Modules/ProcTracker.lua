@@ -105,7 +105,8 @@ function ProcTracker:GetLayoutHeight()
     
     -- Return the icon height (using aspect ratio if configured)
     local iconSize = db.iconSize
-    local _, iconHeight = self.Utils:GetIconDimensions(iconSize)
+    local aspectRatio = db.iconAspectRatio
+    local _, iconHeight = self.Utils:GetIconDimensions(iconSize, aspectRatio)
     return iconHeight
 end
 
@@ -136,9 +137,10 @@ function ProcTracker:CreateFrames(parent)
     -- Store for later reference
     self.classProcs = classProcs
 
-    -- Get width/height based on global aspect ratio (needed for sizing)
+    -- Get width/height based on aspect ratio (needed for sizing)
     local iconSize = db.iconSize
-    local iconWidth, iconHeight = self.Utils:GetIconDimensions(iconSize)
+    local aspectRatio = db.iconAspectRatio
+    local iconWidth, iconHeight = self.Utils:GetIconDimensions(iconSize, aspectRatio)
     
     -- Container frame (position will be set by layout system)
     local container = CreateFrame("Frame", nil, parent)
@@ -171,7 +173,8 @@ end
 function ProcTracker:ApplyIconTexCoords()
     -- iconZoom is total crop percentage; divide by 2 to get per-edge crop
     local zoomPerEdge = addon.db.profile.icons.iconZoom / 2
-    local left, right, top, bottom = self.Utils:GetIconTexCoords(zoomPerEdge)
+    local aspectRatio = addon.db.profile.procTracker.iconAspectRatio
+    local left, right, top, bottom = self.Utils:GetIconTexCoords(zoomPerEdge, aspectRatio)
     for _, frame in ipairs(self.icons or {}) do
         if frame.icon then
             frame.icon:SetTexCoord(left, right, top, bottom)
@@ -229,7 +232,8 @@ function ProcTracker:CreateProcIcon(parent, procData, index, size, iconWidth, ic
     frame.Icon = icon  -- Masque reference
     -- Apply texcoords with zoom and aspect ratio cropping (will be reapplied in ApplyIconTexCoords)
     local zoomPerEdge = addon.db.profile.icons.iconZoom / 2
-    local left, right, top, bottom = self.Utils:GetIconTexCoords(zoomPerEdge)
+    local aspectRatio = addon.db.profile.procTracker.iconAspectRatio
+    local left, right, top, bottom = self.Utils:GetIconTexCoords(zoomPerEdge, aspectRatio)
     icon:SetTexCoord(left, right, top, bottom)
     frame.icon = icon
     
@@ -300,7 +304,7 @@ function ProcTracker:CreateProcIcon(parent, procData, index, size, iconWidth, ic
         border:Hide()
     else
         -- Apply built-in Classic Enhanced style when Masque is not installed
-        addon.IconStyling:Apply(frame, size)
+        addon.IconStyling:Apply(frame, size, addon.db.profile.procTracker.iconAspectRatio)
     end
 
     -- Set initial state (inactive)
@@ -502,7 +506,8 @@ function ProcTracker:RepositionIcons()
     
     local db = addon.db.profile.procTracker
     local size = db.iconSize
-    local iconWidth, iconHeight = self.Utils:GetIconDimensions(size)
+    local aspectRatio = db.iconAspectRatio
+    local iconWidth, iconHeight = self.Utils:GetIconDimensions(size, aspectRatio)
     local spacing = db.iconSpacing
     local useSlideAnimation = db.slideAnimation
     
@@ -747,7 +752,8 @@ function ProcTracker:Refresh()
     if self.container then
         -- Get icon dimensions (needed for sizing with aspect ratio)
         local iconSize = db.iconSize
-        local iconWidth, iconHeight = self.Utils:GetIconDimensions(iconSize)
+        local aspectRatio = db.iconAspectRatio
+        local iconWidth, iconHeight = self.Utils:GetIconDimensions(iconSize, aspectRatio)
         
         -- Toggle visibility based on enabled
         if db.enabled then
@@ -765,7 +771,7 @@ function ProcTracker:Refresh()
         
         -- Resize all icons and update stored dimensions
         local zoomPerEdge = addon.db.profile.icons.iconZoom / 2
-        local left, right, top, bottom = self.Utils:GetIconTexCoords(zoomPerEdge)
+        local left, right, top, bottom = self.Utils:GetIconTexCoords(zoomPerEdge, aspectRatio)
         for i, frame in ipairs(self.icons or {}) do
             local xOffset = (i - 1) * (iconWidth + spacing) - (totalWidth / 2) + (iconWidth / 2)
             frame:SetSize(iconWidth, iconHeight)
@@ -793,7 +799,7 @@ function ProcTracker:Refresh()
             frame.targetX = nil
 
             -- Update built-in style if Masque is not installed
-            addon.IconStyling:Update(frame, iconSize, self.MasqueGroup ~= nil)
+            addon.IconStyling:Update(frame, iconSize, self.MasqueGroup ~= nil, addon.db.profile.procTracker.iconAspectRatio)
         end
 
         -- Tell Masque to re-apply skins at new icon sizes
