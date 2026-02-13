@@ -656,6 +656,13 @@ end
 --   { needsMH = bool, needsOH = bool, mhRemaining = number|nil, ohRemaining = number|nil }
 -- Uses HasOffhandWeapon() to distinguish OH weapons from shields/empty.
 function BuffReminders:CheckWeaponEnchants(config)
+    local db = addon.db.profile.buffReminders
+    local checkMH = db.weaponEnchantMH
+    local checkOH = db.weaponEnchantOH
+
+    -- Both hands disabled — nothing to check
+    if not checkMH and not checkOH then return nil end
+
     local hasMH, mhExp, _, _, hasOH, ohExp = GetWeaponEnchantInfo()
     local hasOHWeapon = HasOffhandWeapon()
     local result = { needsMH = false, needsOH = false, mhRemaining = nil, ohRemaining = nil }
@@ -668,25 +675,25 @@ function BuffReminders:CheckWeaponEnchants(config)
         .. " hasOHWeapon=" .. tostring(hasOHWeapon))
 
     -- MH missing enchant
-    if not hasMH then
+    if checkMH and not hasMH then
         result.needsMH = true
     end
 
     -- OH: only check if player has an offhand weapon (not shield/relic/empty)
-    if hasOHWeapon and not hasOH then
+    if checkOH and hasOHWeapon and not hasOH then
         result.needsOH = true
     end
 
     -- Expiration thresholds
     if config.timeRemaining and config.timeRemaining > 0 then
-        if hasMH then
+        if checkMH and hasMH then
             local r = (mhExp or 0) / 1000
             if r > 0 and r < config.timeRemaining then
                 result.needsMH = true
                 result.mhRemaining = r
             end
         end
-        if hasOH then
+        if checkOH and hasOH then
             local r = (ohExp or 0) / 1000
             if r > 0 and r < config.timeRemaining then
                 result.needsOH = true

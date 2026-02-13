@@ -2026,10 +2026,12 @@ function Options:BuildBuffRemindersOptions()
 					end
 				end
 
-				-- Add priority selector for exclusive buff groups (always on its own line)
+				-- Add priority selector for exclusive buff groups (always on its own line).
+				-- Skip for weapon enchant groups — those show the weapon icon, not the spell icon,
+				-- so the priority selection has no visible effect.
 				if groupName then
 					local groupInfo = LibSpellDB.BuffGroups[groupName]
-					if groupInfo and groupInfo.relationship == "exclusive" then
+					if groupInfo and groupInfo.relationship == "exclusive" and not groupInfo.weaponEnchant then
 						local priorityValues = {}
 						for _, gSpellID in ipairs(groupInfo.spells) do
 							local gData = LibSpellDB:GetSpellInfo(gSpellID)
@@ -2077,6 +2079,35 @@ function Options:BuildBuffRemindersOptions()
 							end,
 							order = 11,
 							width = 1.2,
+						}
+					end
+				end
+
+				-- Add per-hand toggles for weapon enchant groups (poisons, imbues)
+				if groupName then
+					local groupInfo = LibSpellDB.BuffGroups[groupName]
+					if groupInfo and groupInfo.weaponEnchant then
+						args[spellKey].args.handBreak = {
+							type = "description",
+							name = "",
+							order = 12,
+							width = "full",
+						}
+						args[spellKey].args.weaponEnchantMH = {
+							type = "toggle",
+							name = "Main Hand",
+							desc = "Show a reminder when your main hand weapon is missing an enchant. Disable this if you prefer to benefit from a Shaman's Windfury Totem instead.",
+							disabled = isSpellDisabled,
+							arg = "buffReminders.weaponEnchantMH",
+							order = 13,
+						}
+						args[spellKey].args.weaponEnchantOH = {
+							type = "toggle",
+							name = "Off Hand",
+							desc = "Show a reminder when your off hand weapon is missing an enchant.",
+							disabled = isSpellDisabled,
+							arg = "buffReminders.weaponEnchantOH",
+							order = 14,
 						}
 					end
 				end
