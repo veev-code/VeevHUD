@@ -955,12 +955,12 @@ function CooldownIcons:GetDefaultRowForSpell(spellID)
     
     local rowConfigs = addon.db.profile.rows
     
+    -- Check all rows (including disabled) to find the spell's natural home.
+    -- This is used by the Spell Config UI to show correct row assignments.
     for rowIndex, rowConfig in ipairs(rowConfigs) do
-        if rowConfig.enabled then
-            for _, requiredTag in ipairs(rowConfig.tags) do
-                if LibSpellDB:HasTag(spellID, requiredTag) then
-                    return rowIndex
-                end
+        for _, requiredTag in ipairs(rowConfig.tags) do
+            if LibSpellDB:HasTag(spellID, requiredTag) then
+                return rowIndex
             end
         end
     end
@@ -1054,6 +1054,7 @@ function CooldownIcons:RebuildAllRows()
             local rowIndex = cfg.rowIndex
             local rowConfig = rowConfigs[rowIndex]
 
+            -- If the overridden row is disabled, skip the spell entirely (don't spill to other rows)
             if rowConfig and rowConfig.enabled then
                 if not self.iconsByRow[rowIndex] then
                     self.iconsByRow[rowIndex] = {}
@@ -1069,59 +1070,44 @@ function CooldownIcons:RebuildAllRows()
                     self.spellAssignments[spellID] = rowIndex
                     assigned = true
                 end
+            else
+                assigned = true  -- Treat as assigned so it doesn't fall through
             end
         end
 
-        -- Default: Find first matching row based on tags
+        -- Default: Find first matching row based on tags.
+        -- Match against ALL rows (including disabled) to find the spell's natural home.
+        -- If that row is disabled, the spell is hidden — not moved to another row.
         if not assigned then
             for rowIndex, rowConfig in ipairs(rowConfigs) do
-                if rowConfig.enabled and not assigned then
+                if not assigned then
                     for _, requiredTag in ipairs(rowConfig.tags) do
                         if LibSpellDB:HasTag(spellID, requiredTag) then
-                            -- Assign to this row
-                            if not self.iconsByRow[rowIndex] then
-                                self.iconsByRow[rowIndex] = {}
-                            end
+                            -- This is the spell's natural row
+                            if rowConfig.enabled then
+                                if not self.iconsByRow[rowIndex] then
+                                    self.iconsByRow[rowIndex] = {}
+                                end
 
-                            -- Check if we have room
-                            if #self.iconsByRow[rowIndex] < rowConfig.maxIcons then
-                                table.insert(self.iconsByRow[rowIndex], {
-                                    spellID = spellID,  -- Canonical ID for identification
-                                    actualSpellID = trackedData.actualSpellID or spellID,  -- Rank ID for WoW API calls
-                                    spellData = spellData,
-                                    customOrder = cfg.order,  -- Store custom order if set
-                                })
-                                self.spellAssignments[spellID] = rowIndex
-                                assigned = true
-                                break
+                                if #self.iconsByRow[rowIndex] < rowConfig.maxIcons then
+                                    table.insert(self.iconsByRow[rowIndex], {
+                                        spellID = spellID,  -- Canonical ID for identification
+                                        actualSpellID = trackedData.actualSpellID or spellID,  -- Rank ID for WoW API calls
+                                        spellData = spellData,
+                                        customOrder = cfg.order,  -- Store custom order if set
+                                    })
+                                    self.spellAssignments[spellID] = rowIndex
+                                end
                             end
+                            -- Whether enabled or not, this was the natural row — stop looking
+                            assigned = true
+                            break
                         end
                     end
                 end
             end
         end
 
-        -- Cascade: if spell's matching row was disabled, assign to the first enabled row with room
-        if not assigned then
-            for rowIndex, rowConfig in ipairs(rowConfigs) do
-                if rowConfig.enabled then
-                    if not self.iconsByRow[rowIndex] then
-                        self.iconsByRow[rowIndex] = {}
-                    end
-                    if #self.iconsByRow[rowIndex] < rowConfig.maxIcons then
-                        table.insert(self.iconsByRow[rowIndex], {
-                            spellID = spellID,
-                            actualSpellID = trackedData.actualSpellID or spellID,
-                            spellData = spellData,
-                            customOrder = cfg.order,
-                        })
-                        self.spellAssignments[spellID] = rowIndex
-                        assigned = true
-                        break
-                    end
-                end
-            end
-        end
         end -- not skipForm and not skipTotemBar
     end
 

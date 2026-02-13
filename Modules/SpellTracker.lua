@@ -455,7 +455,7 @@ function SpellTracker:GetEnabledTags()
     local rowConfigs = addon.db.profile.rows
 
     -- Include tags from ALL rows, not just enabled ones.
-    -- Disabled rows' spells cascade to the nearest enabled row during assignment.
+    -- This ensures spells are tracked and ready if a user re-enables a row.
     for _, rowConfig in ipairs(rowConfigs) do
         for _, tag in ipairs(rowConfig.tags) do
             enabledTags[tag] = true

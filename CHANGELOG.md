@@ -1,5 +1,20 @@
 # VeevHUD Changelog
 
+## [1.0.87] - 2026-02-13
+
+### Added
+
+- **Buff Reminders: Per-Hand Weapon Enchant Toggles** — Rogues can now independently disable Main Hand or Off Hand poison reminders. Useful when grouped with a Shaman providing Windfury Totem — disable the MH reminder to avoid false alerts. Toggles appear under the Rogue Poisons section in Modules > Buff Reminders > Spells.
+
+### Fixed
+
+- **Disabling a row no longer spills spells into other rows** — In v1.0.85, disabling a row (e.g., Secondary) caused its spells to cascade into the nearest enabled row. This produced confusing behavior where disabling rows made MORE icons appear. Disabling a row now simply hides its spells. *(Thanks Lachtan for reporting)*
+- **Spell Config shows correct row when a row is disabled** — Previously, disabling a row caused the Spell Config panel to show those spells under the wrong row. Spells now always appear under their natural row in the config, regardless of whether the row is enabled on the HUD.
+
+### Changed
+
+- Removed the Priority dropdown from weapon enchant spell config (Rogue Poisons, Shaman Weapon Imbues) since weapon enchant reminders show your weapon icon, not the spell icon.
+
 ## [1.0.86] - 2026-02-13
 
 ### Fixed

@@ -359,7 +359,7 @@ function Options:BuildOptionsTable()
 					enabled = {
 						type = "toggle",
 						name = "Enabled",
-						desc = "Enables or disables this row entirely. When disabled, no abilities will be shown in this row and it won't take up any space on the HUD.",
+						desc = "Enables or disables this row. When disabled, abilities assigned to this row are hidden and the row takes no space on the HUD.",
 						arg = ("rows.%d.enabled"):format(i),
 						order = 1,
 					},
