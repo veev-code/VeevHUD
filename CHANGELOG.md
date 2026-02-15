@@ -1,5 +1,11 @@
 # VeevHUD Changelog
 
+## [1.0.90] - 2026-02-15
+
+### Added
+
+- **Resource Bar: Innervate Highlight** — The mana bar changes color when the Innervate buff is active, giving you immediate visual feedback that your mana regeneration is boosted. Defaults to a cyan/teal color. Configurable (toggle + color picker) under Bars > Resource Bar > Innervate Highlight.
+
 ## [1.0.89] - 2026-02-15
 
 ### Changed

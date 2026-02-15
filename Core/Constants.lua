@@ -275,6 +275,10 @@ C.DEFAULTS = {
             textSize = 11,
             powerColor = true,    -- Use power-type color (blue/red/yellow) by default
             color = { r = 0.8, g = 0.8, b = 0.8 },  -- Custom color when powerColor is off (neutral light grey)
+            innervateHighlight = {
+                enabled = true,
+                color = { r = 0.00, g = 0.80, b = 0.90 },
+            },
             -- Predicted cost overlay (darkened section for queued/casting resource cost)
             showPredictedCost = true,
             -- Spark settings

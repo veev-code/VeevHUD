@@ -6,6 +6,7 @@
 local ADDON_NAME, addon = ...
 
 -- Localized WoW API functions (hot path)
+local UnitBuff = UnitBuff
 local UnitPower = UnitPower
 local UnitPowerMax = UnitPowerMax
 local UnitPowerType = UnitPowerType
@@ -43,11 +44,40 @@ function ResourceBar:Initialize()
     self.Events:RegisterEvent(self, "UNIT_SPELLCAST_CHANNEL_START", self.OnChannelStart)
     self.Events:RegisterEvent(self, "UNIT_SPELLCAST_CHANNEL_STOP", self.OnChannelEnd)
     self.Events:RegisterEvent(self, "CURRENT_SPELL_CAST_CHANGED", self.OnCurrentSpellChanged)
+    self.Events:RegisterEvent(self, "UNIT_AURA", self.OnUnitAura)
 
     self.Utils:Debug("ResourceBar initialized")
 end
 
+function ResourceBar:OnUnitAura(event, unit)
+    if unit == "player" then
+        self:CheckInnervate()
+    end
+end
+
+function ResourceBar:CheckInnervate()
+    local db = addon.db.profile.resourceBar
+    local hasInnervate = false
+
+    if db.innervateHighlight.enabled then
+        for i = 1, 40 do
+            local name, _, _, _, _, _, _, _, _, spellID = UnitBuff("player", i)
+            if not name then break end
+            if spellID == 29166 or name == "Innervate" then
+                hasInnervate = true
+                break
+            end
+        end
+    end
+
+    if hasInnervate ~= (self.innervateActive or false) then
+        self.innervateActive = hasInnervate
+        self:UpdateBarColor()
+    end
+end
+
 function ResourceBar:OnPlayerEnteringWorld()
+    self:CheckInnervate()
     self:UpdatePowerType()
     self:UpdateBar()
 
@@ -702,21 +732,28 @@ function ResourceBar:CreateCostOverlay(bar)
     -- Color is set by UpdateCostOverlayColor (called from UpdatePowerType)
 end
 
--- Update overlay color to match the current power type (darkened)
+-- Returns the current resolved bar color (accounts for Innervate override)
+function ResourceBar:GetBarColor()
+    local db = addon.db.profile.resourceBar
+
+    if self.innervateActive and db.innervateHighlight.enabled then
+        local c = db.innervateHighlight.color
+        return c.r, c.g, c.b
+    elseif db.powerColor then
+        return self.Utils:GetPowerColor(self.powerType)
+    else
+        local c = db.color
+        return c.r, c.g, c.b
+    end
+end
+
+-- Update overlay color to match the current bar color (darkened)
 function ResourceBar:UpdateCostOverlayColor()
     if not self.costOverlay then return end
 
-    local db = addon.db.profile.resourceBar
-    local r, g, b
+    local r, g, b = self:GetBarColor()
 
-    if db.powerColor then
-        r, g, b = self.Utils:GetPowerColor(self.powerType)
-    else
-        local c = db.color
-        r, g, b = c.r, c.g, c.b
-    end
-
-    -- Darken and slightly desaturate the power color for clear "consumed" contrast
+    -- Darken and slightly desaturate the bar color for clear "consumed" contrast
     self.costOverlay:SetVertexColor(r * 0.25, g * 0.25, b * 0.25, 0.8)
 end
 
@@ -877,27 +914,21 @@ end
 -- Updates
 -------------------------------------------------------------------------------
 
+function ResourceBar:UpdateBarColor()
+    if not self.bar then return end
+
+    local r, g, b = self:GetBarColor()
+    self.bar:SetStatusBarColor(r, g, b)
+    self.bar.bg:SetVertexColor(r * 0.2, g * 0.2, b * 0.2)
+
+    -- Keep cost overlay in sync
+    self:UpdateCostOverlayColor()
+end
+
 function ResourceBar:UpdatePowerType()
     self.powerType = UnitPowerType("player")
 
-    -- Update bar color
-    if self.bar then
-        local db = addon.db.profile.resourceBar
-        local r, g, b
-
-        if db.powerColor then
-            r, g, b = self.Utils:GetPowerColor(self.powerType)
-        else
-            local c = db.color
-            r, g, b = c.r, c.g, c.b
-        end
-
-        self.bar:SetStatusBarColor(r, g, b)
-        self.bar.bg:SetVertexColor(r * 0.2, g * 0.2, b * 0.2)
-    end
-
-    -- Update cost overlay color to match new power type
-    self:UpdateCostOverlayColor()
+    self:UpdateBarColor()
 
     -- Show/hide energy ticker based on power type
     self:UpdateTickerVisibility()

@@ -1204,11 +1204,22 @@ function Options:BuildOptionsTable()
 									color = { type = "color", name = "Bar Color", desc = "The custom color for the resource bar. Only used when Power Color is unchecked.", hasAlpha = false, get = colorGet, set = colorSet, arg = "resourceBar.color", order = 2, disabled = function() local db = addon.db and addon.db.profile and addon.db.profile.resourceBar; return db and db.powerColor end },
 								},
 							},
+							innervateHighlight = {
+								type = "group",
+								name = "Innervate Highlight",
+								inline = true,
+								order = 5,
+								disabled = function() return addon.db and addon.db.profile and not addon.db.profile.resourceBar.enabled end,
+								args = {
+									enabled = { type = "toggle", name = "Enabled", desc = "Changes the mana bar color when the Innervate buff is active, giving you immediate visual feedback that your mana regeneration is boosted.", arg = "resourceBar.innervateHighlight.enabled", order = 1 },
+									color = { type = "color", name = "Color", desc = "The color the resource bar changes to during Innervate.", hasAlpha = false, get = colorGet, set = colorSet, arg = "resourceBar.innervateHighlight.color", order = 2, disabled = function() return not addon.db.profile.resourceBar.innervateHighlight.enabled end },
+								},
+							},
 							sparkSettings = {
 								type = "group",
 								name = "Spark",
 								inline = true,
-								order = 5,
+								order = 6,
 								disabled = function() return addon.db and addon.db.profile and not addon.db.profile.resourceBar.enabled end,
 								args = {
 									showSpark = { type = "toggle", name = "Enabled", desc = "Shows a bright highlight at the bar's current fill point — the glowing line where the filled and empty portions meet. Adds visual polish.", arg = "resourceBar.showSpark", order = 1 },
@@ -1221,7 +1232,7 @@ function Options:BuildOptionsTable()
 								type = "group",
 								name = "Overlays",
 								inline = true,
-								order = 6,
+								order = 7,
 								disabled = function() return addon.db and addon.db.profile and not addon.db.profile.resourceBar.enabled end,
 								args = {
 									showPredictedCost = { type = "toggle", name = "Predicted Cost", desc = "Shows a darkened section on the resource bar representing the cost of abilities you are currently casting or have queued (e.g., Heroic Strike, Cleave). Gives you a preview of where your resource will be after the ability completes.", arg = "resourceBar.showPredictedCost", order = 1 },
