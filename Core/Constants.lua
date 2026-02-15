@@ -485,9 +485,9 @@ C.DEFAULTS = {
         -- Buff Reminders (long-duration buff tracking, separate from HUD)
         buffReminders = {
             enabled = true,
-            iconSize = 128,
-            iconSpacing = 8,
-            alpha = 0.25,     -- Semi-transparent reminder (not meant to obscure gameplay)
+            iconSize = 64,
+            iconSpacing = 12,
+            alpha = 0.15,     -- Semi-transparent reminder (not meant to obscure gameplay)
             pulseEnabled = true,
             showWhileResting = false,
             showWhileMounted = false,

@@ -1,5 +1,12 @@
 # VeevHUD Changelog
 
+## [1.0.89] - 2026-02-15
+
+### Changed
+
+- **Buff Reminders: Smaller defaults** — Default icon size reduced from 128 to 64, spacing increased from 8 to 12, and opacity lowered from 25% to 15% for a subtler out-of-box experience.
+- **Buff Reminders: Expanded slider ranges** — Icon Spacing now allows negative values (down to -10) for overlapping icons, and goes up to 64. Icon Opacity minimum lowered from 10% to 5%.
+
 ## [1.0.88] - 2026-02-14
 
 ### Added
