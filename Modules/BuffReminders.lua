@@ -86,6 +86,15 @@ function BuffReminders:GetSpellDefaults(spellID)
     if IsSpellPurgeable(spellData) and spellData.duration and spellData.duration >= 300 then
         defaults.combatState = COMBAT_STATE.OOC
     end
+
+    -- Talent-gated buff groups (e.g., Demonic Sacrifice) require a multi-step
+    -- process that can't be done mid-combat → default OOC
+    if spellData.buffGroup then
+        local groupInfo = self.LibSpellDB and self.LibSpellDB.BuffGroups[spellData.buffGroup]
+        if groupInfo and groupInfo.talentGate then
+            defaults.combatState = COMBAT_STATE.OOC
+        end
+    end
     
     -- Flag whether this spell supports group tracking (Party/Raid).
     -- Permanent buffs (no duration) are auras/toggles — allies either have it
@@ -746,6 +755,20 @@ function BuffReminders:ShouldRemind(reminder)
         end
     end
     
+    -- Talent-gated buff groups (e.g., Demonic Sacrifice).
+    -- These buffs aren't castable spells, so IsSpellKnown/GetHighestKnownRank won't
+    -- work on the buff IDs. Instead, check if the gating talent spell is known.
+    if reminder.buffGroup then
+        local groupInfo = self.LibSpellDB.BuffGroups[reminder.buffGroup]
+        if groupInfo and groupInfo.talentGate then
+            if not IsSpellKnown(groupInfo.talentGate) then
+                self.Utils:LogDebug("BuffReminders: " .. reminder.buffGroup .. " - talent gate " .. groupInfo.talentGate .. " not known")
+                return false
+            end
+            return self:CheckBuffOnPlayer(spellID, groupInfo.spells, config)
+        end
+    end
+
     -- For grouped spells, find the first known+usable spell across all group members.
     -- This avoids the problem where the representative spell isn't known but another
     -- spell in the group IS known (e.g., player knows Battle Shout but not Commanding Shout).

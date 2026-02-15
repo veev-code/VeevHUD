@@ -1,5 +1,17 @@
 # VeevHUD Changelog
 
+## [1.0.88] - 2026-02-14
+
+### Added
+
+- **Buff Reminders: Demonic Sacrifice** — Demonology Warlocks with the Demonic Sacrifice talent now get a Buff Reminder when no sacrifice buff is active (Burning Wish, Fel Stamina, Touch of Shadow, or Fel Energy). Defaults to out-of-combat reminders since you can't resummon and sacrifice mid-fight. Also supports buff-active detection on the HUD if you manually enable Demonic Sacrifice in Spell Configuration. *(Wildfire)*
+
+### LibSpellDB Updates
+
+- Added Warlock Demonic Sacrifice casting spell (18788) with `triggersAuras` for all 5 buff outcomes
+- Added 5 Demonic Sacrifice buff entries (Burning Wish, Fel Stamina, Touch of Shadow, Fel Energy) as `LONG_BUFF` with exclusive BuffGroup
+- New BuffGroup field `talentGate` — allows buff groups where the spells are passive auras (not castable) to gate on a talent spell instead
+
 ## [1.0.87] - 2026-02-13
 
 ### Added

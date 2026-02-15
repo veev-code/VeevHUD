@@ -103,9 +103,9 @@ Items from feedback that have been completed, with the version they shipped in.
 | AceConfig click-through bug                                      | 1.0.43  | Clicking scroll bar no longer opens spell menu   |
 | Proc icon max size increase                                      | 1.0.47  | Allows proc icons to scale much larger           |
 | Health bar: heal prediction overlay                               | 1.0.48  | Shows incoming heals as lighter bar section       |
-| Health bar: absorb shield overlay                                 | 1.0.48  | Shield-Fill texture for PWS, Ice Barrier, etc.    |
-| Health bar: over-absorb glow                                      | 1.0.48  | Edge glow when absorbs exceed missing health      |
-| Health bar overlay options (toggles)                              | 1.0.48  | Heal prediction, absorbs, over-absorb glow        |
+| Health bar: absorb shield overlay                                 | 1.0.48  | Removed in 1.0.85 — Classic API lacks absorb tracking |
+| Health bar: over-absorb glow                                      | 1.0.48  | Removed in 1.0.85 — part of absorb feature removal   |
+| Health bar overlay options (toggles)                              | 1.0.48  | Absorb toggles removed in 1.0.85; heal prediction toggle retained |
 | Resource bar predicted cost toggle                                | 1.0.48  | Option to disable predicted cost overlay          |
 | Queued ability highlight toggle                                   | 1.0.48  | Option to disable queued icon highlight           |
 | Config defaults audit                                             | 1.0.48  | All defaults managed by AceDB, no inline fallbacks|
