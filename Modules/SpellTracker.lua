@@ -257,8 +257,9 @@ function SpellTracker:ShouldExcludeSpell(spellData)
     local isFiller = false
     local isOutOfCombat = false
     local isLongBuff = false
+    local isRotational = false
     local hasTrackableDuration = false
-    
+
     for _, tag in ipairs(spellData.tags) do
         if tag == "FILLER" then
             isFiller = true
@@ -266,6 +267,8 @@ function SpellTracker:ShouldExcludeSpell(spellData)
             isOutOfCombat = true
         elseif tag == "LONG_BUFF" then
             isLongBuff = true
+        elseif tag == "ROTATIONAL" or tag == "CORE_ROTATION" then
+            isRotational = true
         elseif tag == "PROC" then
             return true  -- Procs belong in ProcTracker, not CooldownIcons
         elseif tag == "DEBUFF" or tag == "HOT" or tag == "BUFF" or tag == "HAS_BUFF" or tag == "HAS_DEBUFF" then
@@ -277,9 +280,10 @@ function SpellTracker:ShouldExcludeSpell(spellData)
     if isOutOfCombat then
         return true
     end
-    
-    -- Exclude LONG_BUFF (30+ min buffs cast out of combat)
-    if isLongBuff then
+
+    -- Exclude LONG_BUFF (30+ min buffs cast out of combat), unless also ROTATIONAL
+    -- (e.g., Earth Shield is a long-duration buff but actively consumed in combat)
+    if isLongBuff and not isRotational then
         return true
     end
     

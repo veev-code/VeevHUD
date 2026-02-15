@@ -1,5 +1,19 @@
 # VeevHUD Changelog
 
+## [1.0.94] - 2026-02-15
+
+### Added
+
+- **Earth Shield on Primary Row** — Earth Shield now appears on the Primary row for Restoration Shamans by default. Previously it was only tracked by Buff Reminders due to its long duration, but as a core rotation maintenance spell with consumable charges, it belongs on the HUD alongside other rotational abilities. Still eligible for Buff Reminders as well.
+
+### Fixed
+
+- **Charge-based aura stack display** — Spells with charges (Earth Shield, Water Shield, Lightning Shield) now correctly show their initial charge count on the icon. Previously, the first charge count could be missed because the WoW API doesn't report charges at the exact moment the buff is applied.
+
+### LibSpellDB Updates
+
+- Tagged 8 non-combat utility spells as `OUT_OF_COMBAT` (Travel Form, Ghost Wolf, Astral Recall, Dismiss Pet, Beast Lore, Ritual of Doom, Ritual of Summoning, Eye of Kilrogg) — these no longer appear on the HUD.
+
 ## [1.0.93] - 2026-02-15
 
 ### Changed

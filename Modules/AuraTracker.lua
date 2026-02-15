@@ -368,7 +368,7 @@ function AuraTracker:OnAuraEvent(subEvent, data)
         
         local stackInfo = stacks > 0 and (" (" .. stacks .. " stacks)") or ""
         self.Utils:LogInfo("AuraTracker: Aura applied", spellName, "(", spellID, "->", storageID, ") on", destName, "expires in", string.format("%.1f", expiration - GetTime()) .. stackInfo)
-        
+
         -- Notify CooldownIcons
         self:NotifyAuraChange(sourceSpellID, true)
         
@@ -984,16 +984,22 @@ function AuraTracker:GetAuraState(sourceSpellID)
             local priority = self:GetAuraPriority(auraID, arrayIndex)
 
             if checkAllTargets then
-                for _, auraData in pairs(targets) do
+                for guid, auraData in pairs(targets) do
                     local expiration = type(auraData) == "table" and auraData.expiration or auraData
                     local remaining = expiration - currentTime
                     if remaining > 0 then
                         isActive = true
+                        local stacks = type(auraData) == "table" and auraData.stacks or 0
+                        -- WoW API may not report charge count at SPELL_AURA_APPLIED time
+                        -- (e.g. Earth Shield 6 charges). Live re-scan and cache the result.
+                        if stacks == 0 and type(auraData) == "table" and not auraData.stacksVerified then
+                            stacks = self:RescanStacks(guid, auraID, auraData)
+                        end
                         if priority > bestPriority or (priority == bestPriority and remaining > bestRemaining) then
                             bestPriority = priority
                             bestRemaining = remaining
                             bestDuration = type(auraData) == "table" and auraData.duration or 0
-                            bestStacks = type(auraData) == "table" and auraData.stacks or 0
+                            bestStacks = stacks
                         end
                     end
                 end
@@ -1004,11 +1010,15 @@ function AuraTracker:GetAuraState(sourceSpellID)
                     local remaining = expiration - currentTime
                     if remaining > 0 then
                         isActive = true
+                        local stacks = type(auraData) == "table" and auraData.stacks or 0
+                        if stacks == 0 and type(auraData) == "table" and not auraData.stacksVerified then
+                            stacks = self:RescanStacks(relevantGUID, auraID, auraData)
+                        end
                         if priority > bestPriority or (priority == bestPriority and remaining > bestRemaining) then
                             bestPriority = priority
                             bestRemaining = remaining
                             bestDuration = type(auraData) == "table" and auraData.duration or 0
-                            bestStacks = type(auraData) == "table" and auraData.stacks or 0
+                            bestStacks = stacks
                         end
                     end
                 end
@@ -1017,6 +1027,27 @@ function AuraTracker:GetAuraState(sourceSpellID)
     end
 
     return isActive, bestRemaining, bestDuration, bestStacks
+end
+
+-- Live re-scan stacks for an aura stored with stacks=0.
+-- Updates the stored value so subsequent calls skip the re-scan.
+-- Sets stacksVerified=true to prevent repeated scans for non-stacking auras.
+function AuraTracker:RescanStacks(guid, auraID, auraData)
+    local unit = self:GetUnitFromGUID(guid)
+    if not unit then return 0 end
+    local spellName = GetSpellInfo(auraID)
+    -- Try as buff first, then debuff
+    local _, _, liveStacks = self:GetAuraDurationOnUnit(unit, auraID, spellName, true)
+    if not liveStacks or liveStacks == 0 then
+        _, _, liveStacks = self:GetAuraDurationOnUnit(unit, auraID, spellName, false)
+    end
+    if liveStacks and liveStacks > 0 then
+        auraData.stacks = liveStacks
+        return liveStacks
+    end
+    -- Confirmed zero stacks — don't re-scan this aura again
+    auraData.stacksVerified = true
+    return 0
 end
 
 -- Check if ANY of a source spell's auras is currently active
