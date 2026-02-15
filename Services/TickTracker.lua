@@ -295,19 +295,36 @@ function TickTracker:RecordManaSample()
     local prevTickTime = self.lastManaTickTime  -- For interval calculation
     
     if currentMana > self.lastSampleMana then
-        local gained = currentMana - self.lastSampleMana
+        local rawGained = currentMana - self.lastSampleMana
+
+        -- Subtract any pending external mana gains (IED procs, potions, etc.)
+        local FSR = addon.FiveSecondRule
+        local externalGain = FSR and FSR:GetPendingExternalGain() or 0
+        local gained = rawGained - externalGain
+
+        if gained <= 0 then
+            -- Entire increase was from external sources, not a tick
+            if externalGain > 0 then
+                TickLog(string.format("MANA EXTERNAL +%d filtered (IED/potion: %d), mana=%d/%d",
+                    rawGained, externalGain, currentMana, maxMana))
+            end
+            self.prevSampleMana = self.lastSampleMana
+            self.lastSampleMana = currentMana
+            return
+        end
+
         local percentGain = gained / maxMana
-        
+
         -- Filter out non-tick mana gains:
         -- 1. Time filter: Real ticks are 2s apart
         --    Require at least 1.5 seconds since last tick
         -- 2. Amount filter: valid tick is between 0.3% and 10% of max mana
         --    This filters potions, Life Tap, mana gems, etc.
-        
+
         local timeSinceLastTick = now - self.lastManaTickTime
         local minTickInterval = 1.5
         local isTooSoon = (self.lastManaTickTime > 0 and timeSinceLastTick < minTickInterval)
-        
+
         local minTickPercent = 0.003
         local isValidAmount = percentGain >= minTickPercent and percentGain <= self.manaSpikeThreshold
         

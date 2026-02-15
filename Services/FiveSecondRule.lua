@@ -24,6 +24,11 @@ FiveSecondRule.lastManaCastTime = 0  -- When last mana-costing spell was cast
 FiveSecondRule.lastSampleMana = 0    -- For detecting actual mana spent (vs free casts)
 FiveSecondRule.registered = false    -- Whether we've registered events
 
+-- External mana gain tracking (Insightful Earthstorm Diamond, potions, etc.)
+-- These gains arrive via SPELL_ENERGIZE and should not be counted as natural mana ticks
+FiveSecondRule.pendingExternalGain = 0
+FiveSecondRule.pendingExternalGainTime = 0
+
 -------------------------------------------------------------------------------
 -- Event Registration
 -------------------------------------------------------------------------------
@@ -44,7 +49,30 @@ function FiveSecondRule:Initialize()
     
     -- Initialize mana tracking
     self.lastSampleMana = UnitPower("player", C.POWER_TYPE.MANA)
-    
+
+    -- Track external mana gains (Insightful Earthstorm Diamond, potions, etc.)
+    -- so tick detectors can filter them out
+    if addon.Events then
+        addon.Events:RegisterCLEU(self, "SPELL_ENERGIZE", function(self, subEvent, data)
+            if data.destGUID ~= UnitGUID("player") then return end
+            -- Extract suffix args: amount and powerType from end of CLEU data
+            local info = {CombatLogGetCurrentEventInfo()}
+            local n = #info
+            local amount = info[n - 3] or 0
+            local powerType = info[n - 1]
+            if powerType == 0 then  -- POWER_TYPE_MANA
+                local now = GetTime()
+                -- Reset if previous gain has expired, otherwise accumulate
+                if now - self.pendingExternalGainTime > 0.5 then
+                    self.pendingExternalGain = amount
+                else
+                    self.pendingExternalGain = self.pendingExternalGain + amount
+                end
+                self.pendingExternalGainTime = now
+            end
+        end)
+    end
+
     self.registered = true
 end
 
@@ -84,6 +112,16 @@ function FiveSecondRule:IsActive()
         return false  -- Never cast a mana spell
     end
     return (GetTime() - self.lastManaCastTime) < C.FIVE_SECOND_RULE_DURATION
+end
+
+-- Get pending external mana gain (from SPELL_ENERGIZE events like IED procs)
+-- Returns the accumulated amount if recent (within 0.5s), otherwise 0
+-- Tick detectors should subtract this from observed mana increases
+function FiveSecondRule:GetPendingExternalGain()
+    if self.pendingExternalGainTime > 0 and (GetTime() - self.pendingExternalGainTime) <= 0.5 then
+        return self.pendingExternalGain
+    end
+    return 0
 end
 
 -- Get time remaining in the 5-second rule (0 if outside)

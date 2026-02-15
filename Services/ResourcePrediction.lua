@@ -136,12 +136,9 @@ end
 -------------------------------------------------------------------------------
 
 
--- Conservative buffer for 5SR transitions
--- UNIT_SPELLCAST_SUCCEEDED may fire slightly after the actual cast, and there can be
--- timing drift. By treating 5SR as ending 0.3s earlier than calculated, we avoid
--- predicting in-5SR (low rate) ticks that turn out to be out-of-5SR (high rate) ticks.
--- This makes predictions slightly longer (more conservative), which is safer.
-local FIVE_SECOND_RULE_BUFFER = 0.3
+-- No 5SR buffer needed: if a borderline tick turns out to be OUT5SR instead of IN5SR,
+-- the spell just becomes affordable sooner and the prediction clears immediately.
+-- A buffer would skip valid IN5SR ticks and overshoot by ~2s when near tick boundaries.
 
 -- Mana tick tracking state
 ResourcePrediction.lastManaTickTime = 0  -- When the last mana tick occurred
@@ -200,7 +197,24 @@ function ResourcePrediction:RecordManaSample()
     
     -- Detect mana tick: mana increased from last sample
     if currentMana > self.lastSampleMana then
-        local gained = currentMana - self.lastSampleMana
+        local rawGained = currentMana - self.lastSampleMana
+
+        -- Subtract any pending external mana gains (IED procs, potions, etc.)
+        -- These arrive via SPELL_ENERGIZE and are not natural ticks
+        local externalGain = FSR and FSR:GetPendingExternalGain() or 0
+        local gained = rawGained - externalGain
+
+        if gained <= 0 then
+            -- The entire mana increase was from external sources, not a tick
+            if externalGain > 0 then
+                DebugLog("TICK", "+%d mana - EXTERNAL GAIN filtered (IED/potion: %d)", rawGained, externalGain)
+            end
+            -- Still update samples so next frame's delta is correct
+            self.prevSampleMana = self.lastSampleMana
+            self.lastSampleMana = currentMana
+            return
+        end
+
         local percentGain = gained / maxMana
         
         -- Check if we were "passively regenerating" before this tick
@@ -339,7 +353,12 @@ function ResourcePrediction:GetTimeUntilNextManaTick()
     -- We need to treat this as "tick just happened" not "tick is about to happen"
     local manaGain = currentMana - self.lastPredictionMana
     local minTickDetect = 15  -- Minimum gain to consider as a tick (most ticks are 26-82)
-    
+
+    -- Subtract external gains (IED procs, potions) so they don't trigger false SYNC
+    local FSR = addon.FiveSecondRule
+    local externalGain = FSR and FSR:GetPendingExternalGain() or 0
+    manaGain = manaGain - externalGain
+
     if manaGain >= minTickDetect and self.lastPredictionMana > 0 then
         -- A tick just happened! The next tick is ~2s away, not imminent
         -- CRITICAL: Also update lastManaTickTime so ALL subsequent calls this frame
@@ -397,8 +416,7 @@ function ResourcePrediction:GetTimeUntilManaAffordable(needed, maxPower, spellID
     local in5SR = self:IsInFiveSecondRule()
     local timeLeft5SR = 0
     if in5SR then
-        timeLeft5SR = self:GetTimeRemaining5SR() - FIVE_SECOND_RULE_BUFFER
-        if timeLeft5SR < 0 then timeLeft5SR = 0 end
+        timeLeft5SR = self:GetTimeRemaining5SR()
     end
     
     -- Fallback if no out-of-5SR rate data yet
@@ -457,8 +475,9 @@ function ResourcePrediction:GetTimeUntilManaAffordable(needed, maxPower, spellID
         
         -- Check if we got enough during 5SR alone
         if manaGainedIn5SR >= needed then
-            local safetyBuffer = rateIn5SR * 0.05
-            local ticksNeeded = math.ceil((needed + safetyBuffer) / rateIn5SR)
+            -- No safety buffer needed: rateIn5SR is already the MIN of recent ticks,
+            -- so actual ticks always meet or exceed the predicted rate
+            local ticksNeeded = math.ceil(needed / rateIn5SR)
             local result = timeUntilNextTick + (ticksNeeded - 1) * C.TICK_RATE + PREDICTION_BUFFER
             
             local logKey = string.format("%d_%d_in5sr", needed, ticksNeeded)
@@ -475,8 +494,8 @@ function ResourcePrediction:GetTimeUntilManaAffordable(needed, maxPower, spellID
     
     -- Calculate remaining mana needed after 5SR
     local stillNeeded = needed - manaGainedIn5SR
-    local safetyBuffer = rateOut5SR * 0.05
-    local ticksAfter5SR = math.ceil((stillNeeded + safetyBuffer) / rateOut5SR)
+    -- No safety buffer needed: rateOut5SR is already the MIN of recent ticks
+    local ticksAfter5SR = math.ceil(stillNeeded / rateOut5SR)
     
     -- Time until we have enough mana:
     -- First full tick at timeUntilFirstFullTick, then additional ticks every 2s

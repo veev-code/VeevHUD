@@ -1945,27 +1945,29 @@ function CooldownIcons:UpdateIconState(frame, db)
                 effectiveWait = math.max(effectiveWait, remaining)
             end
             
-            -- Detect if resources changed (need to restart prediction)
-            -- Covers both spending (cast mid-prediction) and gaining (Furor, ticks)
-            local resourcesChanged = frame.predictionActive and frame.predictionLastPower and currentPower ~= frame.predictionLastPower
+            -- Only restart prediction when mana DECREASES (player cast a spell).
+            -- Mana increases from ticks are already accounted for in the original
+            -- prediction. Unexpected gains (IED procs, potions) just make the spell
+            -- affordable sooner, handled by the currentPower >= cost check above.
+            local resourcesDecreased = frame.predictionActive and frame.predictionLastPower and currentPower < frame.predictionLastPower
 
             -- If prediction is already active and in fallback mode, stay in fallback
             -- (don't restart prediction spiral after fallback was triggered)
-            if frame.predictionFallback and not resourcesChanged then
+            if frame.predictionFallback and not resourcesDecreased then
                 inPredictionFallback = true
             elseif effectiveWait > 0 then
-                if not frame.predictionActive or resourcesChanged then
-                    -- Start new prediction (or restart because resources changed)
+                if not frame.predictionActive or resourcesDecreased then
+                    -- Start new prediction (or restart because mana was spent)
                     frame.predictionActive = true
                     frame.predictionStartTime = now
                     frame.predictionDuration = effectiveWait
                     frame.predictionFallback = false
                     -- Reset ready glow so it can trigger when prediction completes
-                    if not resourcesChanged then
+                    if not resourcesDecreased then
                         frame.readyGlowShown = false
                     end
                 end
-                
+
                 -- Track current power to detect spending
                 frame.predictionLastPower = currentPower
                 

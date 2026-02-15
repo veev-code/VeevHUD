@@ -1,5 +1,13 @@
 # VeevHUD Changelog
 
+## [1.0.92] - 2026-02-15
+
+### Fixed
+
+- **Mana cost prediction accuracy** — Predictions could overshoot by ~2 seconds when the mana needed was close to a tick boundary, and the prediction spiral would visibly have time remaining when the spell was already affordable. Removed overly conservative safety margins that were adding an extra tick to the calculation. Predictions are now accurate to within ~0.15 seconds.
+- **Mana cost prediction resetting mid-countdown** — The prediction spiral restarted every time a mana tick arrived (~2 seconds), causing the countdown to visibly jump backward repeatedly. Predictions now only restart when mana decreases (player casts a spell). Incoming ticks are already accounted for in the original prediction.
+- **External mana gains corrupting tick tracking** — Insightful Earthstorm Diamond procs, mana potions, Dark Runes, and other SPELL_ENERGIZE-based mana gains were being misidentified as natural mana ticks, corrupting the tick timer and triggering false tick detections. These are now filtered out via combat log tracking.
+
 ## [1.0.91] - 2026-02-15
 
 ### Fixed
