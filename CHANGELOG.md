@@ -1,5 +1,11 @@
 # VeevHUD Changelog
 
+## [1.0.93] - 2026-02-15
+
+### Changed
+
+- **Buff Reminders: Default opacity increased** — New installs now default to 30% opacity (up from 15%) for better visibility. Existing users are unaffected — this only changes the default for new profiles.
+
 ## [1.0.92] - 2026-02-15
 
 ### Fixed
