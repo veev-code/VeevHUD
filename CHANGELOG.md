@@ -1,5 +1,11 @@
 # VeevHUD Changelog
 
+## [1.0.91] - 2026-02-15
+
+### Fixed
+
+- **Profile switch not refreshing icons** — When both profiles had the resource bar disabled and a `/reload` had occurred, switching profiles would fail to update spell icons (enable/disable, aspect ratio, row assignments). The resource bar's energy ticker tried to create UI elements on a nil frame, silently aborting the refresh. Also fixed the profile safety wrapper firing the refresh loop twice, and made module refresh order deterministic to prevent race conditions. *(Thanks Shadowhawk for reporting)*
+
 ## [1.0.90] - 2026-02-15
 
 ### Added

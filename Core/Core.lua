@@ -90,6 +90,10 @@ function addon:OnProfileChanged()
     -- This is triggered by manual profile switches and by LibDualSpec when specs change.
     if self.fatalError then return end
 
+    -- Signal to the safety wrapper (Database.lua) that the AceDB callback fired.
+    -- The wrapper only calls OnProfileChanged manually when this flag stays false.
+    self._profileCallbackFired = true
+
     -- Migrate old gap settings for the new profile (idempotent)
     self.Database:MigrateLayoutGaps()
 
@@ -110,9 +114,27 @@ function addon:OnProfileChanged()
         self.TextureManager:RefreshAllTextures()
     end
 
-    -- Refresh all modules.
+    -- Refresh modules in deterministic order.
+    -- SpellTracker must run before CooldownIcons (rebuilds tracked spell list).
+    local moduleOrder = {
+        "SpellTracker", "AuraTracker", "CooldownIcons",
+        "ProcTracker", "BuffReminders", "TotemBar",
+        "ResourceBar", "HealthBar", "ComboPoints", "SwingBar",
+    }
+    for _, name in ipairs(moduleOrder) do
+        local module = self.modules[name]
+        if module and module.Refresh then
+            local success, err = pcall(module.Refresh, module)
+            if not success then
+                if self.Utils and self.Utils.LogError then
+                    self.Utils:LogError("Error refreshing module", name, ":", err)
+                end
+            end
+        end
+    end
+    -- Catch any modules not in the explicit list (future-proofing)
     for name, module in pairs(self.modules) do
-        if module.Refresh then
+        if module.Refresh and not tContains(moduleOrder, name) then
             local success, err = pcall(module.Refresh, module)
             if not success then
                 if self.Utils and self.Utils.LogError then

@@ -1359,6 +1359,7 @@ function ResourceBar:Refresh()
 end
 
 function ResourceBar:RefreshEnergyTicker()
+    if not self.bar then return end
     local db = addon.db.profile.resourceBar
     local tickerDb = db.energyTicker
     local tickerEnabled = tickerDb and tickerDb.enabled

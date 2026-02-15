@@ -51,6 +51,7 @@ function Database:Initialize()
         local original = addon.db[methodName]
         if not original then return end
         addon.db[methodName] = function(self, ...)
+            addon._profileCallbackFired = false
             local ok, err = pcall(original, self, ...)
             if not ok then
                 -- Suppress the known CallbackHandler Fire error; re-raise anything else
@@ -58,7 +59,11 @@ function Database:Initialize()
                     error(err, 2)
                 end
             end
-            addon:OnProfileChanged()
+            -- Only call manually if the AceDB callback didn't fire
+            -- (this is the CallbackHandler Fire bug the safety net exists for)
+            if not addon._profileCallbackFired then
+                addon:OnProfileChanged()
+            end
         end
     end
 
