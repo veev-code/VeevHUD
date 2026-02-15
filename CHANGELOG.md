@@ -1,5 +1,11 @@
 # VeevHUD Changelog
 
+## [1.0.95] - 2026-02-15
+
+### LibSpellDB Updates
+
+- **Siphon Life / Devouring Plague debuff tracking fix** — These DoTs were not showing their active debuff duration on the icon despite being applied to the target. The spells were incorrectly tagged as ally-targeted heals (due to their self-healing side-effect), causing the aura tracker to look for a buff on allies instead of a debuff on the enemy.
+
 ## [1.0.94] - 2026-02-15
 
 ### Added
