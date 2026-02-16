@@ -1688,11 +1688,10 @@ function CooldownIcons:UpdateIconState(frame, db)
     local spellData = frame.spellData
 
     -- Pre-compute spell targeting behavior (reused for buff checks and lockout checks)
+    -- If spell targets allies (auraTarget = "ally"/"pet"), check the relevant ally for buffs
     local checkSelfOnly = true
     if addon.LibSpellDB then
-        local isSelfOnly = addon.LibSpellDB:IsSelfOnly(spellData)
-        local isRotational = addon.LibSpellDB:IsRotational(spellData)
-        checkSelfOnly = isSelfOnly or not isRotational
+        checkSelfOnly = addon.LibSpellDB:IsSelfOnly(spellData)
     end
 
     if db.showAuraTracking then
@@ -1734,6 +1733,17 @@ function CooldownIcons:UpdateIconState(frame, db)
     -- Get cooldown info (including actual start time for accurate spiral)
     -- Use actualSpellID (the rank the player knows) for WoW API calls
     local remaining, duration, cdEnabled, cdStartTime = self.Utils:GetSpellCooldown(actualSpellID)
+
+    -- Item cooldown fallback: for spells that create usable items (e.g., Soulstone),
+    -- the real cooldown is on the item, not the spell. Check via LibSpellDB.
+    if addon.LibSpellDB and not self.Utils:IsOnRealCooldown(remaining, duration) then
+        local itemRemaining, itemDuration, itemStartTime = addon.LibSpellDB:GetItemCooldown(spellData)
+        if itemRemaining then
+            remaining = itemRemaining
+            duration = itemDuration
+            cdStartTime = itemStartTime
+        end
+    end
 
     -- GCD override protection: The WoW API can briefly return GCD info (1.5s duration)
     -- instead of the actual cooldown for certain spells (e.g., Blood Fury variants 33697, 33702).

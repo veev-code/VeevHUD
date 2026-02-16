@@ -1,5 +1,20 @@
 # VeevHUD Changelog
 
+## [1.0.96] - 2026-02-15
+
+### Added
+
+- **Soulstone Tracking** — Soulstone now shows the active buff duration when applied to an ally (with glow and countdown), and falls back to showing the item cooldown when the buff is not active. Previously the icon could not track either because the cooldown lives on the created item, not the spell itself.
+
+### Fixed
+
+- **Ally buff checking for non-rotational spells** — Spells with `auraTarget = "ally"` (like Soulstone, external defensives) now correctly check the targeted ally for their buff status. Previously, only rotational spells could check allies, causing non-rotational ally-targeted buffs to only scan the player.
+
+### LibSpellDB Updates
+
+- New `GetItemCooldown()` API for spells that track cooldowns via created items.
+- Soulstone Resurrection: corrected spell data — creation spell has no cooldown (item does), added ally targeting, buff duration, and item cooldown IDs.
+
 ## [1.0.95] - 2026-02-15
 
 ### LibSpellDB Updates
