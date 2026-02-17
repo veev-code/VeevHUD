@@ -1,5 +1,15 @@
 # VeevHUD Changelog
 
+## [1.0.97] - 2026-02-17
+
+### Added
+
+- **Detailed Time Threshold** — New option (Icons > Cooldown Text) to control when cooldown text switches from precise `m:ss` format to compact `Xm` format. Configurable from 1–10 minutes; default is 2 minutes.
+
+### Fixed
+
+- **Innervate highlight on feral druid mana bar** — The Innervate highlight color now correctly applies to the secondary druid mana bar (shown in Cat/Bear Form) instead of incorrectly coloring the rage or energy bar.
+
 ## [1.0.96] - 2026-02-15
 
 ### Added

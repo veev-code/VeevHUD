@@ -41,9 +41,10 @@ end
 -- No decimals until < 1s remains
 -- Uses floor so "1" displays for exactly 1 second before switching to decimals
 function Utils:FormatCooldown(seconds)
+    local threshold = addon.db.profile.icons.detailedTimeThreshold * 60
     if seconds >= 3600 then
         return string.format("%dh", math.floor(seconds / 3600))
-    elseif seconds >= 300 then
+    elseif seconds >= threshold and seconds >= 60 then
         return string.format("%dm", math.floor(seconds / 60))
     elseif seconds >= 60 then
         local m = math.floor(seconds / 60)

@@ -853,6 +853,14 @@ function Options:BuildOptionsTable()
 										arg = "icons.showCooldownTextOn",
 										order = 1,
 									},
+									detailedTimeThreshold = {
+										type = "range",
+										name = "Detailed Time Threshold",
+										desc = "Threshold in minutes. Cooldowns below this show precise m:ss format (e.g., 3:27). Above this, compact format is used (e.g., 3m), rounded down to the nearest minute.",
+										min = 1, max = 10, step = 1,
+										arg = "icons.detailedTimeThreshold",
+										order = 1.5,
+									},
 									showCooldownSpiralOn = {
 										type = "select",
 										name = "Cooldown Spiral",

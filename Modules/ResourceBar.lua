@@ -73,6 +73,7 @@ function ResourceBar:CheckInnervate()
     if hasInnervate ~= (self.innervateActive or false) then
         self.innervateActive = hasInnervate
         self:UpdateBarColor()
+        self:UpdateDruidManaBarColor()
     end
 end
 
@@ -508,6 +509,7 @@ function ResourceBar:UpdateDruidManaBarVisibility()
         self.manaBar:SetPoint("TOP", self.bar, "BOTTOM", 0, -1 - self:GetTickerHeight())
         self.manaBar:Show()
         self:UpdateDruidManaBar()
+        self:UpdateDruidManaBarColor()
     else
         self.manaBar:Hide()
     end
@@ -643,12 +645,8 @@ function ResourceBar:RefreshDruidManaBar()
                 self.manaBar.bg:SetTexture(barTexture)
             end
 
-            -- Update color
-            local mc = manaDb.color
-            self.manaBar:SetStatusBarColor(mc.r, mc.g, mc.b)
-            if self.manaBar.bg then
-                self.manaBar.bg:SetVertexColor(mc.r * 0.2, mc.g * 0.2, mc.b * 0.2)
-            end
+            -- Update color (respects Innervate highlight if active)
+            self:UpdateDruidManaBarColor()
 
             -- Update border
             if not self.manaBarBorder then
@@ -713,6 +711,27 @@ function ResourceBar:RefreshDruidManaBar()
     self:UpdateDruidManaBarVisibility()
 end
 
+-- Update druid mana bar color (applies Innervate highlight when active)
+function ResourceBar:UpdateDruidManaBarColor()
+    if not self.manaBar then return end
+
+    local db = addon.db.profile.resourceBar
+    local r, g, b
+
+    if self.innervateActive and db.innervateHighlight.enabled then
+        local c = db.innervateHighlight.color
+        r, g, b = c.r, c.g, c.b
+    else
+        local mc = db.druidManaBar.color
+        r, g, b = mc.r, mc.g, mc.b
+    end
+
+    self.manaBar:SetStatusBarColor(r, g, b)
+    if self.manaBar.bg then
+        self.manaBar.bg:SetVertexColor(r * 0.2, g * 0.2, b * 0.2)
+    end
+end
+
 -------------------------------------------------------------------------------
 -- Predicted Cost Overlay
 -- Shows a darkened section on the bar for pending resource deductions
@@ -733,10 +752,13 @@ function ResourceBar:CreateCostOverlay(bar)
 end
 
 -- Returns the current resolved bar color (accounts for Innervate override)
+-- Innervate only highlights the mana bar — for feral druids, the druid mana bar
+-- handles this via UpdateDruidManaBarColor instead.
 function ResourceBar:GetBarColor()
     local db = addon.db.profile.resourceBar
 
-    if self.innervateActive and db.innervateHighlight.enabled then
+    if self.innervateActive and db.innervateHighlight.enabled
+       and self.powerType == self.C.POWER_TYPE.MANA then
         local c = db.innervateHighlight.color
         return c.r, c.g, c.b
     elseif db.powerColor then

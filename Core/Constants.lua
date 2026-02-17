@@ -412,6 +412,7 @@ C.DEFAULTS = {
             -- Row selection: "none" = disabled, "primary" = Primary only,
             -- "primary_secondary" = Primary + Secondary, "all" = all rows
             useOwnCooldownText = true,    -- Use VeevHUD's own cooldown text instead of Blizzard's
+            detailedTimeThreshold = 2,    -- Minutes: durations below this show m:ss, above show compact "Xm"
             showCooldownTextOn = "all",   -- Which rows show cooldown text
             showCooldownSpiralOn = "all", -- Which rows show cooldown spiral
             cooldownBlingRows = "all",     -- Which rows show sparkle effect when cooldown finishes

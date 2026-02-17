@@ -140,6 +140,7 @@ The DB layer is the single source of truth for all resolved config values. Appli
 
 - **NEVER** use inline default fallbacks when reading config values. AceDB provides them via metatables.
   - Do NOT write: `db.textSize or 10`, `db.showSpark == false`, `db.enabled ~= false`, `addon.db.profile.appearance or {}`
+  - Do NOT write: `addon.db and addon.db.profile.X.Y or 120` — this is the same anti-pattern with extra nil-guarding. By the time any module or utility code runs, `addon.db` is always initialized; `or <default>` is never needed.
   - Instead write: `db.textSize`, `not db.showSpark`, `db.enabled`, `addon.db.profile.appearance`
 - **ALL new config keys MUST have a default** in `Constants.DEFAULTS.profile`. If a key is used in code but missing from defaults, add it — don't paper over it with a fallback at the call site.
 - The only exception is **sparse per-spell config** (`spellConfig`/`procConfig`), which intentionally uses `nil` to mean "use default behavior" and `false` to mean "explicitly disabled". The `cfg.enabled ~= false` pattern is correct there.
