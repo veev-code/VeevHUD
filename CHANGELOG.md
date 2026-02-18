@@ -1,5 +1,13 @@
 # VeevHUD Changelog
 
+## [1.0.99] - 2026-02-18
+
+### Fixed
+
+- **Buff Reminders: Exclusive group priority ignored** — Fixed exclusive buff groups (e.g., Warrior Shouts) ignoring the user's priority setting, always showing the first spell in the group instead of the preferred one.
+- **Buff Reminders: Other players' buffs suppressing reminder** — For exclusive buff groups, another player providing one of the group's buffs (e.g., another warrior's Battle Shout) no longer suppresses your reminder. The addon now checks only for buffs you cast yourself. When your priority spell is already covered by someone else, the icon suggests the uncovered spell from the group instead.
+- **Ally-targeted buff aura classification** — Fixed a bug where ally-targeted buffs (like heals cast on party members) were not properly classified for aura scanning, potentially causing them to be looked up as debuffs instead of buffs.
+
 ## [1.0.98] - 2026-02-17
 
 ### Fixed

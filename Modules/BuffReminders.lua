@@ -620,38 +620,43 @@ end
 -------------------------------------------------------------------------------
 
 -- Check if a buff (by name) is present on a unit
-function BuffReminders:IsBuffOnUnit(unit, spellID)
+-- playerOnly: if true, only match buffs where source == "player"
+function BuffReminders:IsBuffOnUnit(unit, spellID, playerOnly)
     if not UnitExists(unit) then return false, 0, 0 end
-    
+
     local spellName = GetSpellInfo(spellID)
     if not spellName then return false, 0, 0 end
-    
+
     -- Also check all rank names (they share the same name)
     for i = 1, 40 do
-        local name, _, count, _, duration, expirationTime = UnitBuff(unit, i)
+        local name, _, count, _, duration, expirationTime, source = UnitBuff(unit, i)
         if not name then break end
-        
+
         if name == spellName then
-            local remaining = 0
-            if expirationTime and expirationTime > 0 then
-                remaining = expirationTime - GetTime()
-            elseif duration == 0 then
-                remaining = 999999  -- Permanent buff
+            if playerOnly and source ~= "player" then
+                -- Buff exists but not from player, keep searching
+            else
+                local remaining = 0
+                if expirationTime and expirationTime > 0 then
+                    remaining = expirationTime - GetTime()
+                elseif duration == 0 then
+                    remaining = 999999  -- Permanent buff
+                end
+                return true, remaining, count or 0
             end
-            return true, remaining, count or 0
         end
     end
-    
+
     return false, 0, 0
 end
 
 -- Check if ANY spell in a buff group is active on a unit
-function BuffReminders:IsBuffGroupOnUnit(unit, groupSpells)
+function BuffReminders:IsBuffGroupOnUnit(unit, groupSpells, playerOnly)
     for _, groupSpellID in ipairs(groupSpells) do
         -- Get all rank spell IDs for this spell
         local spellName = GetSpellInfo(groupSpellID)
         if spellName then
-            local found, remaining, stacks = self:IsBuffOnUnit(unit, groupSpellID)
+            local found, remaining, stacks = self:IsBuffOnUnit(unit, groupSpellID, playerOnly)
             if found then
                 return true, remaining, stacks
             end
@@ -843,7 +848,17 @@ function BuffReminders:ShouldRemind(reminder)
     local trackTarget = config.trackTarget or TRACK_TARGET.PLAYER
     
     if trackTarget == TRACK_TARGET.PLAYER then
-        return self:CheckBuffOnPlayer(activeSpellID, groupSpells, config)
+        -- For exclusive groups (e.g., warrior shouts), check only the player's OWN buffs.
+        -- Another player's buff shouldn't suppress the reminder — the player should still
+        -- cast their own (possibly different) spell from the group.
+        local playerOnly = false
+        if reminder.buffGroup then
+            local gi = self.LibSpellDB.BuffGroups[reminder.buffGroup]
+            if gi and gi.relationship == "exclusive" then
+                playerOnly = true
+            end
+        end
+        return self:CheckBuffOnPlayer(activeSpellID, groupSpells, config, playerOnly)
     elseif trackTarget == TRACK_TARGET.PARTY or trackTarget == TRACK_TARGET.RAID then
         return self:CheckBuffOnGroup(activeSpellID, groupSpells, config, trackTarget)
     end
@@ -851,13 +866,13 @@ function BuffReminders:ShouldRemind(reminder)
     return false
 end
 
-function BuffReminders:CheckBuffOnPlayer(spellID, groupSpells, config)
+function BuffReminders:CheckBuffOnPlayer(spellID, groupSpells, config, playerOnly)
     local found, remaining, stacks
-    
+
     if groupSpells then
-        found, remaining, stacks = self:IsBuffGroupOnUnit("player", groupSpells)
+        found, remaining, stacks = self:IsBuffGroupOnUnit("player", groupSpells, playerOnly)
     else
-        found, remaining, stacks = self:IsBuffOnUnit("player", spellID)
+        found, remaining, stacks = self:IsBuffOnUnit("player", spellID, playerOnly)
     end
     
     if not found then
@@ -1116,19 +1131,44 @@ function BuffReminders:GetBestSpellForGroup(groupName, defaultSpellID)
             end
         end
     elseif groupInfo.relationship == "exclusive" then
-        -- For exclusive groups, check user priority config, else use first known
+        -- For exclusive groups, check user priority config, else use first known.
+        -- cfg.priority stores the spell ID of the preferred spell (not a boolean).
+        -- If the priority spell is already on the player from another source,
+        -- suggest a different uncovered spell from the group instead.
         local db = addon.db and addon.db.profile and addon.db.profile.buffReminders
+        local prioritySpellID = nil
         if db and db.spellConfig then
             for _, gSpellID in ipairs(groupInfo.spells) do
                 local cfg = db.spellConfig[gSpellID]
                 if cfg and cfg.priority then
-                    local hr = self.LibSpellDB:GetHighestKnownRank(gSpellID)
+                    local hr = self.LibSpellDB:GetHighestKnownRank(cfg.priority)
                     if hr and IsSpellKnown(hr) then
-                        return gSpellID
+                        prioritySpellID = cfg.priority
+                        break
                     end
                 end
             end
         end
+
+        if prioritySpellID then
+            -- Check if the priority spell is already active from another player
+            local priorityCovered = self:IsBuffOnUnit("player", prioritySpellID)
+            if priorityCovered then
+                -- Priority is covered by someone else — suggest an uncovered spell
+                for _, gSpellID in ipairs(groupInfo.spells) do
+                    if gSpellID ~= prioritySpellID then
+                        local hr = self.LibSpellDB:GetHighestKnownRank(gSpellID)
+                        if hr and IsSpellKnown(hr) then
+                            if not self:IsBuffOnUnit("player", gSpellID) then
+                                return gSpellID
+                            end
+                        end
+                    end
+                end
+            end
+            return prioritySpellID
+        end
+
         -- Default: first known spell in the group
         for _, gSpellID in ipairs(groupInfo.spells) do
             local hr = self.LibSpellDB:GetHighestKnownRank(gSpellID)

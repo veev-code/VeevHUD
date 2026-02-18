@@ -280,6 +280,7 @@ function AuraTracker:OnAuraEvent(subEvent, data)
             -- Check if this is a healing/buff spell (applies buff) or damage spell (applies debuff)
             local isBuff = isSelfBuff  -- Default: self = buff
             
+            local spellData = self.LibSpellDB and self.LibSpellDB:GetSpellInfo(baseSpellID)
             if spellData and spellData.tags then
                 -- Check tags to determine if this is a buff-type spell
                 for _, tag in ipairs(spellData.tags) do
