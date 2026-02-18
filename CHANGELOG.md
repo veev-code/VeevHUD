@@ -1,5 +1,16 @@
 # VeevHUD Changelog
 
+## [1.0.100] - 2026-02-18
+
+### Fixed
+
+- **Swing Bar width slider not applying** — Changing the Swing Bar width in options had no visible effect until a `/reload`. The individual bars inside the container were not being resized, only the container itself. Width changes now apply instantly like all other bars. *(Thanks muu for reporting)*
+
+### Changed
+
+- **Swing Bar default height reduced** — The default single-weapon bar height is now 2px (down from 4px), matching the dual-wield and wand bar heights for a more consistent look. Only affects new profiles.
+- **Bar width slider ranges unified** — All bar width sliders (resource, health, combo points, swing) now share the same range of 50–600px. Previously the swing bar maxed at 400 and the other bars had a minimum of 100.
+
 ## [1.0.99] - 2026-02-18
 
 ### Fixed

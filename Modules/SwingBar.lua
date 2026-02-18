@@ -824,11 +824,11 @@ function SwingBar:UpdateContainerSize()
 
             self.container:SetSize(db.width, contentHeight)
 
-            self.mainBar:SetHeight(rangedHeight)
+            self.mainBar:SetSize(db.width, rangedHeight)
             self.mainBar:ClearAllPoints()
             self.mainBar:SetPoint("TOP", self.container, "TOP", 0, 0)
 
-            self.offBar:SetHeight(meleeHeight)
+            self.offBar:SetSize(db.width, meleeHeight)
             self.offBar:ClearAllPoints()
             self.offBar:SetPoint("TOP", self.mainBar, "BOTTOM", 0, -db.dualWieldSpacing)
             self.offBar:Show()
@@ -840,12 +840,12 @@ function SwingBar:UpdateContainerSize()
             self.container:SetSize(db.width, contentHeight)
 
             -- MH bar on top
-            self.mainBar:SetHeight(barHeight)
+            self.mainBar:SetSize(db.width, barHeight)
             self.mainBar:ClearAllPoints()
             self.mainBar:SetPoint("TOP", self.container, "TOP", 0, 0)
 
             -- OH bar below
-            self.offBar:SetHeight(barHeight)
+            self.offBar:SetSize(db.width, barHeight)
             self.offBar:ClearAllPoints()
             self.offBar:SetPoint("TOP", self.mainBar, "BOTTOM", 0, -db.dualWieldSpacing)
             self.offBar:Show()
@@ -856,7 +856,7 @@ function SwingBar:UpdateContainerSize()
 
         self.container:SetSize(db.width, barHeight)
 
-        self.mainBar:SetHeight(barHeight)
+        self.mainBar:SetSize(db.width, barHeight)
         self.mainBar:ClearAllPoints()
         self.mainBar:SetPoint("TOP", self.container, "TOP", 0, 0)
 

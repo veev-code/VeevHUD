@@ -1186,7 +1186,7 @@ function Options:BuildOptionsTable()
 								order = 2,
 								disabled = function() return addon.db and addon.db.profile and not addon.db.profile.resourceBar.enabled end,
 								args = {
-									width = { type = "range", name = "Width", desc = "How wide the resource bar is in pixels.", min = 100, max = 600, step = 1, arg = "resourceBar.width", order = 1 },
+									width = { type = "range", name = "Width", desc = "How wide the resource bar is in pixels.", min = 50, max = 600, step = 1, arg = "resourceBar.width", order = 1 },
 									height = { type = "range", name = "Height", desc = "How tall/thick the resource bar is in pixels. Changing this will automatically adjust the position of elements above it.", min = 4, max = 60, step = 1, arg = "resourceBar.height", order = 2 },
 								},
 							},
@@ -1357,7 +1357,7 @@ function Options:BuildOptionsTable()
 								order = 2,
 								disabled = function() return addon.db and addon.db.profile and not addon.db.profile.healthBar.enabled end,
 								args = {
-									width = { type = "range", name = "Width", desc = "How wide the health bar is in pixels.", min = 100, max = 600, step = 1, arg = "healthBar.width", order = 1 },
+									width = { type = "range", name = "Width", desc = "How wide the health bar is in pixels.", min = 50, max = 600, step = 1, arg = "healthBar.width", order = 1 },
 									height = { type = "range", name = "Height", desc = "How tall/thick the health bar is in pixels. Changing this will automatically adjust the position of elements above it.", min = 4, max = 60, step = 1, arg = "healthBar.height", order = 2 },
 								},
 							},
@@ -1409,7 +1409,7 @@ function Options:BuildOptionsTable()
 								order = 2,
 								disabled = function() return addon.db and addon.db.profile and not addon.db.profile.comboPoints.enabled end,
 								args = {
-									width = { type = "range", name = "Width", desc = "The total width of the combo points display in pixels.", min = 100, max = 600, step = 1, arg = "comboPoints.width", order = 1 },
+									width = { type = "range", name = "Width", desc = "The total width of the combo points display in pixels.", min = 50, max = 600, step = 1, arg = "comboPoints.width", order = 1 },
 									barHeight = { type = "range", name = "Bar Height", desc = "The height of each combo point bar in pixels. Smaller values create a more subtle display.", min = 2, max = 30, step = 1, arg = "comboPoints.barHeight", order = 2 },
 									barSpacing = { type = "range", name = "Bar Spacing", desc = "The gap in pixels between each individual combo point segment.", min = 0, max = 20, step = 1, arg = "comboPoints.barSpacing", order = 3 },
 								},
@@ -1569,7 +1569,7 @@ function Options:BuildOptionsTable()
 								order = 2,
 								disabled = function() return not addon.db.profile.swingBar.enabled end,
 								args = {
-									width = { type = "range", name = "Width", desc = "Width of the swing bar in pixels.", min = 50, max = 400, step = 1, arg = "swingBar.width", order = 1 },
+									width = { type = "range", name = "Width", desc = "Width of the swing bar in pixels.", min = 50, max = 600, step = 1, arg = "swingBar.width", order = 1 },
 									height = { type = "range", name = "Height", desc = "Height of the swing bar in pixels (single weapon). Applies to hunter ranged, melee 2H, and retribution paladin.", min = 1, max = 20, step = 1, arg = "swingBar.height", order = 2 },
 									wandHeight = { type = "range", name = "Wand Height", desc = "Height of the swing bar in pixels for wand users (Mage, Priest, Warlock).", min = 1, max = 20, step = 1, arg = "swingBar.wandHeight", order = 3 },
 									dualWieldHeight = { type = "range", name = "Dual-Wield Height", desc = "Height of each bar when dual-wielding (MH and OH bars shown separately).", min = 1, max = 20, step = 1, arg = "swingBar.dualWieldHeight", order = 4 },
