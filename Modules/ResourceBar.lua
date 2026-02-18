@@ -11,7 +11,6 @@ local UnitPower = UnitPower
 local UnitPowerMax = UnitPowerMax
 local UnitPowerType = UnitPowerType
 local GetTime = GetTime
-local GetShapeshiftForm = GetShapeshiftForm
 local IsSpellKnown = IsSpellKnown
 
 local ResourceBar = {}
@@ -466,9 +465,9 @@ function ResourceBar:CreateDruidManaBar(bar, db)
 end
 
 -- Spell IDs for shapeshift forms (used by form cost marker)
-local FORM_SPELL_IDS = {
-    [1] = { 5487, 9634 },  -- Bear Form, Dire Bear Form
-    [3] = { 768 },         -- Cat Form
+local FORM_COST_SPELLS = {
+    BEAR = { 5487, 9634 },  -- Bear Form, Dire Bear Form
+    CAT  = { 768 },         -- Cat Form
 }
 
 function ResourceBar:GetManaBarHeight()
@@ -496,9 +495,8 @@ function ResourceBar:UpdateDruidManaBarVisibility()
         return
     end
 
-    local form = GetShapeshiftForm()
-    local C = self.C
-    local inForm = (form == C.DRUID_FORM.CAT or form == C.DRUID_FORM.BEAR)
+    local form = self.C.GetDruidForm()
+    local inForm = (form == "CAT" or form == "BEAR")
     local wasVisible = self.manaBar:IsShown()
 
     if inForm then
@@ -550,8 +548,8 @@ function ResourceBar:UpdateFormCostMarker()
         return
     end
 
-    local form = GetShapeshiftForm()
-    local formSpells = FORM_SPELL_IDS[form]
+    local form = addon.Constants.GetDruidForm()
+    local formSpells = FORM_COST_SPELLS[form]
     if not formSpells then
         self.formCostMarker:Hide()
         return

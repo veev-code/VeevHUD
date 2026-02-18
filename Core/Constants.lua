@@ -81,15 +81,36 @@ C.TEXT_FORMAT = {
     NONE = "none",       -- Hide text
 }
 
--- Druid shapeshift form indices (returned by GetShapeshiftForm())
-C.DRUID_FORM = {
-    CASTER = 0,
-    BEAR = 1,
-    AQUATIC = 2,
-    CAT = 3,
-    TRAVEL = 4,
-    MOONKIN = 5,
-}
+-- Druid form detection via spell ID (position-independent)
+-- GetShapeshiftForm() returns the stance bar index, which shifts when forms
+-- aren't trained (e.g., missing Aquatic Form moves Cat from slot 3 to slot 2).
+-- We use GetShapeshiftFormInfo() to identify forms by spell ID instead.
+do
+    local BEAR_FORM_SPELLS = { [5487] = true, [9634] = true }  -- Bear Form, Dire Bear Form
+    local CAT_FORM_SPELL = 768
+    local AQUATIC_FORM_SPELL = 1066
+    local TRAVEL_FORM_SPELL = 783
+    local MOONKIN_FORM_SPELL = 24858
+
+    --- Returns the current druid form as a string: "CASTER", "BEAR", "CAT",
+    --- "AQUATIC", "TRAVEL", or "MOONKIN". Works regardless of which forms
+    --- are trained or their position on the shapeshift bar.
+    function C.GetDruidForm()
+        local formIndex = GetShapeshiftForm()
+        if formIndex == 0 then return "CASTER" end
+
+        local _, _, _, spellID = GetShapeshiftFormInfo(formIndex)
+        if not spellID then return "CASTER" end
+
+        if BEAR_FORM_SPELLS[spellID] then return "BEAR" end
+        if spellID == CAT_FORM_SPELL then return "CAT" end
+        if spellID == AQUATIC_FORM_SPELL then return "AQUATIC" end
+        if spellID == TRAVEL_FORM_SPELL then return "TRAVEL" end
+        if spellID == MOONKIN_FORM_SPELL then return "MOONKIN" end
+
+        return "CASTER"
+    end
+end
 
 -------------------------------------------------------------------------------
 -- Class Colors (Classic values)

@@ -1,5 +1,11 @@
 # VeevHUD Changelog
 
+## [1.0.98] - 2026-02-17
+
+### Fixed
+
+- **Druid form detection with missing forms** — Cat Form spells, combo points, and the druid mana bar were not showing for druids who hadn't trained all shapeshift forms (e.g., skipping Aquatic Form). The addon was using hardcoded stance bar positions to identify forms, but the bar shifts when forms are unlearned — so Cat Form at position 2 was misidentified as Aquatic Form and ignored. Form detection now uses spell IDs from `GetShapeshiftFormInfo()`, which works regardless of which forms are trained or their bar position. *(Thanks Arkoudokinigos for reporting)*
+
 ## [1.0.97] - 2026-02-17
 
 ### Added

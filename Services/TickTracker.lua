@@ -77,8 +77,8 @@ TickTracker.lastEnergyTickTime = 0
 TickTracker.lastSampleEnergy = 0
 TickTracker.hasConfirmedTick = false  -- True after we've observed at least one real tick
 
--- Shapeshift tracking for druids
-TickTracker.lastKnownForm = 0
+-- Shapeshift tracking for druids (stores form string from C.GetDruidForm())
+TickTracker.lastKnownForm = nil
 TickTracker.formChangeTime = 0
 
 -------------------------------------------------------------------------------
@@ -547,14 +547,14 @@ end
 
 -- Call this when UPDATE_SHAPESHIFT_FORM fires
 function TickTracker:OnShapeshiftChange()
-    local form = GetShapeshiftForm()
+    local form = C.GetDruidForm()
     local now = GetTime()
-    local wasInEnergyForm = (self.lastKnownForm == C.DRUID_FORM.CAT)
-    local nowInEnergyForm = (form == C.DRUID_FORM.CAT)
+    local wasInEnergyForm = (self.lastKnownForm == "CAT")
+    local nowInEnergyForm = (form == "CAT")
     
     -- Leaving cat form
     if wasInEnergyForm and not nowInEnergyForm then
-        TickLog(string.format("FORM left cat form (to form %d), lastTickTime was %.3f",
+        TickLog(string.format("FORM left cat form (to %s), lastTickTime was %.3f",
             form, self.lastEnergyTickTime))
         self.formChangeTime = now
     end
@@ -622,7 +622,7 @@ end
 -- Initialize/reset tracking (call this on PLAYER_ENTERING_WORLD)
 -- Resets tick confirmation since we can't trust timing across loading screens
 function TickTracker:InitFormTracking()
-    self.lastKnownForm = GetShapeshiftForm()
+    self.lastKnownForm = C.GetDruidForm()
     
     -- Reset energy tick state
     self.hasConfirmedTick = false  -- Reset confirmation - need to observe a real tick
@@ -638,5 +638,5 @@ function TickTracker:InitFormTracking()
     self.earliestPredictedFullTick = 0 -- Clear prediction tracking
     self.predictionAnchorTime = 0
     
-    TickLog(string.format("INIT tracking reset, current form=%d, waiting for confirmed ticks", self.lastKnownForm))
+    TickLog(string.format("INIT tracking reset, current form=%s, waiting for confirmed ticks", tostring(self.lastKnownForm)))
 end

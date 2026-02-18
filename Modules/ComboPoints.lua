@@ -31,8 +31,7 @@ function ComboPoints:UsesComboPoints()
     
     -- Druids use combo points in Cat Form
     if playerClass == C.CLASS.DRUID then
-        local form = GetShapeshiftForm()
-        return form == C.DRUID_FORM.CAT
+        return C.GetDruidForm() == "CAT"
     end
     
     return false

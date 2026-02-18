@@ -223,12 +223,11 @@ function CooldownIcons:OnPlayerEnteringWorld()
 end
 
 function CooldownIcons:OnShapeshiftFormChanged()
-    local C = self.C
-    local form = GetShapeshiftForm()
+    local form = self.C.GetDruidForm()
     local newFeralForm
-    if form == C.DRUID_FORM.CAT then
+    if form == "CAT" then
         newFeralForm = "CAT"
-    elseif form == C.DRUID_FORM.BEAR then
+    elseif form == "BEAR" then
         newFeralForm = "BEAR"
     end
     -- Only update if switching between cat/bear (ignore caster/travel/aquatic)
