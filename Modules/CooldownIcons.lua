@@ -423,26 +423,24 @@ end
 
 -- Check if a buff is active on the relevant unit (fallback for when AuraTracker doesn't track)
 -- Used for shared CD abilities and other buffs that need direct scanning
--- 
+--
 -- When checkSelfOnly is true: always checks player
 -- When checkSelfOnly is false: follows target context (ally if targeting ally, else self)
+-- spellData (optional): if provided and has appliesBuff, checks those buff IDs instead
 --
 -- Returns: isActive, remaining, duration, stacks
-function CooldownIcons:GetRelevantBuff(spellID, checkSelfOnly)
-    local spellName = GetSpellInfo(spellID)
-    if not spellName then return false, 0, 0, 0 end
-    
+function CooldownIcons:GetRelevantBuff(spellID, checkSelfOnly, spellData)
     -- Determine which unit to check
     local unit = "player"
-    
+
     if not checkSelfOnly then
         local db = addon.db.profile.icons
         local useTargettarget = db.auraTargettargetSupport
-        
+
         local targetExists = UnitExists("target")
         local targetIsEnemy = targetExists and UnitIsEnemy("player", "target")
         local targetIsFriend = targetExists and UnitIsFriend("player", "target")
-        
+
         if targetIsFriend then
             -- Targeting an ally - check them for the buff
             unit = "target"
@@ -455,7 +453,30 @@ function CooldownIcons:GetRelevantBuff(spellID, checkSelfOnly)
         end
         -- No target or neutral: fallback to self (already set)
     end
-    
+
+    -- If spell has appliesBuff (buff IDs differ from cast spell, e.g., Soulstone),
+    -- check those buff IDs on the unit instead of the cast spell name
+    if spellData and spellData.appliesBuff then
+        for _, buffID in ipairs(spellData.appliesBuff) do
+            local buffName = GetSpellInfo(buffID)
+            if buffName then
+                local aura = self.Utils:GetCachedBuff(unit, buffID, buffName)
+                if aura then
+                    local remaining = 0
+                    if aura.expirationTime and aura.expirationTime > 0 then
+                        remaining = aura.expirationTime - now
+                        if remaining < 0 then remaining = 0 end
+                    end
+                    return true, remaining, aura.duration or 0, aura.count or 0
+                end
+            end
+        end
+        return false, 0, 0, 0
+    end
+
+    local spellName = GetSpellInfo(spellID)
+    if not spellName then return false, 0, 0, 0 end
+
     local aura = self.Utils:GetCachedBuff(unit, spellID, spellName)
 
     if aura then
@@ -1705,7 +1726,7 @@ function CooldownIcons:UpdateIconState(frame, db)
         local shouldCheckBuff = true
         
         if shouldCheckBuff then
-            local isBuffActive, buffRemaining, buffDuration, buffStacks = self:GetRelevantBuff(actualSpellID, checkSelfOnly)
+            local isBuffActive, buffRemaining, buffDuration, buffStacks = self:GetRelevantBuff(actualSpellID, checkSelfOnly, spellData)
             if isBuffActive then
                 -- Always prefer buff data for permanent buffs (duration=0)
                 -- This handles Shadowform, Stealth, Aspects, etc. correctly

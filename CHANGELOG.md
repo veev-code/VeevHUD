@@ -1,5 +1,20 @@
 # VeevHUD Changelog
 
+## [1.0.101] - 2026-02-19
+
+### Fixed
+
+- **Soulstone not appearing in HUD or Spell Config** — Soulstone tracking (added in v1.0.96) was completely non-functional because the spell database used buff IDs ("Soulstone Resurrection") instead of the actual spellbook IDs ("Create Soulstone"). The spell now appears in the Utility row, shows the Soulstone Resurrection buff duration when active on an ally (with glow and countdown), and falls back to the item cooldown when the buff is not active. *(Thanks ChaosEternal, Deadlyy Dan for reporting)*
+- **Aura tracking for spells with `appliesBuff`** — AuraTracker now recognizes buff IDs from the `appliesBuff` field, enabling CLEU-based tracking for spells where the applied buff differs from the cast spell (e.g., Soulstone). The direct buff scan fallback (`GetRelevantBuff`) also checks `appliesBuff` IDs.
+
+### Changed
+
+- **Enhanced `/vh check` diagnostics** — The `/vh check <id>` command now shows per-rank `IsSpellKnown` results, item cooldown states (bag count, remaining CD), and applied buff IDs. This makes it easier for users to share diagnostic output when reporting tracking issues.
+
+### LibSpellDB Updates
+
+- Fixed Soulstone spell ID mismatch — canonical ID changed from 20707 (buff) to 693 (cast spell), ranks updated to actual spellbook IDs, added `appliesBuff` for buff tracking.
+
 ## [1.0.100] - 2026-02-18
 
 ### Fixed

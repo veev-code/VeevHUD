@@ -353,10 +353,10 @@ function SlashCommands:CheckSpell(spellIDStr)
         addon.Utils:Print("Usage: /vh check <spellID>")
         return
     end
-    
+
     local name = GetSpellInfo(spellID) or "Unknown"
     print("|cff00ff00Spell Check:|r " .. name .. " (" .. spellID .. ")")
-    
+
     local LibSpellDB = addon.LibSpellDB
     local spellData = LibSpellDB and LibSpellDB:GetSpellInfo(spellID)
     if spellData then
@@ -368,23 +368,33 @@ function SlashCommands:CheckSpell(spellIDStr)
     else
         print("  In LibSpellDB: |cffff0000no|r (spell not in database)")
     end
-    
+
     local playerSpec = LibSpellDB and LibSpellDB:GetPlayerSpec()
     print("  Detected spec: " .. (playerSpec or "unknown"))
-    
+
     if LibSpellDB and LibSpellDB.IsSpellRelevantForSpec then
         local relevant = LibSpellDB:IsSpellRelevantForSpec(spellID)
         print("  Relevant for spec: " .. tostring(relevant))
     end
-    
+
     local tracker = addon:GetModule("SpellTracker")
     if tracker then
         local known = tracker:IsSpellKnown(spellID, spellData or {})
         print("  IsSpellKnown: " .. tostring(known))
-        
+
+        -- Show per-rank known status for debugging spell ID mismatches
+        if spellData and spellData.ranks then
+            for _, rankID in ipairs(spellData.ranks) do
+                local rankName = GetSpellInfo(rankID) or "?"
+                local rankKnown = (IsSpellKnown and IsSpellKnown(rankID)) or (IsPlayerSpell and IsPlayerSpell(rankID)) or false
+                local color = rankKnown and "|cff00ff00" or "|cffff0000"
+                print(string.format("    Rank %d (%s): %s%s|r", rankID, rankName, color, tostring(rankKnown)))
+            end
+        end
+
         local isTracked = tracker:IsSpellTracked(spellID)
         print("  IsTracked: " .. tostring(isTracked))
-        
+
         local enabledTags = tracker:GetEnabledTags()
         local matchingTags = {}
         if spellData and spellData.tags then
@@ -399,10 +409,36 @@ function SlashCommands:CheckSpell(spellIDStr)
         else
             print("  Matching row tags: |cffff0000none|r (not in any enabled row)")
         end
-        
+
         if spellData and tracker.ShouldExcludeSpell then
             local excluded = tracker:ShouldExcludeSpell(spellData)
             print("  ShouldExclude: " .. tostring(excluded))
+        end
+    end
+
+    -- Item cooldown diagnostics
+    if spellData and spellData.cooldownItemIDs then
+        print("  |cff00ff00Item Cooldowns:|r")
+        for _, itemID in ipairs(spellData.cooldownItemIDs) do
+            local itemName = GetItemInfo(itemID)
+            local start, dur, enable = 0, 0, 0
+            if GetItemCooldown then
+                start, dur, enable = GetItemCooldown(itemID)
+            end
+            local remaining = (start and start > 0 and dur and dur > 0) and ((start + dur) - GetTime()) or 0
+            if remaining < 0 then remaining = 0 end
+            local inBags = GetItemCount and GetItemCount(itemID) or 0
+            print(string.format("    Item %d (%s): bags=%d, cd=%.0fs, dur=%.0fs",
+                itemID, itemName or "?", inBags, remaining, dur or 0))
+        end
+    end
+
+    -- Applied buff diagnostics
+    if spellData and spellData.appliesBuff then
+        print("  |cff00ff00Applied Buffs:|r")
+        for _, buffID in ipairs(spellData.appliesBuff) do
+            local buffName = GetSpellInfo(buffID) or "?"
+            print(string.format("    Buff %d: %s", buffID, buffName))
         end
     end
 end

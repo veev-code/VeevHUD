@@ -155,18 +155,42 @@ function AuraTracker:BuildAuraMappings()
                         duration = triggeredAura.duration,  -- Can be nil, will detect dynamically
                         tags = triggeredAura.tags or {},    -- Tags specific to this triggered aura
                     }
-                    
+
                     local auraID = auraInfo.spellID
                     self.auraToSpellMap[auraID] = canonicalID  -- Map to canonical ID
                     self.spellToAuraMap[canonicalID] = self.spellToAuraMap[canonicalID] or {}
                     table.insert(self.spellToAuraMap[canonicalID], auraInfo)
                     self.activeAuras[auraID] = self.activeAuras[auraID] or {}
-                    
+
                     local spellName = GetSpellInfo(spellID) or tostring(spellID)
                     self.Utils:LogInfo("AuraTracker: Pre-mapped aura for", spellName, "->", auraID, auraInfo.type)
                     count = count + 1
                 end
             end
+        end
+
+        -- Also map appliesBuff IDs (for spells where the buff differs from the cast spell,
+        -- e.g., Create Soulstone applies "Soulstone Resurrection" buff)
+        if spellData.appliesBuff then
+            local buffDuration = spellData.duration
+            for _, buffID in ipairs(spellData.appliesBuff) do
+                local auraInfo = {
+                    spellID = buffID,
+                    type = "BUFF",
+                    onTarget = true,
+                    isBuff = true,
+                    duration = buffDuration,
+                }
+
+                self.auraToSpellMap[buffID] = canonicalID
+                self.spellToAuraMap[canonicalID] = self.spellToAuraMap[canonicalID] or {}
+                table.insert(self.spellToAuraMap[canonicalID], auraInfo)
+                self.activeAuras[buffID] = self.activeAuras[buffID] or {}
+                count = count + 1
+            end
+
+            local spellName = GetSpellInfo(spellID) or tostring(spellID)
+            self.Utils:LogInfo("AuraTracker: Pre-mapped", #spellData.appliesBuff, "appliesBuff IDs for", spellName)
         end
     end
 
