@@ -87,6 +87,8 @@ local IsResting = IsResting
 local IsUsableSpell = IsUsableSpell
 local IsCurrentSpell = IsCurrentSpell
 local IsSpellOverlayed = IsSpellOverlayed
+local GetActionInfo = GetActionInfo
+local GetActionCooldown = GetActionCooldown
 local UnitGUID = UnitGUID
 local UnitPower = UnitPower
 local UnitPowerMax = UnitPowerMax
@@ -116,6 +118,79 @@ CooldownIcons.iconCounter = 0
 CooldownIcons.Masque = nil
 CooldownIcons.MasqueGroup = nil
 
+
+-------------------------------------------------------------------------------
+-- Action bar cooldown fallback for item-based cooldowns (e.g., Soulstone)
+-- GetItemCooldown() fails when the item is consumed. GetActionCooldown()
+-- works like the native action bar: it returns the cooldown even without
+-- the item in bags, and survives /reload.
+-------------------------------------------------------------------------------
+local HasAction = HasAction
+local GetActionTexture = GetActionTexture
+
+local function FindActionBarSlotForSpell(spellID, spellData)
+    local LibSpellDB = addon.LibSpellDB
+    if not LibSpellDB then return nil end
+
+    local rankSet = LibSpellDB:GetAllRankIDs(spellID)
+
+    -- Build item set for matching item-type action bar slots
+    local itemSet
+    if spellData and spellData.cooldownItemIDs then
+        itemSet = {}
+        for _, id in ipairs(spellData.cooldownItemIDs) do
+            itemSet[id] = true
+        end
+    end
+
+    -- Pass 1: Match by GetActionInfo type + ID.
+    -- Prefer the slot with an active cooldown (the spell "Create Soulstone" has no
+    -- cooldown, but the item does — if both are on the bar, pick the right one).
+    local fallbackSlot
+    for slot = 1, 120 do
+        local actionType, id = GetActionInfo(slot)
+        local isMatch = false
+        if actionType == "spell" and id and rankSet and rankSet[id] then
+            isMatch = true
+        elseif actionType == "item" and id and itemSet and itemSet[id] then
+            isMatch = true
+        end
+        if isMatch then
+            local start, dur = GetActionCooldown(slot)
+            if start and start > 0 and dur > 1.5 then
+                return slot  -- Has active cooldown — this is the one we want
+            end
+            fallbackSlot = fallbackSlot or slot
+        end
+    end
+
+    -- Pass 2: Match by icon texture (handles consumed items where GetActionInfo
+    -- may not return the expected type/id, but the slot still has the icon + cooldown).
+    -- Check both the spell icon and the item icons since they may differ.
+    local textures = {}
+    local spellTexture = GetSpellTexture(spellID)
+    if spellTexture then textures[spellTexture] = true end
+    if spellData and spellData.cooldownItemIDs then
+        for _, itemID in ipairs(spellData.cooldownItemIDs) do
+            local itemTexture = GetItemIcon(itemID)
+            if itemTexture then textures[itemTexture] = true end
+        end
+    end
+    for slot = 1, 120 do
+        if HasAction(slot) then
+            local texture = GetActionTexture(slot)
+            if texture and textures[texture] then
+                local start, dur = GetActionCooldown(slot)
+                if start and start > 0 and dur > 1.5 then
+                    return slot
+                end
+                fallbackSlot = fallbackSlot or slot
+            end
+        end
+    end
+
+    return fallbackSlot
+end
 
 -------------------------------------------------------------------------------
 -- Initialization
@@ -1268,8 +1343,8 @@ function CooldownIcons:PositionRowIcons(rowFrame, count, db)
                 if frame and frame:IsShown() then
                     local x = startX + (i - 1) * (iconWidth + spacing)
                     frame:ClearAllPoints()
-                    -- Use TOP anchor to match PositionFlowLayout behavior
                     frame:SetPoint("TOP", rowFrame, "TOP", x, 0)
+                    self.Animations:UpdatePunchBase(frame)
                 end
             end
         end
@@ -1284,6 +1359,7 @@ function CooldownIcons:PositionRowIcons(rowFrame, count, db)
                 local x = startX + (i - 1) * (iconWidth + spacing)
                 frame:ClearAllPoints()
                 frame:SetPoint("CENTER", rowFrame, "CENTER", x, 0)
+                self.Animations:UpdatePunchBase(frame)
             end
         end
     end
@@ -1341,6 +1417,7 @@ function CooldownIcons:PositionFlowLayout(rowFrame, count, iconWidth, iconHeight
                 local x = startX + (col - 1) * (iconWidth + spacing)
                 frame:ClearAllPoints()
                 frame:SetPoint("TOP", rowFrame, "TOP", x, yOffset)
+                self.Animations:UpdatePunchBase(frame)
             end
             iconIndex = iconIndex + 1
         end
@@ -1754,14 +1831,95 @@ function CooldownIcons:UpdateIconState(frame, db)
     -- Use actualSpellID (the rank the player knows) for WoW API calls
     local remaining, duration, cdEnabled, cdStartTime = self.Utils:GetSpellCooldown(actualSpellID)
 
-    -- Item cooldown fallback: for spells that create usable items (e.g., Soulstone),
-    -- the real cooldown is on the item, not the spell. Check via LibSpellDB.
-    if addon.LibSpellDB and not self.Utils:IsOnRealCooldown(remaining, duration) then
-        local itemRemaining, itemDuration, itemStartTime = addon.LibSpellDB:GetItemCooldown(spellData)
-        if itemRemaining then
-            remaining = itemRemaining
-            duration = itemDuration
-            cdStartTime = itemStartTime
+    -- Item cooldown fallback for spells that create usable items (e.g., Soulstone).
+    -- The spell itself has no cooldown — the cooldown is on the created item.
+    -- Challenge: the item is consumed when used, so GetItemCooldown() returns nil.
+    -- The native action bar handles this via GetActionCooldown() which works even
+    -- after the item is consumed. We use a three-tier approach:
+    --   Tier 1: GetItemCooldown — item still in bags (e.g., just created, not yet used)
+    --   Tier 2: GetActionCooldown — item consumed but spell/item on action bar
+    --   Tier 3: Frame cache — populated by Tier 1 or 2, bridges ticks/brief gaps
+
+    if spellData and spellData.cooldownItemIDs and not self.Utils:IsOnRealCooldown(remaining, duration) then
+        local foundCooldown = false
+
+        -- Tier 1: Direct item cooldown query (item in bags)
+        if addon.LibSpellDB then
+            local itemRemaining, itemDuration, itemStartTime = addon.LibSpellDB:GetItemCooldown(spellData)
+            if itemRemaining then
+                remaining = itemRemaining
+                duration = itemDuration
+                cdStartTime = itemStartTime
+                frame.itemCdStart = itemStartTime
+                frame.itemCdDuration = itemDuration
+                foundCooldown = true
+            end
+        end
+
+        -- Tier 2: Action bar cooldown (same mechanism the native bar uses)
+        if not foundCooldown then
+            -- Check cached slot first
+            local slot = frame.actionBarSlot
+            if slot then
+                local start, dur = GetActionCooldown(slot)
+                if start and start > 0 and dur > self.C.GCD_THRESHOLD then
+                    local actionRemaining = (start + dur) - now
+                    if actionRemaining > 0 then
+                        remaining = actionRemaining
+                        duration = dur
+                        cdStartTime = start
+                        frame.itemCdStart = start
+                        frame.itemCdDuration = dur
+                        foundCooldown = true
+                    end
+                end
+            end
+
+            -- If cached slot has no cooldown (or no slot yet), re-scan periodically.
+            -- The initial scan may have cached the spell slot (no CD) before the item
+            -- was used; re-scanning finds the item slot once its cooldown starts.
+            if not foundCooldown and (not frame.actionBarSlotNextScan or now >= frame.actionBarSlotNextScan) then
+                local newSlot = FindActionBarSlotForSpell(spellID, spellData)
+                if newSlot then
+                    frame.actionBarSlot = newSlot
+                    local start, dur = GetActionCooldown(newSlot)
+                    if start and start > 0 and dur > self.C.GCD_THRESHOLD then
+                        local actionRemaining = (start + dur) - now
+                        if actionRemaining > 0 then
+                            remaining = actionRemaining
+                            duration = dur
+                            cdStartTime = start
+                            frame.itemCdStart = start
+                            frame.itemCdDuration = dur
+                            foundCooldown = true
+                        end
+                    end
+                end
+                frame.actionBarSlotNextScan = now + 1
+            end
+        end
+
+        -- Populate cache from active aura timing when no other source found.
+        -- For item-cooldown spells (e.g., Soulstone), the cooldown starts when the
+        -- item is used — the same moment the buff is applied. We derive the cooldown
+        -- start time from the buff's timing so the cache is ready when the buff ends.
+        if not foundCooldown and not frame.itemCdStart
+            and auraActive and auraDuration > 0 and auraRemaining > 0 then
+            frame.itemCdStart = now - (auraDuration - auraRemaining)
+            frame.itemCdDuration = auraDuration
+        end
+
+        -- Tier 3: Frame cache (bridges gaps if action bar scan not ready yet)
+        if not foundCooldown and frame.itemCdStart and frame.itemCdDuration then
+            local cachedRemaining = (frame.itemCdStart + frame.itemCdDuration) - now
+            if cachedRemaining > 0 then
+                remaining = cachedRemaining
+                duration = frame.itemCdDuration
+                cdStartTime = frame.itemCdStart
+            else
+                frame.itemCdStart = nil
+                frame.itemCdDuration = nil
+            end
         end
     end
 

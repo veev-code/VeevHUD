@@ -75,6 +75,27 @@ function BuffReminders:GetSpellDefaults(spellID)
         combatState = COMBAT_STATE.ANY,
         trackTarget = TRACK_TARGET.PLAYER,
     }
+
+    -- Spec relevance: disable by default for spells not relevant to current spec
+    if defaults.enabled and LibSpellDB.IsSpellRelevantForSpec then
+        if not LibSpellDB:IsSpellRelevantForSpec(spellID) then
+            defaults.enabled = false
+        end
+    end
+
+    -- excludeIfKnown: disable if player knows any conflicting spell
+    -- (e.g., Soul Link knowledge disables Demonic Sacrifice reminder)
+    if defaults.enabled and spellData.buffGroup then
+        local groupInfo = LibSpellDB.BuffGroups[spellData.buffGroup]
+        if groupInfo and groupInfo.excludeIfKnown then
+            for _, excludeID in ipairs(groupInfo.excludeIfKnown) do
+                if IsSpellKnown(excludeID) then
+                    defaults.enabled = false
+                    break
+                end
+            end
+        end
+    end
     
     -- Determine combat state default:
     -- Purgeable + long duration (>= 5 min): default OOC
@@ -125,16 +146,19 @@ function BuffReminders:GetSpellDefaults(spellID)
 end
 
 -- Get effective config for a spell (user override merged with defaults)
+-- Config is stored per-spec: spellConfig[specKey][spellID]
 function BuffReminders:GetSpellConfig(spellID)
     local defaults = self:GetSpellDefaults(spellID)
     if not defaults then return nil end
-    
+
     local db = addon.db and addon.db.profile and addon.db.profile.buffReminders
     if not db then return defaults end
-    
-    local userConfig = db.spellConfig[spellID]
+
+    local specKey = addon.Database:GetSpecKey()
+    local specConfig = specKey and db.spellConfig[specKey]
+    local userConfig = specConfig and specConfig[spellID]
     if not userConfig then return defaults end
-    
+
     -- Merge user overrides onto defaults
     local config = {}
     for k, v in pairs(defaults) do
@@ -143,7 +167,7 @@ function BuffReminders:GetSpellConfig(spellID)
     for k, v in pairs(userConfig) do
         config[k] = v
     end
-    
+
     return config
 end
 
@@ -211,23 +235,12 @@ function BuffReminders:BuildReminderList()
                 end
             end
         else
-            -- Non-grouped spell: add directly
-            local shouldAdd = true
-            
-            -- Skip spells that are not relevant for current spec
-            if spellData.specs and self.LibSpellDB.IsSpellRelevantForSpec then
-                if not self.LibSpellDB:IsSpellRelevantForSpec(spellID) then
-                    shouldAdd = false
-                end
-            end
-            
-            if shouldAdd then
-                table.insert(self.reminders, {
-                    spellID = spellID,
-                    spellData = spellData,
-                    buffGroup = nil,
-                })
-            end
+            -- Non-grouped spell: add directly (spec filtering handled by defaults)
+            table.insert(self.reminders, {
+                spellID = spellID,
+                spellData = spellData,
+                buffGroup = nil,
+            })
         end
     end
     
@@ -838,6 +851,13 @@ function BuffReminders:ShouldRemind(reminder)
         end
     end
     
+    -- Pet requirement check (e.g., Soul Link requires an alive pet)
+    if self.LibSpellDB:HasTag(spellID, "REQUIRES_PET") then
+        if not UnitExists("pet") or UnitIsDead("pet") then
+            return false
+        end
+    end
+
     -- Spell-based weapon enchants (shaman imbues) pass through IsSpellKnown/IsUsableSpell above,
     -- then check actual enchant status via GetWeaponEnchantInfo instead of UnitBuff.
     if spellData.weaponEnchant then
@@ -1137,9 +1157,11 @@ function BuffReminders:GetBestSpellForGroup(groupName, defaultSpellID)
         -- suggest a different uncovered spell from the group instead.
         local db = addon.db and addon.db.profile and addon.db.profile.buffReminders
         local prioritySpellID = nil
-        if db and db.spellConfig then
+        local specKey = addon.Database:GetSpecKey()
+        local specConfig = specKey and db and db.spellConfig[specKey]
+        if specConfig then
             for _, gSpellID in ipairs(groupInfo.spells) do
-                local cfg = db.spellConfig[gSpellID]
+                local cfg = specConfig[gSpellID]
                 if cfg and cfg.priority then
                     local hr = self.LibSpellDB:GetHighestKnownRank(cfg.priority)
                     if hr and IsSpellKnown(hr) then
@@ -1315,6 +1337,12 @@ function BuffReminders:OnSpellsChanged()
     -- Rebuild reminder list when spells change (leveling, respec)
     self:BuildReminderList()
     self:ThrottledUpdate()
+
+    -- Rebuild Options UI spell list (spec key may have changed)
+    local options = addon:GetModule("Options")
+    if options and options.RebuildBuffReminderSpellArgs then
+        options:RebuildBuffReminderSpellArgs()
+    end
 end
 
 -------------------------------------------------------------------------------

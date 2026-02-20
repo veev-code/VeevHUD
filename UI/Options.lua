@@ -1669,7 +1669,7 @@ function Options:BuildOptionsTable()
 			spells = {
 				type = "group",
 				name = "Spells",
-				order = 5,
+				order = 7,
 				args = {
 					_desc = {
 						type = "description",
@@ -1762,32 +1762,26 @@ function Options:BuildOptionsTable()
 	resourceArgs.druidManaBar = barsArgs.druidManaBar
 	barsArgs.druidManaBar = nil
 
-	-- Create Modules tab: Proc Tracker, Totem Bar, Buff Reminders
-	barsArgs.procs.order = 1
-	barsArgs.totembar.order = 2
+	-- Promote Proc Tracker, Totem Bar, Buff Reminders to top-level tabs
+	barsArgs.procs.order = 4
+	optionsTable.args.procs = barsArgs.procs
+	barsArgs.procs = nil
+
+	barsArgs.totembar.order = 5
+	optionsTable.args.totembar = barsArgs.totembar
+	barsArgs.totembar = nil
+
 	local buffRemindersOpts = self:BuildBuffRemindersOptions()
 	if buffRemindersOpts then
-		buffRemindersOpts.order = 3
+		buffRemindersOpts.order = 6
+		optionsTable.args.buffReminders = buffRemindersOpts
 	end
-	optionsTable.args.modules = {
-		type = "group",
-		name = "Modules",
-		childGroups = "tab",
-		order = 4,
-		args = {
-			procs = barsArgs.procs,
-			totembar = barsArgs.totembar,
-			buffReminders = buffRemindersOpts,
-		},
-	}
-	barsArgs.procs = nil
-	barsArgs.totembar = nil
 
 	-- Create Advanced tab from Layout
 	optionsTable.args.advanced = {
 		type = "group",
 		name = "Layout",
-		order = 6,
+		order = 8,
 		args = layoutArgs,
 	}
 
@@ -1834,9 +1828,26 @@ function Options:BuildBuffRemindersOptions()
 		local playerClass = addon.playerClass
 		if not playerClass then return args end
 
+		-- Per-spec config helpers
+		local specKey = addon.Database:GetSpecKey()
+
+		local function getBRSpellConfig(sid)
+			local db = addon.db and addon.db.profile and addon.db.profile.buffReminders
+			local sc = specKey and db and db.spellConfig[specKey]
+			return sc and sc[sid]
+		end
+
+		local function setBRSpellConfig(sid, field, value)
+			local db = addon.db and addon.db.profile and addon.db.profile.buffReminders
+			if not db or not specKey then return end
+			if not db.spellConfig[specKey] then db.spellConfig[specKey] = {} end
+			if not db.spellConfig[specKey][sid] then db.spellConfig[specKey][sid] = {} end
+			db.spellConfig[specKey][sid][field] = value
+		end
+
 		local longBuffs = LibSpellDB:GetSpellsByClassAndTag(playerClass, "LONG_BUFF")
 		local seenGroups = {}
-		local order = 1
+		local order = 10
 
 		-- Build deduplicated list, resolving groups to canonical representatives
 		local entries = {}
@@ -1859,6 +1870,50 @@ function Options:BuildBuffRemindersOptions()
 			else
 				table.insert(entries, { spellID = spellID, data = spellData, groupName = nil })
 			end
+		end
+
+		-- Always filter out spells for other races (a Dwarf can never cast Shadowguard)
+		do
+			local filteredEntries = {}
+			for _, entry in ipairs(entries) do
+				if LibSpellDB:IsRaceRelevant(entry.spellID) then
+					table.insert(filteredEntries, entry)
+				end
+			end
+			entries = filteredEntries
+		end
+
+		-- Filter to only known spells when showOnlyKnown is enabled
+		if addon.db.profile.buffReminders.showOnlyKnown then
+			local knownEntries = {}
+			for _, entry in ipairs(entries) do
+				local known = false
+				if entry.groupName then
+					local groupInfo = LibSpellDB.BuffGroups[entry.groupName]
+					if groupInfo then
+						if groupInfo.talentGate then
+							known = IsSpellKnown(groupInfo.talentGate)
+						elseif groupInfo.weaponEnchant and groupInfo.itemBased then
+							known = UnitLevel("player") >= (groupInfo.minLevel or 1)
+						else
+							for _, gSpellID in ipairs(groupInfo.spells) do
+								local hr = LibSpellDB:GetHighestKnownRank(gSpellID)
+								if hr and IsSpellKnown(hr) then
+									known = true
+									break
+								end
+							end
+						end
+					end
+				else
+					local hr = LibSpellDB:GetHighestKnownRank(entry.spellID)
+					known = hr and IsSpellKnown(hr)
+				end
+				if known then
+					table.insert(knownEntries, entry)
+				end
+			end
+			entries = knownEntries
 		end
 
 		-- Sort: enabled-by-default first, then alphabetically by display name
@@ -1906,9 +1961,9 @@ function Options:BuildBuffRemindersOptions()
 
 				-- Shared disabled check: grey out settings when this reminder is disabled
 				local function isSpellDisabled()
-					local db = addon.db and addon.db.profile and addon.db.profile.buffReminders
-					if db and db.spellConfig[spellID] and db.spellConfig[spellID].enabled ~= nil then
-						return not db.spellConfig[spellID].enabled
+					local cfg = getBRSpellConfig(spellID)
+					if cfg and cfg.enabled ~= nil then
+						return not cfg.enabled
 					end
 					return not defaultEnabled
 				end
@@ -1924,17 +1979,14 @@ function Options:BuildBuffRemindersOptions()
 							name = "Enabled",
 							desc = "Enable or disable this buff reminder.",
 							get = function()
-								local db = addon.db and addon.db.profile and addon.db.profile.buffReminders
-								if db and db.spellConfig[spellID] and db.spellConfig[spellID].enabled ~= nil then
-									return db.spellConfig[spellID].enabled
+								local cfg = getBRSpellConfig(spellID)
+								if cfg and cfg.enabled ~= nil then
+									return cfg.enabled
 								end
 								return defaultEnabled
 							end,
 							set = function(_, value)
-								local db = addon.db and addon.db.profile and addon.db.profile.buffReminders
-								if not db then return end
-								if not db.spellConfig[spellID] then db.spellConfig[spellID] = {} end
-								db.spellConfig[spellID].enabled = value
+								setBRSpellConfig(spellID, "enabled", value)
 								Options:ApplySettingChange("buffReminders.spellConfig")
 							end,
 							order = 1,
@@ -1948,17 +2000,14 @@ function Options:BuildBuffRemindersOptions()
 							hidden = not spellData.duration or spellData.duration == 0,  -- Hide for permanent auras/toggles
 							disabled = isSpellDisabled,
 							get = function()
-								local db = addon.db and addon.db.profile and addon.db.profile.buffReminders
-								if db and db.spellConfig[spellID] and db.spellConfig[spellID].timeRemaining then
-									return db.spellConfig[spellID].timeRemaining
+								local cfg = getBRSpellConfig(spellID)
+								if cfg and cfg.timeRemaining then
+									return cfg.timeRemaining
 								end
 								return 0
 							end,
 							set = function(_, value)
-								local db = addon.db and addon.db.profile and addon.db.profile.buffReminders
-								if not db then return end
-								if not db.spellConfig[spellID] then db.spellConfig[spellID] = {} end
-								db.spellConfig[spellID].timeRemaining = value
+								setBRSpellConfig(spellID, "timeRemaining", value)
 								Options:ApplySettingChange("buffReminders.spellConfig")
 							end,
 							order = 2,
@@ -1971,17 +2020,14 @@ function Options:BuildBuffRemindersOptions()
 							values = combatStateValues,
 							disabled = isSpellDisabled,
 							get = function()
-								local db = addon.db and addon.db.profile and addon.db.profile.buffReminders
-								if db and db.spellConfig[spellID] and db.spellConfig[spellID].combatState then
-									return db.spellConfig[spellID].combatState
+								local cfg = getBRSpellConfig(spellID)
+								if cfg and cfg.combatState then
+									return cfg.combatState
 								end
 								return defaultCombatState
 							end,
 							set = function(_, value)
-								local db = addon.db and addon.db.profile and addon.db.profile.buffReminders
-								if not db then return end
-								if not db.spellConfig[spellID] then db.spellConfig[spellID] = {} end
-								db.spellConfig[spellID].combatState = value
+								setBRSpellConfig(spellID, "combatState", value)
 								Options:ApplySettingChange("buffReminders.spellConfig")
 							end,
 							order = 4,
@@ -1996,17 +2042,14 @@ function Options:BuildBuffRemindersOptions()
 							hidden = not (defaults and defaults.groupTrackable),  -- Hide for self-only buffs / weapon enchants
 							disabled = isSpellDisabled,
 							get = function()
-								local db = addon.db and addon.db.profile and addon.db.profile.buffReminders
-								if db and db.spellConfig[spellID] and db.spellConfig[spellID].trackTarget then
-									return db.spellConfig[spellID].trackTarget
+								local cfg = getBRSpellConfig(spellID)
+								if cfg and cfg.trackTarget then
+									return cfg.trackTarget
 								end
 								return defaultTrackTarget
 							end,
 							set = function(_, value)
-								local db = addon.db and addon.db.profile and addon.db.profile.buffReminders
-								if not db then return end
-								if not db.spellConfig[spellID] then db.spellConfig[spellID] = {} end
-								db.spellConfig[spellID].trackTarget = value
+								setBRSpellConfig(spellID, "trackTarget", value)
 								Options:ApplySettingChange("buffReminders.spellConfig")
 							end,
 							order = 5,
@@ -2026,17 +2069,14 @@ function Options:BuildBuffRemindersOptions()
 							min = 0, max = 25, step = 1,
 							disabled = isSpellDisabled,
 							get = function()
-								local db = addon.db and addon.db.profile and addon.db.profile.buffReminders
-								if db and db.spellConfig[spellID] and db.spellConfig[spellID].minStacks then
-									return db.spellConfig[spellID].minStacks
+								local cfg = getBRSpellConfig(spellID)
+								if cfg and cfg.minStacks then
+									return cfg.minStacks
 								end
 								return 0
 							end,
 							set = function(_, value)
-								local db = addon.db and addon.db.profile and addon.db.profile.buffReminders
-								if not db then return end
-								if not db.spellConfig[spellID] then db.spellConfig[spellID] = {} end
-								db.spellConfig[spellID].minStacks = value
+								setBRSpellConfig(spellID, "minStacks", value)
 								Options:ApplySettingChange("buffReminders.spellConfig")
 							end,
 							order = 3,
@@ -2083,17 +2123,14 @@ function Options:BuildBuffRemindersOptions()
 							sorting = prioritySorting,
 							disabled = isSpellDisabled,
 							get = function()
-								local db = addon.db and addon.db.profile and addon.db.profile.buffReminders
-								if db and db.spellConfig[spellID] and db.spellConfig[spellID].priority then
-									return db.spellConfig[spellID].priority
+								local cfg = getBRSpellConfig(spellID)
+								if cfg and cfg.priority then
+									return cfg.priority
 								end
 								return defaultPriority
 							end,
 							set = function(_, value)
-								local db = addon.db and addon.db.profile and addon.db.profile.buffReminders
-								if not db then return end
-								if not db.spellConfig[spellID] then db.spellConfig[spellID] = {} end
-								db.spellConfig[spellID].priority = value
+								setBRSpellConfig(spellID, "priority", value)
 								Options:ApplySettingChange("buffReminders.spellConfig")
 							end,
 							order = 11,
@@ -2135,8 +2172,46 @@ function Options:BuildBuffRemindersOptions()
 			end
 		end
 
+		-- Spec indicator at top of spell list
+		args["specIndicator"] = {
+			type = "description",
+			name = function()
+				local sk = addon.Database:GetSpecKey()
+				if sk then
+					return "|cff888888Current spec: " .. sk:gsub("_", " ") .. "|r"
+				end
+				return "|cff888888Spec not yet detected|r"
+			end,
+			fontSize = "medium",
+			order = 1,
+			width = "full",
+		}
+
+		-- Add "show only known" toggle at top of spell list
+		args["showOnlyKnown"] = {
+			type = "toggle",
+			name = "Show Only Known Spells",
+			desc = "When enabled, only spells you currently know are shown in this list. Disable to see all class buff spells, including ones you haven't learned yet.",
+			get = function()
+				return addon.db.profile.buffReminders.showOnlyKnown
+			end,
+			set = function(_, value)
+				addon.Database:SetOverride("buffReminders.showOnlyKnown", value)
+				Options:ApplySettingChange("buffReminders.showOnlyKnown")
+				-- Rebuild the spell list in-place so the UI reflects the new filter
+				Options:RebuildBuffReminderSpellArgs()
+			end,
+			order = 2,
+			width = "full",
+		}
+
 		return args
 	end
+
+	-- Store the spells args table so it can be rebuilt when showOnlyKnown toggles
+	local spellsArgs = buildSpellArgs()
+	self._buffReminderSpellArgs = spellsArgs
+	self._buildBuffReminderSpellArgs = buildSpellArgs
 
 	return {
 		type = "group",
@@ -2304,10 +2379,33 @@ function Options:BuildBuffRemindersOptions()
 					local db = addon.db and addon.db.profile
 					return db and not db.buffReminders.enabled
 				end,
-				args = buildSpellArgs(),
+				args = spellsArgs,
 			},
 		},
 	}
+end
+
+-- Refresh on profile/spec change — rebuild per-spec spell args
+function Options:Refresh()
+	self:RebuildBuffReminderSpellArgs()
+end
+
+-- Rebuild the buff reminder spell list in-place (called when showOnlyKnown toggles or spec changes)
+function Options:RebuildBuffReminderSpellArgs()
+	local argsTable = self._buffReminderSpellArgs
+	local buildFn = self._buildBuffReminderSpellArgs
+	if not argsTable or not buildFn then return end
+
+	wipe(argsTable)
+	local newArgs = buildFn()
+	for k, v in pairs(newArgs) do
+		argsTable[k] = v
+	end
+
+	local AceConfigRegistry = LibStub and LibStub("AceConfigRegistry-3.0", true)
+	if AceConfigRegistry then
+		AceConfigRegistry:NotifyChange("VeevHUD")
+	end
 end
 
 function Options:Register()

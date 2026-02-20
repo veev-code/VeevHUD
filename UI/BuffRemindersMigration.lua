@@ -1,11 +1,16 @@
 --[[
-    VeevHUD - Buff Reminders Migration Notice
-    
-    Shows a one-time popup to existing users informing them about the new
-    Buff Reminders feature and how to configure or disable it.
+    VeevHUD - Buff Reminders Migration Notices
+
+    1. buff_reminders_v1: Informs existing users about the new Buff Reminders feature.
+    2. buff_reminders_per_spec_v1: Migrates flat spellConfig to per-spec format
+       across ALL profiles proactively.
 ]]
 
 local ADDON_NAME, addon = ...
+
+-------------------------------------------------------------------------------
+-- Migration 1: New Feature Announcement
+-------------------------------------------------------------------------------
 
 addon.MigrationManager:Register({
     id = "buff_reminders_v1",
@@ -45,4 +50,74 @@ addon.MigrationManager:Register({
             action = nil,  -- Just dismiss
         },
     },
+})
+
+-------------------------------------------------------------------------------
+-- Migration 2: Flat spellConfig → Per-Spec Format
+-------------------------------------------------------------------------------
+
+--[[
+    Old format: buffReminders.spellConfig[spellID] = { enabled, ... }
+    New format: buffReminders.spellConfig[specKey][spellID] = { enabled, ... }
+
+    Proactively migrates ALL profiles in the SavedVariable. Flat numeric keys
+    are moved under the current character's specKey. For profiles belonging to
+    other characters, this is a best-effort migration — the entries are filed
+    under the current specKey. If the profile is later used by a different
+    class/spec, those entries simply won't match and will be ignored (the
+    defaults system handles the common case).
+]]
+
+-- Scan a single profile's buffReminders.spellConfig for flat numeric keys.
+-- Returns a table of {[spellID] = config} entries, or nil if none found.
+local function findFlatEntries(profileData)
+    local br = profileData and profileData.buffReminders
+    if not br or not br.spellConfig then return nil end
+
+    local entries = {}
+    local found = false
+    for k, v in pairs(br.spellConfig) do
+        if type(k) == "number" then
+            entries[k] = v
+            found = true
+        end
+    end
+    return found and entries or nil
+end
+
+-- Migrate flat entries in a profile's spellConfig under the given specKey.
+local function migrateProfile(profileData, specKey)
+    local entries = findFlatEntries(profileData)
+    if not entries then return false end
+
+    local sc = profileData.buffReminders.spellConfig
+    if not sc[specKey] then sc[specKey] = {} end
+    for spellID, config in pairs(entries) do
+        sc[specKey][spellID] = config
+        sc[spellID] = nil
+    end
+    return true
+end
+
+addon.MigrationManager:Register({
+    id = "buff_reminders_per_spec_v1",
+    silent = true,
+    check = function()
+        -- Need a specKey to file entries under
+        local specKey = addon.Database:GetSpecKey()
+        if not specKey then return false end
+
+        local profiles = VeevHUDDB and VeevHUDDB.profiles
+        if not profiles then return false end
+
+        local migrated = false
+        for profileName, profileData in pairs(profiles) do
+            if migrateProfile(profileData, specKey) then
+                addon.Utils:LogInfo("Migration: Migrated buffReminders.spellConfig to per-spec in profile '" .. profileName .. "' (" .. specKey .. ")")
+                migrated = true
+            end
+        end
+
+        return migrated
+    end,
 })

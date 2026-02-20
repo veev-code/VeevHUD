@@ -865,14 +865,18 @@ function ResourceBar:GetQueuedSpellCost()
     local CooldownIcons = addon:GetModule("CooldownIcons")
     if not CooldownIcons then return 0 end
 
+    local LibSpellDB = addon.LibSpellDB
+
     local totalCost = 0
     for _, icons in pairs(CooldownIcons.iconsByRow or {}) do
         for _, frame in ipairs(icons) do
-            if frame.actualSpellID and IsCurrentSpell(frame.actualSpellID) then
-                -- Skip if already counted as a casting or channeling spell
-                if frame.actualSpellID ~= self.castingSpellID
-                   and frame.actualSpellID ~= self.channelingSpellID then
-                    totalCost = totalCost + self:GetSpellResourceCost(frame.actualSpellID)
+            local sid = frame.actualSpellID
+            if sid and IsCurrentSpell(sid) then
+                -- Pet summons stay "current" permanently after casting; skip them
+                if LibSpellDB and LibSpellDB:HasTag(sid, "PET_SUMMON") then
+                    -- skip
+                elseif sid ~= self.castingSpellID and sid ~= self.channelingSpellID then
+                    totalCost = totalCost + self:GetSpellResourceCost(sid)
                 end
             end
         end

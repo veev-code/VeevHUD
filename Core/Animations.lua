@@ -152,34 +152,32 @@ end
 
 -- SetScale() multiplies anchor offsets by the scale factor, which causes frames
 -- to drift away from (or toward) their anchor origin during scaling. These
--- helpers adjust offsets each frame to keep the effective visual position fixed.
+-- helpers adjust offsets to keep the effective visual position fixed.
 --
--- Stateless: computes compensation from current scale/offset so external
--- repositioning (e.g., ProcTracker re-centering icons) is handled correctly.
+-- Uses saved base offsets (captured at punch start) so that external
+-- repositioning during a punch (e.g., layout refresh, icon reordering)
+-- cannot corrupt the final position.
 
 -- Apply scale while keeping the frame's effective visual position fixed.
--- Math: effectiveOffset = storedOffset * scale  (must stay constant)
---       newOffset = currentOffset * (currentScale / newScale)
-local function ApplyPunchScale(frame, newScale)
-    local oldScale = frame:GetScale()
-    local point, relativeTo, relativePoint, xOfs, yOfs = frame:GetPoint(1)
-    frame:SetScale(newScale)
-    if point then
-        local ratio = oldScale / newScale
-        frame:SetPoint(point, relativeTo, relativePoint,
-            (xOfs or 0) * ratio, (yOfs or 0) * ratio)
+-- Math: to achieve effective position P at scale S, set offset = P / S.
+local function ApplyPunchScale(frame, newScale, state)
+    if not state or not state.basePoint then
+        frame:SetScale(newScale)
+        return
     end
+    frame:SetScale(newScale)
+    frame:ClearAllPoints()
+    frame:SetPoint(state.basePoint, state.baseRelativeTo, state.baseRelativePoint,
+        state.baseXOfs / newScale, state.baseYOfs / newScale)
 end
 
--- Reset frame to scale 1 and restore the correct offset.
-local function ResetPunchScale(frame)
-    local oldScale = frame:GetScale()
-    local point, relativeTo, relativePoint, xOfs, yOfs = frame:GetPoint(1)
+-- Reset frame to scale 1 and restore the saved base offset.
+local function ResetPunchScale(frame, state)
     frame:SetScale(1)
-    if point then
-        -- At scale 1, stored offset = effective offset = currentOffset * oldScale
-        frame:SetPoint(point, relativeTo, relativePoint,
-            (xOfs or 0) * oldScale, (yOfs or 0) * oldScale)
+    if state and state.basePoint then
+        frame:ClearAllPoints()
+        frame:SetPoint(state.basePoint, state.baseRelativeTo, state.baseRelativePoint,
+            state.baseXOfs, state.baseYOfs)
     end
 end
 
@@ -206,13 +204,13 @@ punchDriver:SetScript("OnUpdate", function(self, elapsed)
             -- Smoothly scale back to 1.0
             local progress = state.elapsed / state.downDur
             if progress >= 1 then
-                ResetPunchScale(frame)
+                ResetPunchScale(frame, state)
                 self.active[frame] = nil
             else
                 -- Quadratic ease-out: fast start, smooth deceleration
                 local eased = progress * (2 - progress)
                 local s = state.targetScale
-                ApplyPunchScale(frame, s + (1 - s) * eased)
+                ApplyPunchScale(frame, s + (1 - s) * eased, state)
                 hasActive = true
             end
         end
@@ -234,8 +232,9 @@ function Animations:PlayScalePunch(frame, scale, cacheKey)
     scale = scale or 1.15
 
     -- Cancel any in-progress punch on this frame
-    if punchDriver.active[frame] then
-        ResetPunchScale(frame)
+    local oldState = punchDriver.active[frame]
+    if oldState then
+        ResetPunchScale(frame, oldState)
         punchDriver.active[frame] = nil
     end
 
@@ -246,17 +245,27 @@ function Animations:PlayScalePunch(frame, scale, cacheKey)
         frame[cacheKey] = nil
     end
 
-    -- Phase 1: Immediately scale up (the visual "punch")
-    ApplyPunchScale(frame, scale)
+    -- Save the base anchor before scaling so we can always restore correctly,
+    -- even if layout repositions the frame during the animation.
+    local point, relativeTo, relativePoint, xOfs, yOfs = frame:GetPoint(1)
 
-    -- Register for animated scale-down
-    punchDriver.active[frame] = {
+    -- Register for animated scale-down (must exist before ApplyPunchScale)
+    local state = {
         phase = "up",
         elapsed = 0,
         targetScale = scale,
         upDur = 0.08,   -- Hold at peak scale
         downDur = 0.12,  -- Smooth return to normal
+        basePoint = point,
+        baseRelativeTo = relativeTo,
+        baseRelativePoint = relativePoint,
+        baseXOfs = xOfs or 0,
+        baseYOfs = yOfs or 0,
     }
+    punchDriver.active[frame] = state
+
+    -- Phase 1: Immediately scale up (the visual "punch")
+    ApplyPunchScale(frame, scale, state)
 
     punchDriver:Show()
 end
@@ -265,9 +274,35 @@ end
 function Animations:StopScalePunch(frame)
     if not frame then return end
 
-    if punchDriver.active[frame] then
-        ResetPunchScale(frame)
+    local state = punchDriver.active[frame]
+    if state then
+        ResetPunchScale(frame, state)
         punchDriver.active[frame] = nil
+    end
+end
+
+-- Update the saved base offset for an active punch.
+-- Call this after layout repositions a frame so the punch animates
+-- at the new position instead of snapping back to the old one.
+function Animations:UpdatePunchBase(frame)
+    local state = punchDriver.active[frame]
+    if not state then return end
+
+    local point, relativeTo, relativePoint, xOfs, yOfs = frame:GetPoint(1)
+    if not point then return end
+
+    -- Layout just set the raw intended position; adopt it as the new base
+    state.basePoint = point
+    state.baseRelativeTo = relativeTo
+    state.baseRelativePoint = relativePoint
+    state.baseXOfs = xOfs or 0
+    state.baseYOfs = yOfs or 0
+
+    -- Re-apply scale compensation at the updated position
+    local currentScale = frame:GetScale()
+    if currentScale ~= 1 then
+        frame:SetPoint(point, relativeTo, relativePoint,
+            (xOfs or 0) / currentScale, (yOfs or 0) / currentScale)
     end
 end
 

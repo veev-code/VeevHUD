@@ -16,7 +16,10 @@
             buttons = {
                 { text = "Do Something", action = function(extraData) ... end },
                 { text = "Dismiss", action = nil },  -- nil action = just close
-            }
+            },
+            -- Optional: silent = true runs check() but never shows a popup.
+            -- Use for data migrations that don't need user attention.
+            silent = true,
         })
 ]]
 
@@ -211,10 +214,13 @@ function MigrationManager:ShowNext()
                 shouldShow, extraData = migration.check()
             end
             
-            if shouldShow then
+            if shouldShow and not migration.silent then
                 local dialog = self:ConfigureDialog(migration, extraData)
                 dialog:Show()
                 return true
+            elseif shouldShow then
+                -- Silent migration: mark as done without showing a popup
+                migrationsShown[migration.id] = true
             else
                 -- Migration doesn't apply, mark as shown so we don't check again
                 migrationsShown[migration.id] = true

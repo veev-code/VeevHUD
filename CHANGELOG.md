@@ -1,5 +1,30 @@
 # VeevHUD Changelog
 
+## [1.0.102] - 2026-02-19
+
+### Added
+- **Buff Reminders: Per-Spec Settings** — Buff reminder overrides (enabled/disabled, thresholds, combat state, etc.) are now stored per spec. Disabling Battle Shout for Protection no longer affects Fury. Existing overrides are silently migrated to your current spec on first load.
+- **Buff Reminders: Spec-Aware Defaults** — Spells that aren't relevant to your current spec are now disabled by default (e.g., Righteous Fury for Holy/Ret paladins). Defaults are computed using LibSpellDB's spec and race relevance checks.
+- **Buff Reminders: Show Only Known Spells** — New toggle in the Spells tab filters the list to only spells you currently know (enabled by default). Uncheck to see all class buff spells, including unlearned ones. Race-restricted spells from other races are always hidden.
+- **Buff Reminders: Spec Indicator** — The Spells tab now shows your current spec in grey text at the top, matching the Spell Configuration window.
+- **Warlock: Soul Link Buff Reminder** — SL/SL warlocks now get a buff reminder for Soul Link. Requires an alive pet (reminder suppressed when pet is dead or dismissed).
+- **Warlock: Demonic Sacrifice Smart Defaults** — If you know Soul Link or Summon Felguard, the Demonic Sacrifice buff reminder defaults to disabled (since you keep your pet alive). DS/Ruin warlocks still get the reminder.
+- **Soulstone: Action Bar Cooldown Fallback** — When the Soulstone item is consumed, VeevHUD now reads the cooldown from the action bar (the same mechanism Blizzard's native bars use). This works even after `/reload` and without the item in bags. For players without the item on their action bar, the cooldown is derived from the buff timing.
+
+### Changed
+- **Options: Flattened Tab Layout** — Proc Tracker, Totem Bar, and Buff Reminders are now top-level tabs instead of nested under a "Modules" category, making them easier to discover.
+
+### Fixed
+- **Scale Punch Animation Drift** — Fixed icon "jump to the left then back" during scale punch animations (most noticeable on pet summon icons). The animation now saves base anchor offsets at punch start and restores them correctly, preventing positional drift when layout repositions frames during the animation.
+- **Pet Summon Predicted Cost Stuck** — Pet summon spells (Summon Imp, etc.) no longer permanently show predicted resource cost on the resource bar. `IsCurrentSpell()` returns true permanently for the active pet's summon spell; these are now correctly excluded from cost prediction.
+- **Warlock: Nightfall/Shadow Trance Duplicate** — Fixed both Nightfall (the passive talent) and Shadow Trance (the proc buff) appearing in the proc tracker. Only Shadow Trance now appears.
+
+### LibSpellDB Updates
+- Added `REQUIRES_PET` tag, `IsRaceRelevant()` API, `excludeIfKnown` BuffGroup field.
+- Added Soul Link, Summon Felguard, and Life Tap to warlock spell data.
+- Removed Nightfall passive talent from database (Shadow Trance in Procs.lua is the correct proc entry).
+- Removed spec restriction from Demonic Sacrifice buffs; removed `SITUATIONAL` from Righteous Fury.
+
 ## [1.0.101] - 2026-02-19
 
 ### Fixed

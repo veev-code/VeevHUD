@@ -520,15 +520,16 @@ C.DEFAULTS = {
             respectResourceCost = true,
             weaponEnchantMH = true,   -- Check mainhand for missing weapon enchant (poison/imbue)
             weaponEnchantOH = true,   -- Check offhand for missing weapon enchant
+            showOnlyKnown = true,     -- Filter spell list in options to known spells only
             anchor = {
                 point = "BOTTOM",
                 relativePoint = "TOP",
                 x = 0,
                 y = 24,  -- Positioned above main HUD
             },
-            -- Per-spell overrides stored sparsely:
-            -- spellConfig[spellID] = { enabled, timeRemaining, minStacks, combatState, trackTarget, priority }
-            -- Absence = use computed defaults
+            -- Per-spell overrides stored sparsely per spec:
+            -- spellConfig[specKey][spellID] = { enabled, timeRemaining, minStacks, combatState, trackTarget, priority }
+            -- specKey = "CLASS_SPEC" (e.g., "WARLOCK_DESTRUCTION"); absence = use computed defaults
             spellConfig = {},
         },
 
