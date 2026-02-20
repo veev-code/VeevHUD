@@ -1,5 +1,18 @@
 # VeevHUD Changelog
 
+## [1.0.103] - 2026-02-20
+
+### Added
+- **Healthstone Tracking** — Create Healthstone now appears in the Utility row. Shows a subtle glow when a Healthstone is in your bags (ready to use), and a cooldown spiral when consumed (2-minute cooldown). Works without the item on your action bar. *(Deadlyy Dan)*
+- **Item Consumption Detection** — Spells that create usable items (Healthstone, Soulstone) now automatically detect when the item is consumed and start the cooldown countdown, even if the item isn't on your action bar.
+
+### Fixed
+- **Resource prediction overlapping item indicators** — When a created item is in your bags (showing the "ready" glow), the predicted mana cost spiral no longer overlaps. The item-in-bags indicator takes priority.
+
+### LibSpellDB Updates
+- Added Create Healthstone with all 18 item IDs (standard + improved talent rank 1 and 2).
+- New `itemCooldown` field for consumption-based cooldown detection (Healthstone 120s, Soulstone 1800s).
+
 ## [1.0.102] - 2026-02-19
 
 ### Added

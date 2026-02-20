@@ -89,6 +89,7 @@ local IsCurrentSpell = IsCurrentSpell
 local IsSpellOverlayed = IsSpellOverlayed
 local GetActionInfo = GetActionInfo
 local GetActionCooldown = GetActionCooldown
+local GetItemCount = GetItemCount
 local UnitGUID = UnitGUID
 local UnitPower = UnitPower
 local UnitPowerMax = UnitPowerMax
@@ -1923,6 +1924,44 @@ function CooldownIcons:UpdateIconState(frame, db)
         end
     end
 
+    -- Item availability and consumption detection for spells that create usable items
+    -- (Healthstone, Soulstone). Handles two cases:
+    -- 1. Item in bags + off cooldown → permanent buff glow ("you have one ready")
+    -- 2. Item just consumed (was in bags, now gone) → start synthetic cooldown
+    if spellData and spellData.cooldownItemIDs then
+        local itemAvailable = false
+        for _, itemID in ipairs(spellData.cooldownItemIDs) do
+            if GetItemCount(itemID) > 0 then
+                itemAvailable = true
+                break
+            end
+        end
+
+        -- Consumption detection: items were available last tick but gone now,
+        -- and no cooldown was found by Tier 1-3 — start synthetic cooldown.
+        if spellData.itemCooldown
+            and frame.itemWasAvailable and not itemAvailable
+            and not self.Utils:IsOnRealCooldown(remaining, duration) then
+            frame.itemCdStart = now
+            frame.itemCdDuration = spellData.itemCooldown
+            remaining = spellData.itemCooldown
+            duration = spellData.itemCooldown
+            cdStartTime = now
+        end
+
+        frame.itemWasAvailable = itemAvailable
+
+        -- Availability indicator: show permanent buff glow when item is
+        -- in bags and ready to use (not on cooldown, no aura active).
+        if itemAvailable
+            and not auraActive
+            and not self.Utils:IsOnRealCooldown(remaining, duration) then
+            auraActive = true
+            auraDuration = 0
+            auraRemaining = 0
+        end
+    end
+
     -- GCD override protection: The WoW API can briefly return GCD info (1.5s duration)
     -- instead of the actual cooldown for certain spells (e.g., Blood Fury variants 33697, 33702).
     -- This causes the icon to briefly show as "ready" during GCD when it's actually on cooldown.
@@ -2086,7 +2125,7 @@ function CooldownIcons:UpdateIconState(frame, db)
     -- (e.g., Rake debuff active but not enough energy - show prediction, not debuff)
     -- Also skip if resource display is not enabled for this row
     local auraBlocksPrediction = auraActive and auraRemaining > 0 and not hasCooldownPriority
-    local skipPrediction = auraBlocksPrediction or not resourceEnabledForRow
+    local skipPrediction = auraBlocksPrediction or isPermanentBuffActive or not resourceEnabledForRow
     
     if isPredictionMode and hasResourceCost and not skipPrediction then
         if canAfford then
