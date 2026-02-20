@@ -1,5 +1,18 @@
 # VeevHUD Changelog
 
+## [1.0.104] - 2026-02-20
+
+### Added
+- **Proc Tracker: Spells Tab** — Per-proc enable/disable toggles have moved from the standalone Spell Configuration window into a new Spells sub-tab inside the Proc Tracker tab. Settings are per-spec with a spec indicator, matching the Buff Reminders pattern.
+- **Proc Tracker: Low-Priority Defaults** — Minor passive procs (Warrior's Deep Wounds and Blood Craze) are now disabled by default. You can still enable them in the Proc Tracker Spells tab.
+
+### Changed
+- **Swing Bar: Windfury Sync Colors** — Warriors now only see dual-wield sync coloring (red/green) when actually buffed by Windfury Totem. Previously sync colors always showed for dual-wielding warriors.
+- **Options: Spell Config Tab** — The "Spells" tab (launcher for the drag-and-drop spell configuration window) has been renamed to "Spell Config" and moved next to "Ability Rows" for easier discoverability.
+
+### LibSpellDB Updates
+- New `lowPriority` field on proc data, marking minor passive procs that consumers can default-disable.
+
 ## [1.0.103] - 2026-02-20
 
 ### Added

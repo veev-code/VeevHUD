@@ -1171,7 +1171,7 @@ function Options:BuildOptionsTable()
 				type = "group",
 				name = "Bars",
 				childGroups = "tab",
-				order = 3,
+				order = 4,
 				args = {
 					resource = {
 						type = "group",
@@ -1431,7 +1431,13 @@ function Options:BuildOptionsTable()
 						name = "Proc Tracker",
 						order = 1,
 						args = {
-							enabled = { type = "toggle", name = "Enabled", desc = "Shows small icons for important temporary buffs (procs) — like a Warrior's Enrage or Flurry, a Mage's Clearcasting, etc. These icons appear above the health bar and are only visible while the buff is active.\n\nYou can choose which procs to show under the Spells tab.", arg = "procTracker.enabled", order = 1 },
+							description = {
+								type = "description",
+								name = "The Proc Tracker shows small icons for important temporary buffs (procs) — like a Warrior's Enrage or Flurry, a Mage's Clearcasting, etc. These icons appear above the health bar and are only visible while the buff is active.\n\nUse the Spells tab to choose which procs to show.\n",
+								fontSize = "medium",
+								order = 0,
+							},
+							enabled = { type = "toggle", name = "Enable Proc Tracker", desc = "Master toggle for the Proc Tracker feature. When disabled, no proc icons will be shown.", arg = "procTracker.enabled", order = 1, width = "full" },
 							layout = {
 								type = "group",
 								name = "Layout",
@@ -1668,8 +1674,8 @@ function Options:BuildOptionsTable()
 
 			spells = {
 				type = "group",
-				name = "Spells",
-				order = 7,
+				name = "Spell Config",
+				order = 3,
 				args = {
 					_desc = {
 						type = "description",
@@ -1705,7 +1711,7 @@ function Options:BuildOptionsTable()
 			support = {
 				type = "group",
 				name = "Support",
-				order = 7,
+				order = 8,
 				args = {
 					discordInfo = {
 						type = "description",
@@ -1763,17 +1769,20 @@ function Options:BuildOptionsTable()
 	barsArgs.druidManaBar = nil
 
 	-- Promote Proc Tracker, Totem Bar, Buff Reminders to top-level tabs
-	barsArgs.procs.order = 4
-	optionsTable.args.procs = barsArgs.procs
+	local procTrackerOpts = self:BuildProcTrackerOptions(barsArgs.procs)
+	if procTrackerOpts then
+		procTrackerOpts.order = 5
+		optionsTable.args.procs = procTrackerOpts
+	end
 	barsArgs.procs = nil
 
-	barsArgs.totembar.order = 5
+	barsArgs.totembar.order = 6
 	optionsTable.args.totembar = barsArgs.totembar
 	barsArgs.totembar = nil
 
 	local buffRemindersOpts = self:BuildBuffRemindersOptions()
 	if buffRemindersOpts then
-		buffRemindersOpts.order = 6
+		buffRemindersOpts.order = 7
 		optionsTable.args.buffReminders = buffRemindersOpts
 	end
 
@@ -1781,7 +1790,7 @@ function Options:BuildOptionsTable()
 	optionsTable.args.advanced = {
 		type = "group",
 		name = "Layout",
-		order = 8,
+		order = 9,
 		args = layoutArgs,
 	}
 
@@ -1789,6 +1798,140 @@ function Options:BuildOptionsTable()
 	enrichDescsWithDefaults(optionsTable.args)
 
 	return optionsTable
+end
+
+-------------------------------------------------------------------------------
+-- Proc Tracker Options Tab
+-------------------------------------------------------------------------------
+
+function Options:BuildProcTrackerOptions(settingsGroup)
+	local LibSpellDB = addon.LibSpellDB
+
+	local function buildProcSpellArgs()
+		local args = {}
+		if not LibSpellDB then return args end
+
+		local playerClass = addon.playerClass
+		if not playerClass then return args end
+
+		local classProcs = LibSpellDB:GetProcs(playerClass)
+		if not classProcs or #classProcs == 0 then return args end
+
+		-- Sort: normal procs alphabetically, then low priority alphabetically
+		local sorted = {}
+		for _, procData in ipairs(classProcs) do
+			table.insert(sorted, procData)
+		end
+		table.sort(sorted, function(a, b)
+			local aLow = a.procInfo and a.procInfo.lowPriority
+			local bLow = b.procInfo and b.procInfo.lowPriority
+			if aLow ~= bLow then return not aLow end
+			return (a.name or "") < (b.name or "")
+		end)
+
+		-- Spec indicator at top
+		args["specIndicator"] = {
+			type = "description",
+			name = function()
+				local sk = addon.Database:GetSpecKey()
+				if sk then
+					return "|cff888888Current spec: " .. sk:gsub("_", " ") .. "|r"
+				end
+				return "|cff888888Spec not yet detected|r"
+			end,
+			fontSize = "medium",
+			order = 1,
+			width = "full",
+		}
+
+		local order = 10
+		for _, procData in ipairs(sorted) do
+			local spellID = procData.spellID
+			local spellName, _, spellIcon = GetSpellInfo(spellID)
+			spellName = spellName or procData.name or ("Spell " .. spellID)
+			local iconString = spellIcon and ("|T" .. spellIcon .. ":16|t ") or ""
+
+			local procDesc = procData.procInfo and procData.procInfo.description or ""
+			local spellKey = "proc_" .. spellID
+
+			args[spellKey] = {
+				type = "group",
+				name = iconString .. spellName,
+				inline = true,
+				order = order,
+				args = {
+					enabled = {
+						type = "toggle",
+						name = "Enabled",
+						desc = "Show this proc in the tracker.",
+						get = function()
+							return addon:IsProcEnabled(spellID)
+						end,
+						set = function(_, value)
+							addon:SetProcEnabled(spellID, value)
+							Options:ApplySettingChange("procTracker.procConfig")
+						end,
+						order = 1,
+						width = 0.5,
+					},
+					description = {
+						type = "description",
+						name = "|cff888888" .. procDesc .. "|r",
+						order = 2,
+						width = 2.0,
+					},
+				},
+			}
+			order = order + 1
+		end
+
+		return args
+	end
+
+	-- Store args table reference for rebuilding on spec change
+	local spellsArgs = buildProcSpellArgs()
+	self._procSpellArgs = spellsArgs
+	self._buildProcSpellArgs = buildProcSpellArgs
+
+	-- Wrap existing settings into a Settings sub-tab, add Spells sub-tab
+	settingsGroup.order = 1
+	settingsGroup.name = "Settings"
+
+	return {
+		type = "group",
+		name = "Proc Tracker",
+		childGroups = "tab",
+		args = {
+			settings = settingsGroup,
+			spellsTab = {
+				type = "group",
+				name = "Spells",
+				order = 2,
+				disabled = function()
+					return addon.db and addon.db.profile and not addon.db.profile.procTracker.enabled
+				end,
+				args = spellsArgs,
+			},
+		},
+	}
+end
+
+-- Rebuild the proc spell list in-place (called on spec change)
+function Options:RebuildProcSpellArgs()
+	local argsTable = self._procSpellArgs
+	local buildFn = self._buildProcSpellArgs
+	if not argsTable or not buildFn then return end
+
+	wipe(argsTable)
+	local newArgs = buildFn()
+	for k, v in pairs(newArgs) do
+		argsTable[k] = v
+	end
+
+	local AceConfigRegistry = LibStub and LibStub("AceConfigRegistry-3.0", true)
+	if AceConfigRegistry then
+		AceConfigRegistry:NotifyChange("VeevHUD")
+	end
 end
 
 -------------------------------------------------------------------------------
@@ -2387,6 +2530,7 @@ end
 
 -- Refresh on profile/spec change — rebuild per-spec spell args
 function Options:Refresh()
+	self:RebuildProcSpellArgs()
 	self:RebuildBuffReminderSpellArgs()
 end
 

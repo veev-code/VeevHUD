@@ -280,43 +280,117 @@ end
 -- Proc Config Helpers
 -------------------------------------------------------------------------------
 
--- Get procConfig (returns table of disabled proc overrides)
-function Database:GetProcConfig()
-    return addon.db and addon.db.profile and addon.db.profile.procConfig or {}
+-- Migrate old flat procConfig (procConfig[spellID] = false) to per-spec format
+-- (procConfig[specKey][spellID] = false). Copies old overrides into every spec.
+local function MigrateFlatProcConfig(procConfig)
+    -- Detect old format: any number key means flat layout
+    local hasNumberKeys = false
+    local oldEntries = {}
+    for k, v in pairs(procConfig) do
+        if type(k) == "number" then
+            hasNumberKeys = true
+            oldEntries[k] = v
+        end
+    end
+    if not hasNumberKeys then return end
+
+    -- Copy old entries into all specs for the player's class
+    local lib = addon.LibSpellDB
+    local classSpecs = lib and lib.CLASS_SPECS and lib.CLASS_SPECS[addon.playerClass]
+    if classSpecs then
+        for _, specName in ipairs(classSpecs) do
+            local specKey = addon.playerClass .. "_" .. specName
+            if not procConfig[specKey] then
+                procConfig[specKey] = {}
+            end
+            for spellID, value in pairs(oldEntries) do
+                if procConfig[specKey][spellID] == nil then
+                    procConfig[specKey][spellID] = value
+                end
+            end
+        end
+    end
+
+    -- Remove old number keys
+    for spellID in pairs(oldEntries) do
+        procConfig[spellID] = nil
+    end
 end
 
--- Check if a proc is enabled (default: true if no override)
-function Database:IsProcEnabled(spellID)
-    local procConfig = self:GetProcConfig()
-    if procConfig[spellID] == false then
-        return false
+-- Get procConfig for current spec (returns table of disabled proc overrides)
+function Database:GetProcConfig()
+    if not addon.db or not addon.db.profile then return {} end
+    local procConfig = addon.db.profile.procConfig
+    if not procConfig then return {} end
+
+    -- Lazy migration from old flat format
+    MigrateFlatProcConfig(procConfig)
+
+    local specKey = self:GetSpecKey()
+    return procConfig[specKey] or {}
+end
+
+-- Get the default enabled state for a proc (respects procInfo.lowPriority)
+local function GetProcDefaultEnabled(spellID)
+    local lib = addon.LibSpellDB
+    if lib then
+        local procInfo = lib:GetProcInfo(spellID)
+        if procInfo and procInfo.lowPriority then
+            return false
+        end
     end
     return true
 end
 
--- Set proc enabled/disabled override
+-- Check if a proc is enabled (respects user override, then procInfo.lowPriority default)
+function Database:IsProcEnabled(spellID)
+    local specConfig = self:GetProcConfig()
+    local override = specConfig[spellID]
+    if override ~= nil then
+        return override
+    end
+    return GetProcDefaultEnabled(spellID)
+end
+
+-- Set proc enabled/disabled override (per-spec, sparse: removed when matching default)
 function Database:SetProcEnabled(spellID, enabled)
     if not addon.db or not addon.db.profile then return end
+    local specKey = self:GetSpecKey()
 
-    if enabled then
-        -- Enabling = remove the disabled override (default is enabled)
-        if addon.db.profile.procConfig then
-            addon.db.profile.procConfig[spellID] = nil
-            if next(addon.db.profile.procConfig) == nil then
+    if enabled == GetProcDefaultEnabled(spellID) then
+        -- Matches default: remove override to keep storage sparse
+        local procConfig = addon.db.profile.procConfig
+        if procConfig and procConfig[specKey] then
+            procConfig[specKey][spellID] = nil
+            if next(procConfig[specKey]) == nil then
+                procConfig[specKey] = nil
+            end
+            if next(procConfig) == nil then
                 addon.db.profile.procConfig = nil
             end
         end
     else
-        -- Disabling = store false
-        addon.db.profile.procConfig = addon.db.profile.procConfig or {}
-        addon.db.profile.procConfig[spellID] = false
+        -- Differs from default: store explicit override
+        if not addon.db.profile.procConfig then
+            addon.db.profile.procConfig = {}
+        end
+        if not addon.db.profile.procConfig[specKey] then
+            addon.db.profile.procConfig[specKey] = {}
+        end
+        addon.db.profile.procConfig[specKey][spellID] = enabled
     end
 end
 
--- Reset all proc config overrides (re-enable all procs)
+-- Reset proc config overrides for current spec (re-enable all procs for this spec)
 function Database:ResetProcConfig()
     if not addon.db or not addon.db.profile then return end
-    addon.db.profile.procConfig = nil
+    local specKey = self:GetSpecKey()
+    if addon.db.profile.procConfig then
+        addon.db.profile.procConfig[specKey] = nil
+        if next(addon.db.profile.procConfig) == nil then
+            addon.db.profile.procConfig = nil
+        end
+    end
 end
 
 -------------------------------------------------------------------------------
