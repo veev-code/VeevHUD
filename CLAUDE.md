@@ -42,12 +42,14 @@ VeevHUD is a lightweight, WeakAuras-inspired heads-up display addon for World of
 ### Modules (`Modules/`)
 - `SpellTracker.lua` — Determines which spells to track based on spec, tags, known status, user overrides
 - `AuraTracker.lua` — Tracks buffs/debuffs applied by player spells via CLEU events. CC_HARD and `singleTarget` spells track across all targets regardless of current target.
-- `CooldownIcons.lua` — Main icon display: rows, cooldown spirals, resource cost, glows, sorting, queued highlight
 - `ResourceBar.lua` — Resource bar (mana/rage/energy) with predicted cost overlay and tickers
 - `HealthBar.lua` — Health bar with heal prediction overlay
 - `ComboPoints.lua` — Horizontal combo point bars with activation animation
+- `TotemBar.lua` — Shaman totem bar with 4 element slots, duration tracking, and one-per-element enforcement
+- `SwingBar.lua` — Auto-attack swing timer with class-specific mechanics (Hunter clip zones, dual-wield sync, Ret twist window)
+- `CooldownIcons.lua` — Main icon display: rows, cooldown spirals, resource cost, glows, sorting, queued highlight, item cooldown tracking
 - `ProcTracker.lua` — Proc buff icons with stacks, glow, and configurable enable/disable
-- `BuffReminders.lua` — Buff reminder alerts for missing class/role buffs
+- `BuffReminders.lua` — Buff reminder alerts for missing class/role buffs with per-spec configuration
 
 ### Services (`Services/`)
 - `FiveSecondRule.lua` — 5-second rule tracking for mana regeneration
@@ -56,9 +58,9 @@ VeevHUD is a lightweight, WeakAuras-inspired heads-up display addon for World of
 - `RangeChecker.lua` — Spell range checking for icon desaturation
 
 ### UI (`UI/`)
-- `Options.lua` — AceConfig options panel (General, Icons, Bars, Rows, Spells, Profiles)
+- `Options.lua` — AceConfig options panel (General, Ability Rows, Bars, Proc Tracker, Totem Bar, Buff Reminders, Spells, Layout, Profiles)
 - `SpellsOptions.lua` — Standalone spell config window with drag-and-drop row assignment
-- `MigrationManager.lua` — One-time migration notice system
+- `MigrationManager.lua` — One-time migration notice system (supports `silent = true` for data-only migrations that skip the popup)
 - `ScaleMigration.lua` — UI scale auto-compensation migration notice
 - `WelcomePopup.lua` — First-time welcome dialog with Discord link
 - `BuffRemindersMigration.lua` — Migration notice for buff reminders feature
@@ -102,16 +104,18 @@ Single `eventFrame` for all events. CLEU events are parsed and dispatched by sub
 
 ### Layout System (`Core/Layout.lua`)
 
-Unified vertical stacking for all 7 HUD elements. Order is user-configurable via `layout.elementOrder`. Elements stack downward, anchored so Primary Row's top edge stays at a fixed Y offset (`PRIMARY_TOP_OFFSET = -9`).
+Unified vertical stacking for all 9 HUD elements. Order is user-configurable via `layout.elementOrder`. Elements stack downward, anchored so Primary Row's top edge stays at a fixed Y offset (`PRIMARY_TOP_OFFSET = -9`).
 
 Default element order (top to bottom):
 1. Proc Tracker
-2. Health Bar
-3. Resource Bar
-4. Combo Points
-5. Primary Row
-6. Secondary Row
-7. Utility Row
+2. Totem Bar
+3. Health Bar
+4. Resource Bar
+5. Combo Points
+6. Swing Bar
+7. Primary Row
+8. Secondary Row
+9. Utility Row
 
 Per-element gaps configured via `layout.gaps` (pixels above each element, skipped for first visible).
 
@@ -223,8 +227,8 @@ addon.Utils:FindSpellOnActionBar(spellID) -- Finds actual rank on action bar
 
 Top-level keys:
 - `enabled`, `appearance`, `anchor`, `visibility`, `animations`, `layout`
-- `resourceBar`, `healthBar`, `comboPoints`, `procTracker`
-- `icons`, `spellConfig`, `procConfig`, `rows`
+- `resourceBar`, `healthBar`, `comboPoints`, `procTracker`, `totemBar`, `swingBar`
+- `icons`, `buffReminders`, `spellConfig`, `procConfig`, `rows`
 
 Notable defaults:
 - `resourceBar.showPredictedCost = true`

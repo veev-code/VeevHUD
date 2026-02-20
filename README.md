@@ -110,7 +110,9 @@ VeevHUD is designed to work great out of the box, but nearly everything is confi
 *   **General** — Position (horizontal + vertical offset), global scale, icon zoom, font, visibility (out-of-combat fade, hide on flight path), smooth bar/dim animations
 *   **Ability Rows** — Appearance (aspect ratio, spacing, gaps), opacity (ready/cooldown), cooldown display (text, spiral, sparkle, GCD, dim-on-cooldown), resource display (prediction/fill/bar), effects (aura tracking, cast pop, ready glow, queued highlight), other (range indicator, dynamic sort, keybind text), and per-row settings for Primary, Secondary, and Utility (icon size, max icons, flow layout)
 *   **Bars** — Health bar, resource bar (with energy ticker, mana ticker, and druid mana bar inline), combo points, and swing timer — each with size, text format, gradient, spark, and class coloring options
-*   **Modules** — Proc Tracker, Totem Bar, and Buff Reminders — secondary HUD features with their own appearance settings
+*   **Proc Tracker** — Proc buff icon appearance, glow, backdrop, slide animation, sizing, and per-proc enable/disable
+*   **Totem Bar** — Shaman totem bar appearance and behavior settings
+*   **Buff Reminders** — Buff reminder appearance, per-spec spell overrides, threshold settings, and combat state filtering
 *   **Spells** — Per-spell control: enable/disable, move between rows, adjust priority order via drag-and-drop
 *   **Layout** — Element ordering and per-element gap controls for the vertical HUD stack
 *   **Profiles** — Save and switch between configuration profiles. Automatic per-spec profile switching via LibDualSpec (dual spec users get separate profiles for each spec).
