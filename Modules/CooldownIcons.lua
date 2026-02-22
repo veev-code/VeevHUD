@@ -239,6 +239,10 @@ function CooldownIcons:Initialize()
     -- Register for reactive window refresh events (e.g., PARTY_KILL refreshes Victory Rush)
     self.Events:RegisterCLEU(self, "PARTY_KILL", self.OnReactiveWindowEvent)
 
+    -- Register for dodge detection (Overpower dodge-reactive glow)
+    self.Events:RegisterCLEU(self, "SWING_MISSED", self.OnCombatMissEvent)
+    self.Events:RegisterCLEU(self, "SPELL_MISSED", self.OnCombatMissEvent)
+
     -- Register for queued spell changes (Heroic Strike, Cleave, Maul, etc.)
     -- CURRENT_SPELL_CAST_CHANGED fires when a spell's "current" status changes
     -- Uses a lightweight handler that only toggles highlight textures (no full icon recompute)
@@ -439,6 +443,48 @@ function CooldownIcons:OnReactiveWindowEvent(subEvent, data)
                 end
             end
         end
+    end
+end
+
+-- Per-target dodge window tracking for dodge-reactive abilities (e.g., Overpower)
+-- Keyed by destGUID → expiry time. Checked against current target in UpdateIconState.
+-- Entries expire naturally; table stays small since only active combat targets accumulate.
+CooldownIcons.dodgeWindows = {}
+
+-- Handle CLEU miss events for dodge-reactive abilities (e.g., Overpower)
+-- When the player's attack is dodged, records which target dodged and when.
+-- This enables a stance-independent ready glow so the player knows to swap stance and use Overpower.
+-- Target-specific: WW dodged by off-target → tab to that target → glow appears.
+function CooldownIcons:OnCombatMissEvent(subEvent, data)
+    if data.sourceGUID ~= UnitGUID("player") then return end
+
+    -- Extract missType from CLEU (position varies by event type)
+    -- Events.lua only parses up to spellSchool (position 14), so we use select()
+    local missType
+    if subEvent == "SWING_MISSED" then
+        -- SWING_MISSED: missType is at position 12 (after 11 standard CLEU fields)
+        missType = select(12, CombatLogGetCurrentEventInfo())
+    else
+        -- SPELL_MISSED: missType is at position 15 (12=spellID, 13=name, 14=school, 15=missType)
+        missType = select(15, CombatLogGetCurrentEventInfo())
+    end
+
+    if missType ~= "DODGE" then return end
+
+    -- Get dodge window duration from any dodge-reactive frame
+    local dodgeDuration
+    for _, row in ipairs(self.rows or {}) do
+        for _, frame in ipairs(row.icons or {}) do
+            if frame.dodgeReactive then
+                dodgeDuration = frame.dodgeReactive
+                break
+            end
+        end
+        if dodgeDuration then break end
+    end
+
+    if dodgeDuration then
+        self.dodgeWindows[data.destGUID] = GetTime() + dodgeDuration
     end
 end
 
@@ -875,7 +921,7 @@ function CooldownIcons:CreateIcon(parent, index, size)
     cooldown:SetDrawBling(false)  -- Default off, SetupIcon enables per-row
     cooldown:SetDrawSwipe(true)
     -- Dark swipe for time remaining (covers the icon), light underneath for elapsed
-    cooldown:SetSwipeColor(0, 0, 0, 0.8)
+    cooldown:SetSwipeColor(0, 0, 0, 1)
     cooldown:SetReverse(false)  -- Swipe = remaining time (drains as cooldown progresses)
     frame.cooldown = cooldown
     frame.Cooldown = cooldown  -- Masque reference
@@ -1479,6 +1525,13 @@ function CooldownIcons:SetupIcon(frame, spellID, actualSpellID, spellData, rowCo
             local spellInfo = addon.LibSpellDB:GetSpellInfo(spellID)
             frame.reactiveWindowEvent = spellInfo and spellInfo.reactiveWindowEvent
         end
+    end
+
+    -- Check if this spell has dodge-reactive glow (e.g., Overpower)
+    -- When set, CLEU dodge detection stores per-target windows in self.dodgeWindows for stance-independent glow
+    frame.dodgeReactive = nil
+    if addon.LibSpellDB then
+        frame.dodgeReactive = addon.LibSpellDB:GetDodgeReactive(spellID)
     end
 
     -- Update keybind text for this icon
@@ -2405,12 +2458,10 @@ function CooldownIcons:UpdateIconState(frame, db)
     local shouldShowSpiral = showSpinner or showPredictionSpiral
     
     if shouldShowSpiral and showSpiralForRow then
-        frame.cooldown:SetAlpha(1)
-        frame.cooldown:SetSwipeColor(0, 0, 0, 0.8)
-        
         if showPredictionSpiral and predictionDuration > 0 then
             -- Show prediction spiral (waiting for resources)
             -- Uses same visual as cooldown: remaining = dark, elapsed = bright
+            frame.cooldown:SetAlpha(db.cooldownSpiralAlpha)
             frame.cooldown:SetReverse(false)
             -- Only update if prediction changed to avoid visual glitches
             if frame.lastCdStart ~= predictionStartTime or frame.lastCdDuration ~= predictionDuration then
@@ -2422,6 +2473,7 @@ function CooldownIcons:UpdateIconState(frame, db)
             frame._wasRealCooldown = false  -- Prediction, no bling
         elseif showAuraActive and auraDisplayDuration > 0 then
             -- Show aura duration spiral (remaining = bright, elapsed = dark)
+            frame.cooldown:SetAlpha(db.auraSpiralAlpha)
             frame.cooldown:SetReverse(true)  -- Swipe fills as time passes (elapsed = dark)
             local start = now - (auraDisplayDuration - auraDisplayRemaining)
             -- Only update if cooldown changed to avoid visual glitches
@@ -2435,6 +2487,7 @@ function CooldownIcons:UpdateIconState(frame, db)
         elseif duration > 0 and cdStartTime > 0 then
             -- Normal cooldown spiral (remaining = dark, elapsed = bright)
             -- Use actual start time from API for accuracy
+            frame.cooldown:SetAlpha(db.cooldownSpiralAlpha)
             frame.cooldown:SetReverse(false)  -- Swipe drains as time passes (remaining = dark)
             -- Only update if cooldown changed to avoid visual glitches
             if frame.lastCdStart ~= cdStartTime or frame.lastCdDuration ~= duration then
@@ -2448,6 +2501,7 @@ function CooldownIcons:UpdateIconState(frame, db)
             -- No active cooldown/aura - clear tracking
             -- For real cooldowns: let bling animation finish naturally
             -- For predictions/auras: clear immediately (no bling)
+            frame.cooldown:SetAlpha(1)  -- Reset alpha for bling effect
             if not frame._wasRealCooldown then
                 frame.cooldown:SetCooldown(0, 0)  -- Clear non-cooldown spirals immediately
             end
@@ -2458,6 +2512,7 @@ function CooldownIcons:UpdateIconState(frame, db)
     else
         -- Row setting disables spiral
         -- For real cooldowns: let bling play, for others: clear immediately
+        frame.cooldown:SetAlpha(1)  -- Reset alpha for bling effect
         if not frame._wasRealCooldown then
             frame.cooldown:SetCooldown(0, 0)
         end
@@ -2607,7 +2662,29 @@ function CooldownIcons:UpdateIconState(frame, db)
         -- (WoW API reports isUsable=false while lockout is active, but we want glow at <1s remaining)
         -- Also pass prediction state so glow can trigger when prediction has <1s remaining
         local predictionIsLimitingFactor = showPredictionSpiral and predictionRemaining > 0
-        self:UpdateReadyGlow(frame, spellID, remaining, duration, isUsable, isReactive, db, lockoutIsLimitingFactor, canAfford, predictionIsLimitingFactor, predictionRemaining)
+
+        -- Dodge-reactive glow override (e.g., Overpower when not in Battle Stance)
+        -- When the current target has dodged recently, show ready glow if off CD + can afford, regardless of stance
+        -- Uses per-target tracking so tab-targeting to a target that dodged will show the glow
+        local dodgeGlowOverride = false
+        if frame.dodgeReactive then
+            local targetGUID = UnitGUID("target")
+            local dodgeExpires = targetGUID and self.dodgeWindows[targetGUID]
+            if dodgeExpires then
+                if now >= dodgeExpires then
+                    -- Dodge window expired, clean up
+                    self.dodgeWindows[targetGUID] = nil
+                else
+                    -- Dodge window active: glow if off real cooldown and can afford
+                    local isOffRealCooldown = not self.Utils:IsOnRealCooldown(remaining, duration)
+                    if isOffRealCooldown and canAfford then
+                        dodgeGlowOverride = true
+                    end
+                end
+            end
+        end
+
+        self:UpdateReadyGlow(frame, spellID, remaining, duration, isUsable, isReactive, db, lockoutIsLimitingFactor, canAfford, predictionIsLimitingFactor, predictionRemaining, dodgeGlowOverride)
     else
         -- Aura is active - hide ready glow but keep wasUsable updated
         -- This prevents false "just became usable" triggers when aura ends
@@ -2869,15 +2946,16 @@ end
 -- canAfford: true if player has enough resources to cast the spell
 -- predictionIsLimitingFactor: true if Resource Timer prediction is active and limiting usability
 -- predictionRemaining: time remaining on prediction (when predictionIsLimitingFactor is true)
-function CooldownIcons:UpdateReadyGlow(frame, spellID, remaining, duration, isUsable, isReactive, db, lockoutIsLimitingFactor, canAfford, predictionIsLimitingFactor, predictionRemaining)
+-- dodgeGlowOverride: true if dodge-reactive window is active and conditions met (stance-independent)
+function CooldownIcons:UpdateReadyGlow(frame, spellID, remaining, duration, isUsable, isReactive, db, lockoutIsLimitingFactor, canAfford, predictionIsLimitingFactor, predictionRemaining, dodgeGlowOverride)
     local glowRows = db.readyGlowRows
     local rowIndex = frame.rowIndex or 1
-    
+
     -- Check row-based setting first
     local enabledForRow = addon.Database:IsRowSettingEnabled(glowRows, rowIndex)
-    
-    -- Disabled or not enabled for this row: hide any active glow and return (unless reactive)
-    if not enabledForRow and not isReactive then
+
+    -- Disabled or not enabled for this row: hide any active glow and return (unless reactive or dodge override)
+    if not enabledForRow and not isReactive and not dodgeGlowOverride then
         if frame.readyGlowActive then
             self:HideReadyGlow(frame)
             frame.readyGlowActive = false
@@ -2914,7 +2992,12 @@ function CooldownIcons:UpdateReadyGlow(frame, spellID, remaining, duration, isUs
         -- Also treat as "almost ready" for the glow trigger
         isAlmostReady = true
     end
-    
+    -- Dodge-reactive override: when target dodges, treat as usable for glow even if wrong stance
+    -- (e.g., Overpower while in Berserker Stance - signals "swap stance and use this!")
+    if dodgeGlowOverride then
+        effectiveUsable = true
+    end
+
     -- Track previous states
     local wasOnRealCooldown = frame.wasOnRealCooldown or false
     local wasUsable = frame.wasUsable or false
@@ -3289,12 +3372,16 @@ function CooldownIcons:Refresh()
     self:ApplyIconTexCoords()
     
     -- Update cooldown bling setting on all icons (per-row)
+    -- Also clear cached cooldown state so SetSwipeColor changes take effect
+    -- (WoW requires SetCooldown to be called after SetSwipeColor for visual update)
     for rowIndex, rowFrame in ipairs(self.rows or {}) do
         local blingEnabled = addon.Database:IsRowSettingEnabled(iconDb.cooldownBlingRows, rowIndex)
         for _, iconFrame in ipairs(rowFrame.icons or {}) do
             if iconFrame.cooldown then
                 iconFrame.cooldown:SetDrawBling(blingEnabled)
             end
+            iconFrame.lastCdStart = nil
+            iconFrame.lastCdDuration = nil
         end
     end
     

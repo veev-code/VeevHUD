@@ -1,5 +1,22 @@
 # VeevHUD Changelog
 
+## [1.0.105] - 2026-02-22
+
+### Added
+- **Off-Tree Talents Auto-Display** — Trained off-tree talents (e.g., Death Wish or Sweeping Strikes for Arms warriors) now automatically appear on the HUD. Any talent you've invested points in will show regardless of which spec LibSpellDB detects, and disappear if you respec away.
+- **Overpower: Dodge-Reactive Glow** — When your target dodges an attack, Overpower's icon glows even if you're not in Battle Stance — signaling "swap stance and use this!" The glow is target-specific: if you Whirlwind and an off-target dodges, tabbing to them within the 5-second window shows the glow. Requires Overpower to be off cooldown and affordable.
+- **Proc Tracker: Mace Stun Effect** — Mace Specialization talent stun proc (3s) now tracked on the proc tracker with the talent icon. Enabled by default for warriors with the talent.
+- **Proc Tracker: Deep Thunder / Stormherald Stun** — Weapon stun proc (4s) tracked with the equipped weapon's icon. Only appears when one of these weapons is equipped; swapping weapons updates the tracker automatically.
+- **Proc Tracker: Improved Hamstring** — Improved Hamstring talent root proc (5s) now tracked on the proc tracker. Enabled by default for warriors with the talent.
+- **Spiral Darkness Sliders** — New settings to control how dark the spiral overlay appears on icons. "Cooldown Spiral Darkness" (Effects tab) adjusts cooldown spirals; "Aura Spiral Darkness" (Aura Tracking section) adjusts buff/aura duration spirals. Both default to 100%. Set to 0% to hide spirals entirely while keeping countdown text.
+
+### LibSpellDB Updates
+- New APIs: `GetSpellIcon()`, `GetDodgeReactive()`, `GetRequiredItemIDs()`.
+- New spell data fields: `dodgeReactive`, `requiredItemIDs`, `icon` override.
+- `GetProcs()` now includes SHARED (cross-class) procs like weapon stun effects.
+- Added Overpower dodge-reactive window, Mace Stun Effect, Improved Hamstring, and Deep Thunder/Stormherald stun proc data.
+- Warrior off-tree talents (Piercing Howl, Death Wish, Sweeping Strikes) now include Arms in their specs arrays.
+
 ## [1.0.104] - 2026-02-20
 
 ### Added

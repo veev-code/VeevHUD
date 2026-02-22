@@ -436,6 +436,8 @@ C.DEFAULTS = {
             detailedTimeThreshold = 2,    -- Minutes: durations below this show m:ss, above show compact "Xm"
             showCooldownTextOn = "all",   -- Which rows show cooldown text
             showCooldownSpiralOn = "all", -- Which rows show cooldown spiral
+            cooldownSpiralAlpha = 1.0,    -- Darkness of cooldown spiral overlay (0 = invisible, 1 = max darkness)
+            auraSpiralAlpha = 1.0,        -- Darkness of aura spiral overlay
             cooldownBlingRows = "all",     -- Which rows show sparkle effect when cooldown finishes
             
             -- GCD display: which rows show the global cooldown spinner

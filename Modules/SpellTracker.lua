@@ -139,6 +139,23 @@ function SpellTracker:FullRescan()
         self.Utils:LogInfo("SpellTracker: Added", userEnabledCount, "user-enabled spells")
     end
 
+    -- Auto-include known off-tree talents (e.g., Death Wish for Arms warriors)
+    -- Talent spells represent deliberate player investment — if trained, always show.
+    -- Only base (non-talent) spells are filtered strictly by the specs array.
+    local allClassSpells = LibSpellDB:GetSpellsByClass(playerClass)
+    local offTreeCount = 0
+    for spellID, spellData in pairs(allClassSpells) do
+        if spellData.talent and not relevantSpells[spellID] then
+            if self:IsSpellKnown(spellID, spellData) then
+                relevantSpells[spellID] = spellData
+                offTreeCount = offTreeCount + 1
+            end
+        end
+    end
+    if offTreeCount > 0 then
+        self.Utils:LogInfo("SpellTracker: Added", offTreeCount, "known off-tree talents")
+    end
+
     -- Build enabled tags from row config
     local enabledTags = self:GetEnabledTags()
 

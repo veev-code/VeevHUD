@@ -901,6 +901,15 @@ function Options:BuildOptionsTable()
 										arg = "icons.cooldownBlingRows",
 										order = 2,
 									},
+									cooldownSpiralAlpha = {
+										type = "range",
+										name = "Cooldown Spiral Darkness",
+										desc = "How dark the spiral overlay appears during ability cooldowns. Lower values make it more subtle and transparent.\n\nNote: Even at 100%, the spiral won't completely obscure the icon — WoW's cooldown texture has built-in transparency.",
+										min = 0, max = 1.0, step = 0.05,
+										isPercent = true,
+										arg = "icons.cooldownSpiralAlpha",
+										order = 3,
+									},
 								},
 							},
 						},
@@ -996,6 +1005,18 @@ function Options:BuildOptionsTable()
 										desc = "Also check for your buffs and debuffs on your target's target. Useful for healers tracking HoTs on the tank's target.\n\nExamples:\n- Target the boss, see your heals on the tank (the boss's target)\n- Target the tank, see your DoTs on the boss (the tank's target)",
 										arg = "icons.auraTargettargetSupport",
 										order = 2,
+										disabled = function()
+											return addon.db and addon.db.profile and not addon.db.profile.icons.showAuraTracking
+										end,
+									},
+									auraSpiralAlpha = {
+										type = "range",
+										name = "Aura Spiral Darkness",
+										desc = "How dark the spiral overlay appears when tracking active buff or aura durations on icons. Lower values make it more subtle and transparent.\n\nNote: Even at 100%, the spiral won't completely obscure the icon — WoW's cooldown texture has built-in transparency.",
+										min = 0, max = 1.0, step = 0.05,
+										isPercent = true,
+										arg = "icons.auraSpiralAlpha",
+										order = 3,
 										disabled = function()
 											return addon.db and addon.db.profile and not addon.db.profile.icons.showAuraTracking
 										end,
@@ -1818,9 +1839,23 @@ function Options:BuildProcTrackerOptions(settingsGroup)
 		if not classProcs or #classProcs == 0 then return args end
 
 		-- Sort: normal procs alphabetically, then low priority alphabetically
+		-- Filter out equipment-gated procs if required items aren't equipped
 		local sorted = {}
 		for _, procData in ipairs(classProcs) do
-			table.insert(sorted, procData)
+			local include = true
+			local requiredItems = procData.requiredItemIDs
+			if requiredItems then
+				include = false
+				for _, itemID in ipairs(requiredItems) do
+					if IsEquippedItem(itemID) then
+						include = true
+						break
+					end
+				end
+			end
+			if include then
+				table.insert(sorted, procData)
+			end
 		end
 		table.sort(sorted, function(a, b)
 			local aLow = a.procInfo and a.procInfo.lowPriority
@@ -1847,9 +1882,20 @@ function Options:BuildProcTrackerOptions(settingsGroup)
 		local order = 10
 		for _, procData in ipairs(sorted) do
 			local spellID = procData.spellID
-			local spellName, _, spellIcon = GetSpellInfo(spellID)
+			local spellName = GetSpellInfo(spellID)
 			spellName = spellName or procData.name or ("Spell " .. spellID)
-			local iconString = spellIcon and ("|T" .. spellIcon .. ":16|t ") or ""
+			-- Use LibSpellDB icon (handles overrides like Mace Spec talent icon)
+			local displayIcon = LibSpellDB and LibSpellDB:GetSpellIcon(spellID)
+			-- For equipment-gated procs, use the equipped item's icon
+			if procData.requiredItemIDs then
+				for _, itemID in ipairs(procData.requiredItemIDs) do
+					if IsEquippedItem(itemID) then
+						displayIcon = GetItemIcon(itemID) or displayIcon
+						break
+					end
+				end
+			end
+			local iconString = displayIcon and ("|T" .. displayIcon .. ":16|t ") or ""
 
 			local procDesc = procData.procInfo and procData.procInfo.description or ""
 			local spellKey = "proc_" .. spellID

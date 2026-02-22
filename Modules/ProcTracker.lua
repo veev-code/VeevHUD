@@ -45,6 +45,7 @@ function ProcTracker:Initialize()
     self.Events:RegisterEvent(self, "UNIT_AURA", self.OnAuraUpdate)
     self.Events:RegisterEvent(self, "PLAYER_TARGET_CHANGED", self.OnTargetChanged)
     self.Events:RegisterEvent(self, "PLAYER_ENTERING_WORLD", self.OnPlayerEnteringWorld)
+    self.Events:RegisterEvent(self, "PLAYER_EQUIPMENT_CHANGED", self.OnEquipmentChanged)
 
     self.Utils:Debug("ProcTracker initialized")
 end
@@ -56,15 +57,32 @@ function ProcTracker:GetProcsForClass(class)
     if self.LibSpellDB then
         local libProcs = self.LibSpellDB:GetProcs(class)
         for _, spellData in ipairs(libProcs) do
-            -- Collect all rank IDs so we can match any rank of the buff
-            local allRankIDs = self.LibSpellDB:GetAllRankIDs(spellData.spellID)
-            table.insert(procs, {
-                spellID = spellData.spellID,
-                name = spellData.name,
-                duration = spellData.duration or 15,
-                procInfo = spellData.procInfo,
-                allRankIDs = allRankIDs,  -- Set of all rank spell IDs (keys = IDs, values = true)
-            })
+            -- Skip equipment-gated procs if none of the required items are equipped
+            -- (e.g., Deep Thunder / Stormherald stun proc only when weapon is equipped)
+            local include = true
+            local requiredItems = spellData.requiredItemIDs
+            if requiredItems then
+                include = false
+                for _, itemID in ipairs(requiredItems) do
+                    if IsEquippedItem(itemID) then
+                        include = true
+                        break
+                    end
+                end
+            end
+
+            if include then
+                -- Collect all rank IDs so we can match any rank of the buff
+                local allRankIDs = self.LibSpellDB:GetAllRankIDs(spellData.spellID)
+                table.insert(procs, {
+                    spellID = spellData.spellID,
+                    name = spellData.name,
+                    duration = spellData.duration or 15,
+                    procInfo = spellData.procInfo,
+                    allRankIDs = allRankIDs,  -- Set of all rank spell IDs (keys = IDs, values = true)
+                    requiredItemIDs = spellData.requiredItemIDs,
+                })
+            end
         end
     end
     
@@ -77,6 +95,46 @@ end
 
 function ProcTracker:OnPlayerEnteringWorld()
     self:UpdateAllProcs()
+end
+
+-- Rebuild proc list when weapons change (equipment-gated procs like Deep Thunder / Stormherald)
+function ProcTracker:OnEquipmentChanged(event, slotID)
+    -- Only care about weapon slots: 16 = main hand, 17 = off hand
+    if slotID ~= 16 and slotID ~= 17 then return end
+    self:RebuildFrames()
+end
+
+-- Tear down and recreate all proc frames (called on weapon swap to re-evaluate equipment-gated procs)
+function ProcTracker:RebuildFrames()
+    if not addon.hudFrame then return end
+
+    -- Stop update ticker
+    self.Events:UnregisterUpdate(self)
+
+    -- Clean up existing frames
+    for _, frame in ipairs(self.icons or {}) do
+        if frame.glowActive then
+            self:HideProcGlow(frame)
+        end
+        if self.Animations then
+            self.Animations:StopScalePunch(frame)
+        end
+        frame:Hide()
+    end
+    self.icons = {}
+
+    if self.container then
+        self.container:SetScript("OnUpdate", nil)
+        self.slideUpdateRunning = false
+        self.container:Hide()
+        self.container = nil
+    end
+
+    self.classProcs = nil
+
+    -- Recreate
+    self:CreateFrames(addon.hudFrame)
+    addon.Layout:Refresh()
 end
 
 function ProcTracker:OnAuraUpdate(event, unit)
@@ -237,10 +295,19 @@ function ProcTracker:CreateProcIcon(parent, procData, index, size, iconWidth, ic
     icon:SetTexCoord(left, right, top, bottom)
     frame.icon = icon
     
-    -- Get spell texture
-    local spellName, _, spellIcon = GetSpellInfo(procData.spellID)
-    if spellIcon then
-        icon:SetTexture(spellIcon)
+    -- Get icon texture: LibSpellDB icon (handles overrides) > equipped item icon
+    local spellName = GetSpellInfo(procData.spellID)
+    local displayIcon = self.LibSpellDB and self.LibSpellDB:GetSpellIcon(procData.spellID)
+    if procData.requiredItemIDs then
+        for _, itemID in ipairs(procData.requiredItemIDs) do
+            if IsEquippedItem(itemID) then
+                displayIcon = GetItemIcon(itemID) or displayIcon
+                break
+            end
+        end
+    end
+    if displayIcon then
+        icon:SetTexture(displayIcon)
     else
         icon:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
     end
