@@ -519,6 +519,7 @@ C.DEFAULTS = {
             pulseEnabled = true,
             showWhileResting = false,
             showWhileMounted = false,
+            slideAnimation = true,  -- Smooth sliding when reminder icons appear/disappear
             respectResourceCost = true,
             weaponEnchantMH = true,   -- Check mainhand for missing weapon enchant (poison/imbue)
             weaponEnchantOH = true,   -- Check offhand for missing weapon enchant
