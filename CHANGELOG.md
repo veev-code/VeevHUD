@@ -1,5 +1,16 @@
 # VeevHUD Changelog
 
+## [1.0.106] - 2026-02-24
+
+### Fixed
+- **Warlock: Siphon Life not tracking** — Siphon Life's debuff duration was not displaying on the icon because the spell database was missing Rank 6 (the level 70 rank). When a level 70 warlock casts Siphon Life, the combat log fires with the Rank 6 spell ID which the aura tracker couldn't recognize. *(Thanks Seifer for reporting)*
+- **Warlock: Curse of the Elements not tracking** — Curse of the Elements was using the wrong spell ID for Rank 4 (it had Curse of Shadow's ID instead), so max-rank Curse of the Elements was never matched by the aura tracker. *(Thanks Seifer for reporting)*
+
+### LibSpellDB Updates
+- Fixed missing TBC ranks for 8 Warlock spells: Siphon Life, Searing Pain, Soul Fire, Shadowburn, Drain Mana, Curse of Weakness, Devour Magic, and Curse of Shadow.
+- Fixed spell ID swap between Fear, Curse of the Elements, and Curse of Shadow.
+- Fixed missing Priest Greater Heal Rank 7.
+
 ## [1.0.105] - 2026-02-22
 
 ### Added
