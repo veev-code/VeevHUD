@@ -370,7 +370,28 @@ function SpellsOptions:GetDefaultValue(spellID, field)
                 return true  -- Spec-relevant spell and not excluded, enabled by default
             end
         end
-        return false  -- Not spec-relevant, disabled by default (Available section)
+        -- Not spec-relevant — but check if it's a known off-tree talent that would
+        -- be auto-tracked by FullRescan (e.g., Fel Domination for Affliction warlocks).
+        -- Mirrors SpellTracker off-tree talent logic + ShouldTrackSpell tag matching.
+        local spellTracker = addon:GetModule("SpellTracker")
+        local LibSpellDB = addon.LibSpellDB
+        if spellTracker and LibSpellDB then
+            local spellData = LibSpellDB:GetSpellInfo(spellID)
+            if spellData and spellData.talent and spellTracker:IsSpellKnown(spellID, spellData) then
+                local enabledTags = spellTracker:GetEnabledTags()
+                local hasMatchingTag = false
+                for _, tag in ipairs(spellData.tags or {}) do
+                    if enabledTags[tag] then
+                        hasMatchingTag = true
+                        break
+                    end
+                end
+                if hasMatchingTag and not spellTracker:ShouldExcludeSpell(spellData) then
+                    return true  -- Known off-tree talent, would be auto-tracked
+                end
+            end
+        end
+        return false  -- Not spec-relevant and not an auto-tracked talent
     elseif field == "rowIndex" then
         -- Get from CooldownIcons default assignment
         local cooldownIcons = addon:GetModule("CooldownIcons")
@@ -545,8 +566,8 @@ function SpellsOptions:GetEffectiveSpellList()
             if cooldownIcons and cooldownIcons.GetDefaultRowForSpell then
                 defaultRow = cooldownIcons:GetDefaultRowForSpell(spellID)
             end
-            local effectiveRow = cfg.rowIndex or defaultRow or 1
-            
+            local effectiveRow = cfg.rowIndex or defaultRow or AVAILABLE_ROW_INDEX
+
             -- Determine enabled state:
             -- - If spell is tracked (in trackedSpells), it's enabled unless explicitly disabled
             -- - If spell is NOT tracked (only has config overrides), it's disabled unless explicitly enabled
@@ -557,7 +578,7 @@ function SpellsOptions:GetEffectiveSpellList()
             else
                 enabled = cfg.enabled == true  -- Must be explicitly enabled for non-tracked spells
             end
-            
+
             rows[effectiveRow] = rows[effectiveRow] or {}
             table.insert(rows[effectiveRow], {
                 spellID = spellID,
@@ -566,7 +587,7 @@ function SpellsOptions:GetEffectiveSpellList()
                 rowIndex = effectiveRow,
                 defaultRow = defaultRow,
                 order = cfg.order,
-                isAvailable = (defaultRow == nil),  -- Available if no default row (not spec-relevant)
+                isAvailable = (effectiveRow == AVAILABLE_ROW_INDEX),  -- Available if in available section
             })
         end
     end
@@ -879,17 +900,31 @@ function SpellsOptions:CreateSpellEntry(spellInfo, rowIndex, index, yOffset)
         end
 
         -- If enabling a spell from the Available section, move it to its default row
-        -- BUT only if it doesn't already have a rowIndex override (user previously configured it)
+        -- BUT only if it doesn't already have a meaningful rowIndex override (user previously configured it)
         if enabled and spellInfo.isAvailable then
-            local cfg = addon:GetSpellConfigForSpell(spellInfo.spellID)
-            if cfg.rowIndex == nil then
-                -- No existing row override, assign to default row
-                local cooldownIcons = addon:GetModule("CooldownIcons")
-                local defaultRow = 3  -- Default to Utility for non-spec-relevant spells
-                if cooldownIcons and cooldownIcons.GetDefaultRowForSpell then
-                    defaultRow = cooldownIcons:GetDefaultRowForSpell(spellInfo.spellID) or 3
+            local cooldownIcons = addon:GetModule("CooldownIcons")
+            local defaultRow = 3  -- Default to Utility for non-spec-relevant spells
+            if cooldownIcons and cooldownIcons.GetDefaultRowForSpell then
+                defaultRow = cooldownIcons:GetDefaultRowForSpell(spellInfo.spellID) or 3
+            end
+
+            if spellInfo.isExclusiveGroup then
+                -- Move all group members to the default row
+                for _, memberID in ipairs(spellInfo.exclusiveGroupMembers) do
+                    local memberCfg = addon:GetSpellConfigForSpell(memberID)
+                    if memberCfg.rowIndex == nil or memberCfg.rowIndex == AVAILABLE_ROW_INDEX then
+                        local memberRow = defaultRow
+                        if cooldownIcons and cooldownIcons.GetDefaultRowForSpell then
+                            memberRow = cooldownIcons:GetDefaultRowForSpell(memberID) or defaultRow
+                        end
+                        SpellsOptions:SetSpellOverride(memberID, "rowIndex", memberRow)
+                    end
                 end
-                SpellsOptions:SetSpellOverride(spellInfo.spellID, "rowIndex", defaultRow)
+            else
+                local cfg = addon:GetSpellConfigForSpell(spellInfo.spellID)
+                if cfg.rowIndex == nil or cfg.rowIndex == AVAILABLE_ROW_INDEX then
+                    SpellsOptions:SetSpellOverride(spellInfo.spellID, "rowIndex", defaultRow)
+                end
             end
         end
 
@@ -1253,6 +1288,7 @@ function SpellsOptions:EndDrag()
             if isGroup then
                 for _, memberID in ipairs(groupMembers) do
                     self:SetSpellOverride(memberID, "enabled", true)
+                    self:SetSpellOverride(memberID, "rowIndex", nil)  -- Clear AVAILABLE_ROW_INDEX
                 end
             else
                 self:SetSpellOverride(spellID, "enabled", true)
@@ -1263,15 +1299,21 @@ function SpellsOptions:EndDrag()
             if isGroup then
                 for _, memberID in ipairs(groupMembers) do
                     self:SetSpellOverride(memberID, "enabled", false)
-                    self:SetSpellOverride(memberID, "rowIndex", nil)
+                    self:SetSpellOverride(memberID, "rowIndex", AVAILABLE_ROW_INDEX)
                 end
             else
                 self:SetSpellOverride(spellID, "enabled", false)
-                self:SetSpellOverride(spellID, "rowIndex", nil)  -- Clear row override
+                self:SetSpellOverride(spellID, "rowIndex", AVAILABLE_ROW_INDEX)
             end
         -- Row changed within main rows
         elseif rowChanged then
-            self:SetSpellOverride(spellID, "rowIndex", newRow)
+            if isGroup then
+                for _, memberID in ipairs(groupMembers) do
+                    self:SetSpellOverride(memberID, "rowIndex", newRow)
+                end
+            else
+                self:SetSpellOverride(spellID, "rowIndex", newRow)
+            end
         end
         
         -- Update order (skip for Available section as order doesn't matter there)

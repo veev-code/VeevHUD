@@ -1237,8 +1237,8 @@ function CooldownIcons:RebuildAllRows()
                     -- Determine effective row index (lower = higher priority)
                     local rowIndex = 999
                     if cfg.rowIndex then
-                        -- User override wins: synthetic row 0 ensures it beats natural matches
-                        rowIndex = 0
+                        -- Use actual override row (consistent with UI representative selection)
+                        rowIndex = cfg.rowIndex
                     else
                         -- Find natural row by tag matching (same logic as main loop)
                         for ri, rowConfig in ipairs(rowConfigs) do

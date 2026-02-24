@@ -1,5 +1,16 @@
 # VeevHUD Changelog
 
+## [1.0.108] - 2026-02-24
+
+### Fixed
+- **Off-tree talent toggle stuck** — Trained talents from other specs (e.g., Fel Domination for Affliction warlocks) could not be unchecked in Spell Configuration. Toggling them off would immediately re-enable them on the next UI refresh. *(Thanks Deadlyy Dan for reporting)*
+- **Exclusive group icon on wrong HUD row** — Exclusive spell groups (e.g., Curses) could appear on the wrong HUD row when any member had a saved row override. For example, curses configured on the Primary row might display on the Utility row instead.
+- **Drag-to-Available not working for spell groups** — Dragging an exclusive spell group (e.g., Curses) to the Available section would disable the group but leave its icon stuck on the previous row instead of removing it.
+- **Group drag only moving representative** — Dragging an exclusive spell group between rows only applied the row change to the representative spell. Other group members stayed on their original row, causing inconsistent behavior when the representative changed.
+
+### LibSpellDB Updates
+- Added Warlock Soulshatter (threat reduction, 3min CD) to the spell database. *(Deadlyy Dan)*
+
 ## [1.0.107] - 2026-02-24
 
 ### Added
