@@ -178,6 +178,7 @@ end
 function BuffReminders:Initialize()
     self.Events = addon.Events
     self.Utils = addon.Utils
+    self.Animations = addon.Animations
     self.LibSpellDB = addon.LibSpellDB
     self.playerClass = addon.playerClass
     self.playerGUID = UnitGUID("player")
@@ -265,7 +266,8 @@ function BuffReminders:CreateFrames(parent)
     container:SetFrameLevel(15)
     container:EnableMouse(false)
     self.containerFrame = container
-    
+    self.slideAnimator = self.Animations:CreateSlideAnimator(container, 12)
+
     -- Apply container-level alpha so all child icons inherit it
     self:UpdateAlpha()
     
@@ -415,6 +417,10 @@ local function SetupAnimations(frame)
         -- frame is the visual child; hide the positioning parent
         local posFrame = frame:GetParent()
         posFrame:Hide()
+        -- Clear slide state so it doesn't slide from a stale position when reused
+        if BuffReminders.slideAnimator then
+            BuffReminders.slideAnimator:ResetFrame(posFrame)
+        end
         -- If no visible icons remain and no other frames are animating out, hide container
         local container = posFrame:GetParent()
         if container and container:IsShown() then
@@ -591,6 +597,10 @@ function BuffReminders:UpdateIconSize()
         if frame.stacks then
             frame.stacks:SetFont(addon:GetFont(), stacksFontSize, "OUTLINE")
         end
+        -- Reset slide state so LayoutIcons snaps to positions at the new size
+        if self.slideAnimator then
+            self.slideAnimator:ResetFrame(frame)
+        end
     end
 
     -- Tell Masque to re-apply skins at new icon sizes
@@ -616,15 +626,8 @@ function BuffReminders:LayoutIcons()
         self.containerFrame:Show()
     end
 
-    -- Calculate total width; use CENTER anchoring so scale doesn't cause drift
-    local totalWidth = (numVisible * iconSize) + ((numVisible - 1) * spacing)
-    local startX = -totalWidth / 2
-
-    for i, frame in ipairs(self.visibleIcons) do
-        frame:ClearAllPoints()
-        -- CENTER anchor: scaling won't shift the icon's visual position
-        local centerX = startX + (i - 1) * (iconSize + spacing) + iconSize / 2
-        frame:SetPoint("CENTER", self.containerFrame, "CENTER", centerX, 0)
+    if self.slideAnimator then
+        self.slideAnimator:LayoutFrames(self.visibleIcons, iconSize, spacing, db.slideAnimation)
     end
 end
 
@@ -1288,9 +1291,15 @@ function BuffReminders:HideAll()
         AnimStop(frame)
     end
     wipe(self.visibleIcons)
-    -- Also stop any lingering animations on pooled icons
+    -- Also stop any lingering animations on pooled icons and clear slide state
     for _, frame in pairs(self.iconPool) do
         AnimStop(frame)
+        if self.slideAnimator then
+            self.slideAnimator:ResetFrame(frame)
+        end
+    end
+    if self.slideAnimator then
+        self.slideAnimator:Stop()
     end
     if self.containerFrame then
         self.containerFrame:Hide()

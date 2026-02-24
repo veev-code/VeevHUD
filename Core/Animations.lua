@@ -381,4 +381,144 @@ function Animations:StopAlphaTransition(frame)
     frame:SetScript("OnUpdate", nil)
 end
 
+-------------------------------------------------------------------------------
+-- Slide Animator (smooth horizontal repositioning)
+-------------------------------------------------------------------------------
+-- Creates reusable slide animators for centered horizontal icon layouts.
+-- Child frames smoothly lerp from their current X offset to a target X offset
+-- using an ease-out feel (same approach as the original ProcTracker slide).
+--
+-- Uses a shared driver frame (like punchDriver) so the animator never touches
+-- the container's OnUpdate script.
+-------------------------------------------------------------------------------
+
+local slideDriver = CreateFrame("Frame")
+slideDriver.active = {}  -- [animator] = true
+slideDriver:Hide()
+
+slideDriver:SetScript("OnUpdate", function(self, elapsed)
+    local hasActive = false
+
+    for animator in pairs(self.active) do
+        local settled = animator:_OnUpdate(elapsed)
+        if settled then
+            self.active[animator] = nil
+        else
+            hasActive = true
+        end
+    end
+
+    if not hasActive then
+        self:Hide()
+    end
+end)
+
+-- Create a slide animator bound to a container frame.
+-- Parameters:
+--   container: The parent frame that child icons are anchored to (CENTER)
+--   speed: Lerp speed multiplier (default 12, higher = faster)
+function Animations:CreateSlideAnimator(container, speed)
+    local animator = {
+        container = container,
+        speed = speed or 12,
+        snapThreshold = 0.5,
+        running = false,
+        frames = {},  -- [frame] = true; frames with active slide state
+    }
+
+    -- Compute centered positions and set slide targets for all frames.
+    -- Parameters:
+    --   frames: array of visible child frames (ipairs order = left to right)
+    --   itemWidth: pixel width of each item
+    --   spacing: pixel gap between items
+    --   animate: if true, lerp to position; if false, snap instantly
+    function animator:LayoutFrames(frames, itemWidth, spacing, animate)
+        local count = #frames
+        if count == 0 then return end
+
+        local totalWidth = (count * itemWidth) + ((count - 1) * spacing)
+
+        for i, frame in ipairs(frames) do
+            local targetX = (i - 1) * (itemWidth + spacing) - (totalWidth / 2) + (itemWidth / 2)
+
+            if animate then
+                if not frame._slideCurrentX then
+                    -- First time: snap to target (no stale position to slide from)
+                    frame._slideCurrentX = targetX
+                    frame:ClearAllPoints()
+                    frame:SetPoint("CENTER", self.container, "CENTER", targetX, 0)
+                end
+                frame._slideTargetX = targetX
+                self.frames[frame] = true
+            else
+                frame:ClearAllPoints()
+                frame:SetPoint("CENTER", self.container, "CENTER", targetX, 0)
+                frame._slideCurrentX = targetX
+                frame._slideTargetX = targetX
+                self.frames[frame] = nil
+            end
+        end
+
+        if animate and not self.running then
+            self.running = true
+            slideDriver.active[self] = true
+            slideDriver:Show()
+        end
+    end
+
+    -- Clear slide state on a frame (call when the frame is hidden or recycled).
+    function animator:ResetFrame(frame)
+        frame._slideCurrentX = nil
+        frame._slideTargetX = nil
+        self.frames[frame] = nil
+    end
+
+    -- Snap all tracked frames to their targets and stop animating.
+    function animator:Stop()
+        for frame in pairs(self.frames) do
+            if frame._slideCurrentX and frame._slideTargetX
+               and frame._slideCurrentX ~= frame._slideTargetX then
+                frame._slideCurrentX = frame._slideTargetX
+                frame:ClearAllPoints()
+                frame:SetPoint("CENTER", self.container, "CENTER", frame._slideTargetX, 0)
+            end
+        end
+        self.running = false
+        slideDriver.active[self] = nil
+    end
+
+    -- Internal: called by slideDriver each frame. Returns true when all settled.
+    function animator:_OnUpdate(elapsed)
+        local allSettled = true
+
+        for frame in pairs(self.frames) do
+            if frame:IsShown() and frame._slideCurrentX and frame._slideTargetX then
+                local diff = frame._slideTargetX - frame._slideCurrentX
+
+                if math.abs(diff) < self.snapThreshold then
+                    if frame._slideCurrentX ~= frame._slideTargetX then
+                        frame._slideCurrentX = frame._slideTargetX
+                        frame:ClearAllPoints()
+                        frame:SetPoint("CENTER", self.container, "CENTER", frame._slideTargetX, 0)
+                    end
+                else
+                    allSettled = false
+                    local move = diff * math.min(1, elapsed * self.speed)
+                    frame._slideCurrentX = frame._slideCurrentX + move
+                    frame:ClearAllPoints()
+                    frame:SetPoint("CENTER", self.container, "CENTER", frame._slideCurrentX, 0)
+                end
+            end
+        end
+
+        if allSettled then
+            self.running = false
+        end
+
+        return allSettled
+    end
+
+    return animator
+end
+
 return Animations

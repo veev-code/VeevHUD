@@ -123,9 +123,11 @@ function ProcTracker:RebuildFrames()
     end
     self.icons = {}
 
+    if self.slideAnimator then
+        self.slideAnimator:Stop()
+        self.slideAnimator = nil
+    end
     if self.container then
-        self.container:SetScript("OnUpdate", nil)
-        self.slideUpdateRunning = false
         self.container:Hide()
         self.container = nil
     end
@@ -205,7 +207,8 @@ function ProcTracker:CreateFrames(parent)
     container:SetPoint("CENTER", parent, "CENTER", 0, 0)  -- Temporary, layout will reposition
     container:EnableMouse(false)  -- Click-through
     self.container = container
-    
+    self.slideAnimator = self.Animations:CreateSlideAnimator(container, 12)
+
     -- Create icon frames for each proc
     local spacing = db.iconSpacing
     local totalWidth = (#classProcs * iconWidth) + ((#classProcs - 1) * spacing)
@@ -572,106 +575,36 @@ end
 
 -- Reposition visible icons dynamically (with optional smooth sliding animation)
 function ProcTracker:RepositionIcons()
-    if not self.icons or not self.container then return end
-    
+    if not self.icons or not self.container or not self.slideAnimator then return end
+
     local db = addon.db.profile.procTracker
     local size = db.iconSize
     local aspectRatio = db.iconAspectRatio
     local iconWidth, iconHeight = self.Utils:GetIconDimensions(size, aspectRatio)
     local spacing = db.iconSpacing
-    local useSlideAnimation = db.slideAnimation
-    
-    -- Count visible icons
+
+    -- Gather visible icons and stop scale punch so positioning isn't
+    -- affected by non-1.0 scale (SetScale multiplies anchor offsets)
     local visibleIcons = {}
     for _, frame in ipairs(self.icons) do
         if frame:IsShown() then
+            if self.Animations then
+                self.Animations:StopScalePunch(frame)
+            end
             table.insert(visibleIcons, frame)
         end
     end
-    
-    if #visibleIcons == 0 then return end
-    
-    -- Calculate total width and target positions (use iconWidth for horizontal layout)
-    local totalWidth = (#visibleIcons * iconWidth) + ((#visibleIcons - 1) * spacing)
-    
-    for i, frame in ipairs(visibleIcons) do
-        -- Stop any active scale punch so positioning isn't affected by
-        -- non-1.0 scale (SetScale multiplies anchor offsets)
-        if self.Animations then
-            self.Animations:StopScalePunch(frame)
-        end
-        
-        local targetX = (i - 1) * (iconWidth + spacing) - (totalWidth / 2) + (iconWidth / 2)
-        
-        if useSlideAnimation then
-            -- Initialize current position if not set (first time or just became visible)
-            if not frame.currentX then
-                frame.currentX = targetX
-                frame:ClearAllPoints()
-                frame:SetPoint("CENTER", self.container, "CENTER", targetX, 0)
-            end
-            
-            -- Set target for sliding
-            frame.targetX = targetX
-        else
-            -- No animation - snap directly to position
-            frame:ClearAllPoints()
-            frame:SetPoint("CENTER", self.container, "CENTER", targetX, 0)
-            frame.currentX = targetX
-            frame.targetX = targetX
-        end
-    end
-    
-    -- Start slide update if animation enabled and not already running
-    if useSlideAnimation and not self.slideUpdateRunning then
-        self:StartSlideUpdate()
-    end
-end
 
--- Smooth sliding animation using OnUpdate lerp
-function ProcTracker:StartSlideUpdate()
-    if self.slideUpdateRunning then return end
-    
-    self.slideUpdateRunning = true
-    local slideSpeed = 12  -- Higher = faster (pixels per second multiplier)
-    
-    self.container:SetScript("OnUpdate", function(_, elapsed)
-        local allSettled = true
-        
-        for _, frame in ipairs(self.icons) do
-            if frame:IsShown() and frame.currentX and frame.targetX then
-                local diff = frame.targetX - frame.currentX
-                
-                -- If close enough, snap to target
-                if math.abs(diff) < 0.5 then
-                    if frame.currentX ~= frame.targetX then
-                        frame.currentX = frame.targetX
-                        frame:ClearAllPoints()
-                        frame:SetPoint("CENTER", self.container, "CENTER", frame.targetX, 0)
-                    end
-                else
-                    -- Lerp toward target (ease-out feel)
-                    allSettled = false
-                    local move = diff * math.min(1, elapsed * slideSpeed)
-                    frame.currentX = frame.currentX + move
-                    frame:ClearAllPoints()
-                    frame:SetPoint("CENTER", self.container, "CENTER", frame.currentX, 0)
-                end
-            end
-        end
-        
-        -- Stop updating when all icons have settled
-        if allSettled then
-            self.container:SetScript("OnUpdate", nil)
-            self.slideUpdateRunning = false
-        end
-    end)
+    if #visibleIcons == 0 then return end
+
+    self.slideAnimator:LayoutFrames(visibleIcons, iconWidth, spacing, db.slideAnimation)
 end
 
 -- Reset position tracking when icon becomes hidden
 function ProcTracker:ResetIconPosition(frame)
-    frame.currentX = nil
-    frame.targetX = nil
+    if self.slideAnimator then
+        self.slideAnimator:ResetFrame(frame)
+    end
 end
 
 function ProcTracker:FindBuffBySpellID(spellID, allRankIDs)
@@ -865,8 +798,9 @@ function ProcTracker:Refresh()
             end
             
             -- Reset slide animation position so RepositionIcons will snap to new position
-            frame.currentX = nil
-            frame.targetX = nil
+            if self.slideAnimator then
+                self.slideAnimator:ResetFrame(frame)
+            end
 
             -- Update built-in style if Masque is not installed
             addon.IconStyling:Update(frame, iconSize, self.MasqueGroup ~= nil, addon.db.profile.procTracker.iconAspectRatio)

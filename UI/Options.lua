@@ -2502,6 +2502,13 @@ function Options:BuildBuffRemindersOptions()
 								arg = "buffReminders.showWhileMounted",
 								order = 4,
 							},
+							slideAnimation = {
+								type = "toggle",
+								name = "Slide Animation",
+								desc = "When buff reminders appear or disappear, the remaining icons smoothly slide to re-center instead of snapping instantly. Disable for instant repositioning.",
+								arg = "buffReminders.slideAnimation",
+								order = 5,
+							},
 						},
 					},
 					position = {
