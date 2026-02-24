@@ -422,6 +422,10 @@ function CooldownIcons:OnSpellCastSucceeded(event, unit, castGUID, spellID)
     -- Check if this spell is part of a shared cooldown group
     -- If so, and it's not the displayed spell, set an override to show this spell's buff
     self:HandleSharedCooldownCast(spellID)
+
+    -- Check if this spell belongs to an exclusive BuffGroup (e.g., warlock curses)
+    -- If so, swap the icon to show the actually-used ability
+    self:HandleExclusiveGroupCast(spellID)
 end
 
 -- Handle CLEU events that refresh reactive windows (e.g., PARTY_KILL refreshes Victory Rush)
@@ -517,6 +521,50 @@ function CooldownIcons:HandleSharedCooldownCast(castSpellID)
                             iconFrame.spellData = castSpellData
                             self.Utils:Debug("SharedCD swap: now showing", castSpellID, "instead of original")
                         end
+                    end
+                end
+            end
+        end
+    end
+end
+
+-- Handle when an exclusive BuffGroup spell is cast that isn't the displayed one.
+-- Mirrors HandleSharedCooldownCast: swap the icon to show the actually-used ability.
+-- E.g., icon shows Curse of Agony but player casts Curse of Elements → swap to CoE.
+function CooldownIcons:HandleExclusiveGroupCast(castSpellID)
+    local LibSpellDB = addon.LibSpellDB
+    if not LibSpellDB then return end
+
+    -- Resolve the cast spell (may be a rank ID) to its canonical data and BuffGroup
+    local castSpellData = LibSpellDB:GetSpellInfo(castSpellID)
+    if not castSpellData then return end
+
+    local groupName, groupInfo = LibSpellDB:GetBuffGroup(castSpellData.spellID)
+    if not groupName or not groupInfo or groupInfo.relationship ~= "exclusive" then return end
+
+    local castCanonicalID = castSpellData.spellID
+    local castAuraTarget = LibSpellDB:GetAuraTarget(castCanonicalID) or "self"
+
+    -- Find if we have an icon tracking a different spell from this group (same auraTarget).
+    -- Only swap within the same auraTarget — e.g., don't swap an ally Earth Shield icon
+    -- when the player casts a self Water Shield (they track different units).
+    for _, rowFrame in ipairs(self.rows or {}) do
+        if rowFrame.icons then
+            for _, iconFrame in ipairs(rowFrame.icons) do
+                if iconFrame:IsShown() and iconFrame.spellID then
+                    local iconGroup = LibSpellDB:GetBuffGroupRelationship(iconFrame.spellID) == "exclusive"
+                        and select(1, LibSpellDB:GetBuffGroup(iconFrame.spellID))
+                    local iconAuraTarget = LibSpellDB:GetAuraTarget(iconFrame.spellID) or "self"
+                    if iconGroup == groupName and iconAuraTarget == castAuraTarget and iconFrame.spellID ~= castCanonicalID then
+                        -- Different spell from same exclusive group was cast — swap the icon
+                        local texture = castSpellData.icon or self.Utils:GetSpellTexture(castSpellID)
+                        iconFrame.icon:SetTexture(texture)
+                        iconFrame.spellID = castCanonicalID
+                        iconFrame.actualSpellID = castSpellID  -- Rank ID for WoW API calls
+                        iconFrame.spellData = castSpellData
+                        self:PlayCastFeedback(iconFrame)
+                        self.Utils:Debug("ExclusiveGroup swap: now showing", castCanonicalID, "instead of original")
+                        return
                     end
                 end
             end
@@ -1151,6 +1199,85 @@ function CooldownIcons:RebuildAllRows()
     local totemBarMod = addon:GetModule("TotemBar")
     local totemBarActive = totemBarMod and totemBarMod.IsActive and totemBarMod:IsActive()
 
+    -- Collapse exclusive BuffGroup members into one representative per group.
+    -- Only one spell from each exclusive group gets an icon; the rest are skipped.
+    -- On cast, HandleExclusiveGroupCast() swaps the icon to the actually-used ability.
+    local skipExclusiveSpells = {}
+    do
+        -- Group tracked spells by their exclusive BuffGroup, sub-grouped by auraTarget.
+        -- Spells with different auraTargets (e.g., Earth Shield=ally vs Water Shield=self)
+        -- can coexist on different units, so they must NOT collapse together.
+        local exclusiveGroups = {}  -- subKey -> {spellID, ...}
+        for spellID, trackedData in pairs(trackedSpells) do
+            local groupName, groupInfo = LibSpellDB:GetBuffGroup(spellID)
+            if groupName and groupInfo and groupInfo.relationship == "exclusive" then
+                local auraTarget = LibSpellDB:GetAuraTarget(spellID) or "self"
+                local subKey = groupName .. "|" .. auraTarget
+                if not exclusiveGroups[subKey] then
+                    exclusiveGroups[subKey] = {}
+                end
+                table.insert(exclusiveGroups[subKey], {
+                    spellID = spellID,
+                    spellData = trackedData.spellData,
+                })
+            end
+        end
+
+        -- For each group with 2+ tracked members, pick the best representative
+        for groupName, members in pairs(exclusiveGroups) do
+            if #members >= 2 then
+                -- Pick representative: spellConfig rowIndex override > highest-priority row > priority > spellID
+                local bestSpellID = nil
+                local bestRowIndex = 999
+                local bestPriority = 999
+
+                for _, member in ipairs(members) do
+                    local cfg = spellCfg[member.spellID] or {}
+
+                    -- Determine effective row index (lower = higher priority)
+                    local rowIndex = 999
+                    if cfg.rowIndex then
+                        -- User override wins: synthetic row 0 ensures it beats natural matches
+                        rowIndex = 0
+                    else
+                        -- Find natural row by tag matching (same logic as main loop)
+                        for ri, rowConfig in ipairs(rowConfigs) do
+                            for _, tag in ipairs(rowConfig.tags) do
+                                if LibSpellDB:HasTag(member.spellID, tag) then
+                                    rowIndex = ri
+                                    break
+                                end
+                            end
+                            if rowIndex < 999 then break end
+                        end
+                    end
+
+                    local priority = member.spellData.priority or 999
+
+                    -- Lower rowIndex wins, then lower priority, then lower spellID
+                    if not bestSpellID
+                        or rowIndex < bestRowIndex
+                        or (rowIndex == bestRowIndex and priority < bestPriority)
+                        or (rowIndex == bestRowIndex and priority == bestPriority and member.spellID < bestSpellID) then
+                        bestSpellID = member.spellID
+                        bestRowIndex = rowIndex
+                        bestPriority = priority
+                    end
+                end
+
+                -- Mark all non-representative members for skipping
+                for _, member in ipairs(members) do
+                    if member.spellID ~= bestSpellID then
+                        skipExclusiveSpells[member.spellID] = true
+                    end
+                end
+
+                self.Utils:LogDebug("ExclusiveGroup", groupName .. ": representative", bestSpellID,
+                    "(" .. #members .. " members, skipping " .. (#members - 1) .. ")")
+            end
+        end
+    end
+
     for spellID, trackedData in pairs(trackedSpells) do
         local spellData = trackedData.spellData
         local assigned = false
@@ -1190,7 +1317,7 @@ function CooldownIcons:RebuildAllRows()
             end
         end
 
-        if not skipForm and not skipTotemBar then
+        if not skipForm and not skipTotemBar and not skipExclusiveSpells[spellID] then
         -- Check if spell has a row override in spellConfig
         if cfg.rowIndex then
             local rowIndex = cfg.rowIndex
@@ -1250,7 +1377,7 @@ function CooldownIcons:RebuildAllRows()
             end
         end
 
-        end -- not skipForm and not skipTotemBar
+        end -- not skipForm/skipTotemBar/skipExclusiveSpells
     end
 
     -- Sort spells within each row
@@ -1866,6 +1993,58 @@ function CooldownIcons:UpdateIconState(frame, db)
                     auraRemaining = buffRemaining
                     auraDuration = buffDuration
                     auraStacks = buffStacks or 0
+                end
+            end
+        end
+    end
+
+    -- Exclusive BuffGroup target-aware swap: if no aura found for the current spell,
+    -- check if a different group member's aura is active on the current target.
+    -- Handles target switching (e.g., CoA on Mob1, CoE on Mob2 → icon follows target).
+    if not auraActive and db.showAuraTracking and addon.LibSpellDB then
+        local groupName, groupInfo = addon.LibSpellDB:GetBuffGroup(spellID)
+        if groupName and groupInfo and groupInfo.relationship == "exclusive" then
+            local myAuraTarget = addon.LibSpellDB:GetAuraTarget(spellID) or "self"
+            local auraTracker = addon:GetModule("AuraTracker")
+            for _, memberID in ipairs(groupInfo.spells) do
+                local memberAuraTarget = addon.LibSpellDB:GetAuraTarget(memberID) or "self"
+                if memberID ~= spellID and memberAuraTarget == myAuraTarget then
+                    -- Check AuraTracker first (CLEU-based, player's own debuffs)
+                    local mActive, mRemaining, mDuration, mStacks
+                    if auraTracker and auraTracker.GetAuraState then
+                        mActive, mRemaining, mDuration, mStacks = auraTracker:GetAuraState(memberID)
+                    end
+                    -- Fallback to direct buff check
+                    if not mActive then
+                        local mData = addon.LibSpellDB:GetSpellInfo(memberID)
+                        if mData then
+                            local mActualID = self.Utils:GetEffectiveSpellID(memberID) or memberID
+                            local mCheckSelf = addon.LibSpellDB:IsSelfOnly(mData)
+                            mActive, mRemaining, mDuration, mStacks = self:GetRelevantBuff(mActualID, mCheckSelf, mData)
+                        end
+                    end
+                    if mActive then
+                        -- Swap icon to the group member whose aura is on the current target
+                        local mData = addon.LibSpellDB:GetSpellInfo(memberID)
+                        if mData then
+                            local mActualID = self.Utils:GetEffectiveSpellID(memberID) or memberID
+                            local texture = mData.icon or self.Utils:GetSpellTexture(mActualID)
+                            frame.icon:SetTexture(texture)
+                            frame.spellID = memberID
+                            frame.actualSpellID = mActualID
+                            frame.spellData = mData
+                            -- Update locals for the rest of UpdateIconState
+                            spellID = memberID
+                            actualSpellID = mActualID
+                            spellData = mData
+                            checkSelfOnly = addon.LibSpellDB:IsSelfOnly(mData)
+                            auraActive = true
+                            auraRemaining = mRemaining
+                            auraDuration = mDuration
+                            auraStacks = mStacks or 0
+                            break
+                        end
+                    end
                 end
             end
         end

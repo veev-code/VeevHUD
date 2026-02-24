@@ -590,6 +590,24 @@ function SpellsOptions:GetEffectiveSpellList()
                     -- Skip spells blocked by shared cooldown (e.g., Shield Wall when Recklessness is tracked)
                     -- These are hidden entirely rather than shown as greyed out
                     local isBlocked = self:IsBlockedBySharedCooldown(spellID)
+                    -- Skip non-representative exclusive group members (they'll be collapsed into the group entry).
+                    -- Only block members with the same auraTarget — spells targeting different units
+                    -- (e.g., Earth Shield=ally vs Water Shield=self) can coexist.
+                    if not isBlocked then
+                        local gName, gInfo = addon.LibSpellDB:GetBuffGroup(spellID)
+                        if gName and gInfo and gInfo.relationship == "exclusive" then
+                            local myAuraTarget = addon.LibSpellDB:GetAuraTarget(spellID) or "self"
+                            for _, gSpellID in ipairs(gInfo.spells) do
+                                if gSpellID ~= spellID and displayedSpellIDs[gSpellID] then
+                                    local otherAuraTarget = addon.LibSpellDB:GetAuraTarget(gSpellID) or "self"
+                                    if otherAuraTarget == myAuraTarget then
+                                        isBlocked = true
+                                        break
+                                    end
+                                end
+                            end
+                        end
+                    end
                     if not isBlocked then
                         knownCount = knownCount + 1
                         availableCount = availableCount + 1
@@ -645,7 +663,93 @@ function SpellsOptions:GetEffectiveSpellList()
             return orderA < orderB
         end)
     end
-    
+
+    -- Collapse exclusive BuffGroup members into a single group entry per group.
+    -- E.g., 8 warlock curses become one "Curses" entry since they share a tracker.
+    if addon.LibSpellDB then
+        -- Discover exclusive groups across all rows, sub-grouped by auraTarget.
+        -- Spells targeting different units (e.g., Earth Shield=ally vs Water Shield=self)
+        -- can coexist and must not be collapsed together.
+        local groupEntries = {}  -- subKey -> {{spellInfo, rowIndex}, ...}
+        for rowIndex, spells in pairs(rows) do
+            for _, spellInfo in ipairs(spells) do
+                local groupName, groupInfo = addon.LibSpellDB:GetBuffGroup(spellInfo.spellID)
+                if groupName and groupInfo and groupInfo.relationship == "exclusive" then
+                    local auraTarget = addon.LibSpellDB:GetAuraTarget(spellInfo.spellID) or "self"
+                    local subKey = groupName .. "|" .. auraTarget
+                    groupEntries[subKey] = groupEntries[subKey] or {info = groupInfo, members = {}}
+                    table.insert(groupEntries[subKey].members, {spellInfo = spellInfo, rowIndex = rowIndex})
+                end
+            end
+        end
+
+        -- For each group with 2+ entries, collapse into one
+        for groupName, group in pairs(groupEntries) do
+            if #group.members >= 2 then
+                -- Pick representative: lowest rowIndex (Primary > Secondary > Utility > Available),
+                -- then priority, then spellID
+                table.sort(group.members, function(a, b)
+                    if a.rowIndex ~= b.rowIndex then return a.rowIndex < b.rowIndex end
+                    local prioA = a.spellInfo.spellData.priority or 999
+                    local prioB = b.spellInfo.spellData.priority or 999
+                    if prioA ~= prioB then return prioA < prioB end
+                    return a.spellInfo.spellID < b.spellInfo.spellID
+                end)
+
+                local rep = group.members[1]
+                local memberIDs = {}
+                local anyEnabled = false
+
+                -- Collect member IDs and check enabled state
+                for _, m in ipairs(group.members) do
+                    table.insert(memberIDs, m.spellInfo.spellID)
+                    if m.spellInfo.enabled then anyEnabled = true end
+                end
+
+                -- Remove all member entries from their rows
+                local removeSet = {}
+                for _, m in ipairs(group.members) do
+                    removeSet[m.spellInfo.spellID] = true
+                end
+                for rowIndex, spells in pairs(rows) do
+                    local filtered = {}
+                    for _, s in ipairs(spells) do
+                        if not removeSet[s.spellID] then
+                            table.insert(filtered, s)
+                        end
+                    end
+                    rows[rowIndex] = filtered
+                end
+
+                -- Create group entry from representative
+                local groupEntry = {
+                    spellID = rep.spellInfo.spellID,
+                    spellData = rep.spellInfo.spellData,
+                    enabled = anyEnabled,
+                    rowIndex = rep.rowIndex,
+                    defaultRow = rep.spellInfo.defaultRow,
+                    order = rep.spellInfo.order,
+                    isAvailable = rep.spellInfo.isAvailable,
+                    defaultOrder = rep.spellInfo.defaultOrder,
+                    -- Group metadata
+                    isExclusiveGroup = true,
+                    exclusiveGroupName = groupName,
+                    exclusiveGroupMembers = memberIDs,
+                    exclusiveGroupDescription = group.info.description,
+                }
+
+                -- Insert into representative's row and re-sort to maintain position
+                rows[rep.rowIndex] = rows[rep.rowIndex] or {}
+                table.insert(rows[rep.rowIndex], groupEntry)
+                table.sort(rows[rep.rowIndex], function(a, b)
+                    local orderA = a.order or a.defaultOrder or 999
+                    local orderB = b.order or b.defaultOrder or 999
+                    return orderA < orderB
+                end)
+            end
+        end
+    end
+
     return rows
 end
 
@@ -730,9 +834,18 @@ function SpellsOptions:CreateSpellEntry(spellInfo, rowIndex, index, yOffset)
     icon:SetTexture(spellIcon or "Interface\\Icons\\INV_Misc_QuestionMark")
     frame.icon = icon
     
-    -- Name
-    local nameText = spellName or ("Spell " .. spellInfo.spellID)
-    
+    -- Name (use group description for exclusive group entries)
+    local nameText
+    if spellInfo.isExclusiveGroup and spellInfo.exclusiveGroupDescription then
+        -- Title-case the group description (e.g., "Warlock curses" → "Curses")
+        local desc = spellInfo.exclusiveGroupDescription
+        -- Strip class prefix if present (e.g., "Warlock curses" → "Curses")
+        local shortDesc = desc:match("^%w+%s+(.+)$") or desc
+        nameText = shortDesc:sub(1, 1):upper() .. shortDesc:sub(2)
+    else
+        nameText = spellName or ("Spell " .. spellInfo.spellID)
+    end
+
     local name = frame:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
     name:SetPoint("LEFT", icon, "RIGHT", 8, 0)
     name:SetText(nameText)
@@ -756,7 +869,14 @@ function SpellsOptions:CreateSpellEntry(spellInfo, rowIndex, index, yOffset)
     checkbox:SetScript("OnClick", function(self)
         local enabled = self:GetChecked()
 
-        SpellsOptions:SetSpellOverride(spellInfo.spellID, "enabled", enabled)
+        if spellInfo.isExclusiveGroup then
+            -- Toggle ALL group members at once
+            for _, memberID in ipairs(spellInfo.exclusiveGroupMembers) do
+                SpellsOptions:SetSpellOverride(memberID, "enabled", enabled)
+            end
+        else
+            SpellsOptions:SetSpellOverride(spellInfo.spellID, "enabled", enabled)
+        end
 
         -- If enabling a spell from the Available section, move it to its default row
         -- BUT only if it doesn't already have a rowIndex override (user previously configured it)
@@ -903,7 +1023,20 @@ function SpellsOptions:CreateSpellEntry(spellInfo, rowIndex, index, yOffset)
     frame:SetScript("OnEnter", function(self)
         self.bg:Show()
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        GameTooltip:SetSpellByID(spellInfo.spellID)
+        if spellInfo.isExclusiveGroup then
+            -- Custom tooltip listing all group members
+            GameTooltip:AddLine("Shared Tracker", 1, 1, 1)
+            GameTooltip:AddLine("Only one active at a time — icon swaps on cast", 0.7, 0.7, 0.7, true)
+            GameTooltip:AddLine(" ")
+            for _, memberID in ipairs(spellInfo.exclusiveGroupMembers) do
+                local mName = GetSpellInfo(memberID)
+                if mName then
+                    GameTooltip:AddLine(mName, 1, 0.82, 0)
+                end
+            end
+        else
+            GameTooltip:SetSpellByID(spellInfo.spellID)
+        end
         GameTooltip:Show()
     end)
     frame:SetScript("OnLeave", function(self)
@@ -969,7 +1102,11 @@ function SpellsOptions:StartDrag(frame)
     -- Setup ghost frame
     local spellName, _, spellIcon = GetSpellInfo(frame.spellID)
     self.ghostFrame.icon:SetTexture(spellIcon)
-    self.ghostFrame.name:SetText(spellName or "Unknown")
+    if frame.spellInfo.isExclusiveGroup then
+        self.ghostFrame.name:SetText(frame.nameText:GetText() or "Group")
+    else
+        self.ghostFrame.name:SetText(spellName or "Unknown")
+    end
     self.ghostFrame:Show()
     
     -- Start update loop
@@ -1107,14 +1244,31 @@ function SpellsOptions:EndDrag()
             return
         end
         
+        -- For exclusive group entries, apply overrides to all members
+        local isGroup = self.dragState.spellInfo and self.dragState.spellInfo.isExclusiveGroup
+        local groupMembers = isGroup and self.dragState.spellInfo.exclusiveGroupMembers
+
         -- If dragging from Available section to a main row, enable the spell
         if sourceRow == AVAILABLE_ROW_INDEX and newRow ~= AVAILABLE_ROW_INDEX then
-            self:SetSpellOverride(spellID, "enabled", true)
+            if isGroup then
+                for _, memberID in ipairs(groupMembers) do
+                    self:SetSpellOverride(memberID, "enabled", true)
+                end
+            else
+                self:SetSpellOverride(spellID, "enabled", true)
+            end
             self:SetSpellOverride(spellID, "rowIndex", newRow)
         -- If dragging to Available section, disable the spell
         elseif newRow == AVAILABLE_ROW_INDEX and sourceRow ~= AVAILABLE_ROW_INDEX then
-            self:SetSpellOverride(spellID, "enabled", false)
-            self:SetSpellOverride(spellID, "rowIndex", nil)  -- Clear row override
+            if isGroup then
+                for _, memberID in ipairs(groupMembers) do
+                    self:SetSpellOverride(memberID, "enabled", false)
+                    self:SetSpellOverride(memberID, "rowIndex", nil)
+                end
+            else
+                self:SetSpellOverride(spellID, "enabled", false)
+                self:SetSpellOverride(spellID, "rowIndex", nil)  -- Clear row override
+            end
         -- Row changed within main rows
         elseif rowChanged then
             self:SetSpellOverride(spellID, "rowIndex", newRow)

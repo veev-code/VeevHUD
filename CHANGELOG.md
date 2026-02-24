@@ -1,5 +1,16 @@
 # VeevHUD Changelog
 
+## [1.0.107] - 2026-02-24
+
+### Added
+- **Exclusive Spell Group Consolidation** — Mutually exclusive spells that share a single ability tracker (e.g., warlock curses, paladin seals) are now consolidated into one icon on the HUD. When you cast a different spell from the group, the icon swaps automatically. When you switch targets, the icon updates to show whichever group member is active on the current target.
+- **Spell Config: Group Entries** — Exclusive spell groups appear as a single entry in Spell Configuration instead of individual spells. Hovering shows all member spells; toggling or dragging applies to the entire group. For example, 8 warlock curses now show as one "Curses" entry.
+- **AuraTarget-Aware Grouping** — Exclusive group consolidation respects spell targeting. Spells that target different units (e.g., Earth Shield on ally vs Water/Lightning Shield on self) remain as separate entries since both can be active simultaneously.
+
+### LibSpellDB Updates
+- New exclusive BuffGroups: `WARLOCK_CURSES` (8 curses) and `PALADIN_SEALS` (8 seals).
+- Fixed missing `PALADIN_SEALS` group definition — seal spells referenced the group but it was never defined.
+
 ## [1.0.106] - 2026-02-24
 
 ### Fixed
