@@ -405,7 +405,7 @@ C.DEFAULTS = {
             safeColor = { r = 0.3, g = 0.9, b = 0.3 },        -- Green
             dangerColor = { r = 0.9, g = 0.2, b = 0.2 },      -- Red
             cautionColor = { r = 0.9, g = 0.8, b = 0.2 },     -- Yellow (Hunter 3-color)
-            syncThreshold = 0.5,     -- Enhancement/Fury sync threshold (seconds)
+            syncThreshold = 0.5,     -- Sync threshold (seconds). Enh Shaman: synced=green. Fury Warrior: synced=red (inverted).
             enableSyncColors = true, -- Enhancement/Fury: color bars by sync status
             hunterThreeColor = false, -- Hunter: false = 2-color, true = 3-color with Multi-Shot zone
             enableClipZones = true,  -- Hunter: color bar by safe/clip zones

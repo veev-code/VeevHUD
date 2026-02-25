@@ -23,7 +23,7 @@
          Optional 3-color mode: Green -> Yellow (Multi-Shot clips) -> Red.
        - Ret Paladin: Single MH bar. Neutral -> Green (last ~0.4s = twist window).
        - Enhancement Shaman: Dual MH+OH bars. Entire bar green (synced) or red (desynced).
-       - Fury Warrior: Dual MH+OH bars. Entire bar green (synced) or red (desynced).
+       - Fury Warrior: Dual MH+OH bars. Entire bar green (desynced) or red (synced).
        - Arms Warrior: Single MH bar. Neutral only (fill itself signals timing).
        - Prot Warrior: Single MH bar. Neutral only.
        - Rogue (all): Single or dual bar. Neutral only.
@@ -79,7 +79,6 @@ local CombatLogGetCurrentEventInfo = CombatLogGetCurrentEventInfo
 local select = select
 local math_abs = math.abs
 local math_max = math.max
-local GetWeaponEnchantInfo = GetWeaponEnchantInfo
 
 local SwingBar = {}
 addon:RegisterModule("SwingBar", SwingBar)
@@ -128,11 +127,6 @@ local MULTI_SHOT_CAST_TIME = 0.5
 -- Ret Paladin seal twist window (seconds before swing)
 local TWIST_WINDOW = 0.4
 
--- Windfury Totem detection: the totem applies a weapon enchant that pulses every ~5s,
--- so the remaining duration is always <10s. Consumables (Sharpening Stones, etc.) last
--- 30 minutes. This threshold cleanly separates totem enchants from consumable enchants.
-local WF_TOTEM_ENCHANT_THRESHOLD = 30000  -- milliseconds
-
 -------------------------------------------------------------------------------
 -- State
 -------------------------------------------------------------------------------
@@ -159,7 +153,6 @@ SwingBar.isRanged = false
 SwingBar.isHunter = false
 SwingBar.isDualWieldSync = false
 SwingBar.hasTwistWindow = false
-SwingBar.hasWindfuryBuff = false
 
 -- Visibility
 SwingBar.lastActiveTime = 0
@@ -233,17 +226,6 @@ end
 function SwingBar:OnPlayerEnteringWorld()
     self:UpdateSpecFeatures()
     self:UpdateWeaponSpeeds()
-    self:CheckWindfuryBuff()
-end
-
--- Check for Windfury Totem weapon enchant via GetWeaponEnchantInfo().
--- Windfury Totem pulses every ~5s, refreshing a short-duration enchant on the MH.
--- Consumables (Sharpening Stones, Weightstones) last 30 min. The duration threshold
--- reliably distinguishes totem enchants from consumables for warriors.
-function SwingBar:CheckWindfuryBuff()
-    if addon.playerClass ~= "WARRIOR" then return end
-    local hasMH, mhExp = GetWeaponEnchantInfo()
-    self.hasWindfuryBuff = hasMH and mhExp and mhExp < WF_TOTEM_ENCHANT_THRESHOLD
 end
 
 -------------------------------------------------------------------------------
@@ -582,12 +564,10 @@ end
 function SwingBar:GetFillColor(progress, isOffHand)
     local db = addon.db.profile.swingBar
 
-    -- Dual-wield sync: entire bar colored by sync status
-    -- Warriors only show sync colors when buffed by Windfury Totem (the main
-    -- reason sync matters). Enhancement Shamans always self-imbue Windfury Weapon.
-    local showSync = self.isDualWieldSync and self.hasOffHand and db.enableSyncColors
-        and (addon.playerClass ~= "WARRIOR" or self.hasWindfuryBuff)
-    if showSync then
+    -- Dual-wield sync: entire bar colored by sync status.
+    -- Enhancement Shamans want sync (Flurry charge efficiency): green = synced, red = desynced.
+    -- Fury Warriors want desync (HS queue removes OH miss penalty): green = desynced, red = synced.
+    if self.isDualWieldSync and self.hasOffHand and db.enableSyncColors then
         local delta = math_abs(self.mainTimer - self.offTimer)
         -- Wrap around swing period: when one timer just reset (e.g. 2.5s) while
         -- the other is about to fire (0.1s), they're actually 0.2s apart, not 2.4s.
@@ -596,9 +576,11 @@ function SwingBar:GetFillColor(progress, isOffHand)
             delta = period - delta
         end
         if delta <= db.syncThreshold then
-            return db.safeColor
+            -- Synced: good for shamans (Flurry), bad for warriors (HS queue)
+            return (addon.playerClass == "WARRIOR") and db.dangerColor or db.safeColor
         else
-            return db.dangerColor
+            -- Desynced: bad for shamans, good for warriors
+            return (addon.playerClass == "WARRIOR") and db.safeColor or db.dangerColor
         end
     end
 
@@ -670,7 +652,6 @@ end
 
 function SwingBar:ShowBar()
     self.isVisible = true
-    self:CheckWindfuryBuff()
     if self.container then
         self.container:Show()
     end
@@ -904,13 +885,6 @@ function SwingBar:UpdateBars(dt)
     if self.hasteAccum >= 0.1 then
         self:CheckHasteChange()
         self.hasteAccum = 0
-    end
-
-    -- Throttle Windfury Totem weapon enchant check to ~1Hz
-    self.wfCheckAccum = (self.wfCheckAccum or 0) + dt
-    if self.wfCheckAccum >= 1.0 then
-        self:CheckWindfuryBuff()
-        self.wfCheckAccum = 0
     end
 
     -- Decrement timers

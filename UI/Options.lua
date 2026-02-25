@@ -1570,7 +1570,7 @@ function Options:BuildOptionsTable()
 										end
 									elseif class == C.CLASS.WARRIOR then
 										if spec == "FURY" then
-											return "|cff888888Two bars track your main-hand and off-hand swing timers. When both weapons swing at the same time (synced), your Flurry haste charges aren't wasted on isolated off-hand hits — both weapons benefit from the same proc. Bars turn green when synced and red when desynced — meaning one weapon has drifted ahead of the other.|r\n"
+											return "|cff888888Two bars track your main-hand and off-hand swing timers. You want your weapons desynced — when Heroic Strike is queued, your off-hand's dual-wield miss penalty is removed, but only if the off-hand swings while HS is still queued (not at the same instant the main-hand consumes it). Bars turn green when desynced and red when synced. Use a desync macro if they drift together.|r\n"
 										elseif spec == "ARMS" then
 											return "|cff888888Tracks your melee swing timer. Slam resets this timer, so for maximum DPS you want to Slam right after a swing lands (when the bar reaches the end and resets). This avoids losing auto-attack time to the Slam cast.|r\n"
 										else
@@ -1678,10 +1678,54 @@ function Options:BuildOptionsTable()
 									enableMeleeWeaving = { type = "toggle", name = "Melee Weaving", desc = "Show both ranged and melee swing bars simultaneously. For advanced hunters who weave melee attacks (e.g., Raptor Strike) between auto-shots.", arg = "swingBar.enableMeleeWeaving", order = 6, width = "full", hidden = function() return addon.playerClass ~= C.CLASS.HUNTER end },
 
 									-- Enhancement Shaman / Fury Warrior: sync colors
-									enableSyncColors = { type = "toggle", name = "Enable Sync Colors", desc = "Color both bars by how well your main-hand and off-hand swings are synced. Green when synced, red when drifted apart.", arg = "swingBar.enableSyncColors", order = 10, width = "full", hidden = function() return not ((addon.playerClass == C.CLASS.SHAMAN and addon.playerSpec == "ENHANCEMENT") or (addon.playerClass == C.CLASS.WARRIOR and addon.playerSpec == "FURY")) end },
-									syncThreshold = { type = "range", name = "Sync Threshold", desc = "How close (in seconds) your main-hand and off-hand swings need to be to count as synced (green). If the bars flicker between green and red too often, increase this value.", min = 0.1, max = 2.0, step = 0.05, arg = "swingBar.syncThreshold", order = 11, hidden = function() return not ((addon.playerClass == C.CLASS.SHAMAN and addon.playerSpec == "ENHANCEMENT") or (addon.playerClass == C.CLASS.WARRIOR and addon.playerSpec == "FURY")) or not addon.db.profile.swingBar.enableSyncColors end },
-									syncSafeColor = { type = "color", name = "Synced Color", desc = "Bar color when both weapons are swinging in sync.", hasAlpha = false, get = colorGet, set = colorSet, arg = "swingBar.safeColor", order = 12, hidden = function() return not ((addon.playerClass == C.CLASS.SHAMAN and addon.playerSpec == "ENHANCEMENT") or (addon.playerClass == C.CLASS.WARRIOR and addon.playerSpec == "FURY")) or not addon.db.profile.swingBar.enableSyncColors end },
-									syncDangerColor = { type = "color", name = "Desynced Color", desc = "Bar color when your weapons have drifted apart.", hasAlpha = false, get = colorGet, set = colorSet, arg = "swingBar.dangerColor", order = 13, hidden = function() return not ((addon.playerClass == C.CLASS.SHAMAN and addon.playerSpec == "ENHANCEMENT") or (addon.playerClass == C.CLASS.WARRIOR and addon.playerSpec == "FURY")) or not addon.db.profile.swingBar.enableSyncColors end },
+									enableSyncColors = {
+										type = "toggle", name = "Enable Sync Colors",
+										desc = function()
+											if addon.playerClass == C.CLASS.WARRIOR then
+												return "Color both bars by how well your weapons are desynced. Green when desynced (ideal for Heroic Strike queue), red when synced (off-hand misses the HS hit bonus)."
+											end
+											return "Color both bars by how well your main-hand and off-hand swings are synced. Green when synced, red when drifted apart."
+										end,
+										arg = "swingBar.enableSyncColors", order = 10, width = "full",
+										hidden = function() return not ((addon.playerClass == C.CLASS.SHAMAN and addon.playerSpec == "ENHANCEMENT") or (addon.playerClass == C.CLASS.WARRIOR and addon.playerSpec == "FURY")) end,
+									},
+									syncThreshold = {
+										type = "range", name = "Sync Threshold",
+										desc = function()
+											if addon.playerClass == C.CLASS.WARRIOR then
+												return "How close (in seconds) your swings need to be to count as synced (red). If the bars flicker too often, increase this value."
+											end
+											return "How close (in seconds) your main-hand and off-hand swings need to be to count as synced (green). If the bars flicker between green and red too often, increase this value."
+										end,
+										min = 0.1, max = 2.0, step = 0.05, arg = "swingBar.syncThreshold", order = 11,
+										hidden = function() return not ((addon.playerClass == C.CLASS.SHAMAN and addon.playerSpec == "ENHANCEMENT") or (addon.playerClass == C.CLASS.WARRIOR and addon.playerSpec == "FURY")) or not addon.db.profile.swingBar.enableSyncColors end,
+									},
+									syncSafeColor = {
+										type = "color",
+										name = function()
+											if addon.playerClass == C.CLASS.WARRIOR then return "Desynced Color" end
+											return "Synced Color"
+										end,
+										desc = function()
+											if addon.playerClass == C.CLASS.WARRIOR then return "Bar color when your weapons are well-separated (good — HS queue effective)." end
+											return "Bar color when both weapons are swinging in sync."
+										end,
+										hasAlpha = false, get = colorGet, set = colorSet, arg = "swingBar.safeColor", order = 12,
+										hidden = function() return not ((addon.playerClass == C.CLASS.SHAMAN and addon.playerSpec == "ENHANCEMENT") or (addon.playerClass == C.CLASS.WARRIOR and addon.playerSpec == "FURY")) or not addon.db.profile.swingBar.enableSyncColors end,
+									},
+									syncDangerColor = {
+										type = "color",
+										name = function()
+											if addon.playerClass == C.CLASS.WARRIOR then return "Synced Color" end
+											return "Desynced Color"
+										end,
+										desc = function()
+											if addon.playerClass == C.CLASS.WARRIOR then return "Bar color when both weapons are swinging together (bad — HS queue ineffective)." end
+											return "Bar color when your weapons have drifted apart."
+										end,
+										hasAlpha = false, get = colorGet, set = colorSet, arg = "swingBar.dangerColor", order = 13,
+										hidden = function() return not ((addon.playerClass == C.CLASS.SHAMAN and addon.playerSpec == "ENHANCEMENT") or (addon.playerClass == C.CLASS.WARRIOR and addon.playerSpec == "FURY")) or not addon.db.profile.swingBar.enableSyncColors end,
+									},
 
 									-- Ret Paladin: twist window
 									enableTwistWindow = { type = "toggle", name = "Enable Twist Window", desc = "Highlight the last ~0.4 seconds before your melee swing with a different color — your cue to swap seals for seal twisting.", arg = "swingBar.enableTwistWindow", order = 20, width = "full", hidden = function() return not (addon.playerClass == C.CLASS.PALADIN and addon.playerSpec == "RETRIBUTION") end },

@@ -1,5 +1,11 @@
 # VeevHUD Changelog
 
+## [1.0.110] - 2026-02-25
+
+### Fixed
+- **Fury Warrior: Swing Bar Sync Colors Inverted** — Fury Warriors want their weapons *desynced* for the Heroic Strike queue mechanic (queuing HS removes the off-hand's dual-wield miss penalty, but only when the off-hand swings separately from the main-hand). Bars now correctly turn green when desynced and red when synced — the opposite of Enhancement Shamans, who want sync for Flurry charge efficiency.
+- **Fury Warrior: Sync Colors Now Always Visible** — Sync colors previously required a Windfury Totem buff to appear. The HS queue mechanic applies regardless of Windfury, so sync colors now show whenever dual-wielding as Fury.
+
 ## [1.0.109] - 2026-02-24
 
 ### Added
