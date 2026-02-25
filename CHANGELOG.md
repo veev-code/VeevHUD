@@ -1,5 +1,10 @@
 # VeevHUD Changelog
 
+## [1.0.109] - 2026-02-24
+
+### Added
+- **Buff Reminders: Slide Animation** — When buff reminder icons appear or disappear, remaining icons now smoothly slide to re-center instead of snapping instantly. This matches the Proc Tracker's existing slide behavior. Can be toggled off in Buff Reminders > Behavior > Slide Animation.
+
 ## [1.0.108] - 2026-02-24
 
 ### Fixed
