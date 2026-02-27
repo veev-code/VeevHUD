@@ -78,14 +78,17 @@ function Utils:PopulateBuffCache(unit)
         local hasNew = false
         for spellID, auraData in pairs(self.buffCache[guid]) do
             if spellID then
-                if not recent[spellID] then
+                local existing = recent[spellID]
+                if existing then
+                    existing.lastSeen = time
+                else
                     hasNew = true
+                    recent[spellID] = {
+                        name = auraData.name,
+                        icon = auraData.icon,
+                        lastSeen = time,
+                    }
                 end
-                recent[spellID] = {
-                    name = auraData.name,
-                    icon = auraData.icon,
-                    lastSeen = time,
-                }
             end
         end
         -- Evict oldest entries if over cap

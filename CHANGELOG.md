@@ -1,5 +1,10 @@
 # VeevHUD Changelog
 
+## [1.0.115] - 2026-02-27
+
+### Fixed
+- Reduced unnecessary memory allocations in the buff tracking cache.
+
 ## [1.0.114] - 2026-02-27
 
 ### Changed
