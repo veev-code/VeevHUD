@@ -598,6 +598,11 @@ end
 -- When checkSelfOnly is false: follows target context (ally if targeting ally, else self)
 -- spellData (optional): if provided and has appliesBuff, checks those buff IDs instead
 --
+-- Filters out buffs cast by other players (source is a known non-player unit like
+-- "party1", "raid5"). This prevents another priest's Renew from showing as active
+-- on your Renew icon. Accepts source == "player", "pet", or nil (totems, items,
+-- permanent buffs like Shadowform where source may not be reported).
+--
 -- Returns: isActive, remaining, duration, stacks
 function CooldownIcons:GetRelevantBuff(spellID, checkSelfOnly, spellData)
     -- Determine which unit to check
@@ -631,7 +636,8 @@ function CooldownIcons:GetRelevantBuff(spellID, checkSelfOnly, spellData)
             local buffName = GetSpellInfo(buffID)
             if buffName then
                 local aura = self.Utils:GetCachedBuff(unit, buffID, buffName)
-                if aura then
+                local src = aura and aura.source
+                if aura and (not src or src == "player" or src == "pet") then
                     local remaining = 0
                     if aura.expirationTime and aura.expirationTime > 0 then
                         remaining = aura.expirationTime - now
@@ -649,7 +655,8 @@ function CooldownIcons:GetRelevantBuff(spellID, checkSelfOnly, spellData)
 
     local aura = self.Utils:GetCachedBuff(unit, spellID, spellName)
 
-    if aura then
+    local src = aura and aura.source
+    if aura and (not src or src == "player" or src == "pet") then
         local remaining = 0
         if aura.expirationTime and aura.expirationTime > 0 then
             remaining = aura.expirationTime - now
@@ -1698,7 +1705,7 @@ function CooldownIcons:UpdateAllIcons()
     self._iconsDb = db  -- Cache for per-frame resource animation hooks
 
     -- Cache target context once for all aura checks this cycle
-    local auraTracker = addon:GetModule("AuraTracker")
+    local auraTracker = addon:GetModule("AuraState")
     if auraTracker and auraTracker.CacheTargetContext then
         auraTracker:CacheTargetContext()
     end
@@ -1882,7 +1889,7 @@ function CooldownIcons:StartDynamicSortSlideUpdate(rowFrame)
     self.dynamicSortSlideRunning = true
     
     -- Fast slide speed for snappy feel (higher = faster)
-    -- 20 is faster than ProcTracker's 12, suitable for combat tracking
+    -- 20 is faster than AuraTracker's 12, suitable for combat tracking
     local slideSpeed = 20
     
     rowFrame:SetScript("OnUpdate", function(_, elapsed)
@@ -1973,7 +1980,7 @@ function CooldownIcons:UpdateIconState(frame, db)
     end
 
     if db.showAuraTracking then
-        local auraTracker = addon:GetModule("AuraTracker")
+        local auraTracker = addon:GetModule("AuraState")
         if auraTracker and auraTracker.GetAuraState then
             auraActive, auraRemaining, auraDuration, auraStacks = auraTracker:GetAuraState(spellID)
         end
@@ -2005,7 +2012,7 @@ function CooldownIcons:UpdateIconState(frame, db)
         local groupName, groupInfo = addon.LibSpellDB:GetBuffGroup(spellID)
         if groupName and groupInfo and groupInfo.relationship == "exclusive" then
             local myAuraTarget = addon.LibSpellDB:GetAuraTarget(spellID) or "self"
-            local auraTracker = addon:GetModule("AuraTracker")
+            local auraTracker = addon:GetModule("AuraState")
             for _, memberID in ipairs(groupInfo.spells) do
                 local memberAuraTarget = addon.LibSpellDB:GetAuraTarget(memberID) or "self"
                 if memberID ~= spellID and memberAuraTarget == myAuraTarget then
@@ -3422,7 +3429,7 @@ function CooldownIcons:UpdateRangeIndicator(frame, spellID, db)
     
     if hasTarget then
         -- Skip if this spell has an active aura (buff/debuff already applied)
-        local auraTracker = addon:GetModule("AuraTracker")
+        local auraTracker = addon:GetModule("AuraState")
         local hasActiveAura = auraTracker and auraTracker:IsAuraActive(frame.spellID)
         
         -- Skip if player has an active buff from this spell (self-buffs, permanent buffs)

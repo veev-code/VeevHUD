@@ -22,7 +22,7 @@ VeevHUD displays your abilities in organized rows below your character:
 *   **Secondary Row** — Throughput cooldowns, maintenance buffs/debuffs, AoE, and external cooldowns
 *   **Utility Section** — Interrupts, CC, defensives, movement, and other situational abilities
 
-Above the ability rows, you'll find **Health & Resource Bars** and a **Proc Tracker** for important buffs.
+Above the ability rows, you'll find **Health & Resource Bars** and an **Aura Tracker** for important buffs.
 
 ---
 
@@ -75,9 +75,9 @@ Arrange your row as a priority order and the leftmost icon is always the next be
 
 Dynamic Sort is disabled by default.
 
-### Proc Tracker
+### Aura Tracker
 
-Small icons above the health bar for important temporary buffs: Enrage, Flurry, Clearcasting, and more. They appear only when active, with configurable glows, backdrop halo, slide animations, and duration text.
+Small icons above the health bar for important buffs — class procs (Enrage, Flurry, Clearcasting), external buffs from other players (Bloodlust, Power Infusion, Innervate, Drums), and any custom auras you add by spell ID or name. They appear only when active, with configurable glows, backdrop halo, slide animations, and duration text.
 
 ### Buff Reminders
 
@@ -110,7 +110,7 @@ VeevHUD is designed to work great out of the box, but nearly everything is confi
 *   **General** — Position (horizontal + vertical offset), global scale, icon zoom, font, visibility (out-of-combat fade, hide on flight path), smooth bar/dim animations
 *   **Ability Rows** — Appearance (aspect ratio, spacing, gaps), opacity (ready/cooldown), cooldown display (text, spiral, sparkle, GCD, dim-on-cooldown), resource display (prediction/fill/bar), effects (aura tracking, cast pop, ready glow, queued highlight), other (range indicator, dynamic sort, keybind text), and per-row settings for Primary, Secondary, and Utility (icon size, max icons, flow layout)
 *   **Bars** — Health bar, resource bar (with energy ticker, mana ticker, and druid mana bar inline), combo points, and swing timer — each with size, text format, gradient, spark, and class coloring options
-*   **Proc Tracker** — Proc buff icon appearance, glow, backdrop, slide animation, sizing, and per-proc enable/disable
+*   **Aura Tracker** — Aura icon appearance, glow, backdrop, slide animation, sizing, class proc toggles, external buff toggles, and custom aura management
 *   **Totem Bar** — Shaman totem bar appearance and behavior settings
 *   **Buff Reminders** — Buff reminder appearance, per-spec spell overrides, threshold settings, and combat state filtering
 *   **Spells** — Per-spell control: enable/disable, move between rows, adjust priority order via drag-and-drop

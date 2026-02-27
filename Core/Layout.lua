@@ -17,7 +17,7 @@
          bars above them appear or disappear
 
     Element keys (matching C.LAYOUT_ELEMENTS):
-      procTracker, totemBar, healthBar, resourceBar, comboPoints,
+      auraTracker, totemBar, healthBar, resourceBar, comboPoints,
       swingBar, primaryRow, secondaryRow, utilityRow
 ]]
 

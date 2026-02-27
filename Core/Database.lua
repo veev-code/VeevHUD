@@ -21,6 +21,11 @@ function Database:Initialize()
     -- One-time migration from legacy sparse overrides format -> AceDB profile.
     self:UpgradeLegacyDBIfNeeded()
 
+    -- Migrate legacy config keys to current names (before AceDB wraps the table).
+    if addon.AuraTrackerMigration then
+        addon.AuraTrackerMigration:MigrateRawKeys()
+    end
+
     local AceDB = LibStub and LibStub("AceDB-3.0", true)
     if not AceDB then
         error("VeevHUD: AceDB-3.0 missing (embedded libraries not loaded)")
@@ -105,7 +110,7 @@ end
     Migrate old scattered gap settings to the unified layout.gaps system.
 
     Old settings (now removed from defaults):
-      procTracker.gapAboveHealthBar  -> layout.gaps.healthBar
+      auraTracker.gapAboveHealthBar  -> layout.gaps.healthBar
       layout.iconRowGap              -> layout.gaps.primaryRow (+ comboPoints.offsetY)
       comboPoints.offsetY            -> folded into layout.gaps.primaryRow
       icons.primarySecondaryGap      -> layout.gaps.secondaryRow (+ icons.rowSpacing)
@@ -118,7 +123,7 @@ function Database:MigrateLayoutGaps()
     if not profile then return end
 
     -- Check for any old gap values (nil means user never customized them)
-    local pt = profile.procTracker or {}
+    local pt = profile.auraTracker or {}
     local cp = profile.comboPoints or {}
     local ic = profile.icons or {}
     local ly = profile.layout or {}
@@ -153,7 +158,7 @@ function Database:MigrateLayoutGaps()
     profile.layout.gaps.utilityRow   = rowSpacing + sectionGap
 
     -- Clean up old settings (no longer in defaults, would be orphaned data)
-    if profile.procTracker then profile.procTracker.gapAboveHealthBar = nil end
+    if profile.auraTracker then profile.auraTracker.gapAboveHealthBar = nil end
     if profile.layout then profile.layout.iconRowGap = nil end
     if profile.comboPoints then profile.comboPoints.offsetY = nil end
     if profile.icons then
@@ -277,119 +282,119 @@ function Database:ClearSpellConfigOverride(spellID, specKey)
 end
 
 -------------------------------------------------------------------------------
--- Proc Config Helpers
+-- Aura Config Helpers (procs, external buffs, custom auras)
 -------------------------------------------------------------------------------
 
--- Migrate old flat procConfig (procConfig[spellID] = false) to per-spec format
--- (procConfig[specKey][spellID] = false). Copies old overrides into every spec.
-local function MigrateFlatProcConfig(procConfig)
-    -- Detect old format: any number key means flat layout
-    local hasNumberKeys = false
-    local oldEntries = {}
-    for k, v in pairs(procConfig) do
-        if type(k) == "number" then
-            hasNumberKeys = true
-            oldEntries[k] = v
-        end
-    end
-    if not hasNumberKeys then return end
-
-    -- Copy old entries into all specs for the player's class
-    local lib = addon.LibSpellDB
-    local classSpecs = lib and lib.CLASS_SPECS and lib.CLASS_SPECS[addon.playerClass]
-    if classSpecs then
-        for _, specName in ipairs(classSpecs) do
-            local specKey = addon.playerClass .. "_" .. specName
-            if not procConfig[specKey] then
-                procConfig[specKey] = {}
-            end
-            for spellID, value in pairs(oldEntries) do
-                if procConfig[specKey][spellID] == nil then
-                    procConfig[specKey][spellID] = value
-                end
-            end
-        end
-    end
-
-    -- Remove old number keys
-    for spellID in pairs(oldEntries) do
-        procConfig[spellID] = nil
-    end
-end
-
--- Get procConfig for current spec (returns table of disabled proc overrides)
-function Database:GetProcConfig()
-    if not addon.db or not addon.db.profile then return {} end
-    local procConfig = addon.db.profile.procConfig
-    if not procConfig then return {} end
-
-    -- Lazy migration from old flat format
-    MigrateFlatProcConfig(procConfig)
-
-    local specKey = self:GetSpecKey()
-    return procConfig[specKey] or {}
-end
-
--- Get the default enabled state for a proc (respects procInfo.lowPriority)
-local function GetProcDefaultEnabled(spellID)
+-- Get the default enabled state for an aura
+-- Checks: procInfo.lowPriority, then MINOR_EXTERNAL tag, then true
+local function GetAuraDefaultEnabled(spellID)
     local lib = addon.LibSpellDB
     if lib then
+        -- 1. Check proc lowPriority
         local procInfo = lib:GetProcInfo(spellID)
         if procInfo and procInfo.lowPriority then
             return false
         end
+        -- 2. MINOR_EXTERNAL spells are disabled by default
+        if lib:HasTag(spellID, "MINOR_EXTERNAL") then
+            return false
+        end
     end
+    -- 3. Default: enabled
     return true
 end
 
--- Check if a proc is enabled (respects user override, then procInfo.lowPriority default)
-function Database:IsProcEnabled(spellID)
-    local specConfig = self:GetProcConfig()
-    local override = specConfig[spellID]
-    if override ~= nil then
-        return override
-    end
-    return GetProcDefaultEnabled(spellID)
+-- Get auraConfig (profile-wide flat table of overrides)
+function Database:GetAuraConfig()
+    if not addon.db or not addon.db.profile then return {} end
+    return addon.db.profile.auraConfig or {}
 end
 
--- Set proc enabled/disabled override (per-spec, sparse: removed when matching default)
-function Database:SetProcEnabled(spellID, enabled)
-    if not addon.db or not addon.db.profile then return end
-    local specKey = self:GetSpecKey()
+-- Check if an aura is enabled (respects user override, then default logic)
+function Database:IsAuraEnabled(spellID)
+    local cfg = addon.db and addon.db.profile and addon.db.profile.auraConfig
+    if cfg then
+        local override = cfg[spellID]
+        if override ~= nil then
+            return override
+        end
+    end
+    return GetAuraDefaultEnabled(spellID)
+end
 
-    if enabled == GetProcDefaultEnabled(spellID) then
+-- Set aura enabled/disabled override (profile-wide, sparse: removed when matching default)
+function Database:SetAuraEnabled(spellID, enabled)
+    if not addon.db or not addon.db.profile then return end
+
+    if enabled == GetAuraDefaultEnabled(spellID) then
         -- Matches default: remove override to keep storage sparse
-        local procConfig = addon.db.profile.procConfig
-        if procConfig and procConfig[specKey] then
-            procConfig[specKey][spellID] = nil
-            if next(procConfig[specKey]) == nil then
-                procConfig[specKey] = nil
-            end
-            if next(procConfig) == nil then
-                addon.db.profile.procConfig = nil
+        local auraConfig = addon.db.profile.auraConfig
+        if auraConfig then
+            auraConfig[spellID] = nil
+            if next(auraConfig) == nil then
+                addon.db.profile.auraConfig = nil
             end
         end
     else
         -- Differs from default: store explicit override
-        if not addon.db.profile.procConfig then
-            addon.db.profile.procConfig = {}
+        if not addon.db.profile.auraConfig then
+            addon.db.profile.auraConfig = {}
         end
-        if not addon.db.profile.procConfig[specKey] then
-            addon.db.profile.procConfig[specKey] = {}
-        end
-        addon.db.profile.procConfig[specKey][spellID] = enabled
+        addon.db.profile.auraConfig[spellID] = enabled
     end
 end
 
--- Reset proc config overrides for current spec (re-enable all procs for this spec)
-function Database:ResetProcConfig()
+-- Reset all aura config overrides (re-enable all auras to defaults)
+function Database:ResetAuraConfig()
     if not addon.db or not addon.db.profile then return end
-    local specKey = self:GetSpecKey()
-    if addon.db.profile.procConfig then
-        addon.db.profile.procConfig[specKey] = nil
-        if next(addon.db.profile.procConfig) == nil then
-            addon.db.profile.procConfig = nil
+    addon.db.profile.auraConfig = nil
+end
+
+-- Get the default source filter for an aura
+-- MINOR_EXTERNAL spells default to "any" (commonly self-used), other externals to "notOwn"
+local function GetAuraSourceFilterDefault(spellID, auraSource)
+    local C = addon.Constants
+    -- 1. MINOR_EXTERNAL spells default to "any" (e.g., drums — commonly self-used)
+    local lib = addon.LibSpellDB
+    if lib and spellID and lib:HasTag(spellID, "MINOR_EXTERNAL") then
+        return C.AURA_SOURCE_ANY
+    end
+    -- 2. Source-type default
+    if auraSource == "external" then return C.AURA_SOURCE_NOT_OWN end
+    return C.AURA_SOURCE_ANY
+end
+
+-- Get aura source filter (respects user override, then default logic)
+function Database:GetAuraSourceFilter(spellID, auraSource)
+    local cfg = addon.db and addon.db.profile and addon.db.profile.auraSourceFilter
+    if cfg then
+        local override = cfg[spellID]
+        if override then
+            return override
         end
+    end
+    return GetAuraSourceFilterDefault(spellID, auraSource)
+end
+
+-- Set aura source filter override (sparse: removed when matching default)
+function Database:SetAuraSourceFilter(spellID, filter, auraSource)
+    if not addon.db or not addon.db.profile then return end
+
+    if filter == GetAuraSourceFilterDefault(spellID, auraSource) then
+        -- Matches default: remove override to keep storage sparse
+        local cfg = addon.db.profile.auraSourceFilter
+        if cfg then
+            cfg[spellID] = nil
+            if next(cfg) == nil then
+                addon.db.profile.auraSourceFilter = nil
+            end
+        end
+    else
+        -- Differs from default: store explicit override
+        if not addon.db.profile.auraSourceFilter then
+            addon.db.profile.auraSourceFilter = {}
+        end
+        addon.db.profile.auraSourceFilter[spellID] = filter
     end
 end
 

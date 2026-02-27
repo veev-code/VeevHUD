@@ -20,10 +20,10 @@
        of that element is cast in the session).
     7. CD totem cooldown icons do NOT show aura active state (handled by
        CooldownIcons suppressing aura display for element-tagged totems).
-    8. Layout element: positioned between Proc Tracker and Health Bar by
+    8. Layout element: positioned between Aura Tracker and Health Bar by
        default (configurable via Layout settings).
     9. Self-contained: all tracking via own CLEU registrations,
-       independent of AuraTracker/SpellTracker.
+       independent of AuraState/SpellTracker.
 
     =====================================================================
 ]]

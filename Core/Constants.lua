@@ -51,6 +51,14 @@ C.ROW_SETTING = {
 }
 
 -------------------------------------------------------------------------------
+-- Aura Source Filter Modes (WeakAuras-style own/not-own filtering)
+-------------------------------------------------------------------------------
+
+C.AURA_SOURCE_ANY = "any"          -- Show regardless of who cast it
+C.AURA_SOURCE_OWN = "own"          -- Only show if cast by the player
+C.AURA_SOURCE_NOT_OWN = "notOwn"   -- Only show if cast by someone else
+
+-------------------------------------------------------------------------------
 -- Resource Display Mode Values
 -------------------------------------------------------------------------------
 
@@ -208,7 +216,7 @@ C.SPELL_ID_ADRENALINE_RUSH = 13750
 -- All HUD elements that participate in vertical layout ordering.
 -- Keys are used in layout.elementOrder and layout.gaps.
 C.LAYOUT_ELEMENTS = {
-    procTracker  = "Proc Tracker",
+    auraTracker  = "Aura Tracker",
     totemBar     = "Totem Bar",
     healthBar    = "Health Bar",
     resourceBar  = "Resource Bar",
@@ -259,7 +267,7 @@ C.DEFAULTS = {
             -- Element stacking order, top to bottom.
             -- All HUD elements are positioned in this order by Layout.lua.
             elementOrder = {
-                "procTracker",
+                "auraTracker",
                 "totemBar",
                 "healthBar",
                 "resourceBar",
@@ -274,7 +282,7 @@ C.DEFAULTS = {
             -- its gap passes through: the next visible element uses the max of its
             -- own gap and any hidden elements' gaps above it.
             gaps = {
-                procTracker  = 0,
+                auraTracker  = 0,
                 totemBar     = 6,
                 healthBar    = 2,
                 resourceBar  = 0,
@@ -365,20 +373,21 @@ C.DEFAULTS = {
             color = { r = 1.0, g = 0.82, b = 0.0 },  -- Yellow-gold (matches energy theme)
         },
 
-        -- Proc/Buff tracker (important buffs like Enrage, Flurry)
-        procTracker = {
+        -- Aura Tracker (procs, external buffs, custom auras)
+        auraTracker = {
             enabled = true,
             iconSize = 26,
             iconAspectRatio = 1.0,  -- Independent aspect ratio (1.0 = square)
             iconSpacing = 6,  -- spacing between icons
-            showDuration = true,  -- show remaining time text on procs
+            showDuration = true,  -- show remaining time text on active auras
             showInactiveIcons = false,  -- Only show when active (not exposed in UI)
             inactiveAlpha = 0.4,
-            activeGlow = true,  -- Show animated pixel glow around active procs
+            activeGlow = true,  -- Show animated pixel glow around active auras
             backdropGlowIntensity = 0.25,  -- 0 = disabled, higher = more visible (max ~0.8)
             backdropGlowSize = 2.2,  -- Multiplier for glow size relative to icon
             backdropGlowColor = {1.0, 0.7, 0.35},  -- Warm orange-gold (alpha controlled by intensity)
-            slideAnimation = true,  -- Smooth sliding when procs appear/disappear
+            slideAnimation = true,  -- Smooth sliding when auras appear/disappear
+            customAuras = {},  -- User-added auras: array of { id = spellID } or { name = "Spell Name" }
         },
 
         -- Totem Bar settings (Shaman only - 4 element slots)
@@ -542,10 +551,15 @@ C.DEFAULTS = {
         -- Only modified values are stored; nil = use default
         spellConfig = {},
 
-        -- Per-class proc visibility (sparse storage)
-        -- Format: procConfig[spellID] = false (disabled)
-        -- Absence = enabled (all procs enabled by default)
-        procConfig = {},
+        -- Per-aura visibility overrides (sparse storage, profile-wide)
+        -- Format: auraConfig[spellID] = true/false
+        -- Absence = use default (GetAuraDefaultEnabled logic)
+        auraConfig = {},
+
+        -- Per-aura source filter overrides (sparse storage, profile-wide)
+        -- Format: auraSourceFilter[spellID] = "any"|"own"|"notOwn"
+        -- Absence = use default (externals -> "notOwn", others -> "any")
+        auraSourceFilter = {},
 
         -- Row definitions (order matters - top to bottom)
         -- Each row shows spells matching these LibSpellDB tags

@@ -117,8 +117,8 @@ function addon:OnProfileChanged()
     -- Refresh modules in deterministic order.
     -- SpellTracker must run before CooldownIcons (rebuilds tracked spell list).
     local moduleOrder = {
-        "SpellTracker", "AuraTracker", "CooldownIcons",
-        "ProcTracker", "BuffReminders", "TotemBar",
+        "SpellTracker", "AuraState", "CooldownIcons",
+        "AuraTracker", "BuffReminders", "TotemBar",
         "ResourceBar", "HealthBar", "ComboPoints", "SwingBar",
     }
     for _, name in ipairs(moduleOrder) do
@@ -284,12 +284,20 @@ function addon:IsSpellConfigModified(spellID, specKey)
     return self.Database:IsSpellConfigModified(spellID, specKey)
 end
 
-function addon:IsProcEnabled(spellID)
-    return self.Database:IsProcEnabled(spellID)
+function addon:IsAuraEnabled(spellID)
+    return self.Database:IsAuraEnabled(spellID)
 end
 
-function addon:SetProcEnabled(spellID, enabled)
-    self.Database:SetProcEnabled(spellID, enabled)
+function addon:SetAuraEnabled(spellID, enabled)
+    self.Database:SetAuraEnabled(spellID, enabled)
+end
+
+function addon:GetAuraSourceFilter(spellID, auraSource)
+    return self.Database:GetAuraSourceFilter(spellID, auraSource)
+end
+
+function addon:SetAuraSourceFilter(spellID, filter, auraSource)
+    self.Database:SetAuraSourceFilter(spellID, filter, auraSource)
 end
 
 function addon:GetDefaultValue(path)

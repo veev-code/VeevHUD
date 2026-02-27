@@ -1,67 +1,22 @@
 --[[
     VeevHUD - Aura Tracker Module
-    Tracks buffs/debuffs applied by player spells
-    
-    Used to show "active" state on icons when their associated 
-    aura is active on a target (debuff) or self (buff).
+    Displays important auras: class procs, external buffs, and custom user-tracked auras
+
+    Design:
+    - Icons shown above health bar
+    - Active auras: Full color + glow + duration text
+    - Inactive auras: Desaturated + dimmed (optional)
+
+    Data sources:
+    1. Class procs from LibSpellDB (Data/Procs.lua)
+    2. External buffs from LibSpellDB (AURA_WATCH tag)
+    3. Custom user-added auras (profile)
 ]]
 
 local ADDON_NAME, addon = ...
 
--- Localized WoW API functions (hot path)
-local GetTime = GetTime
-local UnitGUID = UnitGUID
-local UnitExists = UnitExists
-local UnitIsEnemy = UnitIsEnemy
-local UnitIsFriend = UnitIsFriend
-
 local AuraTracker = {}
 addon:RegisterModule("AuraTracker", AuraTracker)
-
-local SUMMON_TAG = "PET_SUMMON_TEMP"
-local TOTEM_TAG = "TOTEM"
-
--- Active auras: auraSpellID -> {targetGUID -> expirationTime}
-AuraTracker.activeAuras = {}
-
--- Mapping: auraSpellID -> sourceSpellID (reverse lookup)
-AuraTracker.auraToSpellMap = {}
-
--- Mapping: sourceSpellID -> auraSpellID
-AuraTracker.spellToAuraMap = {}
-
--- Mapping: rankSpellID -> baseSpellID (for looking up tracked spell from any rank)
-AuraTracker.rankToBaseMap = {}
-
--- Temporary pet summon tracking
-AuraTracker.summonSpells = {}
-AuraTracker.summonPetToSpell = {}
-AuraTracker.summonPetsBySpell = {}
-
--- Totem element exclusivity: element tag -> currently active baseSpellID
--- Only one totem per element can be active at a time
-AuraTracker.totemElementToSpell = {}
-
--- Totem element tags (for resolving element from spell tags)
-local TOTEM_ELEMENT_TAGS = {
-    "TOTEM_EARTH", "TOTEM_FIRE", "TOTEM_WATER", "TOTEM_AIR",
-}
-
--- WoW totem slot index -> element tag (GetTotemInfo slot mapping)
-local TOTEM_SLOT_TO_ELEMENT = {
-    [1] = "TOTEM_FIRE",
-    [2] = "TOTEM_EARTH",
-    [3] = "TOTEM_WATER",
-    [4] = "TOTEM_AIR",
-}
-
--- Reverse mapping: element tag -> totem slot (for polling GetTotemInfo)
-local TOTEM_ELEMENT_TO_SLOT = {
-    TOTEM_FIRE = 1,
-    TOTEM_EARTH = 2,
-    TOTEM_WATER = 3,
-    TOTEM_AIR = 4,
-}
 
 -------------------------------------------------------------------------------
 -- Initialization
@@ -70,1250 +25,868 @@ local TOTEM_ELEMENT_TO_SLOT = {
 function AuraTracker:Initialize()
     self.Events = addon.Events
     self.Utils = addon.Utils
-    self.LibSpellDB = addon.LibSpellDB
-    
-    self.playerGUID = UnitGUID("player")
-    
-    -- Build aura mappings from spell database
-    self:BuildAuraMappings()
-    
-    -- Register for combat log aura events
-    self.Events:RegisterCLEU(self, "SPELL_AURA_APPLIED", self.OnAuraEvent)
-    self.Events:RegisterCLEU(self, "SPELL_AURA_REMOVED", self.OnAuraEvent)
-    self.Events:RegisterCLEU(self, "SPELL_AURA_REFRESH", self.OnAuraEvent)
-    self.Events:RegisterCLEU(self, "SPELL_AURA_APPLIED_DOSE", self.OnAuraStackEvent)
-    self.Events:RegisterCLEU(self, "SPELL_AURA_REMOVED_DOSE", self.OnAuraStackEvent)
+    self.C = addon.Constants
+    self.Animations = addon.Animations
 
-    -- Register for summon tracking (temporary pets/guardians)
-    self.Events:RegisterCLEU(self, "SPELL_SUMMON", self.OnSummonEvent)
-    self.Events:RegisterCLEU(self, "UNIT_DIED", self.OnSummonUnitRemoved)
-    self.Events:RegisterCLEU(self, "UNIT_DESTROYED", self.OnSummonUnitRemoved)
-    self.Events:RegisterCLEU(self, "UNIT_DISSIPATES", self.OnSummonUnitRemoved)
+    -- Icon frames
+    self.icons = {}
+    self.iconCounter = 0
 
-    -- Register for totem recall detection (Totemic Call destroys all totems)
-    self.Events:RegisterCLEU(self, "SPELL_CAST_SUCCESS", self.OnSpellCastSuccess)
+    -- Load LibSpellDB for proc data
+    self.LibSpellDB = LibStub and LibStub("LibSpellDB-1.0", true)
 
-    -- Register for totem destruction via game event (handles all destruction cases:
-    -- killed by damage, grounding absorb, zone transition, etc.)
-    self.Events:RegisterEvent(self, "PLAYER_TOTEM_UPDATE", self.OnPlayerTotemUpdate)
-
-    -- Periodic cleanup of expired auras
-    self.cleanupTicker = C_Timer.NewTicker(1, function()
-        self:CleanupExpiredAuras()
-    end)
-    
-    self.Utils:LogDebug("AuraTracker initialized")
-end
-
--- Cached results of GetTriggeredAuraIDs (stable until BuildAuraMappings)
-AuraTracker._triggeredAuraIDsCache = {}
-
-function AuraTracker:BuildAuraMappings()
-    local spellTracker = addon:GetModule("SpellTracker")
-    if not spellTracker then return end
-
-    wipe(self._triggeredAuraIDsCache)
-    wipe(self.auraToSpellMap)
-    wipe(self.spellToAuraMap)
-    wipe(self.rankToBaseMap)
-    
-    local trackedSpells = spellTracker:GetTrackedSpells()
-    local count = 0
-    local rankCount = 0
-    
-    for spellID, data in pairs(trackedSpells) do
-        local spellData = data.spellData
-        
-        -- Get canonical (base) spell ID for consistent keying
-        local canonicalID = spellID
-        if self.LibSpellDB then
-            canonicalID = self.LibSpellDB:GetCanonicalSpellID(spellID) or spellID
-        end
-        
-        -- Build rank-to-base mapping for all tracked spells
-        -- This allows us to look up tracked spell from any rank ID in combat log
-        self.rankToBaseMap[spellID] = canonicalID  -- Map tracked ID to canonical
-        self.rankToBaseMap[canonicalID] = canonicalID  -- Canonical maps to itself
-        if spellData.ranks then
-            for _, rankID in ipairs(spellData.ranks) do
-                self.rankToBaseMap[rankID] = canonicalID
-                rankCount = rankCount + 1
-            end
-        end
-        
-        -- Only pre-map spells with explicit triggersAuras definition (different aura ID than spell ID)
-        -- Same-ID auras are detected dynamically in OnAuraEvent
-        if spellData.triggersAuras then
-            for _, triggeredAura in ipairs(spellData.triggersAuras) do
-                if triggeredAura.spellID then
-                    local auraType = triggeredAura.type or "DEBUFF"
-                    local auraInfo = {
-                        spellID = triggeredAura.spellID,
-                        type = auraType,
-                        onTarget = triggeredAura.onTarget,
-                        isBuff = (auraType == "BUFF"),  -- Explicit flag for buff scanning
-                        duration = triggeredAura.duration,  -- Can be nil, will detect dynamically
-                        tags = triggeredAura.tags or {},    -- Tags specific to this triggered aura
-                    }
-
-                    local auraID = auraInfo.spellID
-                    self.auraToSpellMap[auraID] = canonicalID  -- Map to canonical ID
-                    self.spellToAuraMap[canonicalID] = self.spellToAuraMap[canonicalID] or {}
-                    table.insert(self.spellToAuraMap[canonicalID], auraInfo)
-                    self.activeAuras[auraID] = self.activeAuras[auraID] or {}
-
-                    local spellName = GetSpellInfo(spellID) or tostring(spellID)
-                    self.Utils:LogInfo("AuraTracker: Pre-mapped aura for", spellName, "->", auraID, auraInfo.type)
-                    count = count + 1
-                end
-            end
-        end
-
-        -- Also map appliesBuff IDs (for spells where the buff differs from the cast spell,
-        -- e.g., Create Soulstone applies "Soulstone Resurrection" buff)
-        if spellData.appliesBuff then
-            local buffDuration = spellData.duration
-            for _, buffID in ipairs(spellData.appliesBuff) do
-                local auraInfo = {
-                    spellID = buffID,
-                    type = "BUFF",
-                    onTarget = true,
-                    isBuff = true,
-                    duration = buffDuration,
-                }
-
-                self.auraToSpellMap[buffID] = canonicalID
-                self.spellToAuraMap[canonicalID] = self.spellToAuraMap[canonicalID] or {}
-                table.insert(self.spellToAuraMap[canonicalID], auraInfo)
-                self.activeAuras[buffID] = self.activeAuras[buffID] or {}
-                count = count + 1
-            end
-
-            local spellName = GetSpellInfo(spellID) or tostring(spellID)
-            self.Utils:LogInfo("AuraTracker: Pre-mapped", #spellData.appliesBuff, "appliesBuff IDs for", spellName)
-        end
+    -- Initialize Masque support if available
+    local MSQ = LibStub and LibStub("Masque", true)
+    if MSQ then
+        self.MasqueGroup = MSQ:Group("VeevHUD", "Aura Tracker")
     end
 
-    -- Build summon mappings (temporary pet/guardian tracking)
-    self:BuildSummonMappings(trackedSpells)
-    
-    if count > 0 then
-        self.Utils:LogInfo("AuraTracker: Pre-mapped", count, "spells with different aura IDs")
-    end
-    if rankCount > 0 then
-        self.Utils:LogInfo("AuraTracker: Built rank mapping for", rankCount, "spell ranks")
-    end
-    self.Utils:LogInfo("AuraTracker: Same-ID auras will be detected dynamically from combat log")
-end
+    -- Register with layout system
+    addon.Layout:RegisterElement("auraTracker", self)
 
-function AuraTracker:BuildSummonMappings(trackedSpells)
-    wipe(self.summonSpells)
-    wipe(self.summonPetToSpell)
-    wipe(self.summonPetsBySpell)
-    wipe(self.totemElementToSpell)
-    self.totemRecallSpells = {}
+    -- Register events
+    self.Events:RegisterEvent(self, "UNIT_AURA", self.OnAuraUpdate)
+    self.Events:RegisterEvent(self, "PLAYER_TARGET_CHANGED", self.OnTargetChanged)
+    self.Events:RegisterEvent(self, "PLAYER_ENTERING_WORLD", self.OnPlayerEnteringWorld)
+    self.Events:RegisterEvent(self, "PLAYER_EQUIPMENT_CHANGED", self.OnEquipmentChanged)
 
-    if not self.LibSpellDB then return end
-
-    local summonTag = (self.LibSpellDB.Categories and self.LibSpellDB.Categories.PET_SUMMON_TEMP) or SUMMON_TAG
-    local totemTag = (self.LibSpellDB.Categories and self.LibSpellDB.Categories.TOTEM) or TOTEM_TAG
-    local count = 0
-
-    for spellID, data in pairs(trackedSpells or {}) do
-        local spellData = data.spellData
-        if spellData and (self.LibSpellDB:HasTag(spellID, summonTag) or self.LibSpellDB:HasTag(spellID, totemTag)) then
-            local duration = spellData.duration
-            if duration and duration > 0 then
-                local canonicalID = self.LibSpellDB:GetCanonicalSpellID(spellID) or spellID
-                -- Resolve totem element from tags (nil for non-totems)
-                local elementTag = nil
-                for _, tag in ipairs(TOTEM_ELEMENT_TAGS) do
-                    if self.LibSpellDB:HasTag(spellID, tag) then
-                        elementTag = tag
-                        break
-                    end
-                end
-                self.summonSpells[canonicalID] = {
-                    duration = duration,
-                    spellID = canonicalID,
-                    totemElementTag = elementTag,  -- nil for non-totems
-                }
-                count = count + 1
-            end
-
-            -- Build totem-recall spell lookup (e.g., Totemic Call has clearsTotems = true)
-            if spellData.clearsTotems then
-                local canonicalID = self.LibSpellDB:GetCanonicalSpellID(spellID) or spellID
-                self.totemRecallSpells[canonicalID] = true
-                local spellName = GetSpellInfo(spellID) or tostring(spellID)
-                self.Utils:LogInfo("AuraTracker: Registered totem-recall spell:", spellName, "(" .. canonicalID .. ")")
-            end
-        end
-    end
-
-    if count > 0 then
-        self.Utils:LogInfo("AuraTracker: Tracking", count, "temporary pet/totem summons")
-    end
+    self.Utils:Debug("AuraTracker initialized")
 end
 
 -------------------------------------------------------------------------------
--- Combat Log Processing
+-- Aura Loading (three data sources)
 -------------------------------------------------------------------------------
 
--- CLEU callback for aura events
--- data contains: timestamp, sourceGUID, sourceName, sourceFlags, destGUID, destName, destFlags, spellID, spellName, spellSchool
-function AuraTracker:OnAuraEvent(subEvent, data)
-    local spellID = data.spellID
-    local spellName = data.spellName
-    local sourceGUID = data.sourceGUID
-    local destGUID = data.destGUID
-    local destName = data.destName
-    
-    -- Must be from us (we only track our own auras)
-    if sourceGUID ~= self.playerGUID then return end
-    
-    -- Check if this aura is explicitly mapped (different aura ID than spell ID)
-    local sourceSpellID = self.auraToSpellMap[spellID]
-    local auraInfo = nil
-    
-    -- spellToAuraMap is an array of aura infos - find the one matching this aura spell ID
-    if sourceSpellID then
-        local auraInfos = self.spellToAuraMap[sourceSpellID]
-        if auraInfos then
-            for _, info in ipairs(auraInfos) do
-                if info.spellID == spellID then
-                    auraInfo = info
-                    break
-                end
-            end
-        end
-    end
-    
-    -- If not explicitly mapped, check if this spell ID (or its base spell) is one we're tracking
-    -- This enables auto-detection for spells where aura ID = spell ID (including ranks)
-    if not sourceSpellID then
-        -- First check if this is a rank of a tracked spell
-        local baseSpellID = self.rankToBaseMap[spellID]
-        
-        if baseSpellID then
-            -- This spell (or its base) is tracked and applies an aura
-            -- Determine aura type based on spell tags and target
-            sourceSpellID = baseSpellID
-            local isSelfBuff = (destGUID == self.playerGUID)
-            
-            -- Check if this is a healing/buff spell (applies buff) or damage spell (applies debuff)
-            local isBuff = isSelfBuff  -- Default: self = buff
-            
-            local spellData = self.LibSpellDB and self.LibSpellDB:GetSpellInfo(baseSpellID)
-            if spellData and spellData.tags then
-                -- Check tags to determine if this is a buff-type spell
-                for _, tag in ipairs(spellData.tags) do
-                    if tag == "HOT" or tag == "HAS_HOT" or tag == "HEAL_SINGLE" or tag == "HEAL_AOE" 
-                       or tag == "BUFF" or tag == "HAS_BUFF" or tag == "EXTERNAL_DEFENSIVE"
-                       or tag == SUMMON_TAG or tag == TOTEM_TAG then
-                        isBuff = true
-                        break
-                    end
-                end
-            end
-            
-            auraInfo = {
-                spellID = spellID,  -- Use actual aura ID (rank ID) for tracking
-                type = isBuff and "BUFF" or "DEBUFF",
-                onTarget = not isSelfBuff,
-                isBuff = isBuff,  -- Explicit buff flag for scanning
-                duration = spellData and spellData.duration or nil,
-                baseSpellID = baseSpellID,  -- Store base ID for lookup
-            }
-        end
-    end
-    
-    if not sourceSpellID or not auraInfo then return end
-    
-    -- Determine if this is a buff (on self or ally) or debuff (on enemy)
-    -- Use explicit isBuff flag if available, otherwise infer from onTarget
-    local isBuff = auraInfo.isBuff
-    if isBuff == nil then
-        isBuff = not auraInfo.onTarget
-    end
-    
-    -- All auras we track must be from us (already checked above via sourceGUID)
-    
-    -- Store by AURA spell ID so multiple triggered auras from same source don't overwrite each other
-    -- (e.g., Pounce triggers both a stun and a bleed - they need separate storage)
-    -- Also store sourceSpellID in the data for icon overlay lookups
-    local storageID = spellID  -- Use actual aura spell ID for storage
-    
-    -- Process the event
-    if subEvent == "SPELL_AURA_APPLIED" or subEvent == "SPELL_AURA_REFRESH" then
-        -- Aura applied or refreshed - get actual duration from the unit
-        local expiration = nil
-        local duration = 0
-        local stacks = 0
-        
-        -- Try to get actual duration and stacks from the unit
-        local unit = self:GetUnitFromGUID(destGUID)
-        if unit then
-            local actualDuration, actualExpiration, actualStacks = self:GetAuraDurationOnUnit(unit, spellID, spellName, isBuff)
-            if actualExpiration and actualExpiration > 0 then
-                expiration = actualExpiration
-                duration = actualDuration or 0
-                stacks = actualStacks or 0
-            end
-        end
-        
-        -- Fallback to estimated duration if we couldn't get actual
-        if not expiration or expiration <= GetTime() then
-            -- Try to get duration from LibSpellDB first
-            duration = auraInfo.duration
-            if not duration and self.LibSpellDB then
-                local spellData = self.LibSpellDB:GetSpellInfo(sourceSpellID)
-                if spellData and spellData.duration then
-                    duration = spellData.duration
-                end
-            end
-            -- Final fallback: try GetSpellInfo for spell description parsing isn't reliable,
-            -- so use a reasonable default based on spell type
-            if not duration then
-                duration = 15  -- More reasonable default than 10
-            end
-            expiration = GetTime() + duration
-        end
-        
-        if not self.activeAuras[storageID] then
-            self.activeAuras[storageID] = {}
-        end
-        -- Store expiration, duration, stacks, and source spell ID for icon lookup
-        self.activeAuras[storageID][destGUID] = {
-            expiration = expiration,
-            duration = duration,
-            stacks = stacks,
-            sourceSpellID = sourceSpellID,  -- For icon overlay lookup
-        }
-        
-        local stackInfo = stacks > 0 and (" (" .. stacks .. " stacks)") or ""
-        self.Utils:LogInfo("AuraTracker: Aura applied", spellName, "(", spellID, "->", storageID, ") on", destName, "expires in", string.format("%.1f", expiration - GetTime()) .. stackInfo)
+-- Load all auras: class procs + external buffs + custom user auras
+function AuraTracker:LoadAllAuras()
+    local allAuras = {}
 
-        -- Notify CooldownIcons
-        self:NotifyAuraChange(sourceSpellID, true)
-        
-    elseif subEvent == "SPELL_AURA_REMOVED" then
-        -- Aura removed (storageID is the aura spell ID)
-        if self.activeAuras[storageID] then
-            self.activeAuras[storageID][destGUID] = nil
-        end
-        
-        self.Utils:LogDebug("AuraTracker: Aura removed", spellName, "from", destName)
-        
-        -- Notify CooldownIcons - check if ANY aura for this source spell is still active
-        self:NotifyAuraChange(sourceSpellID, self:IsAuraActiveForSourceSpell(sourceSpellID))
+    -- 1. Class procs from LibSpellDB
+    for _, aura in ipairs(self:GetProcsForClass(addon.playerClass)) do
+        table.insert(allAuras, aura)
     end
+
+    -- 2. External buffs from LibSpellDB (IMPORTANT_EXTERNAL tag)
+    for _, aura in ipairs(self:GetExternalAuras()) do
+        table.insert(allAuras, aura)
+    end
+
+    -- 3. Custom user-added auras from profile
+    for _, aura in ipairs(self:GetCustomAuras()) do
+        table.insert(allAuras, aura)
+    end
+
+    return allAuras
 end
 
--- CLEU callback for aura stack changes
-function AuraTracker:OnAuraStackEvent(subEvent, data)
-    local spellID = data.spellID
-    local spellName = data.spellName
-    local sourceGUID = data.sourceGUID
-    local destGUID = data.destGUID
-    local destName = data.destName
-    
-    -- Must be from us
-    if sourceGUID ~= self.playerGUID then return end
-    
-    -- Find the source spell ID (canonical)
-    local sourceSpellID = self.auraToSpellMap[spellID]
-    if not sourceSpellID then
-        local baseSpellID = self.rankToBaseMap[spellID]
-        if baseSpellID then
-            sourceSpellID = baseSpellID
-        end
-    end
-    
-    if not sourceSpellID then return end
-    
-    -- Storage is keyed by AURA spell ID (not source spell ID)
-    -- This matches OnAuraEvent storage
-    local storageID = spellID
-    
-    -- Determine if this is a buff based on spell data
-    local isBuff = (destGUID == self.playerGUID)  -- Default: self = buff
-    local spellData = self.LibSpellDB and self.LibSpellDB:GetSpellInfo(sourceSpellID)
-    if spellData and spellData.tags then
-        for _, tag in ipairs(spellData.tags) do
-            if tag == "HOT" or tag == "HAS_HOT" or tag == "HEAL_SINGLE" or tag == "HEAL_AOE" 
-               or tag == "BUFF" or tag == "HAS_BUFF" or tag == "EXTERNAL_DEFENSIVE"
-               or tag == SUMMON_TAG or tag == TOTEM_TAG then
-                isBuff = true
-                break
-            end
-        end
-    end
-    
-    -- Update stack count from the unit
-    local unit = self:GetUnitFromGUID(destGUID)
-    if unit and self.activeAuras[storageID] and self.activeAuras[storageID][destGUID] then
-        local _, _, stacks = self:GetAuraDurationOnUnit(unit, spellID, spellName, isBuff)
-        self.activeAuras[storageID][destGUID].stacks = stacks or 0
-        
-        self.Utils:LogInfo("AuraTracker: Stacks changed", spellName, "->", stacks or 0)
-        
-        -- Notify for UI update
-        self:NotifyAuraChange(sourceSpellID, true)
-    end
-end
+-- Load procs from LibSpellDB for the given class
+function AuraTracker:GetProcsForClass(class)
+    local procs = {}
 
--- Clear all tracking for a summon spell (pseudo-aura, pet GUIDs)
-function AuraTracker:ClearSummonTracking(baseSpellID)
-    -- Remove pseudo-aura
-    if self.activeAuras[baseSpellID] and self.activeAuras[baseSpellID][self.playerGUID] then
-        self.activeAuras[baseSpellID][self.playerGUID] = nil
-    end
-
-    -- Remove all pet GUIDs
-    local pets = self.summonPetsBySpell[baseSpellID]
-    if pets then
-        for petGUID in pairs(pets) do
-            self.summonPetToSpell[petGUID] = nil
-        end
-        self.summonPetsBySpell[baseSpellID] = nil
-    end
-end
-
--- Clear totem element tracking for a given spell ID
-function AuraTracker:ClearTotemElementForSpell(baseSpellID)
-    for element, spellID in pairs(self.totemElementToSpell) do
-        if spellID == baseSpellID then
-            self.totemElementToSpell[element] = nil
-            return
-        end
-    end
-end
-
--- Clear all active totem timers (e.g., when Totemic Call is cast)
-function AuraTracker:ClearAllTotemTracking()
-    for element, baseSpellID in pairs(self.totemElementToSpell) do
-        self:ClearSummonTracking(baseSpellID)
-        self:NotifyAuraChange(baseSpellID, false)
-    end
-    wipe(self.totemElementToSpell)
-end
-
--- CLEU callback for player spell casts (totem-recall detection)
--- TODO: Test if Totemic Call fires UNIT_DESTROYED/UNIT_DISSIPATES for each totem in CLEU.
--- If so, OnSummonUnitRemoved already handles cleanup and this handler is redundant.
-function AuraTracker:OnSpellCastSuccess(subEvent, data)
-    if data.sourceGUID ~= self.playerGUID then return end
-    if not data.spellID then return end
-
-    -- totemRecallSpells is built from LibSpellDB spells with clearsTotems = true
-    if self.totemRecallSpells[data.spellID] and next(self.totemElementToSpell) then
-        self.Utils:LogInfo("AuraTracker: Totem recall spell detected (" .. data.spellID .. "), clearing all totem timers")
-        self:ClearAllTotemTracking()
-    end
-end
-
--- Game event callback for totem state changes (summoned, destroyed, expired, replaced)
--- This is the reliable detection path — CLEU UNIT_DIED/UNIT_DESTROYED may not fire for
--- all destruction cases (e.g., Grounding Totem absorbing a spell).
-function AuraTracker:OnPlayerTotemUpdate(event, slot)
-    if not slot then return end
-
-    local elementTag = TOTEM_SLOT_TO_ELEMENT[slot]
-    if not elementTag then return end
-
-    local trackedSpellID = self.totemElementToSpell[elementTag]
-
-    local haveTotem, totemName, startTime, duration = GetTotemInfo(slot)
-
-    if not trackedSpellID then return end  -- Not tracking any totem for this element
-
-    if not haveTotem or duration == 0 then
-        -- Totem is gone — clear tracking
-        self.Utils:LogInfo("AuraTracker: Totem destroyed (PLAYER_TOTEM_UPDATE slot", slot .. "), clearing", trackedSpellID)
-        self:ClearSummonTracking(trackedSpellID)
-        self:ClearTotemElementForSpell(trackedSpellID)
-        self:NotifyAuraChange(trackedSpellID, false)
-    end
-end
-
--- CLEU callback for pet/guardian summons
-function AuraTracker:OnSummonEvent(subEvent, data)
-    local spellID = data.spellID
-    local spellName = data.spellName
-    local sourceGUID = data.sourceGUID
-    local destGUID = data.destGUID
-
-    -- Must be from us
-    if sourceGUID ~= self.playerGUID then return end
-    if not spellID then return end
-
-    -- Resolve to canonical/base spell ID
-    local baseSpellID = self.rankToBaseMap[spellID] or spellID
     if self.LibSpellDB then
-        baseSpellID = self.LibSpellDB:GetCanonicalSpellID(baseSpellID) or baseSpellID
-    end
-
-    local summonInfo = self.summonSpells[baseSpellID]
-    if not summonInfo then return end
-
-    -- Use rank-specific duration if available (e.g., Searing Totem ranks have different durations)
-    local duration
-    if self.LibSpellDB and self.LibSpellDB.GetSpellDuration then
-        duration = self.LibSpellDB:GetSpellDuration(spellID)
-    end
-    duration = duration or summonInfo.duration
-    if not duration or duration <= 0 then return end
-
-    local totemElementTag = summonInfo.totemElementTag
-
-    -- Totem element exclusivity: only 1 totem per element
-    if totemElementTag then
-        local existingSpellID = self.totemElementToSpell[totemElementTag]
-        if existingSpellID then
-            -- Clear old totem (same spell recast or different totem of same element)
-            self:ClearSummonTracking(existingSpellID)
-            if existingSpellID ~= baseSpellID then
-                self:NotifyAuraChange(existingSpellID, false)
-            end
-        end
-        self.totemElementToSpell[totemElementTag] = baseSpellID
-    end
-
-    local expiration = GetTime() + duration
-    local targetGUID = self.playerGUID
-
-    -- Store as a pseudo-aura on the player
-    self.activeAuras[baseSpellID] = self.activeAuras[baseSpellID] or {}
-
-    if not totemElementTag then
-        -- Non-totem summons: keep later expiration for multi-summon spells (Force of Nature)
-        local existing = self.activeAuras[baseSpellID][targetGUID]
-        if existing and existing.expiration and existing.expiration > expiration then
-            expiration = existing.expiration
-        end
-    end
-
-    self.activeAuras[baseSpellID][targetGUID] = {
-        expiration = expiration,
-        duration = duration,
-        stacks = 0,
-        sourceSpellID = baseSpellID,
-        isSummon = true,
-    }
-
-    -- Track pet/totem GUIDs for early cleanup on death/destroy
-    if destGUID then
-        self.summonPetToSpell[destGUID] = baseSpellID
-        self.summonPetsBySpell[baseSpellID] = self.summonPetsBySpell[baseSpellID] or {}
-        self.summonPetsBySpell[baseSpellID][destGUID] = true
-
-        if not totemElementTag then
-            -- Non-totem summons: update stacks to reflect number of living pets
-            -- (Force of Nature spawns 3 treants, Shadowfiend = 1)
-            local petCount = 0
-            for _ in pairs(self.summonPetsBySpell[baseSpellID]) do
-                petCount = petCount + 1
-            end
-            self.activeAuras[baseSpellID][targetGUID].stacks = petCount
-        end
-        -- Totems: stacks stay at 0 (only 1 per element)
-    end
-
-    self.Utils:LogInfo("AuraTracker: Summon active", spellName or baseSpellID, "for", duration, "seconds, pets:", self.activeAuras[baseSpellID][targetGUID].stacks or 0)
-    self:NotifyAuraChange(baseSpellID, true)
-end
-
--- CLEU callback for summon despawns/deaths
-function AuraTracker:OnSummonUnitRemoved(subEvent, data)
-    local destGUID = data.destGUID
-    if not destGUID then return end
-
-    local baseSpellID = self.summonPetToSpell[destGUID]
-    if not baseSpellID then return end
-
-    self.summonPetToSpell[destGUID] = nil
-
-    local pets = self.summonPetsBySpell[baseSpellID]
-    if pets then
-        pets[destGUID] = nil
-        if not next(pets) then
-            -- All pets/totems dead - remove the pseudo-aura
-            self.summonPetsBySpell[baseSpellID] = nil
-            local targets = self.activeAuras[baseSpellID]
-            if targets and targets[self.playerGUID] then
-                targets[self.playerGUID] = nil
-            end
-            -- Clear totem element tracking
-            self:ClearTotemElementForSpell(baseSpellID)
-            self:NotifyAuraChange(baseSpellID, false)
-        else
-            -- Some pets still alive - update stack count
-            local petCount = 0
-            for _ in pairs(pets) do
-                petCount = petCount + 1
-            end
-            local targets = self.activeAuras[baseSpellID]
-            if targets and targets[self.playerGUID] then
-                targets[self.playerGUID].stacks = petCount
-            end
-            self:NotifyAuraChange(baseSpellID, true)
-        end
-    end
-end
-
--------------------------------------------------------------------------------
--- Cleanup
--------------------------------------------------------------------------------
-
-function AuraTracker:CleanupExpiredAuras()
-    local now = GetTime()
-    local changed = false
-    
-    for auraID, targets in pairs(self.activeAuras) do
-        for targetGUID, auraData in pairs(targets) do
-            local expiration = type(auraData) == "table" and auraData.expiration or auraData
-            if expiration <= now then
-                targets[targetGUID] = nil
-                changed = true
-
-                -- Clear summon tracking if this was a pseudo-aura on the player
-                if targetGUID == self.playerGUID and self.summonPetsBySpell[auraID] then
-                    for petGUID in pairs(self.summonPetsBySpell[auraID]) do
-                        self.summonPetToSpell[petGUID] = nil
+        local libProcs = self.LibSpellDB:GetProcs(class)
+        for _, spellData in ipairs(libProcs) do
+            -- Skip equipment-gated procs if none of the required items are equipped
+            local include = true
+            local requiredItems = spellData.requiredItemIDs
+            if requiredItems then
+                include = false
+                for _, itemID in ipairs(requiredItems) do
+                    if IsEquippedItem(itemID) then
+                        include = true
+                        break
                     end
-                    self.summonPetsBySpell[auraID] = nil
                 end
+            end
 
-                -- Clear totem element tracking if this was a totem
-                if targetGUID == self.playerGUID then
-                    self:ClearTotemElementForSpell(auraID)
-                end
+            if include then
+                local allRankIDs = self.LibSpellDB:GetAllRankIDs(spellData.spellID)
+                table.insert(procs, {
+                    spellID = spellData.spellID,
+                    name = spellData.name,
+                    duration = spellData.duration or 15,
+                    procInfo = spellData.procInfo,
+                    allRankIDs = allRankIDs,
+                    requiredItemIDs = spellData.requiredItemIDs,
+                    reactiveWindow = spellData.reactiveWindow,
+                    source = "proc",
+                })
             end
         end
     end
+
+    return procs
+end
+
+-- Load external buffs from LibSpellDB (tagged IMPORTANT_EXTERNAL)
+-- Excludes spells already loaded as class procs to avoid duplicates.
+function AuraTracker:GetExternalAuras()
+    local externals = {}
+    if not self.LibSpellDB then return externals end
+
+    -- Build a set of proc spellIDs we already have (avoid duplicates)
+    local procIDs = {}
+    if self.LibSpellDB then
+        local libProcs = self.LibSpellDB:GetProcs(addon.playerClass)
+        for _, spellData in ipairs(libProcs) do
+            procIDs[spellData.spellID] = true
+        end
+    end
+
+    -- Collect from both IMPORTANT_EXTERNAL and MINOR_EXTERNAL tags
+    for _, tag in ipairs({"IMPORTANT_EXTERNAL", "MINOR_EXTERNAL"}) do
+        local tagged = self.LibSpellDB:GetSpellsByTag(tag)
+        for _, spellData in pairs(tagged) do
+            if not procIDs[spellData.spellID] then
+                local allRankIDs = self.LibSpellDB:GetAllRankIDs(spellData.spellID)
+                table.insert(externals, {
+                    spellID = spellData.spellID,
+                    name = spellData.name,
+                    duration = spellData.duration or 30,
+                    allRankIDs = allRankIDs,
+                    source = "external",
+                })
+            end
+        end
+    end
+
+    return externals
+end
+
+-- Load custom auras from profile settings
+function AuraTracker:GetCustomAuras()
+    local customs = {}
+    local db = addon.db and addon.db.profile and addon.db.profile.auraTracker
+    if not db or not db.customAuras then return customs end
+
+    for _, entry in ipairs(db.customAuras) do
+        local spellID = entry.id
+        local spellName = entry.name
+
+        -- Resolve spell info (works for any valid spell ID, even if player doesn't know it)
+        local resolvedName, _, resolvedIcon, _, _, _, resolvedID
+        if spellID then
+            resolvedName, _, resolvedIcon = GetSpellInfo(spellID)
+        elseif spellName then
+            resolvedName, _, resolvedIcon, _, _, _, resolvedID = GetSpellInfo(spellName)
+            spellID = resolvedID
+        end
+
+        if resolvedName then
+            table.insert(customs, {
+                spellID = spellID or 0,
+                name = resolvedName,
+                duration = 0,  -- Unknown, will use actual buff duration
+                source = "custom",
+                customName = spellName,  -- Original user-entered name (for name-based lookup)
+            })
+        elseif spellName then
+            -- Unresolvable at load time (player doesn't know the spell).
+            -- Keep the entry so it can match by name at runtime when the buff appears.
+            table.insert(customs, {
+                spellID = 0,
+                name = spellName,
+                duration = 0,
+                source = "custom",
+                customName = spellName,
+            })
+        end
+    end
+
+    return customs
+end
+
+function AuraTracker:OnPlayerEnteringWorld()
+    self:UpdateAllProcs()
+end
+
+-- Rebuild proc list when weapons change (equipment-gated procs like Deep Thunder / Stormherald)
+function AuraTracker:OnEquipmentChanged(event, slotID)
+    -- Only care about weapon slots: 16 = main hand, 17 = off hand
+    if slotID ~= 16 and slotID ~= 17 then return end
+    self:RebuildFrames()
+end
+
+-- Tear down and recreate all proc frames (called on weapon swap to re-evaluate equipment-gated procs)
+function AuraTracker:RebuildFrames()
+    if not addon.hudFrame then return end
+
+    -- Stop update ticker
+    self.Events:UnregisterUpdate(self)
+
+    -- Clean up existing frames
+    for _, frame in ipairs(self.icons or {}) do
+        if frame.glowActive then
+            self:HideProcGlow(frame)
+        end
+        if self.Animations then
+            self.Animations:StopScalePunch(frame)
+        end
+        frame:Hide()
+    end
+    self.icons = {}
+
+    if self.slideAnimator then
+        self.slideAnimator:Stop()
+        self.slideAnimator = nil
+    end
+    if self.container then
+        self.container:Hide()
+        self.container = nil
+    end
+
+    self.allAuras = nil
+
+    -- Recreate
+    self:CreateFrames(addon.hudFrame)
+    addon.Layout:Refresh()
+end
+
+function AuraTracker:OnAuraUpdate(event, unit)
+    if unit == "player" or unit == "target" or unit == "targettarget" then
+        self:UpdateAllProcs()
+    end
+end
+
+function AuraTracker:OnTargetChanged()
+    self:UpdateAllProcs()
+end
+
+-------------------------------------------------------------------------------
+-- Layout System Integration
+-------------------------------------------------------------------------------
+
+-- Returns the height this element needs in the layout stack
+function AuraTracker:GetLayoutHeight()
+    local db = addon.db and addon.db.profile and addon.db.profile.auraTracker
+    if not db or not db.enabled then
+        return 0
+    end
+    if not self.container then
+        return 0
+    end
     
-    -- Validate active totems against GetTotemInfo.
-    -- PLAYER_TOTEM_UPDATE may not fire reliably when totems are killed in TBC.
-    for elementTag, spellID in pairs(self.totemElementToSpell) do
-        local slot = TOTEM_ELEMENT_TO_SLOT[elementTag]
-        if slot then
-            local haveTotem, totemName, startTime, duration = GetTotemInfo(slot)
-            if not haveTotem or duration == 0 then
-                self.Utils:LogInfo("AuraTracker: Totem gone (GetTotemInfo poll), clearing", spellID)
-                self:ClearSummonTracking(spellID)
-                self:NotifyAuraChange(spellID, false)
-                changed = true
-                -- ClearTotemElementForSpell modifies totemElementToSpell, so break
-                -- and let the next tick catch any remaining stale totems
-                self.totemElementToSpell[elementTag] = nil
+    -- Return the icon height (using aspect ratio if configured)
+    local iconSize = db.iconSize
+    local aspectRatio = db.iconAspectRatio
+    local _, iconHeight = self.Utils:GetIconDimensions(iconSize, aspectRatio)
+    return iconHeight
+end
+
+-- Position this element at the given Y offset (center of element)
+function AuraTracker:SetLayoutPosition(centerY)
+    if not self.container then return end
+    
+    self.container:ClearAllPoints()
+    self.container:SetPoint("CENTER", self.container:GetParent(), "CENTER", 0, centerY)
+end
+
+-------------------------------------------------------------------------------
+-- Frame Creation
+-------------------------------------------------------------------------------
+
+function AuraTracker:CreateFrames(parent)
+    local db = addon.db.profile.auraTracker
+    
+    if not db or not db.enabled then return end
+
+    -- Load all aura sources: class procs + external buffs + custom auras
+    local allAuras = self:LoadAllAuras()
+    if not allAuras or #allAuras == 0 then
+        self.Utils:Debug("AuraTracker: No auras to track for " .. (addon.playerClass or "unknown"))
+        return
+    end
+
+    -- Store for later reference
+    self.allAuras = allAuras
+
+    -- Get width/height based on aspect ratio (needed for sizing)
+    local iconSize = db.iconSize
+    local aspectRatio = db.iconAspectRatio
+    local iconWidth, iconHeight = self.Utils:GetIconDimensions(iconSize, aspectRatio)
+    
+    -- Container frame (position will be set by layout system)
+    local container = CreateFrame("Frame", nil, parent)
+    container:SetPoint("CENTER", parent, "CENTER", 0, 0)  -- Temporary, layout will reposition
+    container:EnableMouse(false)  -- Click-through
+    self.container = container
+    self.slideAnimator = self.Animations:CreateSlideAnimator(container, 12)
+
+    -- Create icon frames for each proc
+    local spacing = db.iconSpacing
+    local totalWidth = (#allAuras * iconWidth) + ((#allAuras - 1) * spacing)
+    
+    container:SetSize(totalWidth, iconHeight)
+    
+    for i, procData in ipairs(allAuras) do
+        local frame = self:CreateProcIcon(container, procData, i, iconSize, iconWidth, iconHeight, spacing, db)
+        self.icons[i] = frame
+    end
+    
+    -- Apply texcoords after all icons are created (ensures aspect ratio is respected)
+    self:ApplyIconTexCoords()
+    
+    -- Start update ticker
+    self.Events:RegisterUpdate(self, 0.1, self.UpdateAllProcs)
+    
+    -- Initial update
+    self:UpdateAllProcs()
+end
+
+-- Apply texcoords to all proc icons based on current aspect ratio and zoom settings
+function AuraTracker:ApplyIconTexCoords()
+    -- iconZoom is total crop percentage; divide by 2 to get per-edge crop
+    local zoomPerEdge = addon.db.profile.icons.iconZoom / 2
+    local aspectRatio = addon.db.profile.auraTracker.iconAspectRatio
+    local left, right, top, bottom = self.Utils:GetIconTexCoords(zoomPerEdge, aspectRatio)
+    for _, frame in ipairs(self.icons or {}) do
+        if frame.icon then
+            frame.icon:SetTexCoord(left, right, top, bottom)
+        end
+    end
+end
+
+function AuraTracker:CreateProcIcon(parent, procData, index, size, iconWidth, iconHeight, spacing, db)
+    local xOffset = (index - 1) * (iconWidth + spacing) - (parent:GetWidth() / 2) + (iconWidth / 2)
+    
+    -- Named frame for Masque compatibility
+    local buttonName = "VeevHUDAura" .. self.iconCounter
+    self.iconCounter = self.iconCounter + 1
+    local frame = CreateFrame("Button", buttonName, parent)
+    frame:SetSize(iconWidth, iconHeight)
+    frame:SetPoint("CENTER", parent, "CENTER", xOffset, 0)
+    frame:EnableMouse(false)  -- Click-through
+    
+    -- Store proc data and dimensions
+    frame.procData = procData
+    frame.spellID = procData.spellID
+    frame.iconSize = size
+    frame.iconWidth = iconWidth
+    frame.iconHeight = iconHeight
+
+    -- Reactive window support (e.g., Victory Rush: usable for 20s after kill)
+    frame.reactiveWindow = procData.reactiveWindow
+    frame.reactiveWindowWasUsable = false
+    
+    -- Backdrop glow (soft radial halo behind icon) - BACKGROUND layer, behind everything
+    -- Created if intensity > 0 (intensity of 0 effectively disables it)
+    local glowIntensity = db.backdropGlowIntensity
+    if glowIntensity > 0 then
+        local backdropGlow = frame:CreateTexture(nil, "BACKGROUND", nil, -1)
+        local glowWidth = iconWidth * db.backdropGlowSize
+        local glowHeight = iconHeight * db.backdropGlowSize
+        backdropGlow:SetSize(glowWidth, glowHeight)
+        backdropGlow:SetPoint("CENTER", frame, "CENTER", 0, 0)
+        -- Use a simple circular glow texture
+        backdropGlow:SetTexture("Interface\\BUTTONS\\UI-ActionButton-Border")
+        backdropGlow:SetBlendMode("ADD")
+        local glowColor = db.backdropGlowColor
+        backdropGlow:SetVertexColor(glowColor[1], glowColor[2], glowColor[3], glowIntensity)
+        backdropGlow:Hide()  -- Hidden by default, shown when proc is active
+        frame.backdropGlow = backdropGlow
+    end
+    
+    -- Border (BACKGROUND layer - below icon so icon covers it when scaling)
+    local border = frame:CreateTexture(nil, "BACKGROUND")
+    border:SetTexture([[Interface\Buttons\WHITE8X8]])
+    border:SetVertexColor(0, 0, 0, 1)
+    border:SetPoint("TOPLEFT", -1, 1)
+    border:SetPoint("BOTTOMRIGHT", 1, -1)
+    frame.border = border
+    
+    -- Icon texture (ARTWORK layer - above border)
+    local icon = frame:CreateTexture(buttonName .. "Icon", "ARTWORK")
+    icon:SetAllPoints()
+    frame.Icon = icon  -- Masque reference
+    -- Apply texcoords with zoom and aspect ratio cropping (will be reapplied in ApplyIconTexCoords)
+    local zoomPerEdge = addon.db.profile.icons.iconZoom / 2
+    local aspectRatio = addon.db.profile.auraTracker.iconAspectRatio
+    local left, right, top, bottom = self.Utils:GetIconTexCoords(zoomPerEdge, aspectRatio)
+    icon:SetTexCoord(left, right, top, bottom)
+    frame.icon = icon
+    
+    -- Get icon texture: LibSpellDB icon (handles overrides) > GetSpellInfo icon > equipped item icon
+    local spellName, _, spellIcon = GetSpellInfo(procData.spellID)
+    local displayIcon = self.LibSpellDB and self.LibSpellDB:GetSpellIcon(procData.spellID) or spellIcon
+    if procData.requiredItemIDs then
+        for _, itemID in ipairs(procData.requiredItemIDs) do
+            if IsEquippedItem(itemID) then
+                displayIcon = GetItemIcon(itemID) or displayIcon
                 break
             end
         end
     end
+    if displayIcon then
+        icon:SetTexture(displayIcon)
+    else
+        icon:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
+    end
+    frame.spellName = spellName or procData.name
+    
+    -- Text container (sits above cooldown spiral)
+    local textContainer = CreateFrame("Frame", nil, frame)
+    textContainer:SetAllPoints(frame)
+    textContainer:SetFrameLevel(frame:GetFrameLevel() + 10)
+    frame.textContainer = textContainer
+    
+    -- Duration text (center)
+    local durationFontSize = math.max(10, math.floor(size * 0.5))
+    local text = textContainer:CreateFontString(nil, "OVERLAY", nil, 7)
+    text:SetFont(addon:GetFont(), durationFontSize, "OUTLINE")
+    text:SetPoint("CENTER", frame, "CENTER", 0, 0)
+    text:SetTextColor(self.C.COLORS.TEXT.r, self.C.COLORS.TEXT.g, self.C.COLORS.TEXT.b)
+    frame.text = text
+    
+    -- Stack count (top right corner, slightly larger font)
+    local stacksFontSize = math.max(11, math.floor(size * 0.55))
+    local stacks = textContainer:CreateFontString(nil, "OVERLAY", nil, 7)
+    stacks:SetFont(addon:GetFont(), stacksFontSize, "OUTLINE")
+    stacks:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 4, 4)
+    stacks:SetJustifyH("RIGHT")
+    stacks:SetJustifyV("TOP")
+    stacks:SetTextColor(self.C.COLORS.TEXT.r, self.C.COLORS.TEXT.g, self.C.COLORS.TEXT.b)
+    frame.stacks = stacks
+    
+    -- Normal texture for Masque compatibility (hidden by default)
+    local normalTexture = frame:CreateTexture(buttonName .. "NormalTexture", "OVERLAY")
+    normalTexture:SetAllPoints()
+    normalTexture:SetTexture([[Interface\Buttons\UI-Quickslot2]])
+    normalTexture:SetAlpha(0)  -- Hidden, Masque will use if configured
+    frame:SetNormalTexture(normalTexture)
+    frame.NormalTexture = normalTexture
 
-    if changed then
-        -- Update UI
-        local cooldownIcons = addon:GetModule("CooldownIcons")
-        if cooldownIcons then
-            cooldownIcons:UpdateAllIcons()
+    -- Cooldown spiral for duration
+    local cooldown = CreateFrame("Cooldown", buttonName .. "Cooldown", frame, "CooldownFrameTemplate")
+    cooldown:SetAllPoints(icon)
+    cooldown:SetDrawEdge(false)
+    cooldown:SetDrawBling(false)
+    cooldown:SetDrawSwipe(true)
+    cooldown:SetSwipeColor(0, 0, 0, 0.8)  -- Match buff active darkness
+    cooldown:SetReverse(true)  -- Fills as time passes
+    cooldown:Hide()
+    frame.cooldown = cooldown
+    frame.Cooldown = cooldown  -- Masque reference
+
+    -- Hide external cooldown text (OmniCC, ElvUI) - we use our own
+    self:ConfigureCooldownText(cooldown)
+
+    -- Register with Masque if available
+    if self.MasqueGroup then
+        self.MasqueGroup:AddButton(frame, {
+            Icon = icon,
+            Cooldown = cooldown,
+            Normal = normalTexture,
+        })
+        -- Hide manual border — Masque provides its own
+        border:Hide()
+    else
+        -- Apply built-in Classic Enhanced style when Masque is not installed
+        addon.IconStyling:Apply(frame, size, addon.db.profile.auraTracker.iconAspectRatio)
+    end
+
+    -- Set initial state (inactive)
+    frame:SetAlpha(db.inactiveAlpha)
+    icon:SetDesaturated(true)
+    
+    return frame
+end
+
+-------------------------------------------------------------------------------
+-- Updates
+-------------------------------------------------------------------------------
+
+function AuraTracker:UpdateAllProcs()
+    if not self.icons then return end
+    
+    local db = addon.db.profile.auraTracker
+    if not db then return end
+    
+    for _, frame in ipairs(self.icons) do
+        self:UpdateProcIcon(frame, db)
+    end
+    
+    -- Reposition visible icons to remove gaps
+    if not db.showInactiveIcons then
+        self:RepositionIcons()
+    end
+    
+    -- Play queued proc animations (after repositioning so scale doesn't corrupt offsets)
+    for _, frame in ipairs(self.icons) do
+        if frame._needsProcAnim then
+            self:PlayProcAnimation(frame)
+            frame._needsProcAnim = nil
         end
     end
 end
 
--------------------------------------------------------------------------------
--- Unit/Aura Helpers
--------------------------------------------------------------------------------
-
--- Get unit token from GUID
-function AuraTracker:GetUnitFromGUID(guid)
-    if not guid then return nil end
+function AuraTracker:UpdateProcIcon(frame, db)
+    if not frame or not frame.procData then return end
     
-    -- Check common units
-    if guid == UnitGUID("player") then return "player" end
-    if guid == UnitGUID("target") then return "target" end
-    if guid == UnitGUID("targettarget") then return "targettarget" end
-    if guid == UnitGUID("focus") then return "focus" end
-    if guid == UnitGUID("pet") then return "pet" end
+    local procData = frame.procData
+    local spellID = procData.spellID
     
-    -- Check party/raid
-    for i = 1, 4 do
-        if guid == UnitGUID("party" .. i) then return "party" .. i end
-        if guid == UnitGUID("party" .. i .. "target") then return "party" .. i .. "target" end
+    -- Check if this proc is disabled in config
+    if not addon:IsAuraEnabled(spellID) then
+        frame:Hide()
+        frame.wasInactive = true
+        frame.text:SetText("")
+        frame.stacks:SetText("")
+        frame.cooldown:Hide()
+        frame.lastStart = nil
+        frame.lastDuration = nil
+        frame.lastExpirationTime = nil
+        frame.reactiveWindowStart = nil
+        frame.reactiveWindowExpires = nil
+        frame.reactiveWindowWasUsable = false
+        if frame.backdropGlow then frame.backdropGlow:Hide() end
+        if frame.glowActive then
+            self:HideProcGlow(frame)
+            frame.glowActive = false
+        end
+        if self.Animations then
+            self.Animations:StopScalePunch(frame)
+        end
+        self:ResetIconPosition(frame)
+        return
     end
     
-    -- Check nameplates
-    for i = 1, 40 do
-        local unit = "nameplate" .. i
-        if UnitExists(unit) and guid == UnitGUID(unit) then
-            return unit
+    -- Check if aura is active (buff on player, debuff on target, or buff on ally)
+    local name, icon, count, debuffType, duration, expirationTime, source, isStealable,
+          nameplateShowPersonal, spellId
+
+    if frame.reactiveWindow then
+        -- Reactive proc (e.g., Victory Rush): track spell usability window instead of UnitBuff
+        local isUsable = IsUsableSpell(spellID)
+        local wasUsable = frame.reactiveWindowWasUsable or false
+        local now = GetTime()
+
+        -- Transition: unusable -> usable: start window
+        if isUsable and not wasUsable then
+            frame.reactiveWindowStart = now
+            frame.reactiveWindowExpires = now + frame.reactiveWindow
+        end
+
+        -- Transition: usable -> unusable: clear window (cast or expired)
+        if not isUsable and wasUsable then
+            frame.reactiveWindowStart = nil
+            frame.reactiveWindowExpires = nil
+        end
+
+        -- Natural expiration
+        if frame.reactiveWindowExpires and now >= frame.reactiveWindowExpires then
+            frame.reactiveWindowStart = nil
+            frame.reactiveWindowExpires = nil
+        end
+
+        frame.reactiveWindowWasUsable = isUsable
+
+        -- Set locals for the display code below
+        if frame.reactiveWindowExpires then
+            local rwRemaining = frame.reactiveWindowExpires - now
+            if rwRemaining > 0 then
+                name = frame.spellName
+                duration = frame.reactiveWindow
+                expirationTime = frame.reactiveWindowExpires
+            end
+        end
+    else
+        -- Standard aura detection: buff on player, debuff on target, or buff on ally
+        local allRankIDs = procData.allRankIDs
+        local isOnTarget = procData.procInfo and procData.procInfo.onTarget
+        local isOnAlly = procData.procInfo and procData.procInfo.onAlly
+        if isOnTarget then
+            name, icon, count, debuffType, duration, expirationTime = self:FindDebuffOnTarget(spellID, allRankIDs, procData.name)
+        elseif isOnAlly then
+            name, icon, count, debuffType, duration, expirationTime = self:FindBuffOnAlly(spellID, allRankIDs, procData.name)
+        else
+            name, icon, count, debuffType, duration, expirationTime, source, isStealable,
+                  nameplateShowPersonal, spellId = self:FindBuffBySpellID(spellID, allRankIDs, procData.name)
         end
     end
+
+    -- Apply source filter (own/notOwn/any)
+    if name and source then
+        local filter = addon:GetAuraSourceFilter(spellID, procData.source)
+        if filter == "own" and source ~= "player" then
+            name = nil
+        elseif filter == "notOwn" and source == "player" then
+            name = nil
+        end
+    end
+
+    local isActive = name ~= nil
+    local remaining = 0
+
+    if isActive and expirationTime and expirationTime > 0 then
+        remaining = expirationTime - GetTime()
+        if remaining < 0 then remaining = 0 end
+    end
     
-    -- Check arena (if applicable)
-    for i = 1, 5 do
-        if guid == UnitGUID("arena" .. i) then return "arena" .. i end
+    if isActive then
+        -- ACTIVE STATE: Full color, glow, duration
+        local wasHidden = not frame:IsShown() or frame.wasInactive
+        frame:Show()
+        frame:SetAlpha(1)
+        frame.icon:SetDesaturated(false)
+        frame.wasInactive = false
+        
+        -- Detect if proc was refreshed (expirationTime changed)
+        local wasRefreshed = false
+        if expirationTime and frame.lastExpirationTime then
+            -- If expiration time increased, the proc was refreshed
+            if expirationTime > frame.lastExpirationTime + 0.5 then
+                wasRefreshed = true
+            end
+        end
+        frame.lastExpirationTime = expirationTime
+        
+        -- Queue pop-in animation if just became active OR refreshed
+        -- (played after RepositionIcons so scale doesn't corrupt offsets)
+        if wasHidden or wasRefreshed then
+            frame._needsProcAnim = true
+        end
+        
+        -- Show duration text
+        if db.showDuration and remaining > 0 then
+            frame.text:SetText(self.Utils:FormatCooldown(remaining))
+        else
+            frame.text:SetText("")
+        end
+        
+        -- Show stack count
+        if count and count > 1 then
+            frame.stacks:SetText(count)
+        else
+            frame.stacks:SetText("")
+        end
+        
+        -- Show duration spiral
+        if duration and duration > 0 and expirationTime then
+            local startTime = expirationTime - duration
+            if frame.lastStart ~= startTime or frame.lastDuration ~= duration then
+                frame.cooldown:SetCooldown(startTime, duration)
+                frame.lastStart = startTime
+                frame.lastDuration = duration
+            end
+            frame.cooldown:Show()
+        else
+            frame.cooldown:Hide()
+        end
+        
+        -- Show backdrop glow (soft halo behind icon) if intensity > 0
+        if frame.backdropGlow and db.backdropGlowIntensity > 0 then
+            frame.backdropGlow:SetAlpha(db.backdropGlowIntensity)
+            frame.backdropGlow:Show()
+        elseif frame.backdropGlow then
+            frame.backdropGlow:Hide()
+        end
+        
+        -- Show edge glow (pixel glow matching aura style)
+        if db.activeGlow and not frame.glowActive then
+            self:ShowProcGlow(frame)
+            frame.glowActive = true
+        elseif not db.activeGlow and frame.glowActive then
+            self:HideProcGlow(frame)
+            frame.glowActive = false
+        end
+    else
+        -- INACTIVE STATE: Hide by default, or show dimmed if configured
+        frame.wasInactive = true
+        
+        if db.showInactiveIcons then
+            frame:SetAlpha(db.inactiveAlpha)
+            frame.icon:SetDesaturated(true)
+            frame:Show()
+        else
+            frame:Hide()
+            -- Reset position tracking so it doesn't slide from old position when reappearing
+            self:ResetIconPosition(frame)
+        end
+        
+        frame.text:SetText("")
+        frame.stacks:SetText("")
+        frame.cooldown:Hide()
+        frame.lastStart = nil
+        frame.lastDuration = nil
+        frame.lastExpirationTime = nil
+        
+        -- Hide backdrop glow
+        if frame.backdropGlow then
+            frame.backdropGlow:Hide()
+        end
+        
+        -- Hide edge glow
+        if frame.glowActive then
+            self:HideProcGlow(frame)
+            frame.glowActive = false
+        end
+        
+        -- Stop any running scale punch animation
+        if self.Animations then
+            self.Animations:StopScalePunch(frame)
+        end
+    end
+end
+
+-- Reposition visible icons dynamically (with optional smooth sliding animation)
+function AuraTracker:RepositionIcons()
+    if not self.icons or not self.container or not self.slideAnimator then return end
+
+    local db = addon.db.profile.auraTracker
+    local size = db.iconSize
+    local aspectRatio = db.iconAspectRatio
+    local iconWidth, iconHeight = self.Utils:GetIconDimensions(size, aspectRatio)
+    local spacing = db.iconSpacing
+
+    local visibleIcons = {}
+    for _, frame in ipairs(self.icons) do
+        if frame:IsShown() then
+            table.insert(visibleIcons, frame)
+        end
+    end
+
+    if #visibleIcons == 0 then return end
+
+    self.slideAnimator:LayoutFrames(visibleIcons, iconWidth, spacing, db.slideAnimation)
+end
+
+-- Reset position tracking when icon becomes hidden
+function AuraTracker:ResetIconPosition(frame)
+    if self.slideAnimator then
+        self.slideAnimator:ResetFrame(frame)
+    end
+end
+
+function AuraTracker:FindBuffBySpellID(spellID, allRankIDs, spellName)
+    -- Use cached buff lookup to avoid scanning 40 buffs per proc per update
+    local aura = self.Utils:GetCachedBuff("player", spellID, spellName)
+    
+    if aura then
+        return aura.name, aura.icon, aura.count, aura.debuffType, aura.duration, 
+               aura.expirationTime, aura.source, aura.isStealable, 
+               aura.nameplateShowPersonal, aura.spellID
+    end
+    
+    -- Check all rank IDs (player may have a lower rank of the talent)
+    if allRankIDs then
+        for rankID in pairs(allRankIDs) do
+            if rankID ~= spellID then
+                aura = self.Utils:GetCachedBuff("player", rankID)
+                if aura then
+                    return aura.name, aura.icon, aura.count, aura.debuffType, aura.duration, 
+                           aura.expirationTime, aura.source, aura.isStealable, 
+                           aura.nameplateShowPersonal, aura.spellID
+                end
+            end
+        end
     end
     
     return nil
 end
 
--- Get aura duration, expiration, and stack count from a unit
-function AuraTracker:GetAuraDurationOnUnit(unit, spellID, spellName, isBuff)
-    if not unit or not UnitExists(unit) then return nil, nil, nil end
-    
-    local scanFunc = isBuff and UnitBuff or UnitDebuff
-    local filter = isBuff and "HELPFUL" or "HARMFUL"
-    
-    -- Scan auras on the unit
-    for i = 1, 40 do
-        local name, icon, count, debuffType, duration, expirationTime, source, 
-              isStealable, nameplateShowPersonal, auraSpellID = scanFunc(unit, i, filter)
-        
-        if not name then break end
-        
-        -- Match by spell ID or name
-        if (auraSpellID and auraSpellID == spellID) or name == spellName then
-            -- For debuffs, make sure it's ours
-            if not isBuff and source and source ~= "player" then
-                -- Not our debuff, keep scanning
-            else
-                return duration, expirationTime, count or 0
-            end
-        end
+function AuraTracker:FindDebuffOnTarget(spellID, allRankIDs, spellName)
+    -- Use cached debuff lookup on current target (with name fallback for version-specific IDs)
+    -- Only track debuffs applied by the player
+    local aura = self.Utils:GetCachedDebuff("target", spellID, spellName)
+
+    if aura and aura.source == "player" then
+        return aura.name, aura.icon, aura.count, aura.debuffType, aura.duration, 
+               aura.expirationTime, aura.source, aura.isStealable, 
+               aura.nameplateShowPersonal, aura.spellID
     end
     
-    return nil, nil, nil
-end
-
--------------------------------------------------------------------------------
--- Target Resolution
--------------------------------------------------------------------------------
-
--- Determine the aura type for targeting logic based on the SOURCE spell ID
--- Returns: isHelpful, isSelfOnly, isCC, isRotational, isSingleTarget
--- isHelpful: true for buffs/heals, false for hostile debuffs
--- isSelfOnly: true for self-only buffs (Recklessness, etc.)
--- isCC: true for CC spells (track across all targets)
--- isRotational: true for ROTATIONAL spells (follow target context for buffs)
--- isSingleTarget: true for spells that can only be active on one target at a time
-function AuraTracker:GetAuraType(spellID)
-    local isHelpful = false
-    local isSelfOnly = true  -- Default to self-only, will be overridden by IsSelfOnly
-    local isCC = false
-    local isRotational = false
-    local isSingleTarget = false
-
-    -- Resolve to canonical ID for consistent lookup
-    local canonicalID = spellID
-    if self.LibSpellDB then
-        canonicalID = self.LibSpellDB:GetCanonicalSpellID(spellID) or spellID
-    end
-
-    -- Use LibSpellDB's centralized logic
-    if self.LibSpellDB then
-        if self.LibSpellDB.IsSelfOnly then
-            isSelfOnly = self.LibSpellDB:IsSelfOnly(canonicalID)
-        end
-        if self.LibSpellDB.IsRotational then
-            isRotational = self.LibSpellDB:IsRotational(canonicalID)
-        end
-        if self.LibSpellDB.IsSingleTarget then
-            isSingleTarget = self.LibSpellDB:IsSingleTarget(canonicalID)
-        end
-    end
-
-    -- Check spellToAuraMap for explicit type info from triggersAuras
-    local auraInfos = self.spellToAuraMap[canonicalID]
-    if auraInfos and auraInfos[1] then
-        local auraInfo = auraInfos[1]
-        isHelpful = auraInfo.type == "BUFF"
-    end
-
-    -- Check LibSpellDB for spell data and tags (using canonical ID)
-    if self.LibSpellDB then
-        local spellData = self.LibSpellDB:GetSpellInfo(canonicalID)
-        if spellData then
-            -- Check tags for CC and helpful indicators
-            if spellData.tags then
-                for _, tag in ipairs(spellData.tags) do
-                    -- Only hard CC tracks across all targets (stuns, polymorphs, fears)
-                    if tag == "CC_HARD" then
-                        isCC = true
-                    end
-                    -- Helpful tags (if not already determined from auraInfos)
-                    if not auraInfos then
-                        if tag == "HOT" or tag == "HAS_HOT" or tag == "HEAL_SINGLE" or tag == "HEAL_AOE"
-                           or tag == "BUFF" or tag == "HAS_BUFF" or tag == "EXTERNAL_DEFENSIVE"
-                           or tag == SUMMON_TAG or tag == TOTEM_TAG then
-                            isHelpful = true
-                        end
-                    end
-                end
-            end
-        end
-    end
-
-    return isHelpful, isSelfOnly, isCC, isRotational, isSingleTarget
-end
-
--- Determine the aura type for targeting logic based on the AURA spell ID
--- This is used when we have the aura ID from combat log and need to check its specific tags
--- Returns: isHelpful, isSelfOnly, isCC, isRotational, sourceSpellID, isSingleTarget
-function AuraTracker:GetAuraTypeForAuraID(auraSpellID)
-    local isHelpful = false
-    local isSelfOnly = true  -- Default to self-only, will be overridden
-    local isCC = false
-    local isRotational = false
-    local isSingleTarget = false
-    local sourceSpellID = nil
-
-    -- First, check if this aura ID has specific tag info from LibSpellDB
-    if self.LibSpellDB and self.LibSpellDB.GetAuraInfo then
-        local auraInfo = self.LibSpellDB:GetAuraInfo(auraSpellID)
-        if auraInfo then
-            sourceSpellID = auraInfo.sourceSpellID
-            isHelpful = auraInfo.type == "BUFF"
-
-            -- Use centralized logic based on source spell
-            if sourceSpellID then
-                if self.LibSpellDB.IsSelfOnly then
-                    isSelfOnly = self.LibSpellDB:IsSelfOnly(sourceSpellID)
-                end
-                if self.LibSpellDB.IsRotational then
-                    isRotational = self.LibSpellDB:IsRotational(sourceSpellID)
-                end
-                if self.LibSpellDB.IsSingleTarget then
-                    isSingleTarget = self.LibSpellDB:IsSingleTarget(sourceSpellID)
-                end
-            end
-
-            -- Check aura-specific tags
-            if auraInfo.tags then
-                for _, tag in ipairs(auraInfo.tags) do
-                    if tag == "CC_HARD" then
-                        isCC = true
-                    end
-                    if tag == "HOT" or tag == "HAS_HOT" or tag == "HEAL_SINGLE" or tag == "HEAL_AOE"
-                       or tag == "BUFF" or tag == "HAS_BUFF" or tag == "EXTERNAL_DEFENSIVE"
-                       or tag == SUMMON_TAG or tag == TOTEM_TAG then
-                        isHelpful = true
-                    end
-                end
-            end
-
-            return isHelpful, isSelfOnly, isCC, isRotational, sourceSpellID, isSingleTarget
-        end
-    end
-
-    -- Fall back to checking auraToSpellMap (local cache)
-    sourceSpellID = self.auraToSpellMap[auraSpellID]
-    if sourceSpellID then
-        -- Get the source spell's aura type
-        local st
-        isHelpful, isSelfOnly, isCC, isRotational, st = self:GetAuraType(sourceSpellID)
-        isSingleTarget = st
-        return isHelpful, isSelfOnly, isCC, isRotational, sourceSpellID, isSingleTarget
-    end
-
-    -- If not found as a triggered aura, try as a regular spell (same-ID aura)
-    local canonicalID = auraSpellID
-    if self.LibSpellDB then
-        canonicalID = self.LibSpellDB:GetCanonicalSpellID(auraSpellID) or auraSpellID
-    end
-
-    local st
-    isHelpful, isSelfOnly, isCC, isRotational, st = self:GetAuraType(canonicalID)
-    isSingleTarget = st
-    return isHelpful, isSelfOnly, isCC, isRotational, canonicalID, isSingleTarget
-end
-
--------------------------------------------------------------------------------
--- Public API
--------------------------------------------------------------------------------
-
--- Get all triggered aura IDs for a source spell (cached lookup)
--- Returns array of aura spell IDs
--- Includes BOTH explicitly triggered auras (from triggersAuras) AND same-ID auras (source + ranks)
--- This is important for spells like Intimidating Shout that apply:
---   - A different aura ID (20511 Cower) on the main target
---   - The same spell ID (5246 Fear) on secondary targets
-function AuraTracker:GetTriggeredAuraIDs(sourceSpellID)
-    -- Return cached result if available (cache cleared on BuildAuraMappings)
-    local cached = self._triggeredAuraIDsCache[sourceSpellID]
-    if cached then return cached end
-
-    -- First resolve to canonical (base) spell ID for lookup
-    local canonicalID = sourceSpellID
-    if self.LibSpellDB then
-        canonicalID = self.LibSpellDB:GetCanonicalSpellID(sourceSpellID) or sourceSpellID
-    end
-    
-    -- Use a set to avoid duplicates
-    local idSet = {}
-    local ids = {}
-    
-    local function addID(id)
-        if not idSet[id] then
-            idSet[id] = true
-            table.insert(ids, id)
-        end
-    end
-    
-    -- Add explicitly triggered auras (different IDs from triggersAuras)
-    local auraInfos = self.spellToAuraMap[canonicalID]
-    if auraInfos then
-        for _, info in ipairs(auraInfos) do
-            addID(info.spellID)
-        end
-    end
-    
-    -- Also add source spell ID and all ranks for same-ID auras
-    -- A spell can trigger BOTH explicit auras AND same-ID auras
-    addID(sourceSpellID)
-    if canonicalID ~= sourceSpellID then
-        addID(canonicalID)
-    end
-    
-    -- Get all rank IDs from LibSpellDB
-    if self.LibSpellDB then
-        local spellData = self.LibSpellDB:GetSpellInfo(sourceSpellID)
-        if spellData and spellData.ranks then
-            for _, rankID in ipairs(spellData.ranks) do
-                addID(rankID)
-            end
-        end
-    end
-    
-    self._triggeredAuraIDsCache[sourceSpellID] = ids
-    return ids
-end
-
---[[
-    Get combined aura state for a source spell (replaces separate IsAuraActive + GetAuraRemaining)
-    Returns: isActive, remaining, duration, stacks
-    Avoids duplicate iteration and temporary table allocations.
-]]
-function AuraTracker:GetAuraState(sourceSpellID)
-    local auraIDs = self:GetTriggeredAuraIDs(sourceSpellID)
-    local currentTime = GetTime()
-
-    local bestRemaining, bestDuration, bestStacks = 0, 0, 0
-    local bestPriority = 0
-    local isActive = false
-
-    for arrayIndex, auraID in ipairs(auraIDs) do
-        local targets = self.activeAuras[auraID]
-        if targets then
-            local relevantGUID, checkAllTargets = self:GetRelevantTargetGUIDForAura(auraID)
-            local priority = self:GetAuraPriority(auraID, arrayIndex)
-
-            if checkAllTargets then
-                for guid, auraData in pairs(targets) do
-                    local expiration = type(auraData) == "table" and auraData.expiration or auraData
-                    local remaining = expiration - currentTime
-                    if remaining > 0 then
-                        isActive = true
-                        local stacks = type(auraData) == "table" and auraData.stacks or 0
-                        -- WoW API may not report charge count at SPELL_AURA_APPLIED time
-                        -- (e.g. Earth Shield 6 charges). Live re-scan and cache the result.
-                        if stacks == 0 and type(auraData) == "table" and not auraData.stacksVerified then
-                            stacks = self:RescanStacks(guid, auraID, auraData)
-                        end
-                        if priority > bestPriority or (priority == bestPriority and remaining > bestRemaining) then
-                            bestPriority = priority
-                            bestRemaining = remaining
-                            bestDuration = type(auraData) == "table" and auraData.duration or 0
-                            bestStacks = stacks
-                        end
-                    end
-                end
-            else
-                if relevantGUID and targets[relevantGUID] then
-                    local auraData = targets[relevantGUID]
-                    local expiration = type(auraData) == "table" and auraData.expiration or auraData
-                    local remaining = expiration - currentTime
-                    if remaining > 0 then
-                        isActive = true
-                        local stacks = type(auraData) == "table" and auraData.stacks or 0
-                        if stacks == 0 and type(auraData) == "table" and not auraData.stacksVerified then
-                            stacks = self:RescanStacks(relevantGUID, auraID, auraData)
-                        end
-                        if priority > bestPriority or (priority == bestPriority and remaining > bestRemaining) then
-                            bestPriority = priority
-                            bestRemaining = remaining
-                            bestDuration = type(auraData) == "table" and auraData.duration or 0
-                            bestStacks = stacks
-                        end
-                    end
-                end
-            end
-        end
-    end
-
-    return isActive, bestRemaining, bestDuration, bestStacks
-end
-
--- Live re-scan stacks for an aura stored with stacks=0.
--- Updates the stored value so subsequent calls skip the re-scan.
--- Sets stacksVerified=true to prevent repeated scans for non-stacking auras.
-function AuraTracker:RescanStacks(guid, auraID, auraData)
-    local unit = self:GetUnitFromGUID(guid)
-    if not unit then return 0 end
-    local spellName = GetSpellInfo(auraID)
-    -- Try as buff first, then debuff
-    local _, _, liveStacks = self:GetAuraDurationOnUnit(unit, auraID, spellName, true)
-    if not liveStacks or liveStacks == 0 then
-        _, _, liveStacks = self:GetAuraDurationOnUnit(unit, auraID, spellName, false)
-    end
-    if liveStacks and liveStacks > 0 then
-        auraData.stacks = liveStacks
-        return liveStacks
-    end
-    -- Confirmed zero stacks — don't re-scan this aura again
-    auraData.stacksVerified = true
-    return 0
-end
-
--- Check if ANY of a source spell's auras is currently active
--- Used by icon overlay to know if any effect is up
-function AuraTracker:IsAuraActiveForSourceSpell(sourceSpellID)
-    local auraIDs = self:GetTriggeredAuraIDs(sourceSpellID)
-    local now = GetTime()
-    
-    for _, auraID in ipairs(auraIDs) do
-        local targets = self.activeAuras[auraID]
-        if targets then
-            -- Get targeting logic for THIS specific aura
-            local relevantGUID, checkAllTargets = self:GetRelevantTargetGUIDForAura(auraID)
-            
-            if checkAllTargets then
-                -- CC or non-rotational helpful spells: check any target
-                for targetGUID, auraData in pairs(targets) do
-                    local expiration = type(auraData) == "table" and auraData.expiration or auraData
-                    if expiration > now then
-                        return true
-                    end
-                end
-            else
-                -- Rotational spells: check only the relevant target
-                if relevantGUID and targets[relevantGUID] then
-                    local auraData = targets[relevantGUID]
-                    local expiration = type(auraData) == "table" and auraData.expiration or auraData
-                    if expiration > now then
-                        return true
-                    end
+    -- Check all rank IDs (player may have a lower rank of the talent)
+    if allRankIDs then
+        for rankID in pairs(allRankIDs) do
+            if rankID ~= spellID then
+                aura = self.Utils:GetCachedDebuff("target", rankID)
+                if aura and aura.source == "player" then
+                    return aura.name, aura.icon, aura.count, aura.debuffType, aura.duration, 
+                           aura.expirationTime, aura.source, aura.isStealable, 
+                           aura.nameplateShowPersonal, aura.spellID
                 end
             end
         end
     end
     
-    return false
+    return nil
 end
 
--- Cached target context (refreshed once per update cycle by CacheTargetContext)
-AuraTracker._targetGUID = nil
-AuraTracker._targetIsEnemy = false
-AuraTracker._targetIsFriend = false
-AuraTracker._ttGUID = nil
-AuraTracker._ttIsEnemy = false
-AuraTracker._ttIsFriend = false
-AuraTracker._useTargettarget = false
+function AuraTracker:FindBuffOnAlly(spellID, allRankIDs, spellName)
+    -- Resolve which unit to check: friendly target, targettarget, or self
+    local unit = "player"
+    local useTargettarget = addon.db.profile.icons.auraTargettargetSupport
 
--- Call once per update cycle to cache unit state for all aura checks
-function AuraTracker:CacheTargetContext()
-    local db = addon.db.profile.icons
-    self._useTargettarget = db.auraTargettargetSupport
-
-    self._targetGUID = UnitGUID("target")
     local targetExists = UnitExists("target")
-    self._targetIsEnemy = targetExists and UnitIsEnemy("player", "target") or false
-    self._targetIsFriend = targetExists and UnitIsFriend("player", "target") or false
-
-    if self._useTargettarget then
-        self._ttGUID = UnitGUID("targettarget")
-        local ttExists = self._ttGUID and UnitExists("targettarget")
-        self._ttIsEnemy = ttExists and UnitIsEnemy("player", "targettarget") or false
-        self._ttIsFriend = ttExists and UnitIsFriend("player", "targettarget") or false
-    else
-        self._ttGUID = nil
-        self._ttIsEnemy = false
-        self._ttIsFriend = false
-    end
-end
-
--- Get relevant target GUID for a specific AURA (using aura-specific tags)
--- Returns: relevantGUID, shouldCheckAllTargets
--- shouldCheckAllTargets: true for CC, single-target spells, and non-rotational helpful buffs
-function AuraTracker:GetRelevantTargetGUIDForAura(auraSpellID)
-    local isHelpful, isSelfOnly, isCC, isRotational, _, isSingleTarget = self:GetAuraTypeForAuraID(auraSpellID)
-    local playerGUID = self.playerGUID
-
-    -- CC spells track across all targets - return nil to signal this
-    if isCC then
-        return nil, true  -- nil GUID, checkAllTargets = true
-    end
-
-    -- Single-target spells (can only be active on one target) track across all targets
-    -- e.g. Prayer of Mending, Earth Shield, Slow
-    if isSingleTarget then
-        return nil, true
-    end
-    
-    -- For helpful spells (buffs/heals), check selfOnly and rotational status
-    if isHelpful then
-        -- Self-only buffs always check self (Recklessness, Shadowform)
-        if isSelfOnly then
-            return playerGUID, false
-        end
-        
-        -- Non-rotational helpful spells (Pain Suppression, Fear Ward) track across all targets
-        -- This ensures major cooldowns are always visible regardless of current target
-        if not isRotational then
-            return nil, true  -- nil GUID, checkAllTargets = true
-        end
-    end
-    
-    -- Rotational spells follow target context (heals check friendly target, DoTs check enemy target)
-    -- Uses cached target context from CacheTargetContext() (called once per update cycle)
-    local targetGUID = self._targetGUID
-    local targetIsEnemy = self._targetIsEnemy
-    local targetIsFriend = self._targetIsFriend
-    local useTargettarget = self._useTargettarget
-    local targettargetGUID = self._ttGUID
-    local targettargetIsEnemy = self._ttIsEnemy
-    local targettargetIsFriend = self._ttIsFriend
-
-    if targetIsEnemy then
-        if isHelpful then
-            if useTargettarget and targettargetIsFriend then
-                return targettargetGUID, false
-            else
-                return playerGUID, false
-            end
-        else
-            return targetGUID, false
-        end
-    elseif targetIsFriend then
-        if isHelpful then
-            return targetGUID, false
-        else
-            if useTargettarget and targettargetIsEnemy then
-                return targettargetGUID, false
-            else
-                return nil, false
+    if targetExists then
+        if UnitIsFriend("player", "target") then
+            unit = "target"
+        elseif UnitIsEnemy("player", "target") then
+            if useTargettarget and UnitExists("targettarget") and UnitIsFriend("player", "targettarget") then
+                unit = "targettarget"
             end
         end
-    else
-        return playerGUID, false
     end
-end
 
--- Check if a spell's aura is currently active (legacy API - uses source spell ID)
--- Uses same smart target resolution as GetAuraRemaining for consistency
-function AuraTracker:IsAuraActive(spellID)
-    return self:IsAuraActiveForSourceSpell(spellID)
-end
+    -- Check primary spell ID (with name fallback — buff IDs may differ across game versions)
+    local aura = self.Utils:GetCachedBuff(unit, spellID, spellName)
+    if aura then
+        return aura.name, aura.icon, aura.count, aura.debuffType, aura.duration,
+               aura.expirationTime, aura.source, aura.isStealable,
+               aura.nameplateShowPersonal, aura.spellID
+    end
 
--- Get aura priority for sorting (higher = more important)
--- CC_HARD > CC_SOFT > other auras, then by array order
-function AuraTracker:GetAuraPriority(auraSpellID, arrayIndex)
-    local basePriority = 1000 - (arrayIndex or 0)  -- Array order as tiebreaker
-    
-    if self.LibSpellDB and self.LibSpellDB.GetAuraInfo then
-        local auraInfo = self.LibSpellDB:GetAuraInfo(auraSpellID)
-        if auraInfo and auraInfo.tags then
-            for _, tag in ipairs(auraInfo.tags) do
-                if tag == "CC_HARD" then
-                    return 3000 + basePriority  -- Highest priority
-                elseif tag == "CC_SOFT" or tag == "ROOT" then
-                    return 2000 + basePriority  -- Medium priority
+    -- Check all rank IDs
+    if allRankIDs then
+        for rankID in pairs(allRankIDs) do
+            if rankID ~= spellID then
+                aura = self.Utils:GetCachedBuff(unit, rankID)
+                if aura then
+                    return aura.name, aura.icon, aura.count, aura.debuffType, aura.duration,
+                           aura.expirationTime, aura.source, aura.isStealable,
+                           aura.nameplateShowPersonal, aura.spellID
                 end
             end
         end
     end
-    
-    return basePriority  -- Default priority (DOTs, buffs, etc.)
+
+    return nil
 end
 
--- Get the remaining duration for a SOURCE spell (checks all its triggered auras)
--- Priority: CC_HARD > CC_SOFT > array order. Among same priority, uses longest duration.
-function AuraTracker:GetAuraRemaining(sourceSpellID)
-    local auraIDs = self:GetTriggeredAuraIDs(sourceSpellID)
-    local now = GetTime()
-    
-    -- Collect all active auras with their priority and remaining time
-    local activeAuras = {}
-    
-    for arrayIndex, auraID in ipairs(auraIDs) do
-        local targets = self.activeAuras[auraID]
-        if targets then
-            -- Get targeting logic for THIS specific aura
-            local relevantGUID, checkAllTargets = self:GetRelevantTargetGUIDForAura(auraID)
-            local priority = self:GetAuraPriority(auraID, arrayIndex)
-            
-            if checkAllTargets then
-                -- CC or non-rotational helpful spells: check all targets, use longest remaining
-                for targetGUID, auraData in pairs(targets) do
-                    local expiration = type(auraData) == "table" and auraData.expiration or auraData
-                    local remaining = expiration - now
-                    if remaining > 0 then
-                        table.insert(activeAuras, {
-                            priority = priority,
-                            remaining = remaining,
-                            duration = type(auraData) == "table" and auraData.duration or 0,
-                            stacks = type(auraData) == "table" and auraData.stacks or 0,
-                        })
-                    end
-                end
-            else
-                -- Rotational spells: check only relevant target for this aura
-                if relevantGUID and targets[relevantGUID] then
-                    local auraData = targets[relevantGUID]
-                    local expiration = type(auraData) == "table" and auraData.expiration or auraData
-                    local remaining = expiration - now
-                    if remaining > 0 then
-                        table.insert(activeAuras, {
-                            priority = priority,
-                            remaining = remaining,
-                            duration = type(auraData) == "table" and auraData.duration or 0,
-                            stacks = type(auraData) == "table" and auraData.stacks or 0,
-                        })
-                    end
-                end
-            end
-        end
-    end
-    
-    -- No active auras
-    if #activeAuras == 0 then
-        return 0, 0, 0
-    end
-    
-    -- Sort by priority (desc), then by remaining time (desc)
-    table.sort(activeAuras, function(a, b)
-        if a.priority ~= b.priority then
-            return a.priority > b.priority
-        end
-        return a.remaining > b.remaining
-    end)
-    
-    -- Return the highest priority aura's info
-    local best = activeAuras[1]
-    return best.remaining, best.duration, best.stacks
-end
+-------------------------------------------------------------------------------
+-- Proc Animation (scale punch using Animations utility)
+-------------------------------------------------------------------------------
 
--- Notify that an aura changed (for icon updates)
-function AuraTracker:NotifyAuraChange(spellID, isActive)
-    local cooldownIcons = addon:GetModule("CooldownIcons")
-    if cooldownIcons then
-        cooldownIcons:UpdateAllIcons()
+function AuraTracker:PlayProcAnimation(frame)
+    if not frame then return end
+    
+    -- Use Animations utility for consistent scale punch behavior
+    if self.Animations then
+        self.Animations:PlayScalePunch(frame, 1.25, "procAnim")
     end
 end
 
--- Rebuild mappings when tracked spells change
-function AuraTracker:OnTrackedSpellsChanged()
-    self:BuildAuraMappings()
+-------------------------------------------------------------------------------
+-- Cooldown Text Configuration
+-------------------------------------------------------------------------------
+
+-- Configure external cooldown text addons (OmniCC, ElvUI, etc.)
+-- We use our own text, so hide theirs
+function AuraTracker:ConfigureCooldownText(cooldown)
+    self.Utils:ConfigureCooldownText(cooldown, true)  -- Always hide external text
+end
+
+-------------------------------------------------------------------------------
+-- Glow Effects
+-------------------------------------------------------------------------------
+
+function AuraTracker:ShowProcGlow(frame)
+    -- Proc glow: Subtle animated border (warm orange-gold)
+    self.Utils:ShowPixelGlow(frame, {1.0, 0.75, 0.4, 1}, "procGlow", 6, 0.25, 4, 1, 0, 0)
+end
+
+function AuraTracker:HideProcGlow(frame)
+    self.Utils:HidePixelGlow(frame, "procGlow")
 end
 
 -------------------------------------------------------------------------------
@@ -1321,5 +894,102 @@ end
 -------------------------------------------------------------------------------
 
 function AuraTracker:Refresh()
-    self:BuildAuraMappings()
+    -- Re-apply config settings to existing frames
+    local db = addon.db.profile.auraTracker
+    
+    -- Create frames if they don't exist and we should have them
+    if not self.container and db.enabled and addon.hudFrame then
+        self:CreateFrames(addon.hudFrame)
+    end
+    
+    if self.container then
+        -- Get icon dimensions (needed for sizing with aspect ratio)
+        local iconSize = db.iconSize
+        local aspectRatio = db.iconAspectRatio
+        local iconWidth, iconHeight = self.Utils:GetIconDimensions(iconSize, aspectRatio)
+        
+        -- Toggle visibility based on enabled
+        if db.enabled then
+            self.container:Show()
+        else
+            self.container:Hide()
+        end
+        
+        -- Update icon sizes and spacing (use aspect ratio for height)
+        local spacing = db.iconSpacing
+        local numProcs = #(self.allAuras or {})
+        local totalWidth = (numProcs * iconWidth) + ((numProcs - 1) * spacing)
+        
+        self.container:SetSize(totalWidth, iconHeight)
+        
+        -- Resize all icons and update stored dimensions
+        local zoomPerEdge = addon.db.profile.icons.iconZoom / 2
+        local left, right, top, bottom = self.Utils:GetIconTexCoords(zoomPerEdge, aspectRatio)
+        for i, frame in ipairs(self.icons or {}) do
+            local xOffset = (i - 1) * (iconWidth + spacing) - (totalWidth / 2) + (iconWidth / 2)
+            frame:SetSize(iconWidth, iconHeight)
+            frame.iconSize = iconSize
+            frame.iconWidth = iconWidth
+            frame.iconHeight = iconHeight
+            frame:ClearAllPoints()
+            frame:SetPoint("CENTER", self.container, "CENTER", xOffset, 0)
+            
+            -- Resize icon texture
+            if frame.icon then
+                frame.icon:SetSize(iconWidth, iconHeight)
+                frame.icon:SetTexCoord(left, right, top, bottom)
+            end
+            
+            -- Update backdrop glow size to match new icon size
+            if frame.backdropGlow then
+                local glowWidth = iconWidth * db.backdropGlowSize
+                local glowHeight = iconHeight * db.backdropGlowSize
+                frame.backdropGlow:SetSize(glowWidth, glowHeight)
+            end
+            
+            -- Reset slide animation position so RepositionIcons will snap to new position
+            if self.slideAnimator then
+                self.slideAnimator:ResetFrame(frame)
+            end
+
+            -- Update built-in style if Masque is not installed
+            addon.IconStyling:Update(frame, iconSize, self.MasqueGroup ~= nil, addon.db.profile.auraTracker.iconAspectRatio)
+        end
+
+        -- Tell Masque to re-apply skins at new icon sizes
+        if self.MasqueGroup then
+            self.MasqueGroup:ReSkin()
+        end
+    end
+
+    -- Apply texcoords for aspect ratio cropping
+    self:ApplyIconTexCoords()
+    
+    -- Reposition to re-center visible icons
+    self:RepositionIcons()
+    
+    self:UpdateAllProcs()
+    
+    -- Notify layout system (our height may have changed)
+    addon.Layout:Refresh()
+end
+
+function AuraTracker:RefreshFonts(fontPath)
+    -- Update fonts on all proc icon text elements
+    local db = addon.db.profile.auraTracker
+    local iconSize = db.iconSize
+    
+    for _, frame in ipairs(self.icons or {}) do
+        -- Duration text
+        if frame.text then
+            local durationFontSize = math.max(10, math.floor(iconSize * 0.5))
+            frame.text:SetFont(fontPath, durationFontSize, "OUTLINE")
+        end
+        
+        -- Stacks text
+        if frame.stacks then
+            local stacksFontSize = math.max(11, math.floor(iconSize * 0.55))
+            frame.stacks:SetFont(fontPath, stacksFontSize, "OUTLINE")
+        end
+    end
 end

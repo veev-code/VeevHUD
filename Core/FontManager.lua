@@ -120,9 +120,9 @@ function FontManager:RefreshAllFonts()
         cooldownIcons:RefreshFonts(fontPath)
     end
     
-    local procTracker = addon:GetModule("ProcTracker")
-    if procTracker and procTracker.RefreshFonts then
-        procTracker:RefreshFonts(fontPath)
+    local auraTracker = addon:GetModule("AuraTracker")
+    if auraTracker and auraTracker.RefreshFonts then
+        auraTracker:RefreshFonts(fontPath)
     end
 
     local totemBar = addon:GetModule("TotemBar")

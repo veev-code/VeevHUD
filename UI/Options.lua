@@ -133,8 +133,8 @@ function Options:ApplySettingChange(path)
 		end
 		return
 	end
-	if path:match("^procTracker%.") then
-		local m = addon:GetModule("ProcTracker")
+	if path:match("^auraTracker%.") then
+		local m = addon:GetModule("AuraTracker")
 		SafeCall(m and m.Refresh, m)
 		if path:match("iconSize") or path:match("iconAspectRatio") then
 			self:RefreshAllBarPositions()
@@ -657,7 +657,7 @@ function Options:BuildOptionsTable()
 							iconZoom = {
 								type = "range",
 								name = "Icon Zoom",
-								desc = "Zooms into each icon's artwork, cropping the edges. Affects ability rows, Proc Tracker, and Totem Bar. Useful for removing the default border that some spell textures have. 0% shows the full icon, 16% is a subtle crop.",
+								desc = "Zooms into each icon's artwork, cropping the edges. Affects ability rows, Aura Tracker, and Totem Bar. Useful for removing the default border that some spell textures have. 0% shows the full icon, 16% is a subtle crop.",
 								min = 0, max = 0.6, step = 0.01,
 								isPercent = true,
 								arg = "icons.iconZoom",
@@ -742,7 +742,7 @@ function Options:BuildOptionsTable()
 									iconAspectRatio = {
 										type = "select",
 										name = "Aspect Ratio",
-										desc = "Makes ability icons wider and shorter (like widescreen). Proc Tracker and Totem Bar have their own settings under Modules.",
+										desc = "Makes ability icons wider and shorter (like widescreen). Aura Tracker and Totem Bar have their own settings under Modules.",
 										values = {
 											[1.0] = "Square (1:1)",
 											[1.165] = "Slightly Compact",
@@ -1449,29 +1449,29 @@ function Options:BuildOptionsTable()
 					},
 					procs = {
 						type = "group",
-						name = "Proc Tracker",
+						name = "Aura Tracker",
 						order = 1,
 						args = {
 							description = {
 								type = "description",
-								name = "The Proc Tracker shows small icons for important temporary buffs (procs) — like a Warrior's Enrage or Flurry, a Mage's Clearcasting, etc. These icons appear above the health bar and are only visible while the buff is active.\n\nUse the Spells tab to choose which procs to show.\n",
+								name = "The Aura Tracker shows small icons for important temporary buffs — class procs (Enrage, Flurry, Clearcasting), external buffs (Bloodlust, Power Infusion, Innervate), and any custom auras you add.\n\nUse the tabs below to configure which auras to show.\n",
 								fontSize = "medium",
 								order = 0,
 							},
-							enabled = { type = "toggle", name = "Enable Proc Tracker", desc = "Master toggle for the Proc Tracker feature. When disabled, no proc icons will be shown.", arg = "procTracker.enabled", order = 1, width = "full" },
+							enabled = { type = "toggle", name = "Enable Aura Tracker", desc = "Master toggle for the Aura Tracker feature. When disabled, no aura icons will be shown.", arg = "auraTracker.enabled", order = 1, width = "full" },
 							layout = {
 								type = "group",
 								name = "Layout",
 								inline = true,
 								order = 2,
-								disabled = function() return addon.db and addon.db.profile and not addon.db.profile.procTracker.enabled end,
+								disabled = function() return addon.db and addon.db.profile and not addon.db.profile.auraTracker.enabled end,
 								args = {
-									iconSize = { type = "range", name = "Icon Size", desc = "How big the proc icons are in pixels. These are typically smaller than ability icons since they're just indicators. 20-28 pixels works well for most people.", min = 12, max = 140, step = 1, arg = "procTracker.iconSize", order = 1 },
-									iconSpacing = { type = "range", name = "Icon Spacing", desc = "The gap in pixels between each proc icon when multiple procs are active at once.", min = 0, max = 40, step = 1, arg = "procTracker.iconSpacing", order = 2 },
+									iconSize = { type = "range", name = "Icon Size", desc = "How big the aura icons are in pixels. These are typically smaller than ability icons since they're just indicators. 20-28 pixels works well for most people.", min = 12, max = 140, step = 1, arg = "auraTracker.iconSize", order = 1 },
+									iconSpacing = { type = "range", name = "Icon Spacing", desc = "The gap in pixels between each aura icon when multiple auras are active at once.", min = 0, max = 40, step = 1, arg = "auraTracker.iconSpacing", order = 2 },
 									iconAspectRatio = {
 										type = "select",
 										name = "Aspect Ratio",
-										desc = "Makes proc icons shorter by shrinking height while keeping width the same. Useful if you want compact spell rows but prefer proc icons to stay more square and readable.",
+										desc = "Makes aura icons shorter by shrinking height while keeping width the same. Useful if you want compact spell rows but prefer aura icons to stay more square and readable.",
 										values = {
 											[1.0] = "Square (1:1)",
 											[1.165] = "Slightly Compact",
@@ -1480,7 +1480,7 @@ function Options:BuildOptionsTable()
 											[2.0] = "Ultra Compact (2:1)",
 										},
 										sorting = {1.0, 1.165, 1.33, 1.665, 2.0},
-										arg = "procTracker.iconAspectRatio",
+										arg = "auraTracker.iconAspectRatio",
 										set = function(info, value)
 											addon.Database:SetOverride(info.arg, value)
 											Options:ApplySettingChange(info.arg)
@@ -1494,13 +1494,13 @@ function Options:BuildOptionsTable()
 								name = "Effects",
 								inline = true,
 								order = 3,
-								disabled = function() return addon.db and addon.db.profile and not addon.db.profile.procTracker.enabled end,
+								disabled = function() return addon.db and addon.db.profile and not addon.db.profile.auraTracker.enabled end,
 								args = {
-									showDuration = { type = "toggle", name = "Show Duration", desc = "Displays the remaining time on proc buffs as text on the icon. Disable if you prefer a cleaner look or if it overlaps with stack counts.", arg = "procTracker.showDuration", order = 1 },
-									activeGlow = { type = "toggle", name = "Active Glow", desc = "Shows a glowing animated border around active proc icons, making them stand out and drawing your eye to important buffs.", arg = "procTracker.activeGlow", order = 2 },
-									backdropGlowIntensity = { type = "range", name = "Backdrop Glow Intensity", desc = "Controls the brightness of the soft colored halo that appears behind each proc icon. Higher values make the glow more prominent. Set to 0 to turn it off completely.", min = 0, max = 0.8, step = 0.05, arg = "procTracker.backdropGlowIntensity", order = 3 },
-									backdropGlowSize = { type = "range", name = "Backdrop Glow Size", desc = "How far the backdrop glow extends outward from each proc icon. Larger values create a wider, softer halo.", min = 0.5, max = 6.0, step = 0.1, arg = "procTracker.backdropGlowSize", order = 4 },
-									slideAnimation = { type = "toggle", name = "Slide Animation", desc = "When procs appear or disappear, the remaining icons smoothly slide to re-center instead of snapping instantly. Disable for instant repositioning.", arg = "procTracker.slideAnimation", order = 5 },
+									showDuration = { type = "toggle", name = "Show Duration", desc = "Displays the remaining time on aura buffs as text on the icon. Disable if you prefer a cleaner look or if it overlaps with stack counts.", arg = "auraTracker.showDuration", order = 1 },
+									activeGlow = { type = "toggle", name = "Active Glow", desc = "Shows a glowing animated border around active aura icons, making them stand out and drawing your eye to important buffs.", arg = "auraTracker.activeGlow", order = 2 },
+									backdropGlowIntensity = { type = "range", name = "Backdrop Glow Intensity", desc = "Controls the brightness of the soft colored halo that appears behind each aura icon. Higher values make the glow more prominent. Set to 0 to turn it off completely.", min = 0, max = 0.8, step = 0.05, arg = "auraTracker.backdropGlowIntensity", order = 3 },
+									backdropGlowSize = { type = "range", name = "Backdrop Glow Size", desc = "How far the backdrop glow extends outward from each aura icon. Larger values create a wider, softer halo.", min = 0.5, max = 6.0, step = 0.1, arg = "auraTracker.backdropGlowSize", order = 4 },
+									slideAnimation = { type = "toggle", name = "Slide Animation", desc = "When auras appear or disappear, the remaining icons smoothly slide to re-center instead of snapping instantly. Disable for instant repositioning.", arg = "auraTracker.slideAnimation", order = 5 },
 								},
 							},
 						},
@@ -1833,11 +1833,11 @@ function Options:BuildOptionsTable()
 	resourceArgs.druidManaBar = barsArgs.druidManaBar
 	barsArgs.druidManaBar = nil
 
-	-- Promote Proc Tracker, Totem Bar, Buff Reminders to top-level tabs
-	local procTrackerOpts = self:BuildProcTrackerOptions(barsArgs.procs)
-	if procTrackerOpts then
-		procTrackerOpts.order = 5
-		optionsTable.args.procs = procTrackerOpts
+	-- Promote Aura Tracker, Totem Bar, Buff Reminders to top-level tabs
+	local auraTrackerOpts = self:BuildAuraTrackerOptions(barsArgs.procs)
+	if auraTrackerOpts then
+		auraTrackerOpts.order = 5
+		optionsTable.args.procs = auraTrackerOpts
 	end
 	barsArgs.procs = nil
 
@@ -1866,10 +1866,10 @@ function Options:BuildOptionsTable()
 end
 
 -------------------------------------------------------------------------------
--- Proc Tracker Options Tab
+-- Aura Tracker Options Tab
 -------------------------------------------------------------------------------
 
-function Options:BuildProcTrackerOptions(settingsGroup)
+function Options:BuildAuraTrackerOptions(settingsGroup)
 	local LibSpellDB = addon.LibSpellDB
 
 	local function buildProcSpellArgs()
@@ -1953,13 +1953,13 @@ function Options:BuildProcTrackerOptions(settingsGroup)
 					enabled = {
 						type = "toggle",
 						name = "Enabled",
-						desc = "Show this proc in the tracker.",
+						desc = "Show this aura in the tracker.",
 						get = function()
-							return addon:IsProcEnabled(spellID)
+							return addon:IsAuraEnabled(spellID)
 						end,
 						set = function(_, value)
-							addon:SetProcEnabled(spellID, value)
-							Options:ApplySettingChange("procTracker.procConfig")
+							addon:SetAuraEnabled(spellID, value)
+							Options:ApplySettingChange("auraTracker.auraConfig")
 						end,
 						order = 1,
 						width = 0.5,
@@ -1980,8 +1980,14 @@ function Options:BuildProcTrackerOptions(settingsGroup)
 
 	-- Store args table reference for rebuilding on spec change
 	local spellsArgs = buildProcSpellArgs()
-	self._procSpellArgs = spellsArgs
-	self._buildProcSpellArgs = buildProcSpellArgs
+	self._auraSpellArgs = spellsArgs
+	self._buildAuraSpellArgs = buildProcSpellArgs
+
+	-- Build External Buffs tab
+	local externalArgs = self:BuildExternalBuffsArgs()
+
+	-- Build Custom Auras tab
+	local customArgs = self:BuildCustomAurasArgs()
 
 	-- Wrap existing settings into a Settings sub-tab, add Spells sub-tab
 	settingsGroup.order = 1
@@ -1989,27 +1995,338 @@ function Options:BuildProcTrackerOptions(settingsGroup)
 
 	return {
 		type = "group",
-		name = "Proc Tracker",
+		name = "Aura Tracker",
 		childGroups = "tab",
 		args = {
 			settings = settingsGroup,
 			spellsTab = {
 				type = "group",
-				name = "Spells",
+				name = "Class Procs",
 				order = 2,
 				disabled = function()
-					return addon.db and addon.db.profile and not addon.db.profile.procTracker.enabled
+					return addon.db and addon.db.profile and not addon.db.profile.auraTracker.enabled
 				end,
 				args = spellsArgs,
+			},
+			externalsTab = {
+				type = "group",
+				name = "External Buffs",
+				order = 3,
+				disabled = function()
+					return addon.db and addon.db.profile and not addon.db.profile.auraTracker.enabled
+				end,
+				args = externalArgs,
+			},
+			customTab = {
+				type = "group",
+				name = "Custom Auras",
+				order = 4,
+				disabled = function()
+					return addon.db and addon.db.profile and not addon.db.profile.auraTracker.enabled
+				end,
+				args = customArgs,
 			},
 		},
 	}
 end
 
--- Rebuild the proc spell list in-place (called on spec change)
-function Options:RebuildProcSpellArgs()
-	local argsTable = self._procSpellArgs
-	local buildFn = self._buildProcSpellArgs
+-------------------------------------------------------------------------------
+-- External Buffs Args
+-------------------------------------------------------------------------------
+
+-- Category grouping for external buffs in the Options UI
+local WATCH_CATEGORIES = {
+	{ name = "Raid Cooldowns", order = 1, spells = {2825, 32182} },
+	{ name = "Healer Externals", order = 2, spells = {10060, 33206, 29166} },
+	{ name = "Defensive Externals", order = 3, spells = {1022, 1044, 6940} },
+	{ name = "Other", order = 4, spells = {6346, 974, 34477} },
+	{ name = "Drums", order = 5, spells = {35476, 35475, 35477, 351355, 351360, 351359} },
+}
+
+function Options:BuildExternalBuffsArgs()
+	local args = {}
+
+	args["description"] = {
+		type = "description",
+		name = "Toggle which external buffs from other players are tracked. These appear as icons in the Aura Tracker when active on you.\n",
+		fontSize = "medium",
+		order = 0,
+	}
+
+	local groupOrder = 1
+	for _, category in ipairs(WATCH_CATEGORIES) do
+		local groupArgs = {}
+		local spellOrder = 1
+
+		for _, spellID in ipairs(category.spells) do
+			local spellName, _, spellIcon = GetSpellInfo(spellID)
+			spellName = spellName or ("Spell " .. spellID)
+			local iconString = spellIcon and ("|T" .. spellIcon .. ":16|t ") or ""
+			local spellKey = "ext_" .. spellID
+
+			groupArgs[spellKey .. "_toggle"] = {
+				type = "toggle",
+				name = iconString .. spellName,
+				desc = "Track " .. spellName .. " (ID: " .. spellID .. ")"
+					.. "\n\nSource filter: Any = show regardless | Own Only = only if you cast it | Not Own = only if someone else cast it",
+				get = function()
+					return addon:IsAuraEnabled(spellID)
+				end,
+				set = function(_, value)
+					addon:SetAuraEnabled(spellID, value)
+					Options:ApplySettingChange("auraTracker.auraConfig")
+				end,
+				order = spellOrder,
+				width = 1.2,
+			}
+			groupArgs[spellKey .. "_source"] = {
+				type = "select",
+				name = "",
+				values = { any = "Any", own = "Own Only", notOwn = "Not Own" },
+				get = function()
+					return addon:GetAuraSourceFilter(spellID, "external")
+				end,
+				set = function(_, value)
+					addon:SetAuraSourceFilter(spellID, value, "external")
+					Options:ApplySettingChange("auraTracker.auraSourceFilter")
+				end,
+				order = spellOrder + 0.1,
+				width = 0.6,
+			}
+			spellOrder = spellOrder + 1
+		end
+
+		args["cat_" .. category.order] = {
+			type = "group",
+			name = category.name,
+			inline = true,
+			order = groupOrder,
+			args = groupArgs,
+		}
+		groupOrder = groupOrder + 1
+	end
+
+	return args
+end
+
+-------------------------------------------------------------------------------
+-- Custom Auras Args
+-------------------------------------------------------------------------------
+
+function Options:BuildCustomAurasArgs()
+	local args = {}
+
+	-- Temp state for input field and status message (not saved to profile)
+	self._customAuraInput = self._customAuraInput or ""
+	self._customAuraStatus = self._customAuraStatus or ""
+
+	args["description"] = {
+		type = "description",
+		name = "Add custom auras to track by spell ID or spell name. These work like procs — the icon appears when the buff is active on you.\n",
+		fontSize = "medium",
+		order = 0,
+	}
+
+	args["inputField"] = {
+		type = "input",
+		name = "Spell ID or Name",
+		desc = "Enter a spell ID or exact spell name and press Enter to add.",
+		get = function() return self._customAuraInput or "" end,
+		set = function(_, value)
+			if not value or value == "" then
+				self._customAuraInput = ""
+				self._customAuraStatus = ""
+				return
+			end
+
+			local spellID = tonumber(value)
+			local entry = {}
+			local resolvedName, _, resolvedIcon
+			if spellID then
+				-- Numeric input: resolve by spell ID (may be nil for NPC/encounter buffs)
+				resolvedName, _, resolvedIcon = GetSpellInfo(spellID)
+				entry.id = spellID
+			else
+				-- Name input: try to resolve to a spell ID for reliable tracking
+				local resolvedID
+				-- 1. Try GetSpellInfo(name) — works for spells the player knows
+				resolvedName, _, resolvedIcon, _, _, _, resolvedID = GetSpellInfo(value)
+				if resolvedName and resolvedID then
+					entry.id = resolvedID
+				elseif not resolvedName then
+					-- 2. Search LibSpellDB by name (case-insensitive)
+					local lib = addon.LibSpellDB
+					if lib then
+						local lowerValue = value:lower()
+						for id, data in pairs(lib:GetAllSpells()) do
+							if data.name and data.name:lower() == lowerValue then
+								resolvedName, _, resolvedIcon = GetSpellInfo(id)
+								if resolvedName then
+									entry.id = id
+									break
+								end
+							end
+						end
+					end
+				end
+				-- 3. Still unresolved — store by name; will match at runtime when buff appears
+				if not resolvedName then
+					resolvedName = value
+					entry.name = value
+				elseif not entry.id then
+					-- GetSpellInfo found the name but no ID (known spell, no ID returned)
+					entry.name = value
+				end
+			end
+
+			-- Check for duplicates
+			local customAuras = addon.db.profile.auraTracker.customAuras
+			for _, existing in ipairs(customAuras) do
+				if (entry.id and existing.id == entry.id)
+					or (entry.name and existing.name == entry.name) then
+					self._customAuraInput = ""
+					self._customAuraStatus = "|cffff8800" .. (resolvedName or ("ID " .. (entry.id or entry.name))) .. " is already being tracked.|r"
+					return
+				end
+			end
+			table.insert(customAuras, entry)
+
+			-- Clear input and show success
+			self._customAuraInput = ""
+			local iconString = resolvedIcon and ("|T" .. resolvedIcon .. ":16|t ") or ""
+			if not resolvedName then
+				self._customAuraStatus = "|cff00ff00Added:|r ID " .. entry.id .. " |cff888888(icon shows when buff is active)|r"
+			elseif entry.name and not entry.id then
+				self._customAuraStatus = "|cff00ff00Added:|r " .. resolvedName .. " |cff888888(by name — icon shows when buff is active)|r"
+			else
+				self._customAuraStatus = "|cff00ff00Added:|r " .. iconString .. resolvedName
+			end
+			self:RebuildCustomAuraEntries()
+
+			-- Rebuild tracker frames to pick up the new aura
+			local tracker = addon:GetModule("AuraTracker")
+			if tracker then tracker:RebuildFrames() end
+		end,
+		order = 1,
+		width = 1.5,
+	}
+
+	args["status"] = {
+		type = "description",
+		name = function()
+			return self._customAuraStatus or ""
+		end,
+		fontSize = "medium",
+		order = 2,
+		width = "full",
+	}
+
+	args["spacer"] = {
+		type = "description",
+		name = "\n",
+		order = 4,
+	}
+
+	-- Build entries for existing custom auras
+	args["entries"] = {
+		type = "group",
+		name = "Current Custom Auras",
+		inline = true,
+		order = 5,
+		args = {},
+	}
+
+	self._customEntriesArgs = args["entries"].args
+	self:RebuildCustomAuraEntries()
+
+	return args
+end
+
+-- Rebuild the custom aura entries list
+function Options:RebuildCustomAuraEntries()
+	local entriesArgs = self._customEntriesArgs
+	if not entriesArgs then return end
+
+	wipe(entriesArgs)
+
+	local customAuras = addon.db and addon.db.profile
+		and addon.db.profile.auraTracker and addon.db.profile.auraTracker.customAuras
+	if not customAuras or #customAuras == 0 then
+		entriesArgs["empty"] = {
+			type = "description",
+			name = "|cff888888No custom auras added yet.|r",
+			order = 1,
+		}
+		return
+	end
+
+	for i, entry in ipairs(customAuras) do
+		local spellID = entry.id
+		local spellName = entry.name
+		local resolvedName, _, resolvedIcon
+		if spellID then
+			resolvedName, _, resolvedIcon = GetSpellInfo(spellID)
+		elseif spellName then
+			resolvedName, _, resolvedIcon = GetSpellInfo(spellName)
+		end
+		resolvedName = resolvedName or spellName or ("Unknown Spell " .. (spellID or ""))
+		local iconString = resolvedIcon and ("|T" .. resolvedIcon .. ":16|t ") or ""
+		local idStr = spellID and (" |cff888888(ID: " .. spellID .. ")|r") or ""
+
+		-- Resolve spell ID for source filter config key
+		local filterSpellID = spellID
+		if not filterSpellID and resolvedName then
+			local _, _, _, _, _, _, resolvedID = GetSpellInfo(spellName)
+			filterSpellID = resolvedID or 0
+		end
+
+		local entryKey = "custom_" .. i
+		entriesArgs[entryKey .. "_label"] = {
+			type = "description",
+			name = iconString .. resolvedName .. idStr,
+			fontSize = "medium",
+			order = i * 3 - 2,
+			width = 1.4,
+		}
+		entriesArgs[entryKey .. "_source"] = {
+			type = "select",
+			name = "",
+			values = { any = "Any", own = "Own Only", notOwn = "Not Own" },
+			get = function()
+				return addon:GetAuraSourceFilter(filterSpellID, "custom")
+			end,
+			set = function(_, value)
+				addon:SetAuraSourceFilter(filterSpellID, value, "custom")
+				Options:ApplySettingChange("auraTracker.auraSourceFilter")
+			end,
+			order = i * 3 - 1,
+			width = 0.6,
+		}
+		entriesArgs[entryKey .. "_remove"] = {
+			type = "execute",
+			name = "Remove",
+			order = i * 3,
+			width = 0.5,
+			func = function()
+				table.remove(customAuras, i)
+				self:RebuildCustomAuraEntries()
+				-- Rebuild tracker frames to remove the aura
+				local tracker = addon:GetModule("AuraTracker")
+				if tracker then tracker:RebuildFrames() end
+
+				local AceConfigRegistry = LibStub and LibStub("AceConfigRegistry-3.0", true)
+				if AceConfigRegistry then
+					AceConfigRegistry:NotifyChange("VeevHUD")
+				end
+			end,
+		}
+	end
+end
+
+-- Rebuild the aura spell list in-place (called on spec change)
+function Options:RebuildAuraSpellArgs()
+	local argsTable = self._auraSpellArgs
+	local buildFn = self._buildAuraSpellArgs
 	if not argsTable or not buildFn then return end
 
 	wipe(argsTable)
@@ -2627,7 +2944,7 @@ end
 
 -- Refresh on profile/spec change — rebuild per-spec spell args
 function Options:Refresh()
-	self:RebuildProcSpellArgs()
+	self:RebuildAuraSpellArgs()
 	self:RebuildBuffReminderSpellArgs()
 end
 

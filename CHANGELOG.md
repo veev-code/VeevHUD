@@ -1,5 +1,26 @@
 # VeevHUD Changelog
 
+## [1.0.111] - 2026-02-27
+
+### Added
+- **Aura Tracker** — The Proc Tracker has been upgraded to the Aura Tracker with three data sources: class procs, external buffs, and custom auras. All existing proc settings are automatically migrated.
+- **External Buff Tracking** — Tracks important buffs from other players: Bloodlust/Heroism, Power Infusion, Innervate, Pain Suppression, Blessing of Protection/Sacrifice/Freedom, Fear Ward, Earth Shield, Misdirection, and Drums. Each can be individually toggled in the new External Buffs settings tab. *(Soveliss)*
+- **Custom Auras** — Add your own auras by spell ID or name. Supports cross-class spells (e.g., a Priest tracking Rejuvenation), NPC buffs, and encounter-specific effects. Icons appear when the buff is active on you.
+- **Aura Source Filter** — Per-aura "Own Only / Not Own / Any" filter controls whose buffs you track. External buffs default to "Not Own" (so a Priest won't see their own Pain Suppression as an external), custom auras default to "Any". Configurable per aura in settings.
+- **Stormstrike: Cooldown Priority** — Stormstrike now shows cooldown state first instead of debuff uptime, matching its use as a rotational ability. *(bewz)*
+
+### Fixed
+- **Other players' buffs showing on ability icons** — Another player casting the same buff on you (e.g., another Priest's Renew) would incorrectly show your ability icon as active. Ability icons now only track your own casts.
+- **Aura Tracker pop animation barely visible** — The scale punch animation was too fast (200ms) and was being killed every 50ms by the icon repositioning logic. Animation timing increased to 320ms, and the slide animator now properly defers to active punch animations instead of fighting them.
+- **Aura Tracker icons overlapping and getting stuck** — The slide animator and punch animator were both calling SetPoint on the same frame, causing position conflicts. They now coordinate: the slide animator tracks position internally while a punch is active and applies it when the punch finishes.
+
+### LibSpellDB Updates
+- New `IMPORTANT_EXTERNAL` and `MINOR_EXTERNAL` tags for two-tier external buff classification.
+- New drums data file (`Data/Externals.lua`) with 6 leatherworking drum variants.
+- 30+ new proc definitions: Warrior (Second Wind, Blood Frenzy), Rogue (Remorseless, Find Weakness, Mace Stun, Blade Twisting), Mage (Ignite, Winter's Chill, Blazing Speed, Fire Vulnerability), Warlock (Shadow Vulnerability, Shadow Embrace, Nether Protection), Priest (Shadow Weaving, Blessed Recovery, Focused Casting, Blackout), Shaman (Elemental Devastation, Focused Casting), Druid (Natural Perfection, Starfire Stun), Paladin (Light's Grace, Redoubt, Reckoning), Hunter (Expose Weakness, Master Tactician, Rapid Killing, and more).
+- Removed Arcane Power, Icy Veins, Presence of Mind, Blade Flurry, and Adrenaline Rush from proc data (active abilities, not procs).
+- Stormstrike: `cooldownPriority = true`.
+
 ## [1.0.110] - 2026-02-25
 
 ### Fixed

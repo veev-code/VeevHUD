@@ -215,10 +215,10 @@ function SpellTracker:FullRescan()
         cooldownIcons:OnTrackedSpellsChanged()
     end
     
-    -- Notify AuraTracker module
-    local auraTracker = addon:GetModule("AuraTracker")
-    if auraTracker and auraTracker.OnTrackedSpellsChanged then
-        auraTracker:OnTrackedSpellsChanged()
+    -- Notify AuraState module
+    local auraState = addon:GetModule("AuraState")
+    if auraState and auraState.OnTrackedSpellsChanged then
+        auraState:OnTrackedSpellsChanged()
     end
 end
 
@@ -287,7 +287,7 @@ function SpellTracker:ShouldExcludeSpell(spellData)
         elseif tag == "ROTATIONAL" or tag == "CORE_ROTATION" then
             isRotational = true
         elseif tag == "PROC" then
-            return true  -- Procs belong in ProcTracker, not CooldownIcons
+            return true  -- Procs belong in AuraTracker, not CooldownIcons
         elseif tag == "DEBUFF" or tag == "HOT" or tag == "BUFF" or tag == "HAS_BUFF" or tag == "HAS_DEBUFF" then
             hasTrackableDuration = true
         end

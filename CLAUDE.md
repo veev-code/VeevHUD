@@ -11,7 +11,7 @@ VeevHUD is a lightweight, WeakAuras-inspired heads-up display addon for World of
 - **Aura tracking**: Shows active buff/debuff durations on icons with visual glow
 - **Resource display**: Resource cost progress on icons (vertical fill or bottom bar)
 - **Health/resource bars**: With heal prediction, predicted cost overlays, tickers
-- **Proc tracker**: Horizontal proc buff icons with stack tracking and glow
+- **Aura tracker**: Horizontal aura icons (procs, externals, custom) with stack tracking and glow
 - **Masque support**: Compatible with Masque for icon skinning
 
 ## File Structure
@@ -25,7 +25,7 @@ VeevHUD is a lightweight, WeakAuras-inspired heads-up display addon for World of
 ### Core (`Core/`)
 - `Core.lua` — Main entry point: addon init, module registration, HUD frame, visibility, scale
 - `Constants.lua` — Static values, class/power colors, timing constants, `C.DEFAULTS.profile`
-- `Database.lua` — AceDB wrapper: profiles, overrides, spell config, proc config, migrations
+- `Database.lua` — AceDB wrapper: profiles, overrides, spell config, aura config, migrations
 - `Events.lua` — Centralized event system: RegisterEvent, CLEU parsing, throttled update tickers
 - `Utils.lua` — Utilities: formatting, scale compensation, frame creation, bar helpers, glow wrappers
 - `Layout.lua` — Vertical stacking system for HUD elements (priority-based)
@@ -41,14 +41,14 @@ VeevHUD is a lightweight, WeakAuras-inspired heads-up display addon for World of
 
 ### Modules (`Modules/`)
 - `SpellTracker.lua` — Determines which spells to track based on spec, tags, known status, user overrides
-- `AuraTracker.lua` — Tracks buffs/debuffs applied by player spells via CLEU events. CC_HARD and `singleTarget` spells track across all targets regardless of current target.
+- `AuraState.lua` — Tracks buffs/debuffs applied by player spells via CLEU events. CC_HARD and `singleTarget` spells track across all targets regardless of current target.
 - `ResourceBar.lua` — Resource bar (mana/rage/energy) with predicted cost overlay and tickers
 - `HealthBar.lua` — Health bar with heal prediction overlay
 - `ComboPoints.lua` — Horizontal combo point bars with activation animation
 - `TotemBar.lua` — Shaman totem bar with 4 element slots, duration tracking, and one-per-element enforcement
 - `SwingBar.lua` — Auto-attack swing timer with class-specific mechanics (Hunter clip zones, dual-wield sync, Ret twist window)
 - `CooldownIcons.lua` — Main icon display: rows, cooldown spirals, resource cost, glows, sorting, queued highlight, item cooldown tracking
-- `ProcTracker.lua` — Proc buff icons with stacks, glow, and configurable enable/disable
+- `AuraTracker.lua` — Aura icons (class procs, external buffs, custom auras) with stacks, glow, and configurable enable/disable
 - `BuffReminders.lua` — Buff reminder alerts for missing class/role buffs with per-spec configuration
 
 ### Services (`Services/`)
@@ -58,12 +58,13 @@ VeevHUD is a lightweight, WeakAuras-inspired heads-up display addon for World of
 - `RangeChecker.lua` — Spell range checking for icon desaturation
 
 ### UI (`UI/`)
-- `Options.lua` — AceConfig options panel (General, Ability Rows, Bars, Proc Tracker, Totem Bar, Buff Reminders, Spells, Layout, Profiles)
+- `Options.lua` — AceConfig options panel (General, Ability Rows, Bars, Aura Tracker, Totem Bar, Buff Reminders, Spells, Layout, Profiles)
 - `SpellsOptions.lua` — Standalone spell config window with drag-and-drop row assignment
 - `MigrationManager.lua` — One-time migration notice system (supports `silent = true` for data-only migrations that skip the popup)
 - `ScaleMigration.lua` — UI scale auto-compensation migration notice
 - `WelcomePopup.lua` — First-time welcome dialog with Discord link
 - `BuffRemindersMigration.lua` — Migration notice for buff reminders feature
+- `AuraTrackerMigration.lua` — Migration: ProcTracker→AuraTracker key rename, config flattening, user popup
 - `Templates.xml` — UI frame templates
 
 ### Other
@@ -107,7 +108,7 @@ Single `eventFrame` for all events. CLEU events are parsed and dispatched by sub
 Unified vertical stacking for all 9 HUD elements. Order is user-configurable via `layout.elementOrder`. Elements stack downward, anchored so Primary Row's top edge stays at a fixed Y offset (`PRIMARY_TOP_OFFSET = -9`).
 
 Default element order (top to bottom):
-1. Proc Tracker
+1. Aura Tracker
 2. Totem Bar
 3. Health Bar
 4. Resource Bar
@@ -147,7 +148,7 @@ The DB layer is the single source of truth for all resolved config values. Appli
   - Do NOT write: `addon.db and addon.db.profile.X.Y or 120` — this is the same anti-pattern with extra nil-guarding. By the time any module or utility code runs, `addon.db` is always initialized; `or <default>` is never needed.
   - Instead write: `db.textSize`, `not db.showSpark`, `db.enabled`, `addon.db.profile.appearance`
 - **ALL new config keys MUST have a default** in `Constants.DEFAULTS.profile`. If a key is used in code but missing from defaults, add it — don't paper over it with a fallback at the call site.
-- The only exception is **sparse per-spell config** (`spellConfig`/`procConfig`), which intentionally uses `nil` to mean "use default behavior" and `false` to mean "explicitly disabled". The `cfg.enabled ~= false` pattern is correct there.
+- The only exception is **sparse per-spell config** (`spellConfig`/`auraConfig`), which intentionally uses `nil` to mean "use default behavior" and `false` to mean "explicitly disabled". The `cfg.enabled ~= false` pattern is correct there.
 
 #### Database API
 
@@ -166,11 +167,11 @@ addon.Database:SetSpellConfigOverride(spellID, field, value, specKey)
 addon.Database:ClearSpellConfigOverride(spellID, field, specKey)
 addon.Database:IsSpellConfigModified(spellID, specKey)
 
--- Proc config
-addon.Database:IsProcEnabled(spellID)
-addon.Database:SetProcEnabled(spellID, enabled)
-addon.Database:GetProcConfig()
-addon.Database:ResetProcConfig()
+-- Aura config
+addon.Database:IsAuraEnabled(spellID)
+addon.Database:SetAuraEnabled(spellID, enabled)
+addon.Database:GetAuraConfig()
+addon.Database:ResetAuraConfig()
 
 -- Row settings
 addon.Database:IsRowSettingEnabled(settingValue, rowIndex)  -- C.ROW_SETTING logic
@@ -227,8 +228,8 @@ addon.Utils:FindSpellOnActionBar(spellID) -- Finds actual rank on action bar
 
 Top-level keys:
 - `enabled`, `appearance`, `anchor`, `visibility`, `animations`, `layout`
-- `resourceBar`, `healthBar`, `comboPoints`, `procTracker`, `totemBar`, `swingBar`
-- `icons`, `buffReminders`, `spellConfig`, `procConfig`, `rows`
+- `resourceBar`, `healthBar`, `comboPoints`, `auraTracker`, `totemBar`, `swingBar`
+- `icons`, `buffReminders`, `spellConfig`, `auraConfig`, `rows`
 
 Notable defaults:
 - `resourceBar.showPredictedCost = true`

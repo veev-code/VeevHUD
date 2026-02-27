@@ -254,8 +254,8 @@ function Animations:PlayScalePunch(frame, scale, cacheKey)
         phase = "up",
         elapsed = 0,
         targetScale = scale,
-        upDur = 0.08,   -- Hold at peak scale
-        downDur = 0.12,  -- Smooth return to normal
+        upDur = 0.12,   -- Hold at peak scale
+        downDur = 0.20,  -- Smooth return to normal
         basePoint = point,
         baseRelativeTo = relativeTo,
         baseRelativePoint = relativePoint,
@@ -279,6 +279,11 @@ function Animations:StopScalePunch(frame)
         ResetPunchScale(frame, state)
         punchDriver.active[frame] = nil
     end
+end
+
+-- Check if frame has an active punch animation (for grace period logic)
+function Animations:IsPunchActive(frame)
+    return frame and punchDriver.active[frame] ~= nil
 end
 
 -- Update the saved base offset for an active punch.
@@ -386,7 +391,7 @@ end
 -------------------------------------------------------------------------------
 -- Creates reusable slide animators for centered horizontal icon layouts.
 -- Child frames smoothly lerp from their current X offset to a target X offset
--- using an ease-out feel (same approach as the original ProcTracker slide).
+-- using an ease-out feel (same approach as the original AuraTracker slide).
 --
 -- Uses a shared driver frame (like punchDriver) so the animator never touches
 -- the container's OnUpdate script.
@@ -445,8 +450,10 @@ function Animations:CreateSlideAnimator(container, speed)
                 if not frame._slideCurrentX then
                     -- First time: snap to target (no stale position to slide from)
                     frame._slideCurrentX = targetX
-                    frame:ClearAllPoints()
-                    frame:SetPoint("CENTER", self.container, "CENTER", targetX, 0)
+                    if not punchDriver.active[frame] then
+                        frame:ClearAllPoints()
+                        frame:SetPoint("CENTER", self.container, "CENTER", targetX, 0)
+                    end
                 end
                 frame._slideTargetX = targetX
                 self.frames[frame] = true
@@ -493,20 +500,34 @@ function Animations:CreateSlideAnimator(container, speed)
 
         for frame in pairs(self.frames) do
             if frame:IsShown() and frame._slideCurrentX and frame._slideTargetX then
+                -- If a punch animation is active on this frame, the punch owns
+                -- SetPoint (it applies scale compensation). We still update
+                -- _slideCurrentX so the position is correct when the punch ends.
+                local hasPunch = punchDriver.active[frame]
+
                 local diff = frame._slideTargetX - frame._slideCurrentX
 
                 if math.abs(diff) < self.snapThreshold then
                     if frame._slideCurrentX ~= frame._slideTargetX then
                         frame._slideCurrentX = frame._slideTargetX
-                        frame:ClearAllPoints()
-                        frame:SetPoint("CENTER", self.container, "CENTER", frame._slideTargetX, 0)
+                        if not hasPunch then
+                            frame:ClearAllPoints()
+                            frame:SetPoint("CENTER", self.container, "CENTER", frame._slideTargetX, 0)
+                        end
+                    end
+                    -- Keep running while punch is active so we can position
+                    -- the frame correctly once the punch finishes
+                    if hasPunch then
+                        allSettled = false
                     end
                 else
                     allSettled = false
                     local move = diff * math.min(1, elapsed * self.speed)
                     frame._slideCurrentX = frame._slideCurrentX + move
-                    frame:ClearAllPoints()
-                    frame:SetPoint("CENTER", self.container, "CENTER", frame._slideCurrentX, 0)
+                    if not hasPunch then
+                        frame:ClearAllPoints()
+                        frame:SetPoint("CENTER", self.container, "CENTER", frame._slideCurrentX, 0)
+                    end
                 end
             end
         end
