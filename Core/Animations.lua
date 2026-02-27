@@ -443,21 +443,39 @@ function Animations:CreateSlideAnimator(container, speed)
 
         local totalWidth = (count * itemWidth) + ((count - 1) * spacing)
 
-        for i, frame in ipairs(frames) do
-            local targetX = (i - 1) * (itemWidth + spacing) - (totalWidth / 2) + (itemWidth / 2)
-
-            if animate then
+        if animate then
+            -- Check if any frame is new (no slide state). When a new icon enters,
+            -- snap ALL frames to avoid a 1-frame stutter where the new icon is in
+            -- position but existing icons haven't started sliding yet.
+            local hasNewFrame = false
+            for _, frame in ipairs(frames) do
                 if not frame._slideCurrentX then
-                    -- First time: snap to target (no stale position to slide from)
+                    hasNewFrame = true
+                    break
+                end
+            end
+
+            for i, frame in ipairs(frames) do
+                local targetX = (i - 1) * (itemWidth + spacing) - (totalWidth / 2) + (itemWidth / 2)
+
+                if hasNewFrame then
+                    -- Snap all frames so layout is correct on the same render frame
                     frame._slideCurrentX = targetX
+                    frame._slideTargetX = targetX
                     if not punchDriver.active[frame] then
                         frame:ClearAllPoints()
                         frame:SetPoint("CENTER", self.container, "CENTER", targetX, 0)
                     end
+                    self.frames[frame] = true
+                else
+                    -- Normal slide: existing icons lerp to new targets
+                    frame._slideTargetX = targetX
+                    self.frames[frame] = true
                 end
-                frame._slideTargetX = targetX
-                self.frames[frame] = true
-            else
+            end
+        else
+            for i, frame in ipairs(frames) do
+                local targetX = (i - 1) * (itemWidth + spacing) - (totalWidth / 2) + (itemWidth / 2)
                 frame:ClearAllPoints()
                 frame:SetPoint("CENTER", self.container, "CENTER", targetX, 0)
                 frame._slideCurrentX = targetX
@@ -508,17 +526,14 @@ function Animations:CreateSlideAnimator(container, speed)
                 local diff = frame._slideTargetX - frame._slideCurrentX
 
                 if math.abs(diff) < self.snapThreshold then
-                    if frame._slideCurrentX ~= frame._slideTargetX then
-                        frame._slideCurrentX = frame._slideTargetX
-                        if not hasPunch then
-                            frame:ClearAllPoints()
-                            frame:SetPoint("CENTER", self.container, "CENTER", frame._slideTargetX, 0)
-                        end
-                    end
-                    -- Keep running while punch is active so we can position
-                    -- the frame correctly once the punch finishes
+                    frame._slideCurrentX = frame._slideTargetX
                     if hasPunch then
+                        -- Punch owns SetPoint; keep running so we can
+                        -- position the frame once the punch finishes
                         allSettled = false
+                    else
+                        frame:ClearAllPoints()
+                        frame:SetPoint("CENTER", self.container, "CENTER", frame._slideTargetX, 0)
                     end
                 else
                     allSettled = false

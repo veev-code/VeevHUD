@@ -1,5 +1,11 @@
 # VeevHUD Changelog
 
+## [1.0.112] - 2026-02-27
+
+### Fixed
+- **Aura Tracker: Icons not repositioning after proc refresh** — When a proc dropped and re-triggered (e.g., Flurry), icons could overlap and get stuck at incorrect positions. The slide animator now correctly repositions frames after a punch animation finishes.
+- **Aura Tracker: Stutter when new proc appears** — When a proc re-appeared among existing icons, the other icons had a visible delay before sliding to make room. New icon appearances now snap all icons to their correct positions instantly, with the punch animation providing the visual flair.
+
 ## [1.0.111] - 2026-02-27
 
 ### Added
