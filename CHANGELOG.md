@@ -1,5 +1,11 @@
 # VeevHUD Changelog
 
+## [1.0.114] - 2026-02-27
+
+### Changed
+- **Aura Tracker: Activation Pop** — Default scale reduced from 125% to 120% to match the proportional pixel growth of ability row cast pop.
+- **Settings: Tab Order** — Layout tab now appears above Support tab.
+
 ## [1.0.113] - 2026-02-27
 
 ### Added

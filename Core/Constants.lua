@@ -394,7 +394,7 @@ C.DEFAULTS = {
             backdropGlowIntensity = 0.25,  -- 0 = disabled, higher = more visible (max ~0.8)
             backdropGlowSize = 2.2,  -- Multiplier for glow size relative to icon
             backdropGlowColor = {1.0, 0.7, 0.35},  -- Warm orange-gold (alpha controlled by intensity)
-            punchScale = 1.25,  -- Scale factor for activation pop animation (1.0 = disabled)
+            punchScale = 1.2,  -- Scale factor for activation pop animation (1.0 = disabled)
             slideAnimation = true,  -- Smooth sliding when auras appear/disappear
             sortOrder = "fifo",  -- Sort order: "fixed", "fifo", "remaining"
             customAuras = {},  -- User-added auras: array of { id = spellID } or { name = "Spell Name" }

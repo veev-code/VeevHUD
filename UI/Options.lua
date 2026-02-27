@@ -1821,7 +1821,7 @@ function Options:BuildOptionsTable()
 			support = {
 				type = "group",
 				name = "Support",
-				order = 8,
+				order = 9,
 				args = {
 					discordInfo = {
 						type = "description",
@@ -1900,7 +1900,7 @@ function Options:BuildOptionsTable()
 	optionsTable.args.advanced = {
 		type = "group",
 		name = "Layout",
-		order = 9,
+		order = 8,
 		args = layoutArgs,
 	}
 
