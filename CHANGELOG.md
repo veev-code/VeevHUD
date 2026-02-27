@@ -1,5 +1,13 @@
 # VeevHUD Changelog
 
+## [1.0.116] - 2026-02-27
+
+### Fixed
+- **Hunter: Buff reminder with Aspect of the Wild** — Aspect of the Wild was missing from the spell database, causing a false "missing aspect" buff reminder when it was active. *(Thanks Seifer for reporting)*
+
+### LibSpellDB Updates
+- Added Aspect of the Wild (all 3 ranks) to Hunter spell data and the `HUNTER_ASPECTS` BuffGroup.
+
 ## [1.0.115] - 2026-02-27
 
 ### Fixed
