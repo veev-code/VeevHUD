@@ -89,6 +89,14 @@ function Options:ApplySettingChange(path)
 		return
 	end
 
+	-- Text color
+	if path == "appearance.textColor" then
+		SafeCall(addon.FontManager and addon.FontManager.RefreshAllFonts, addon.FontManager)
+		local buffReminders = addon:GetModule("BuffReminders")
+		SafeCall(buffReminders and buffReminders.Refresh, buffReminders)
+		return
+	end
+
 	-- Bar gradient
 	if path == "appearance.showGradient" then
 		SafeCall(addon.TextureManager and addon.TextureManager.RefreshAllTextures, addon.TextureManager)
@@ -206,6 +214,13 @@ function Options:ApplySettingChange(path)
 	if path:match("^icons%.") then
 		local icons = addon:GetModule("CooldownIcons")
 		SafeCall(icons and icons.Refresh, icons)
+		-- iconZoom also affects AuraTracker and TotemBar
+		if path == "icons.iconZoom" then
+			local auraTracker = addon:GetModule("AuraTracker")
+			SafeCall(auraTracker and auraTracker.Refresh, auraTracker)
+			local totemBar = addon:GetModule("TotemBar")
+			SafeCall(totemBar and totemBar.Refresh, totemBar)
+		end
 		return
 	end
 
@@ -295,7 +310,16 @@ function Options:BuildOptionsTable()
 					opt.desc = function(info)
 						local text = type(originalDesc) == "function" and originalDesc(info) or originalDesc
 						local default = addon.Database:GetDefaultValue(path)
-						if default == nil or type(default) == "table" then return text end
+						if default == nil then return text end
+						-- Color tables: show as hex code
+						if type(default) == "table" and default.r then
+							local hex = string.format("#%02X%02X%02X",
+								math.floor(default.r * 255 + 0.5),
+								math.floor(default.g * 255 + 0.5),
+								math.floor(default.b * 255 + 0.5))
+							return text .. "\n\n|cff888888Default: " .. hex .. "|r"
+						end
+						if type(default) == "table" then return text end
 						local formatted
 						if type(default) == "boolean" then
 							formatted = default and "Enabled" or "Disabled"
@@ -662,6 +686,16 @@ function Options:BuildOptionsTable()
 								isPercent = true,
 								arg = "icons.iconZoom",
 								order = 4,
+							},
+							textColor = {
+								type = "color",
+								name = "Text Color",
+								desc = "The color used for cooldown countdowns, duration timers, and stack counts across all HUD elements.",
+								hasAlpha = false,
+								get = colorGet,
+								set = colorSet,
+								arg = "appearance.textColor",
+								order = 5,
 							},
 						},
 					},
@@ -1489,18 +1523,29 @@ function Options:BuildOptionsTable()
 									},
 								},
 							},
-							effects = {
+							glow = {
 								type = "group",
-								name = "Effects",
+								name = "Glow",
 								inline = true,
 								order = 3,
 								disabled = function() return addon.db and addon.db.profile and not addon.db.profile.auraTracker.enabled end,
 								args = {
-									showDuration = { type = "toggle", name = "Show Duration", desc = "Displays the remaining time on aura buffs as text on the icon. Disable if you prefer a cleaner look or if it overlaps with stack counts.", arg = "auraTracker.showDuration", order = 1 },
-									activeGlow = { type = "toggle", name = "Active Glow", desc = "Shows a glowing animated border around active aura icons, making them stand out and drawing your eye to important buffs.", arg = "auraTracker.activeGlow", order = 2 },
-									backdropGlowIntensity = { type = "range", name = "Backdrop Glow Intensity", desc = "Controls the brightness of the soft colored halo that appears behind each aura icon. Higher values make the glow more prominent. Set to 0 to turn it off completely.", min = 0, max = 0.8, step = 0.05, arg = "auraTracker.backdropGlowIntensity", order = 3 },
-									backdropGlowSize = { type = "range", name = "Backdrop Glow Size", desc = "How far the backdrop glow extends outward from each aura icon. Larger values create a wider, softer halo.", min = 0.5, max = 6.0, step = 0.1, arg = "auraTracker.backdropGlowSize", order = 4 },
-									slideAnimation = { type = "toggle", name = "Slide Animation", desc = "When auras appear or disappear, the remaining icons smoothly slide to re-center instead of snapping instantly. Disable for instant repositioning.", arg = "auraTracker.slideAnimation", order = 5 },
+									activeGlow = { type = "toggle", name = "Edge Glow", desc = "Shows a glowing animated border around active aura icons, making them stand out and drawing your eye to important buffs.", width = "full", arg = "auraTracker.activeGlow", order = 1 },
+									backdropGlowIntensity = { type = "range", name = "Backdrop Intensity", desc = "Controls the brightness of the soft colored halo that appears behind each aura icon. Higher values make the glow more prominent. Set to 0 to turn it off completely.", min = 0, max = 0.8, step = 0.05, width = "normal", arg = "auraTracker.backdropGlowIntensity", order = 2 },
+									backdropGlowSize = { type = "range", name = "Backdrop Size", desc = "How far the backdrop glow extends outward from each aura icon. Larger values create a wider, softer halo.", min = 0.5, max = 6.0, step = 0.1, width = "normal", arg = "auraTracker.backdropGlowSize", order = 3 },
+								},
+							},
+							animation = {
+								type = "group",
+								name = "Animation",
+								inline = true,
+								order = 4,
+								disabled = function() return addon.db and addon.db.profile and not addon.db.profile.auraTracker.enabled end,
+								args = {
+									showDuration = { type = "toggle", name = "Show Duration", desc = "Displays the remaining time on aura buffs as text on the icon. Disable if you prefer a cleaner look or if it overlaps with stack counts.", width = "normal", arg = "auraTracker.showDuration", order = 1 },
+									slideAnimation = { type = "toggle", name = "Slide Animation", desc = "When auras appear or disappear, the remaining icons smoothly slide to re-center instead of snapping instantly. Disable for instant repositioning.", width = "normal", arg = "auraTracker.slideAnimation", order = 2 },
+									punchScale = { type = "range", name = "Activation Pop", desc = "How much the icon briefly grows when an aura activates or refreshes. Set to 100% to disable the pop animation.", min = 1.0, max = 2.0, step = 0.05, isPercent = true, arg = "auraTracker.punchScale", order = 3 },
+									sortOrder = { type = "select", name = "Sort Order", desc = "How active aura icons are arranged.\n\n|cffffffffActivation Order|r — First-activated aura appears on the left, newest on the right.\n\n|cffffffffFixed|r — Icons stay in a consistent order based on spell registration (class procs first, then externals, then custom).\n\n|cffffffffLeast Remaining|r — Aura closest to expiring appears on the left. Icons re-sort as durations tick down.", values = { fifo = "Activation Order", fixed = "Fixed", remaining = "Least Remaining" }, sorting = { "fifo", "fixed", "remaining" }, arg = "auraTracker.sortOrder", order = 4 },
 								},
 							},
 						},
@@ -2239,6 +2284,21 @@ function Options:BuildCustomAurasArgs()
 	self._customEntriesArgs = args["entries"].args
 	self:RebuildCustomAuraEntries()
 
+	-- Recently seen buffs section (rebuilds on every render pass via hidden callback)
+	args["recentBuffs"] = {
+		type = "group",
+		name = "Recently Seen Buffs",
+		inline = true,
+		order = 10,
+		hidden = function()
+			self:RebuildRecentBuffEntries()
+			return false
+		end,
+		args = {},
+	}
+
+	self._recentBuffsArgs = args["recentBuffs"].args
+
 	return args
 end
 
@@ -2310,10 +2370,127 @@ function Options:RebuildCustomAuraEntries()
 			func = function()
 				table.remove(customAuras, i)
 				self:RebuildCustomAuraEntries()
+				self:RebuildRecentBuffEntries()
 				-- Rebuild tracker frames to remove the aura
 				local tracker = addon:GetModule("AuraTracker")
 				if tracker then tracker:RebuildFrames() end
 
+				local AceConfigRegistry = LibStub and LibStub("AceConfigRegistry-3.0", true)
+				if AceConfigRegistry then
+					AceConfigRegistry:NotifyChange("VeevHUD")
+				end
+			end,
+		}
+	end
+end
+
+-- Rebuild the recently seen buffs list
+function Options:RebuildRecentBuffEntries()
+	local recentArgs = self._recentBuffsArgs
+	if not recentArgs then return end
+
+	wipe(recentArgs)
+
+	local recentBuffs = addon.Utils and addon.Utils.recentPlayerBuffs
+	if not recentBuffs or not next(recentBuffs) then
+		recentArgs["empty"] = {
+			type = "description",
+			name = "|cff888888No recent buffs recorded yet. Play for a bit and reopen this tab.|r",
+			order = 1,
+		}
+		return
+	end
+
+	-- Build sets of already-tracked spell IDs and names
+	local trackedIDs = {}
+	local trackedNames = {}
+	local tracker = addon:GetModule("AuraTracker")
+	if tracker then
+		-- Class procs
+		local procs = tracker:GetProcsForClass(addon.playerClass)
+		for _, proc in ipairs(procs) do
+			trackedIDs[proc.spellID] = true
+			if proc.name then trackedNames[proc.name] = true end
+			if proc.allRankIDs then
+				for rankID in pairs(proc.allRankIDs) do
+					trackedIDs[rankID] = true
+				end
+			end
+		end
+		-- External buffs
+		local externals = tracker:GetExternalAuras()
+		for _, ext in ipairs(externals) do
+			trackedIDs[ext.spellID] = true
+			if ext.name then trackedNames[ext.name] = true end
+			if ext.allRankIDs then
+				for rankID in pairs(ext.allRankIDs) do
+					trackedIDs[rankID] = true
+				end
+			end
+		end
+	end
+	-- Custom auras
+	local customAuras = addon.db and addon.db.profile
+		and addon.db.profile.auraTracker and addon.db.profile.auraTracker.customAuras
+	if customAuras then
+		for _, entry in ipairs(customAuras) do
+			if entry.id then
+				trackedIDs[entry.id] = true
+			end
+			if entry.name then trackedNames[entry.name] = true end
+		end
+	end
+
+	-- Filter and sort by most recent
+	local filtered = {}
+	for spellID, data in pairs(recentBuffs) do
+		if not trackedIDs[spellID] and not trackedNames[data.name] then
+			filtered[#filtered + 1] = { spellID = spellID, name = data.name, icon = data.icon, lastSeen = data.lastSeen }
+		end
+	end
+	table.sort(filtered, function(a, b) return a.lastSeen > b.lastSeen end)
+
+	-- Show only the 10 most recent
+	local MAX_DISPLAY = 10
+	if #filtered == 0 then
+		recentArgs["empty"] = {
+			type = "description",
+			name = "|cff888888All recent buffs are already tracked.|r",
+			order = 1,
+		}
+		return
+	end
+
+	for i = 1, math.min(#filtered, MAX_DISPLAY) do
+		local entry = filtered[i]
+		local iconString = entry.icon and ("|T" .. entry.icon .. ":16|t ") or ""
+		local entryKey = "recent_" .. i
+
+		recentArgs[entryKey .. "_label"] = {
+			type = "description",
+			name = iconString .. (entry.name or ("Spell " .. entry.spellID)) .. " |cff888888(ID: " .. entry.spellID .. ")|r",
+			fontSize = "medium",
+			order = i * 2 - 1,
+			width = 1.4,
+		}
+
+		local capturedSpellID = entry.spellID
+		recentArgs[entryKey .. "_add"] = {
+			type = "execute",
+			name = "Add",
+			order = i * 2,
+			width = 0.5,
+			func = function()
+				local auras = addon.db.profile.auraTracker.customAuras
+				-- Check for duplicates
+				for _, existing in ipairs(auras) do
+					if existing.id == capturedSpellID then return end
+				end
+				table.insert(auras, { id = capturedSpellID })
+				self:RebuildCustomAuraEntries()
+				self:RebuildRecentBuffEntries()
+				local tr = addon:GetModule("AuraTracker")
+				if tr then tr:RebuildFrames() end
 				local AceConfigRegistry = LibStub and LibStub("AceConfigRegistry-3.0", true)
 				if AceConfigRegistry then
 					AceConfigRegistry:NotifyChange("VeevHUD")

@@ -422,3 +422,53 @@ function Utils:ConfigureCooldownText(cooldown, hideExternal)
         end
     end
 end
+
+-------------------------------------------------------------------------------
+-- Wrapper Icon Factory (shared by AuraTracker and BuffReminders)
+-------------------------------------------------------------------------------
+-- Creates a wrapper+visual+textContainer frame hierarchy for icon modules
+-- that need to decouple positioning (slide animation) from visual effects
+-- (scale punch, alpha animations). The wrapper receives SetPoint from the
+-- slide animator, while the visual Button receives SetScale for animations.
+-- Text is parented to the wrapper so it stays crisp during scale effects.
+--
+-- Returns a wrapper Frame with these fields:
+--   wrapper.visual         — Button (CENTER-anchored, for Masque/animations)
+--   wrapper.icon           — Texture on visual (ARTWORK layer)
+--   wrapper.textContainer  — Frame on wrapper (for duration/stacks text)
+--   visual.Icon            — Masque reference to icon texture
+--   visual.NormalTexture   — Masque reference to normal texture
+function Utils:CreateWrapperIcon(parent, buttonName, width, height)
+    -- Wrapper frame: positioning target (slide/layout operates here)
+    local wrapper = CreateFrame("Frame", nil, parent)
+    wrapper:SetSize(width, height)
+
+    -- Visual frame: Button for Masque, centered so SetScale doesn't shift position
+    local visual = CreateFrame("Button", buttonName, wrapper)
+    visual:SetSize(width, height)
+    visual:SetPoint("CENTER")
+    visual:EnableMouse(false)
+
+    -- Icon texture on visual
+    local icon = visual:CreateTexture(buttonName .. "Icon", "ARTWORK")
+    icon:SetAllPoints()
+    visual.Icon = icon
+    wrapper.icon = icon
+    wrapper.visual = visual
+
+    -- Normal texture for Masque (hidden by default)
+    local normalTexture = visual:CreateTexture(buttonName .. "NormalTexture", "OVERLAY")
+    normalTexture:SetAllPoints()
+    normalTexture:SetTexture([[Interface\Buttons\UI-Quickslot2]])
+    normalTexture:SetAlpha(0)
+    visual:SetNormalTexture(normalTexture)
+    visual.NormalTexture = normalTexture
+
+    -- Text container: child of wrapper (not visual) so unaffected by scale animations
+    local textContainer = CreateFrame("Frame", nil, wrapper)
+    textContainer:SetAllPoints(wrapper)
+    textContainer:SetFrameLevel(wrapper:GetFrameLevel() + 5)
+    wrapper.textContainer = textContainer
+
+    return wrapper
+end

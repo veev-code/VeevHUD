@@ -994,7 +994,7 @@ function CooldownIcons:CreateIcon(parent, index, size)
     local text = textFrame:CreateFontString(nil, "OVERLAY", nil, 7)
     text:SetFont(addon:GetFont(), fontSize, "OUTLINE")  -- Lighter outline
     text:SetPoint("CENTER", frame, "CENTER", 0, 0)
-    text:SetTextColor(self.C.COLORS.TEXT.r, self.C.COLORS.TEXT.g, self.C.COLORS.TEXT.b)
+    text:SetTextColor(addon.db.profile.appearance.textColor.r, addon.db.profile.appearance.textColor.g, addon.db.profile.appearance.textColor.b)
     text:SetShadowOffset(0.5, -0.5)  -- Subtle shadow
     text:SetShadowColor(0, 0, 0, 0.5)
     frame.text = text
@@ -1017,7 +1017,7 @@ function CooldownIcons:CreateIcon(parent, index, size)
     stacks:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 2, 2)
     stacks:SetJustifyH("RIGHT")
     stacks:SetJustifyV("TOP")
-    stacks:SetTextColor(self.C.COLORS.TEXT.r, self.C.COLORS.TEXT.g, self.C.COLORS.TEXT.b)
+    stacks:SetTextColor(addon.db.profile.appearance.textColor.r, addon.db.profile.appearance.textColor.g, addon.db.profile.appearance.textColor.b)
     frame.stacks = stacks
 
     -- Keybind text (bottom right, shows keyboard shortcut like default action bars)
@@ -2714,25 +2714,25 @@ function CooldownIcons:UpdateIconState(frame, db)
         -- Show prediction remaining time (waiting for resources)
         -- Use same color as cooldown text for consistency
         frame.text:SetText(self.Utils:FormatCooldown(predictionRemaining))
-        frame.text:SetTextColor(self.C.COLORS.TEXT.r, self.C.COLORS.TEXT.g, self.C.COLORS.TEXT.b)
+        frame.text:SetTextColor(addon.db.profile.appearance.textColor.r, addon.db.profile.appearance.textColor.g, addon.db.profile.appearance.textColor.b)
     elseif frame.gcdContinueText and remaining > 0 and showTextForRow then
         -- Prediction just ended but GCD still blocking — continue countdown text
         -- GCD alone doesn't show text (too noisy), but if a prediction was already
         -- counting down, the text should seamlessly reach 0
         frame.text:SetText(self.Utils:FormatCooldown(remaining))
-        frame.text:SetTextColor(self.C.COLORS.TEXT.r, self.C.COLORS.TEXT.g, self.C.COLORS.TEXT.b)
+        frame.text:SetTextColor(addon.db.profile.appearance.textColor.r, addon.db.profile.appearance.textColor.g, addon.db.profile.appearance.textColor.b)
     elseif showAuraActive and auraDisplayRemaining > 0 and showTextForRow then
         -- Show aura remaining time
         -- Always show our own text for aura duration (OmniCC doesn't track this)
         frame.text:SetText(self.Utils:FormatCooldown(auraDisplayRemaining))
-        frame.text:SetTextColor(self.C.COLORS.TEXT.r, self.C.COLORS.TEXT.g, self.C.COLORS.TEXT.b)
+        frame.text:SetTextColor(addon.db.profile.appearance.textColor.r, addon.db.profile.appearance.textColor.g, addon.db.profile.appearance.textColor.b)
     elseif showText and showTextForRow and remaining > 0 then
         -- For cooldowns, respect useOwnCooldownText setting
         local useOwnText = db.useOwnCooldownText
         if useOwnText then
             frame.text:SetText(self.Utils:FormatCooldown(remaining))
             -- Always use the same color for cooldown text
-            frame.text:SetTextColor(self.C.COLORS.TEXT.r, self.C.COLORS.TEXT.g, self.C.COLORS.TEXT.b)
+            frame.text:SetTextColor(addon.db.profile.appearance.textColor.r, addon.db.profile.appearance.textColor.g, addon.db.profile.appearance.textColor.b)
         else
             frame.text:SetText("")  -- Let external addon show text
         end
@@ -3577,28 +3577,31 @@ end
 
 function CooldownIcons:RefreshFonts(fontPath)
     local db = addon.db.profile.icons
-    
-    -- Update fonts on all icon text elements
+    local tc = addon.db.profile.appearance.textColor
+
+    -- Update fonts and text color on all icon text elements
     for _, rowFrame in ipairs(self.rows or {}) do
         for _, iconFrame in ipairs(rowFrame.icons or {}) do
             local size = iconFrame:GetWidth()
-            
+
             -- Cooldown text
             if iconFrame.text then
                 local fontSize = math.max(14, math.floor(size * 0.38))
                 iconFrame.text:SetFont(fontPath, fontSize, "OUTLINE")
+                iconFrame.text:SetTextColor(tc.r, tc.g, tc.b)
             end
-            
+
             -- Charges text
             if iconFrame.charges then
                 local chargesFontSize = math.max(9, math.floor(size * 0.24))
                 iconFrame.charges:SetFont(fontPath, chargesFontSize, "OUTLINE")
             end
-            
+
             -- Stacks text
             if iconFrame.stacks then
                 local stacksFontSize = math.max(10, math.floor(size * 0.26))
                 iconFrame.stacks:SetFont(fontPath, stacksFontSize, "OUTLINE")
+                iconFrame.stacks:SetTextColor(tc.r, tc.g, tc.b)
             end
             
             -- Keybind text

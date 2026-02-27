@@ -435,7 +435,7 @@ function TotemBar:CreateSlotFrame(parent, element, index, iconWidth, iconHeight,
     local text = textContainer:CreateFontString(nil, "OVERLAY", nil, 7)
     text:SetFont(addon:GetFont(), fontSize, "OUTLINE")
     text:SetPoint("CENTER", frame, "CENTER", 0, 0)
-    text:SetTextColor(self.C.COLORS.TEXT.r, self.C.COLORS.TEXT.g, self.C.COLORS.TEXT.b)
+    text:SetTextColor(addon.db.profile.appearance.textColor.r, addon.db.profile.appearance.textColor.g, addon.db.profile.appearance.textColor.b)
     frame.text = text
 
     -- Apply built-in icon styling
@@ -642,11 +642,13 @@ end
 function TotemBar:RefreshFonts(fontPath)
     local db = addon.db.profile.totemBar
     local fontSize = math.max(10, math.floor(db.iconSize * 0.38))
+    local tc = addon.db.profile.appearance.textColor
 
     for _, element in ipairs(ELEMENT_ORDER) do
         local frame = self.slots[element]
         if frame and frame.text then
             frame.text:SetFont(fontPath, fontSize, "OUTLINE")
+            frame.text:SetTextColor(tc.r, tc.g, tc.b)
         end
     end
 end

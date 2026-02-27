@@ -28,6 +28,9 @@ Utils.debuffCache = {}
 Utils.buffCacheByName = {}
 Utils.debuffCacheByName = {}
 Utils.auraCacheValid = {}  -- auraCacheValid[guid] = true for buffs, auraCacheValid[guid.."_debuff"] for debuffs
+Utils.recentPlayerBuffs = {}  -- [spellID] = { name, icon, lastSeen } — session-only, for Custom Auras UI
+
+local RECENT_BUFF_CAP = 50
 
 -- Populate buff cache for a unit (scans once, stores all buffs)
 function Utils:PopulateBuffCache(unit)
@@ -67,6 +70,48 @@ function Utils:PopulateBuffCache(unit)
     end
     
     self.auraCacheValid[guid] = true
+
+    -- Record player buffs for the "Recently Seen" list in Custom Auras UI
+    if unit == "player" then
+        local time = GetTime()
+        local recent = self.recentPlayerBuffs
+        local hasNew = false
+        for spellID, auraData in pairs(self.buffCache[guid]) do
+            if spellID then
+                if not recent[spellID] then
+                    hasNew = true
+                end
+                recent[spellID] = {
+                    name = auraData.name,
+                    icon = auraData.icon,
+                    lastSeen = time,
+                }
+            end
+        end
+        -- Evict oldest entries if over cap
+        if hasNew then
+            local count = 0
+            for _ in pairs(recent) do count = count + 1 end
+            if count > RECENT_BUFF_CAP then
+                local sorted = {}
+                for id, data in pairs(recent) do
+                    sorted[#sorted + 1] = { id = id, lastSeen = data.lastSeen }
+                end
+                table.sort(sorted, function(a, b) return a.lastSeen > b.lastSeen end)
+                for i = RECENT_BUFF_CAP + 1, #sorted do
+                    recent[sorted[i].id] = nil
+                end
+            end
+            -- Notify AceConfig so the Custom Auras tab updates in real-time (only if open)
+            local AceConfigDialog = LibStub and LibStub("AceConfigDialog-3.0", true)
+            if AceConfigDialog and AceConfigDialog.OpenFrames and AceConfigDialog.OpenFrames["VeevHUD"] then
+                local AceConfigRegistry = LibStub("AceConfigRegistry-3.0", true)
+                if AceConfigRegistry then
+                    AceConfigRegistry:NotifyChange("VeevHUD")
+                end
+            end
+        end
+    end
 end
 
 -- Populate debuff cache for a unit

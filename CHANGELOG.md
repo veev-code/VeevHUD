@@ -1,5 +1,20 @@
 # VeevHUD Changelog
 
+## [1.0.113] - 2026-02-27
+
+### Added
+- **Aura Tracker: Sort Order** — Choose how active aura icons are arranged: Activation Order (newest on right), Fixed (consistent registration order), or Least Remaining (closest to expiring on left). Configurable in Aura Tracker > Animation.
+- **Aura Tracker: Activation Pop** — Configurable scale punch when an aura activates or refreshes. Adjust the intensity or set to 100% to disable. Found in Aura Tracker > Animation.
+- **Text Color** — The color used for cooldown countdowns, duration timers, and stack counts is now configurable via a color picker in General > Appearance. Applies across all HUD elements.
+- **Custom Auras: Recently Seen Buffs** — The Custom Auras tab now shows a list of buffs you've recently received, with one-click "Add" buttons. Automatically excludes buffs already tracked by class procs or external buffs. Updates in real-time as new buffs appear.
+- **Primary/Secondary Row: Max Icons** — Default maximum icons increased from 20 to 24, matching the Utility row.
+
+### Changed
+- **Aura Tracker: Settings Reorganized** — The Effects section has been split into Glow (edge glow, backdrop intensity/size) and Animation (show duration, slide animation, activation pop, sort order) for a cleaner layout.
+
+### Fixed
+- **Icon Zoom not affecting Aura Tracker/Totem Bar** — The global Icon Zoom setting now correctly applies to Aura Tracker and Totem Bar icons in addition to ability row icons.
+
 ## [1.0.112] - 2026-02-27
 
 ### Fixed

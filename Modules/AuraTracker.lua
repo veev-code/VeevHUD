@@ -348,16 +348,17 @@ end
 
 function AuraTracker:CreateProcIcon(parent, procData, index, size, iconWidth, iconHeight, spacing, db)
     local xOffset = (index - 1) * (iconWidth + spacing) - (parent:GetWidth() / 2) + (iconWidth / 2)
-    
-    -- Named frame for Masque compatibility
+
+    -- Create wrapper+visual+textContainer via shared factory
     local buttonName = "VeevHUDAura" .. self.iconCounter
     self.iconCounter = self.iconCounter + 1
-    local frame = CreateFrame("Button", buttonName, parent)
-    frame:SetSize(iconWidth, iconHeight)
+    local frame = self.Utils:CreateWrapperIcon(parent, buttonName, iconWidth, iconHeight)
     frame:SetPoint("CENTER", parent, "CENTER", xOffset, 0)
-    frame:EnableMouse(false)  -- Click-through
-    
-    -- Store proc data and dimensions
+
+    local visual = frame.visual
+    local icon = frame.icon
+
+    -- Store proc data and dimensions on the wrapper
     frame.procData = procData
     frame.spellID = procData.spellID
     frame.iconSize = size
@@ -367,8 +368,8 @@ function AuraTracker:CreateProcIcon(parent, procData, index, size, iconWidth, ic
     -- Reactive window support (e.g., Victory Rush: usable for 20s after kill)
     frame.reactiveWindow = procData.reactiveWindow
     frame.reactiveWindowWasUsable = false
-    
-    -- Backdrop glow (soft radial halo behind icon) - BACKGROUND layer, behind everything
+
+    -- Backdrop glow (soft radial halo behind icon) - on wrapper, BACKGROUND layer
     -- Created if intensity > 0 (intensity of 0 effectively disables it)
     local glowIntensity = db.backdropGlowIntensity
     if glowIntensity > 0 then
@@ -377,34 +378,28 @@ function AuraTracker:CreateProcIcon(parent, procData, index, size, iconWidth, ic
         local glowHeight = iconHeight * db.backdropGlowSize
         backdropGlow:SetSize(glowWidth, glowHeight)
         backdropGlow:SetPoint("CENTER", frame, "CENTER", 0, 0)
-        -- Use a simple circular glow texture
         backdropGlow:SetTexture("Interface\\BUTTONS\\UI-ActionButton-Border")
         backdropGlow:SetBlendMode("ADD")
         local glowColor = db.backdropGlowColor
         backdropGlow:SetVertexColor(glowColor[1], glowColor[2], glowColor[3], glowIntensity)
-        backdropGlow:Hide()  -- Hidden by default, shown when proc is active
+        backdropGlow:Hide()
         frame.backdropGlow = backdropGlow
     end
-    
-    -- Border (BACKGROUND layer - below icon so icon covers it when scaling)
-    local border = frame:CreateTexture(nil, "BACKGROUND")
+
+    -- Border (BACKGROUND layer on visual - below icon so icon covers it when scaling)
+    local border = visual:CreateTexture(nil, "BACKGROUND")
     border:SetTexture([[Interface\Buttons\WHITE8X8]])
     border:SetVertexColor(0, 0, 0, 1)
     border:SetPoint("TOPLEFT", -1, 1)
     border:SetPoint("BOTTOMRIGHT", 1, -1)
     frame.border = border
-    
-    -- Icon texture (ARTWORK layer - above border)
-    local icon = frame:CreateTexture(buttonName .. "Icon", "ARTWORK")
-    icon:SetAllPoints()
-    frame.Icon = icon  -- Masque reference
-    -- Apply texcoords with zoom and aspect ratio cropping (will be reapplied in ApplyIconTexCoords)
+
+    -- Apply texcoords with zoom and aspect ratio cropping
     local zoomPerEdge = addon.db.profile.icons.iconZoom / 2
     local aspectRatio = addon.db.profile.auraTracker.iconAspectRatio
     local left, right, top, bottom = self.Utils:GetIconTexCoords(zoomPerEdge, aspectRatio)
     icon:SetTexCoord(left, right, top, bottom)
-    frame.icon = icon
-    
+
     -- Get icon texture: LibSpellDB icon (handles overrides) > GetSpellInfo icon > equipped item icon
     local spellName, _, spellIcon = GetSpellInfo(procData.spellID)
     local displayIcon = self.LibSpellDB and self.LibSpellDB:GetSpellIcon(procData.spellID) or spellIcon
@@ -422,47 +417,34 @@ function AuraTracker:CreateProcIcon(parent, procData, index, size, iconWidth, ic
         icon:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
     end
     frame.spellName = spellName or procData.name
-    
-    -- Text container (sits above cooldown spiral)
-    local textContainer = CreateFrame("Frame", nil, frame)
-    textContainer:SetAllPoints(frame)
-    textContainer:SetFrameLevel(frame:GetFrameLevel() + 10)
-    frame.textContainer = textContainer
-    
-    -- Duration text (center)
+
+    -- Duration text (center) — on textContainer (unaffected by visual's scale)
+    local textContainer = frame.textContainer
     local durationFontSize = math.max(10, math.floor(size * 0.5))
     local text = textContainer:CreateFontString(nil, "OVERLAY", nil, 7)
     text:SetFont(addon:GetFont(), durationFontSize, "OUTLINE")
-    text:SetPoint("CENTER", frame, "CENTER", 0, 0)
-    text:SetTextColor(self.C.COLORS.TEXT.r, self.C.COLORS.TEXT.g, self.C.COLORS.TEXT.b)
+    text:SetPoint("CENTER", textContainer, "CENTER", 0, 0)
+    text:SetTextColor(addon.db.profile.appearance.textColor.r, addon.db.profile.appearance.textColor.g, addon.db.profile.appearance.textColor.b)
     frame.text = text
-    
-    -- Stack count (top right corner, slightly larger font)
+
+    -- Stack count (top right corner) — on textContainer
     local stacksFontSize = math.max(11, math.floor(size * 0.55))
     local stacks = textContainer:CreateFontString(nil, "OVERLAY", nil, 7)
     stacks:SetFont(addon:GetFont(), stacksFontSize, "OUTLINE")
-    stacks:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 4, 4)
+    stacks:SetPoint("TOPRIGHT", textContainer, "TOPRIGHT", 4, 4)
     stacks:SetJustifyH("RIGHT")
     stacks:SetJustifyV("TOP")
-    stacks:SetTextColor(self.C.COLORS.TEXT.r, self.C.COLORS.TEXT.g, self.C.COLORS.TEXT.b)
+    stacks:SetTextColor(addon.db.profile.appearance.textColor.r, addon.db.profile.appearance.textColor.g, addon.db.profile.appearance.textColor.b)
     frame.stacks = stacks
-    
-    -- Normal texture for Masque compatibility (hidden by default)
-    local normalTexture = frame:CreateTexture(buttonName .. "NormalTexture", "OVERLAY")
-    normalTexture:SetAllPoints()
-    normalTexture:SetTexture([[Interface\Buttons\UI-Quickslot2]])
-    normalTexture:SetAlpha(0)  -- Hidden, Masque will use if configured
-    frame:SetNormalTexture(normalTexture)
-    frame.NormalTexture = normalTexture
 
-    -- Cooldown spiral for duration
-    local cooldown = CreateFrame("Cooldown", buttonName .. "Cooldown", frame, "CooldownFrameTemplate")
+    -- Cooldown spiral for duration (on visual, so it scales with punch)
+    local cooldown = CreateFrame("Cooldown", buttonName .. "Cooldown", visual, "CooldownFrameTemplate")
     cooldown:SetAllPoints(icon)
     cooldown:SetDrawEdge(false)
     cooldown:SetDrawBling(false)
     cooldown:SetDrawSwipe(true)
-    cooldown:SetSwipeColor(0, 0, 0, 0.8)  -- Match buff active darkness
-    cooldown:SetReverse(true)  -- Fills as time passes
+    cooldown:SetSwipeColor(0, 0, 0, 0.8)
+    cooldown:SetReverse(true)
     cooldown:Hide()
     frame.cooldown = cooldown
     frame.Cooldown = cooldown  -- Masque reference
@@ -470,24 +452,27 @@ function AuraTracker:CreateProcIcon(parent, procData, index, size, iconWidth, ic
     -- Hide external cooldown text (OmniCC, ElvUI) - we use our own
     self:ConfigureCooldownText(cooldown)
 
-    -- Register with Masque if available
+    -- Raise textContainer above the cooldown spiral (CooldownFrameTemplate pushes levels)
+    textContainer:SetFrameLevel(visual:GetFrameLevel() + 10)
+
+    -- Register with Masque if available (register the visual Button)
     if self.MasqueGroup then
-        self.MasqueGroup:AddButton(frame, {
+        self.MasqueGroup:AddButton(visual, {
             Icon = icon,
             Cooldown = cooldown,
-            Normal = normalTexture,
+            Normal = visual.NormalTexture,
         })
         -- Hide manual border — Masque provides its own
         border:Hide()
     else
         -- Apply built-in Classic Enhanced style when Masque is not installed
-        addon.IconStyling:Apply(frame, size, addon.db.profile.auraTracker.iconAspectRatio)
+        addon.IconStyling:Apply(visual, size, addon.db.profile.auraTracker.iconAspectRatio)
     end
 
     -- Set initial state (inactive)
     frame:SetAlpha(db.inactiveAlpha)
     icon:SetDesaturated(true)
-    
+
     return frame
 end
 
@@ -535,6 +520,7 @@ function AuraTracker:UpdateProcIcon(frame, db)
         frame.lastStart = nil
         frame.lastDuration = nil
         frame.lastExpirationTime = nil
+        frame._activationTime = nil
         frame.reactiveWindowStart = nil
         frame.reactiveWindowExpires = nil
         frame.reactiveWindowWasUsable = false
@@ -543,8 +529,8 @@ function AuraTracker:UpdateProcIcon(frame, db)
             self:HideProcGlow(frame)
             frame.glowActive = false
         end
-        if self.Animations then
-            self.Animations:StopScalePunch(frame)
+        if self.Animations and frame.visual then
+            self.Animations:StopScalePunch(frame.visual)
         end
         self:ResetIconPosition(frame)
         return
@@ -629,6 +615,11 @@ function AuraTracker:UpdateProcIcon(frame, db)
         frame:SetAlpha(1)
         frame.icon:SetDesaturated(false)
         frame.wasInactive = false
+
+        -- Track activation time for FIFO sort
+        if wasHidden then
+            frame._activationTime = GetTime()
+        end
         
         -- Detect if proc was refreshed (expirationTime changed)
         local wasRefreshed = false
@@ -709,7 +700,8 @@ function AuraTracker:UpdateProcIcon(frame, db)
         frame.lastStart = nil
         frame.lastDuration = nil
         frame.lastExpirationTime = nil
-        
+        frame._activationTime = nil
+
         -- Hide backdrop glow
         if frame.backdropGlow then
             frame.backdropGlow:Hide()
@@ -721,9 +713,9 @@ function AuraTracker:UpdateProcIcon(frame, db)
             frame.glowActive = false
         end
         
-        -- Stop any running scale punch animation
-        if self.Animations then
-            self.Animations:StopScalePunch(frame)
+        -- Stop any running scale punch animation on the visual
+        if self.Animations and frame.visual then
+            self.Animations:StopScalePunch(frame.visual)
         end
     end
 end
@@ -746,6 +738,23 @@ function AuraTracker:RepositionIcons()
     end
 
     if #visibleIcons == 0 then return end
+
+    -- Sort visible icons based on configured sort order
+    local sortOrder = db.sortOrder
+    if sortOrder == "fifo" then
+        table.sort(visibleIcons, function(a, b)
+            local aTime = a._activationTime or 0
+            local bTime = b._activationTime or 0
+            return aTime < bTime
+        end)
+    elseif sortOrder == "remaining" then
+        table.sort(visibleIcons, function(a, b)
+            local aExp = a.lastExpirationTime or math.huge
+            local bExp = b.lastExpirationTime or math.huge
+            return aExp < bExp
+        end)
+    end
+    -- "fixed" = no sort, preserve self.icons registration order
 
     self.slideAnimator:LayoutFrames(visibleIcons, iconWidth, spacing, db.slideAnimation)
 end
@@ -859,10 +868,11 @@ end
 
 function AuraTracker:PlayProcAnimation(frame)
     if not frame then return end
-    
-    -- Use Animations utility for consistent scale punch behavior
-    if self.Animations then
-        self.Animations:PlayScalePunch(frame, 1.25, "procAnim")
+
+    -- Punch the visual (not the wrapper) so slide animation is unaffected
+    local scale = addon.db.profile.auraTracker.punchScale
+    if self.Animations and frame.visual and scale > 1 then
+        self.Animations:PlayScalePunch(frame.visual, scale, "procAnim")
     end
 end
 
@@ -881,12 +891,14 @@ end
 -------------------------------------------------------------------------------
 
 function AuraTracker:ShowProcGlow(frame)
-    -- Proc glow: Subtle animated border (warm orange-gold)
-    self.Utils:ShowPixelGlow(frame, {1.0, 0.75, 0.4, 1}, "procGlow", 6, 0.25, 4, 1, 0, 0)
+    -- Proc glow on the visual (glow API attaches to a frame)
+    local target = frame.visual or frame
+    self.Utils:ShowPixelGlow(target, {1.0, 0.75, 0.4, 1}, "procGlow", 6, 0.25, 4, 1, 0, 0)
 end
 
 function AuraTracker:HideProcGlow(frame)
-    self.Utils:HidePixelGlow(frame, "procGlow")
+    local target = frame.visual or frame
+    self.Utils:HidePixelGlow(target, "procGlow")
 end
 
 -------------------------------------------------------------------------------
@@ -927,33 +939,37 @@ function AuraTracker:Refresh()
         local left, right, top, bottom = self.Utils:GetIconTexCoords(zoomPerEdge, aspectRatio)
         for i, frame in ipairs(self.icons or {}) do
             local xOffset = (i - 1) * (iconWidth + spacing) - (totalWidth / 2) + (iconWidth / 2)
+            -- Resize both wrapper and visual
             frame:SetSize(iconWidth, iconHeight)
+            if frame.visual then
+                frame.visual:SetSize(iconWidth, iconHeight)
+            end
             frame.iconSize = iconSize
             frame.iconWidth = iconWidth
             frame.iconHeight = iconHeight
             frame:ClearAllPoints()
             frame:SetPoint("CENTER", self.container, "CENTER", xOffset, 0)
-            
+
             -- Resize icon texture
             if frame.icon then
                 frame.icon:SetSize(iconWidth, iconHeight)
                 frame.icon:SetTexCoord(left, right, top, bottom)
             end
-            
+
             -- Update backdrop glow size to match new icon size
             if frame.backdropGlow then
                 local glowWidth = iconWidth * db.backdropGlowSize
                 local glowHeight = iconHeight * db.backdropGlowSize
                 frame.backdropGlow:SetSize(glowWidth, glowHeight)
             end
-            
+
             -- Reset slide animation position so RepositionIcons will snap to new position
             if self.slideAnimator then
                 self.slideAnimator:ResetFrame(frame)
             end
 
-            -- Update built-in style if Masque is not installed
-            addon.IconStyling:Update(frame, iconSize, self.MasqueGroup ~= nil, addon.db.profile.auraTracker.iconAspectRatio)
+            -- Update built-in style on the visual (not wrapper)
+            addon.IconStyling:Update(frame.visual or frame, iconSize, self.MasqueGroup ~= nil, addon.db.profile.auraTracker.iconAspectRatio)
         end
 
         -- Tell Masque to re-apply skins at new icon sizes
@@ -975,21 +991,24 @@ function AuraTracker:Refresh()
 end
 
 function AuraTracker:RefreshFonts(fontPath)
-    -- Update fonts on all proc icon text elements
+    -- Update fonts and text color on all proc icon text elements
     local db = addon.db.profile.auraTracker
     local iconSize = db.iconSize
-    
+    local tc = addon.db.profile.appearance.textColor
+
     for _, frame in ipairs(self.icons or {}) do
         -- Duration text
         if frame.text then
             local durationFontSize = math.max(10, math.floor(iconSize * 0.5))
             frame.text:SetFont(fontPath, durationFontSize, "OUTLINE")
+            frame.text:SetTextColor(tc.r, tc.g, tc.b)
         end
-        
+
         -- Stacks text
         if frame.stacks then
             local stacksFontSize = math.max(11, math.floor(iconSize * 0.55))
             frame.stacks:SetFont(fontPath, stacksFontSize, "OUTLINE")
+            frame.stacks:SetTextColor(tc.r, tc.g, tc.b)
         end
     end
 end

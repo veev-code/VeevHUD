@@ -502,70 +502,42 @@ function BuffReminders:GetOrCreateIcon(key)
     local db = addon.db.profile.buffReminders
     local iconSize = db.iconSize
 
-    -- Positioning frame: anchored by LayoutIcons, never scaled
-    local frame = CreateFrame("Frame", nil, self.containerFrame)
-    frame:SetSize(iconSize, iconSize)
+    -- Create wrapper+visual+textContainer via shared factory
+    local buttonName = "VeevHUDBuff" .. self.iconCounter
+    self.iconCounter = self.iconCounter + 1
+    local frame = self.Utils:CreateWrapperIcon(self.containerFrame, buttonName, iconSize, iconSize)
     frame:SetFrameStrata("MEDIUM")
     frame:SetFrameLevel(20)
 
-    -- Visual frame: Button (for Masque compatibility) that receives scale/alpha animations.
-    -- Centered on the positioning frame so SetScale() on this child
-    -- doesn't shift the icon's anchor position.
-    local buttonName = "VeevHUDBuff" .. self.iconCounter
-    self.iconCounter = self.iconCounter + 1
-    local visual = CreateFrame("Button", buttonName, frame)
-    visual:SetSize(iconSize, iconSize)
-    visual:SetPoint("CENTER")
-    visual:EnableMouse(false)  -- Click-through
-
-    -- Spell icon texture on the visual frame
-    local icon = visual:CreateTexture(buttonName .. "Icon", "ARTWORK")
-    icon:SetAllPoints()
-    frame.icon = icon
-    visual.Icon = icon  -- Masque reference
-    frame.visual = visual
-
-    -- Normal texture for Masque compatibility (hidden by default)
-    local normalTexture = visual:CreateTexture(buttonName .. "NormalTexture", "OVERLAY")
-    normalTexture:SetAllPoints()
-    normalTexture:SetTexture([[Interface\Buttons\UI-Quickslot2]])
-    normalTexture:SetAlpha(0)
-    visual:SetNormalTexture(normalTexture)
-    visual.NormalTexture = normalTexture
+    local visual = frame.visual
+    local textContainer = frame.textContainer
 
     -- Register with Masque if available
     if self.MasqueGroup then
         self.MasqueGroup:AddButton(visual, {
-            Icon = icon,
-            Normal = normalTexture,
+            Icon = frame.icon,
+            Normal = visual.NormalTexture,
         })
     end
 
-    -- Text overlay frame: child of positioning frame (not visual) so it
-    -- is unaffected by scale animations. Higher frame level to render on top.
-    local textFrame = CreateFrame("Frame", nil, frame)
-    textFrame:SetAllPoints(frame)
-    textFrame:SetFrameLevel(frame:GetFrameLevel() + 5)
-    frame.textFrame = textFrame
-
     -- Cooldown/duration text (center, matching CooldownIcons style)
     local fontSize = math.max(14, math.floor(iconSize * 0.38))
-    local text = textFrame:CreateFontString(nil, "OVERLAY", nil, 7)
+    local text = textContainer:CreateFontString(nil, "OVERLAY", nil, 7)
     text:SetFont(addon:GetFont(), fontSize, "OUTLINE")
-    text:SetPoint("CENTER", textFrame, "CENTER", 0, 0)
-    text:SetTextColor(C.COLORS.TEXT.r, C.COLORS.TEXT.g, C.COLORS.TEXT.b)
+    text:SetPoint("CENTER", textContainer, "CENTER", 0, 0)
+    text:SetTextColor(addon.db.profile.appearance.textColor.r, addon.db.profile.appearance.textColor.g, addon.db.profile.appearance.textColor.b)
     text:SetShadowOffset(0.5, -0.5)
     text:SetShadowColor(0, 0, 0, 0.5)
     frame.text = text
 
     -- Stacks text (top right, matching CooldownIcons style)
     local stacksFontSize = math.max(10, math.floor(iconSize * 0.26))
-    local stacks = textFrame:CreateFontString(nil, "OVERLAY", nil, 7)
+    local stacks = textContainer:CreateFontString(nil, "OVERLAY", nil, 7)
     stacks:SetFont(addon:GetFont(), stacksFontSize, "OUTLINE")
-    stacks:SetPoint("TOPRIGHT", textFrame, "TOPRIGHT", 2, 2)
+    stacks:SetPoint("TOPRIGHT", textContainer, "TOPRIGHT", 2, 2)
     stacks:SetJustifyH("RIGHT")
     stacks:SetJustifyV("TOP")
-    stacks:SetTextColor(C.COLORS.TEXT.r, C.COLORS.TEXT.g, C.COLORS.TEXT.b)
+    stacks:SetTextColor(addon.db.profile.appearance.textColor.r, addon.db.profile.appearance.textColor.g, addon.db.profile.appearance.textColor.b)
     frame.stacks = stacks
 
     -- Build animation groups on the visual frame
@@ -588,14 +560,16 @@ function BuffReminders:UpdateIconSize()
         if frame.visual then
             frame.visual:SetSize(iconSize, iconSize)
         end
-        if frame.textFrame then
-            frame.textFrame:SetAllPoints(frame)
+        if frame.textContainer then
+            frame.textContainer:SetAllPoints(frame)
         end
         if frame.text then
             frame.text:SetFont(addon:GetFont(), fontSize, "OUTLINE")
+            frame.text:SetTextColor(addon.db.profile.appearance.textColor.r, addon.db.profile.appearance.textColor.g, addon.db.profile.appearance.textColor.b)
         end
         if frame.stacks then
             frame.stacks:SetFont(addon:GetFont(), stacksFontSize, "OUTLINE")
+            frame.stacks:SetTextColor(addon.db.profile.appearance.textColor.r, addon.db.profile.appearance.textColor.g, addon.db.profile.appearance.textColor.b)
         end
         -- Reset slide state so LayoutIcons snaps to positions at the new size
         if self.slideAnimator then

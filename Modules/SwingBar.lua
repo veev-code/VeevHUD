@@ -791,7 +791,7 @@ function SwingBar:CreateBarFrame(barType, parent, db)
     local text = textContainer:CreateFontString(nil, "OVERLAY")
     text:SetFont(addon:GetFont(), db.textSize, "OUTLINE")
     text:SetPoint("CENTER", bar, "CENTER", 0, 0)
-    text:SetTextColor(self.C.COLORS.TEXT.r, self.C.COLORS.TEXT.g, self.C.COLORS.TEXT.b)
+    text:SetTextColor(addon.db.profile.appearance.textColor.r, addon.db.profile.appearance.textColor.g, addon.db.profile.appearance.textColor.b)
     bar.text = text
 
     -- Set fill color to neutral
@@ -1067,11 +1067,14 @@ end
 
 function SwingBar:RefreshFonts(fontPath)
     local db = addon.db.profile.swingBar
+    local tc = addon.db.profile.appearance.textColor
 
     if self.mainBar and self.mainBar.text then
         self.mainBar.text:SetFont(fontPath, db.textSize, "OUTLINE")
+        self.mainBar.text:SetTextColor(tc.r, tc.g, tc.b)
     end
     if self.offBar and self.offBar.text then
         self.offBar.text:SetFont(fontPath, db.textSize, "OUTLINE")
+        self.offBar.text:SetTextColor(tc.r, tc.g, tc.b)
     end
 end

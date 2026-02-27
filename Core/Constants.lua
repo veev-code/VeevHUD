@@ -58,6 +58,13 @@ C.AURA_SOURCE_ANY = "any"          -- Show regardless of who cast it
 C.AURA_SOURCE_OWN = "own"          -- Only show if cast by the player
 C.AURA_SOURCE_NOT_OWN = "notOwn"   -- Only show if cast by someone else
 
+-- Aura Tracker sort order
+C.AURA_SORT_ORDER = {
+    FIXED = "fixed",          -- Registration order (class procs → externals → custom)
+    FIFO = "fifo",            -- First activated leftmost, newest rightmost
+    REMAINING = "remaining",  -- Least remaining duration leftmost
+}
+
 -------------------------------------------------------------------------------
 -- Resource Display Mode Values
 -------------------------------------------------------------------------------
@@ -240,6 +247,7 @@ C.DEFAULTS = {
             font = "Expressway, Bold",  -- Font name (registered with LibSharedMedia)
             statusbarTexture = "Clean",  -- Statusbar texture name (registered with LibSharedMedia)
             showGradient = true,  -- Gradient overlay on all status bars (health, resource, combo points, ticker)
+            textColor = { r = 1.0, g = 0.906, b = 0.745 },  -- Warm cream/gold for cooldown/stack/duration text
         },
 
         -- Global positioning anchor (centered by default; configurable via settings)
@@ -386,7 +394,9 @@ C.DEFAULTS = {
             backdropGlowIntensity = 0.25,  -- 0 = disabled, higher = more visible (max ~0.8)
             backdropGlowSize = 2.2,  -- Multiplier for glow size relative to icon
             backdropGlowColor = {1.0, 0.7, 0.35},  -- Warm orange-gold (alpha controlled by intensity)
+            punchScale = 1.25,  -- Scale factor for activation pop animation (1.0 = disabled)
             slideAnimation = true,  -- Smooth sliding when auras appear/disappear
+            sortOrder = "fifo",  -- Sort order: "fixed", "fifo", "remaining"
             customAuras = {},  -- User-added auras: array of { id = spellID } or { name = "Spell Name" }
         },
 
@@ -569,7 +579,7 @@ C.DEFAULTS = {
                 name = "Primary Row",
                 -- Primary: ROTATIONAL abilities for DPS/Healing/Tanking
                 tags = {"ROTATIONAL", "CORE_ROTATION"},
-                maxIcons = 20,       -- No practical limit, grows horizontally
+                maxIcons = 24,       -- No practical limit, grows horizontally
                 enabled = true,
                 iconSize = 56,       -- Larger core icons (like retail)
                 flowLayout = false,  -- Single line by default
@@ -584,7 +594,7 @@ C.DEFAULTS = {
                 tags = {"DPS", "HEAL", "MAINTENANCE", "AOE", "EXTERNAL_DEFENSIVE",
                         -- Legacy tags for backward compatibility
                         "SITUATIONAL", "OFFENSIVE_CD", "OFFENSIVE_CD_MINOR", "HEALING_CD", "RESOURCE"},
-                maxIcons = 20,       -- No practical limit, grows horizontally
+                maxIcons = 24,       -- No practical limit, grows horizontally
                 enabled = true,
                 iconSize = 48,
                 flowLayout = false,  -- Single line by default
