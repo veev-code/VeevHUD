@@ -1,5 +1,10 @@
 # VeevHUD Changelog
 
+## [1.0.117] - 2026-02-27
+
+### Changed
+- **Custom Auras: Recently Seen Buffs** — Increased display limit from 10 to 20 entries.
+
 ## [1.0.116] - 2026-02-27
 
 ### Fixed

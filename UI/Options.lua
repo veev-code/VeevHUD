@@ -2451,7 +2451,7 @@ function Options:RebuildRecentBuffEntries()
 	table.sort(filtered, function(a, b) return a.lastSeen > b.lastSeen end)
 
 	-- Show only the 10 most recent
-	local MAX_DISPLAY = 10
+	local MAX_DISPLAY = 20
 	if #filtered == 0 then
 		recentArgs["empty"] = {
 			type = "description",
