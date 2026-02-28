@@ -1,10 +1,11 @@
 # VeevHUD Changelog
 
-## [1.0.119] - 2026-02-28
+## [1.0.120] - 2026-02-28
 
 ### Fixed
-- **Mangle (Cat) debuff timer not refreshing** — When reapplying Cat Mangle to the same target, the debuff timer would not reset and would count down until it expired. Fixed by recalculating the timer from the known duration on debuff refresh instead of relying on potentially stale game API data during combat log processing. *(Thanks Soveliss, Shadowhawk for reporting)*
-- **Stale debuff data after Druid form switch** — Switching between Bear and Cat form could leave orphaned debuff tracking data from the previous form, potentially causing incorrect aura display. Debuff tracking is now cleaned up when form-specific spells change.
+- **Debuff timers not showing on neutral (yellow) mobs** — Debuff timers (Mangle, Faerie Fire, Moonfire, etc.) were not displayed when fighting neutral mobs because they were not recognized as valid debuff targets. *(Thanks Soveliss, Shadowhawk for reporting)*
+- **Debuff timer not refreshing on reapplication** — When reapplying a debuff (e.g., Cat Mangle) to the same target, the timer would not reset. WoW Anniversary Edition does not always fire aura refresh events in the combat log, so the addon now detects refreshes by re-scanning the target after each cast. *(Thanks Soveliss, Shadowhawk for reporting)*
+- **Stale debuff data after Druid form switch** — Switching between Bear and Cat form could leave orphaned debuff tracking data from the previous form. Debuff tracking is now cleaned up when form-specific spells change.
 
 ### LibSpellDB Updates
 - Added missing 12-second debuff duration to Mangle (Cat) and Mangle (Bear) spell data.

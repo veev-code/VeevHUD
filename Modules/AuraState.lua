@@ -12,7 +12,7 @@ local ADDON_NAME, addon = ...
 local GetTime = GetTime
 local UnitGUID = UnitGUID
 local UnitExists = UnitExists
-local UnitIsEnemy = UnitIsEnemy
+local UnitCanAttack = UnitCanAttack
 local UnitIsFriend = UnitIsFriend
 
 local AuraState = {}
@@ -539,7 +539,7 @@ function AuraState:ClearAllTotemTracking()
     wipe(self.totemElementToSpell)
 end
 
--- CLEU callback for player spell casts (totem-recall detection)
+-- CLEU callback for player spell casts (totem-recall + silent aura refresh detection)
 -- TODO: Test if Totemic Call fires UNIT_DESTROYED/UNIT_DISSIPATES for each totem in CLEU.
 -- If so, OnSummonUnitRemoved already handles cleanup and this handler is redundant.
 function AuraState:OnSpellCastSuccess(subEvent, data)
@@ -550,6 +550,67 @@ function AuraState:OnSpellCastSuccess(subEvent, data)
     if self.totemRecallSpells[data.spellID] and next(self.totemElementToSpell) then
         self.Utils:LogInfo("AuraState: Totem recall spell detected (" .. data.spellID .. "), clearing all totem timers")
         self:ClearAllTotemTracking()
+    end
+
+    -- Silent aura refresh detection: WoW Anniversary Edition may not fire
+    -- SPELL_AURA_REFRESH when a debuff is reapplied to the same target.
+    -- Detect this by re-scanning UnitDebuff after a tracked spell is cast.
+    local destGUID = data.destGUID
+    if not destGUID or destGUID == self.playerGUID then return end
+
+    local baseSpellID = self.rankToBaseMap[data.spellID]
+    if not baseSpellID then return end
+
+    -- Only re-scan for spells that apply auras with a known duration
+    local spellData = self.LibSpellDB and self.LibSpellDB:GetSpellInfo(baseSpellID)
+    if not spellData or not spellData.duration or spellData.duration <= 0 then return end
+
+    -- Schedule a one-frame delay to ensure UnitDebuff has updated data
+    local spellID = data.spellID
+    local spellName = data.spellName
+    C_Timer.After(0, function()
+        self:RescanAuraOnTarget(baseSpellID, spellID, spellName, destGUID)
+    end)
+end
+
+-- Re-scan a target's debuffs to catch silent aura refreshes
+function AuraState:RescanAuraOnTarget(baseSpellID, castSpellID, spellName, destGUID)
+    local unit = self:GetUnitFromGUID(destGUID)
+    if not unit then return end
+
+    -- Determine if this is a buff or debuff
+    local isBuff = (destGUID == self.playerGUID)
+    local spellData = self.LibSpellDB and self.LibSpellDB:GetSpellInfo(baseSpellID)
+    if spellData and spellData.tags then
+        for _, tag in ipairs(spellData.tags) do
+            if tag == "HOT" or tag == "HAS_HOT" or tag == "HEAL_SINGLE" or tag == "HEAL_AOE"
+               or tag == "BUFF" or tag == "HAS_BUFF" or tag == "EXTERNAL_DEFENSIVE" then
+                isBuff = true
+                break
+            end
+        end
+    end
+
+    -- Check all possible aura IDs for this spell (all ranks)
+    local auraIDs = self:GetTriggeredAuraIDs(baseSpellID)
+    for _, auraID in ipairs(auraIDs) do
+        local actualDuration, actualExpiration, actualStacks = self:GetAuraDurationOnUnit(unit, auraID, spellName, isBuff)
+        if actualExpiration and actualExpiration > 0 then
+            local existing = self.activeAuras[auraID] and self.activeAuras[auraID][destGUID]
+            if existing and type(existing) == "table" then
+                -- Only update if the new expiration is later (debuff was refreshed)
+                if actualExpiration > existing.expiration + 0.5 then
+                    existing.expiration = actualExpiration
+                    existing.duration = actualDuration or existing.duration
+                    if actualStacks then
+                        existing.stacks = actualStacks
+                    end
+                    self.Utils:LogDebug("AuraState: Silent refresh detected", spellName, "on unit, new expiry in", string.format("%.1f", actualExpiration - GetTime()))
+                    self:NotifyAuraChange(baseSpellID, true)
+                end
+            end
+            return  -- Found the aura, done
+        end
     end
 end
 
@@ -1167,13 +1228,16 @@ function AuraState:CacheTargetContext()
 
     self._targetGUID = UnitGUID("target")
     local targetExists = UnitExists("target")
-    self._targetIsEnemy = targetExists and UnitIsEnemy("player", "target") or false
+    -- Use UnitCanAttack instead of UnitIsEnemy so neutral (yellow) mobs are treated
+    -- as valid debuff targets. UnitIsEnemy returns false for neutrals, which caused
+    -- debuff timers to not display when fighting neutral mobs.
+    self._targetIsEnemy = targetExists and UnitCanAttack("player", "target") or false
     self._targetIsFriend = targetExists and UnitIsFriend("player", "target") or false
 
     if self._useTargettarget then
         self._ttGUID = UnitGUID("targettarget")
         local ttExists = self._ttGUID and UnitExists("targettarget")
-        self._ttIsEnemy = ttExists and UnitIsEnemy("player", "targettarget") or false
+        self._ttIsEnemy = ttExists and UnitCanAttack("player", "targettarget") or false
         self._ttIsFriend = ttExists and UnitIsFriend("player", "targettarget") or false
     else
         self._ttGUID = nil
