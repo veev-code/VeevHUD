@@ -1,5 +1,14 @@
 # VeevHUD Changelog
 
+## [1.0.119] - 2026-02-28
+
+### Fixed
+- **Mangle (Cat) debuff timer not refreshing** — When reapplying Cat Mangle to the same target, the debuff timer would not reset and would count down until it expired. Fixed by recalculating the timer from the known duration on debuff refresh instead of relying on potentially stale game API data during combat log processing. *(Thanks Soveliss, Shadowhawk for reporting)*
+- **Stale debuff data after Druid form switch** — Switching between Bear and Cat form could leave orphaned debuff tracking data from the previous form, potentially causing incorrect aura display. Debuff tracking is now cleaned up when form-specific spells change.
+
+### LibSpellDB Updates
+- Added missing 12-second debuff duration to Mangle (Cat) and Mangle (Bear) spell data.
+
 ## [1.0.118] - 2026-02-28
 
 ### Fixed
