@@ -1,5 +1,13 @@
 # VeevHUD Changelog
 
+## [1.0.121] - 2026-02-28
+
+### Fixed
+- **Mangle debuff lost on Bear→Cat form switch** — When Bear Mangle applied a debuff and the player switched to Cat form, Cat Mangle could not track or refresh the existing debuff because the two forms use different spell IDs for the same effect. The addon now recognizes that both forms' Mangle applies the same debuff and tracks it correctly across form switches. *(Thanks Shadowhawk for reporting)*
+
+### LibSpellDB Updates
+- Added `sharedAuraSpells` linking Mangle (Cat) and Mangle (Bear) rank IDs, allowing consumers to detect the shared debuff regardless of which form applied it.
+
 ## [1.0.120] - 2026-02-28
 
 ### Fixed

@@ -591,7 +591,7 @@ function AuraState:RescanAuraOnTarget(baseSpellID, castSpellID, spellName, destG
         end
     end
 
-    -- Check all possible aura IDs for this spell (all ranks)
+    -- Check all possible aura IDs for this spell (all ranks + sharedAuraSpells)
     local auraIDs = self:GetTriggeredAuraIDs(baseSpellID)
     for _, auraID in ipairs(auraIDs) do
         local actualDuration, actualExpiration, actualStacks = self:GetAuraDurationOnUnit(unit, auraID, spellName, isBuff)
@@ -608,6 +608,19 @@ function AuraState:RescanAuraOnTarget(baseSpellID, castSpellID, spellName, destG
                     self.Utils:LogDebug("AuraState: Silent refresh detected", spellName, "on unit, new expiry in", string.format("%.1f", actualExpiration - GetTime()))
                     self:NotifyAuraChange(baseSpellID, true)
                 end
+            else
+                -- No existing entry — debuff found via shared aura spell (e.g., Bear Mangle
+                -- debuff still on target after switching to Cat form). Create fresh entry.
+                if not self.activeAuras[auraID] then
+                    self.activeAuras[auraID] = {}
+                end
+                self.activeAuras[auraID][destGUID] = {
+                    expiration = actualExpiration,
+                    duration = actualDuration or (spellData and spellData.duration) or 0,
+                    stacks = actualStacks or 0,
+                }
+                self.Utils:LogDebug("AuraState: Cross-form aura detected", spellName, "found aura", auraID, "on unit, expiry in", string.format("%.1f", actualExpiration - GetTime()))
+                self:NotifyAuraChange(baseSpellID, true)
             end
             return  -- Found the aura, done
         end
@@ -1079,9 +1092,18 @@ function AuraState:GetTriggeredAuraIDs(sourceSpellID)
     -- Get all rank IDs from LibSpellDB
     if self.LibSpellDB then
         local spellData = self.LibSpellDB:GetSpellInfo(sourceSpellID)
-        if spellData and spellData.ranks then
-            for _, rankID in ipairs(spellData.ranks) do
-                addID(rankID)
+        if spellData then
+            if spellData.ranks then
+                for _, rankID in ipairs(spellData.ranks) do
+                    addID(rankID)
+                end
+            end
+            -- Include shared aura spell IDs (e.g., Bear Mangle and Cat Mangle
+            -- apply the same debuff but have different spell IDs per form)
+            if spellData.sharedAuraSpells then
+                for _, sharedID in ipairs(spellData.sharedAuraSpells) do
+                    addID(sharedID)
+                end
             end
         end
     end
