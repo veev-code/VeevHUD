@@ -1,5 +1,10 @@
 # VeevHUD Changelog
 
+## [1.0.118] - 2026-02-28
+
+### Fixed
+- **Procs appearing in Spell Configuration** — Proc spells (Inspiration, Clearcasting, Flurry, etc.) were incorrectly showing up in the Spell Configuration "Available" list. Procs belong exclusively in the Aura Tracker and are now filtered from the spell list across all classes.
+
 ## [1.0.117] - 2026-02-27
 
 ### Changed

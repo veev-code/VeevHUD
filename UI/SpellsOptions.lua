@@ -606,8 +606,11 @@ function SpellsOptions:GetEffectiveSpellList()
         for spellID, spellData in pairs(allClassSpells) do
             -- Skip if already displayed
             if not displayedSpellIDs[spellID] then
+                -- Skip PROC-tagged spells — they belong in AuraTracker, not ability rows
+                if addon.LibSpellDB:HasTag(spellID, "PROC") then
+                    -- skip
                 -- Check if player knows this spell
-                if spellTracker:IsSpellKnown(spellID, spellData) then
+                elseif spellTracker:IsSpellKnown(spellID, spellData) then
                     -- Skip spells blocked by shared cooldown (e.g., Shield Wall when Recklessness is tracked)
                     -- These are hidden entirely rather than shown as greyed out
                     local isBlocked = self:IsBlockedBySharedCooldown(spellID)
