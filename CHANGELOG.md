@@ -1,5 +1,13 @@
 # VeevHUD Changelog
 
+## [1.0.125] - 2026-03-01
+
+### Fixed
+- **Missing spells due to Anniversary Edition spell IDs** — Some spells (confirmed: Rogue's Kick) were invisible because Anniversary Edition uses different internal spell IDs than TBC Classic for certain ranks. Added a name-based detection fallback that automatically finds spells in the player's spellbook even when the database IDs don't match the client. This fix applies broadly to all classes — any spell affected by ID differences will now be detected correctly. *(Thanks amhoe for reporting)*
+
+### LibSpellDB Updates
+- Rogue Kick: Added Anniversary Edition spell ID (38768) for rank 5.
+
 ## [1.0.124] - 2026-03-01
 
 ### Fixed

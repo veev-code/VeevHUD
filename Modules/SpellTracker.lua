@@ -345,6 +345,23 @@ function SpellTracker:IsSpellKnown(spellID, spellData)
         end
     end
 
+    -- Final fallback: name-based match for class-specific spells.
+    -- Anniversary Edition may use different spell IDs than TBC Classic for the same
+    -- spell (e.g., Kick rank 5 is 27613 in TBC but 38768 in Anniversary). If all
+    -- rank IDs fail but the spell name IS in the player's spellbook, accept it.
+    -- Restricted to class spells (not SHARED) to avoid name collisions like
+    -- Blood Fury (20572/33697/33702) or Arcane Torrent (28730/25046).
+    if spellData.class and spellData.class ~= "SHARED" and spellData.class == addon.playerClass then
+        if not self.spellbookCache then
+            self:BuildSpellbookCache()
+        end
+        local name = spellData.name or GetSpellInfo(spellID)
+        if name and self.spellbookCache[name] then
+            self.Utils:LogInfo("SpellKnown FALLBACK Tier4 (name match) used for:", name, spellID, "-> actual:", self.spellbookCache[name])
+            return true
+        end
+    end
+
     return false
 end
 
