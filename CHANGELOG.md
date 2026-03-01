@@ -1,5 +1,10 @@
 # VeevHUD Changelog
 
+## [1.0.126] - 2026-03-01
+
+### Fixed
+- **Energy ticker spark crash** — Fixed an error ("attempt to perform arithmetic on local 'tickerHeight'") when creating the energy ticker bar spark, caused by a reference to an undefined variable. *(Thanks Pekar for reporting)*
+
 ## [1.0.125] - 2026-03-01
 
 ### Fixed

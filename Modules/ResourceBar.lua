@@ -301,7 +301,7 @@ function ResourceBar:CreateEnergyTickerBar(bar, db, tickerDb)
     end
 
     -- Spark texture (glowing line at fill position, matches resource bar)
-    self:CreateTickerBarSpark(ticker, tickerHeight)
+    self:CreateTickerBarSpark(ticker, tickerDb.height)
 
     -- Hide initially (will show when player has energy)
     ticker:Hide()
