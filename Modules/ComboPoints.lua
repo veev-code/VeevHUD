@@ -86,10 +86,12 @@ end
 
 -- Toggle top border edge visibility (called by Layout when bar adjacency changes)
 function ComboPoints:SetTopBorderShown(show)
-    -- First bar is the topmost; its border determines the top edge
-    local firstBar = self.bars and self.bars[1]
-    if firstBar and firstBar.border then
-        firstBar.border:SetTopEdgeShown(show)
+    -- All bars are side-by-side at the same Y, so toggle top edge on all of them
+    if not self.bars then return end
+    for _, bar in ipairs(self.bars) do
+        if bar.border then
+            bar.border:SetTopEdgeShown(show)
+        end
     end
 end
 

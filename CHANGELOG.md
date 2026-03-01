@@ -1,5 +1,10 @@
 # VeevHUD Changelog
 
+## [1.0.123] - 2026-02-28
+
+### Fixed
+- **Combo point border inconsistency** — The first combo point bar had a full outline (all 4 edges), but bars 2–5 were missing their top border line. All combo point bars now display a consistent border. *(Thanks Shadowhawk for reporting)*
+
 ## [1.0.122] - 2026-02-28
 
 ### Fixed
