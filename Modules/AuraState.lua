@@ -596,21 +596,34 @@ function AuraState:RescanAuraOnTarget(baseSpellID, castSpellID, spellName, destG
     for _, auraID in ipairs(auraIDs) do
         local actualDuration, actualExpiration, actualStacks = self:GetAuraDurationOnUnit(unit, auraID, spellName, isBuff)
         if actualExpiration and actualExpiration > 0 then
-            local existing = self.activeAuras[auraID] and self.activeAuras[auraID][destGUID]
-            if existing and type(existing) == "table" then
+            -- Find existing entry under ANY aura ID for this GUID (not just the current
+            -- loop's auraID). GetAuraDurationOnUnit matches by name, so it can find the
+            -- buff even when the auraID doesn't match the actual spell ID from CLEU.
+            -- Without this, a name-matched aura creates a duplicate entry under the wrong
+            -- key (e.g., base ID 17 vs rank ID 25218), which SPELL_AURA_REMOVED never clears.
+            local existingData
+            for _, checkID in ipairs(auraIDs) do
+                local data = self.activeAuras[checkID] and self.activeAuras[checkID][destGUID]
+                if data and type(data) == "table" then
+                    existingData = data
+                    break
+                end
+            end
+
+            if existingData then
                 -- Only update if the new expiration is later (debuff was refreshed)
-                if actualExpiration > existing.expiration + 0.5 then
-                    existing.expiration = actualExpiration
-                    existing.duration = actualDuration or existing.duration
+                if actualExpiration > existingData.expiration + 0.5 then
+                    existingData.expiration = actualExpiration
+                    existingData.duration = actualDuration or existingData.duration
                     if actualStacks then
-                        existing.stacks = actualStacks
+                        existingData.stacks = actualStacks
                     end
                     self.Utils:LogDebug("AuraState: Silent refresh detected", spellName, "on unit, new expiry in", string.format("%.1f", actualExpiration - GetTime()))
                     self:NotifyAuraChange(baseSpellID, true)
                 end
             else
-                -- No existing entry — debuff found via shared aura spell (e.g., Bear Mangle
-                -- debuff still on target after switching to Cat form). Create fresh entry.
+                -- No existing entry under any aura ID — aura found via shared aura spell
+                -- (e.g., Bear Mangle debuff still on target after switching to Cat form).
                 if not self.activeAuras[auraID] then
                     self.activeAuras[auraID] = {}
                 end

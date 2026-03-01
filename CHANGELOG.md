@@ -1,5 +1,15 @@
 # VeevHUD Changelog
 
+## [1.0.122] - 2026-02-28
+
+### Fixed
+- **Power Word: Shield not detecting removal on allies** — When PWS was consumed by damage on another player (e.g., the tank), the icon continued showing "buff active" for the full 30-second duration instead of clearing immediately. Caused by a silent refresh detection feature creating duplicate tracking entries under mismatched spell IDs, which SPELL_AURA_REMOVED could never clear.
+- **Prayer of Mending duration not tracking correctly** — PoM's buff spell ID (41635) differs from its cast spell ID (33076), causing all aura events to be silently dropped. The icon would show stale remaining time instead of resetting to 30 seconds on refresh. PoM also now follows target context (shows active state when targeting the ally who has it) rather than displaying globally regardless of target.
+
+### LibSpellDB Updates
+- Prayer of Mending: Added `appliesBuff = {41635}` to map the buff spell ID, removed `singleTarget` for target-context display.
+- Lightwell: Added missing `C.HEAL` tag.
+
 ## [1.0.121] - 2026-02-28
 
 ### Fixed
