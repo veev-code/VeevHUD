@@ -31,7 +31,7 @@ VeevHUD is a lightweight, WeakAuras-inspired heads-up display addon for World of
 - `Layout.lua` — Vertical stacking system for HUD elements (priority-based)
 - `Logger.lua` — Persistent debug logging to `VeevHUDLog` SavedVariable
 - `Animations.lua` — Animation utilities: fade, scale punch (custom OnUpdate driver), alpha transitions
-- `AuraCache.lua` — Efficient buff/debuff lookup caching by GUID
+- `AuraCache.lua` — Efficient buff/debuff lookup caching by GUID; tracks `recentPlayerBuffs` (50-cap) for Custom Auras UI
 - `FontManager.lua` — Font registration/retrieval via LibSharedMedia-3.0
 - `TextureManager.lua` — Status bar texture registration/retrieval via LibSharedMedia-3.0
 - `Keybinds.lua` — Keybind detection (supports Bartender4, ElvUI, default UI, button scanning)
@@ -101,7 +101,12 @@ addon.Events:RegisterCLEU(owner, "SPELL_AURA_APPLIED", callback)
 addon.Events:RegisterUpdate(owner, interval, callback)  -- Throttled ticker
 ```
 
-Single `eventFrame` for all events. CLEU events are parsed and dispatched by sub-event name.
+Single `eventFrame` for all events. CLEU events are parsed and dispatched by sub-event name. Update tickers use `C_Timer.NewTicker`.
+
+CLEU callbacks receive `(owner, subEvent, cleuEventData)` where `cleuEventData` is a reusable table:
+```lua
+{ timestamp, sourceGUID, sourceName, sourceFlags, destGUID, destName, destFlags, spellID, spellName, spellSchool }
+```
 
 ### Layout System (`Core/Layout.lua`)
 
@@ -172,6 +177,8 @@ addon.Database:IsAuraEnabled(spellID)
 addon.Database:SetAuraEnabled(spellID, enabled)
 addon.Database:GetAuraConfig()
 addon.Database:ResetAuraConfig()
+addon.Database:GetAuraSourceFilter(spellID, auraSource)   -- Sparse: MINOR_EXTERNAL defaults "any", other externals "notOwn"
+addon.Database:SetAuraSourceFilter(spellID, filter, auraSource)
 
 -- Row settings
 addon.Database:IsRowSettingEnabled(settingValue, rowIndex)  -- C.ROW_SETTING logic
@@ -214,8 +221,11 @@ addon.Utils:FindSpellOnActionBar(spellID) -- Finds actual rank on action bar
 - `C.TICKER_STYLE` — `BAR`, `SPARK`
 - `C.GLOW_MODE` — `ONCE`, `ALWAYS`
 - `C.TEXT_FORMAT` — `CURRENT`, `PERCENT`, `BOTH`, `NONE`
+- `C.AURA_SOURCE_ANY` (`"any"`), `C.AURA_SOURCE_OWN` (`"own"`), `C.AURA_SOURCE_NOT_OWN` (`"notOwn"`) — Aura source filters for AuraTracker
+- `C.AURA_SORT_ORDER` — `FIXED` (registration order), `FIFO` (activation order), `REMAINING` (least duration first)
 - `C.CLASS_COLORS`, `C.POWER_COLORS`, `C.POWER_TYPE` IDs
 - `C.COMBO_POINT_COLOR`, `C.MAX_COMBO_POINTS`
+- `C.GetDruidForm()` — Position-independent druid form detection via spell ID (returns `"CASTER"`, `"BEAR"`, `"CAT"`, `"AQUATIC"`, `"TRAVEL"`, `"MOONKIN"`)
 
 ### Timing Constants
 - `C.GCD_THRESHOLD` (1.5s), `C.TICK_RATE` (2.0s)
@@ -338,5 +348,11 @@ VeevHUD has built-in persistent debug logging that makes it easy to diagnose tim
 - Config reads: Direct access via `addon.db.profile.X.Y` — no inline fallbacks
 - Icon frames: Created as Buttons for Masque compatibility
 - Bar creation: `addon.Utils:CreateStatusBar(parent, width, height)` — creates bar + background
+- Bar helpers: `CreateBarBorder(bar, skipTop)`, `FormatBarText(value, maxValue, percent, format)`, `SmoothBarValue(current, target, speed)` → newValue, reachedTarget
+- Glow helpers: `ShowButtonGlow(frame, color)` / `HideButtonGlow(frame)`, `ShowPixelGlow(frame, color, key, ...)` / `HidePixelGlow(frame, key)` — via LibCustomGlow
+- Icon wrapper: `CreateWrapperIcon(parent, buttonName, width, height)` — decouples positioning from visual effects
+- Cooldown text: `ConfigureCooldownText(cooldown, hideExternal)` — OmniCC/ElvUI integration
 - Layout: `addon.Layout:RegisterElement(key, module)` or `addon.Layout:RegisterRowElement(key, getHeightFn, setPositionFn)`
-- Animations: `addon.Animations:PlayScalePunch(frame)` (custom OnUpdate, avoids WoW Scale animation bugs)
+- Animations: `addon.Animations:PlayScalePunch(frame)` (custom OnUpdate driver, avoids WoW Scale animation CooldownFrame bug)
+- Animations: `addon.Animations:CreateSlideAnimator(container, speed)` — centered horizontal icon reordering with ease-out lerp
+- Animations: `addon.Animations:TransitionAlpha(frame, targetAlpha, speed, callback)` — smooth alpha fade via OnUpdate

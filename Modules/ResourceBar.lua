@@ -1080,7 +1080,7 @@ end
 -- Combined update function for smooth bars, energy ticker, and mana tracking
 function ResourceBar:OnUpdate()
     -- Smooth bar updates
-    if self.bar and self.targetValue then
+    if self.bar and self.currentValue and self.targetValue then
     local animDb = addon.db.profile.animations
     if animDb.smoothBars then
             self.currentValue = self.Utils:SmoothBarValue(self.currentValue, self.targetValue)

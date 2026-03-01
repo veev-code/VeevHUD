@@ -1,5 +1,10 @@
 # VeevHUD Changelog
 
+## [1.0.124] - 2026-03-01
+
+### Fixed
+- **Resource bar error with smooth bars enabled** — Fixed a crash ("attempt to perform arithmetic on local 'currentValue'") that could occur when the smooth bar animation tried to update before the resource bar received its first value. *(Thanks Pekar for reporting)*
+
 ## [1.0.123] - 2026-02-28
 
 ### Fixed
