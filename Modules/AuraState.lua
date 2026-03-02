@@ -223,6 +223,7 @@ function AuraState:BuildAuraMappings()
     end
 end
 
+
 function AuraState:BuildSummonMappings(trackedSpells)
     wipe(self.summonSpells)
     wipe(self.summonPetToSpell)

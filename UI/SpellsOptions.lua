@@ -350,6 +350,18 @@ end
 function SpellsOptions:GetDefaultValue(spellID, field)
     -- Get the INHERENT default (without considering user overrides)
     -- This should NOT change based on current tracked state
+
+    -- Trinket sentinel IDs aren't in LibSpellDB — handle them directly
+    local trinketTracker = addon:GetModule("TrinketTracker")
+    if trinketTracker and trinketTracker:IsTrinketSentinel(spellID) then
+        if field == "enabled" then
+            return true  -- Trinkets are enabled by default when equipped
+        elseif field == "rowIndex" then
+            return 2  -- Default to Secondary row
+        end
+        return nil
+    end
+
     if field == "enabled" then
         -- A spell is enabled by default if:
         -- 1. It has a default row assignment (spec-relevant and matches row tags)
@@ -592,6 +604,33 @@ function SpellsOptions:GetEffectiveSpellList()
         end
     end
     
+    -- Inject trinket entries from TrinketTracker
+    local trinketTracker = addon:GetModule("TrinketTracker")
+    if trinketTracker then
+        for slotID, slotData in pairs(trinketTracker.slots) do
+            if slotData then
+                local sentinelID = slotData.sentinelID
+                local cfg = spellCfg[sentinelID] or {}
+                local label = (slotID == 13) and "Trinket 1" or "Trinket 2"
+                if slotData.name then
+                    label = slotData.name .. " (" .. label .. ")"
+                end
+                local effectiveRow = cfg.rowIndex or 2  -- Default: Secondary
+                rows[effectiveRow] = rows[effectiveRow] or {}
+                table.insert(rows[effectiveRow], {
+                    spellID = sentinelID,
+                    spellData = { tags = {"TRINKET"}, icon = slotData.icon, name = label, priority = 1000 + slotID },
+                    enabled = cfg.enabled ~= false,
+                    rowIndex = effectiveRow,
+                    defaultRow = 2,
+                    order = cfg.order,
+                    isTrinket = true,
+                    isAvailable = (effectiveRow == AVAILABLE_ROW_INDEX),
+                })
+            end
+        end
+    end
+
     -- Now find "available" spells - known spells not currently displayed
     -- These are ALL class spells the player knows but aren't tracked by default
     -- This includes off-spec abilities, out-of-combat spells, fillers, etc.
@@ -854,7 +893,13 @@ function SpellsOptions:CreateSpellEntry(spellInfo, rowIndex, index, yOffset)
     local icon = frame:CreateTexture(nil, "ARTWORK")
     icon:SetPoint("LEFT", 0, 0)
     icon:SetSize(ICON_SIZE, ICON_SIZE)
-    local spellName, _, spellIcon = GetSpellInfo(spellInfo.spellID)
+    local spellName, _, spellIcon
+    if spellInfo.isTrinket then
+        spellName = spellInfo.spellData.name
+        spellIcon = spellInfo.spellData.icon
+    else
+        spellName, _, spellIcon = GetSpellInfo(spellInfo.spellID)
+    end
     icon:SetTexture(spellIcon or "Interface\\Icons\\INV_Misc_QuestionMark")
     frame.icon = icon
     
@@ -907,7 +952,9 @@ function SpellsOptions:CreateSpellEntry(spellInfo, rowIndex, index, yOffset)
         if enabled and spellInfo.isAvailable then
             local cooldownIcons = addon:GetModule("CooldownIcons")
             local defaultRow = 3  -- Default to Utility for non-spec-relevant spells
-            if cooldownIcons and cooldownIcons.GetDefaultRowForSpell then
+            if spellInfo.isTrinket then
+                defaultRow = spellInfo.defaultRow or 2
+            elseif cooldownIcons and cooldownIcons.GetDefaultRowForSpell then
                 defaultRow = cooldownIcons:GetDefaultRowForSpell(spellInfo.spellID) or 3
             end
 
@@ -1072,6 +1119,9 @@ function SpellsOptions:CreateSpellEntry(spellInfo, rowIndex, index, yOffset)
                     GameTooltip:AddLine(mName, 1, 0.82, 0)
                 end
             end
+        elseif spellInfo.isTrinket then
+            local slotID = (spellInfo.spellID == addon.Constants.TRINKET_SLOT_13) and 13 or 14
+            GameTooltip:SetInventoryItem("player", slotID)
         else
             GameTooltip:SetSpellByID(spellInfo.spellID)
         end

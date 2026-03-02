@@ -11,6 +11,7 @@ VeevHUD is a lightweight, WeakAuras-inspired heads-up display addon for World of
 - **Aura tracking**: Shows active buff/debuff durations on icons with visual glow
 - **Resource display**: Resource cost progress on icons (vertical fill or bottom bar)
 - **Health/resource bars**: With heal prediction, predicted cost overlays, tickers
+- **Trinket tracking**: Equipped trinkets shown as icons in ability rows with on-use cooldowns, proc buff tracking, ICD display, and stack counts
 - **Aura tracker**: Horizontal aura icons (procs, externals, custom) with stack tracking and glow
 - **Masque support**: Compatible with Masque for icon skinning
 
@@ -48,6 +49,7 @@ VeevHUD is a lightweight, WeakAuras-inspired heads-up display addon for World of
 - `TotemBar.lua` — Shaman totem bar with 4 element slots, duration tracking, and one-per-element enforcement
 - `SwingBar.lua` — Auto-attack swing timer with class-specific mechanics (Hunter clip zones, dual-wield sync, Ret twist window)
 - `CooldownIcons.lua` — Main icon display: rows, cooldown spirals, resource cost, glows, sorting, queued highlight, item cooldown tracking
+- `TrinketTracker.lua` — Trinket tracking: equipment detection, on-use/proc classification, ICD tracking via CLEU, icon state computation. CooldownIcons delegates all trinket behavior here.
 - `AuraTracker.lua` — Aura icons (class procs, external buffs, custom auras) with stacks, glow, and configurable enable/disable
 - `BuffReminders.lua` — Buff reminder alerts for missing class/role buffs with per-spec configuration
 
@@ -65,6 +67,7 @@ VeevHUD is a lightweight, WeakAuras-inspired heads-up display addon for World of
 - `WelcomePopup.lua` — First-time welcome dialog with Discord link
 - `BuffRemindersMigration.lua` — Migration notice for buff reminders feature
 - `AuraTrackerMigration.lua` — Migration: ProcTracker→AuraTracker key rename, config flattening, user popup
+- `TrinketMigration.lua` — Migration notice for trinket tracking feature
 - `Templates.xml` — UI frame templates
 
 ### Other
@@ -226,6 +229,7 @@ addon.Utils:FindSpellOnActionBar(spellID) -- Finds actual rank on action bar
 - `C.CLASS_COLORS`, `C.POWER_COLORS`, `C.POWER_TYPE` IDs
 - `C.COMBO_POINT_COLOR`, `C.MAX_COMBO_POINTS`
 - `C.GetDruidForm()` — Position-independent druid form detection via spell ID (returns `"CASTER"`, `"BEAR"`, `"CAT"`, `"AQUATIC"`, `"TRAVEL"`, `"MOONKIN"`)
+- `C.TRINKET_SLOT_13` (9999913), `C.TRINKET_SLOT_14` (9999914) — Sentinel spell IDs for trinket slots. Used as numeric keys in `spellConfig` without colliding with real spell IDs.
 
 ### Timing Constants
 - `C.GCD_THRESHOLD` (1.5s), `C.TICK_RATE` (2.0s)

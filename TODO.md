@@ -32,7 +32,6 @@ These were requested by multiple people or have strong gameplay impact.
 
 - **Custom Buff/Debuff Display Near Health Bar** — Let users select arbitrary important buffs and debuffs to display near the health bar (extending beyond just procs), keeping all critical info in one place. *(Soveliss)*
 
-- **Trinket Tracking** — Track trinket use/on-use cooldowns and proc buffs. Consider smart row assignment (throughput trinkets → secondary row, utility → utility row). *(Independent-Bother17)*
 - **Track Shared Debuffs from Any Caster** — Debuffs like Faerie Fire and Sunder Armor should show on your HUD even when applied by another player, since only one instance of the debuff matters. Should also handle cross-ability equivalence (e.g., Sunder Armor and Expose Armor share the same armor-reduction debuff slot). *(Artvil)*
 - **Dual Countdown on Icons (CD + Debuff)** — For abilities where both a cooldown and a debuff matter (e.g., Mangle Cat — no CD but debuff is key), show a secondary timer in an icon corner so both can be tracked on one icon without adding a separate icon. *(Artvil)*
 - **Health Bar Improvements** — Potential enhancements:
@@ -131,3 +130,4 @@ Items from feedback that have been completed, with the version they shipped in.
 | Weapon Swing Timer (all classes + spec-specific mechanics)         | 1.0.77  | Hunter clip zones, Enh/Fury sync, Ret twist window, wand support |
 | Absorb Shields not working                                        | 1.0.85  | Removed non-functional feature (Classic API lacks absorb support) |
 | Usable mana prediction is sometimes off                           | 1.0.92  | Fixed ~2s overshoot, spiral resets, and IED/potion tick corruption |
+| Trinket Tracking                                                  | 1.0.127 | On-use cooldowns, proc buffs, ICD display, stacks, pop animation |

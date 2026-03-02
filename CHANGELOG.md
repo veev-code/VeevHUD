@@ -1,5 +1,15 @@
 # VeevHUD Changelog
 
+## [1.0.127] - 2026-03-01
+
+### Added
+- **Trinket Tracking** — Equipped trinkets with on-use or proc effects automatically appear as icons in your ability rows. On-use trinkets show the active buff with duration, then a cooldown spiral. Proc trinkets glow when active with duration text, then show the internal cooldown until they can proc again. Includes stack count display for stacking effects (e.g., Pendant of the Violet Eye), pop animation on activation and proc triggers, and ready glow when coming off cooldown. Trinkets default to the Secondary row and can be moved or disabled in the Spells config. *(Independent-Bother17)*
+
+### LibSpellDB Updates
+- New trinket database with 35 TBC proc trinkets (Karazhan through Sunwell).
+- Trinket query API: `GetTrinketInfo(itemID)` returns proc buff ID, ICD, and other metadata.
+- New `TRINKET` category tag for trinket row assignment.
+
 ## [1.0.126] - 2026-03-01
 
 ### Fixed

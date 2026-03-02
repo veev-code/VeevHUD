@@ -406,6 +406,15 @@ function CooldownIcons:OnSpellCastSucceeded(event, unit, castGUID, spellID)
 
     -- Find the icon frame for this spell
     local frame = self:FindIconFrameBySpellID(spellID)
+
+    -- Fallback: on-use trinket spell IDs don't match sentinel IDs
+    if not frame then
+        local trinketTracker = addon:GetModule("TrinketTracker")
+        if trinketTracker then
+            frame = trinketTracker:FindFrameByOnUseSpellID(spellID)
+        end
+    end
+
     if frame then
         self:PlayCastFeedback(frame)
 
@@ -739,6 +748,20 @@ function CooldownIcons:FindIconFrameBySpellID(spellID)
                             return iconFrame
                         end
                     end
+                end
+            end
+        end
+    end
+    return nil
+end
+
+--- Find an icon frame by sentinel spell ID (used for trinket proc pop animation).
+function CooldownIcons:FindIconFrameBySentinel(sentinelID)
+    for _, rowFrame in ipairs(self.rows or {}) do
+        if rowFrame.icons then
+            for _, iconFrame in ipairs(rowFrame.icons) do
+                if iconFrame.spellID == sentinelID then
+                    return iconFrame
                 end
             end
         end
@@ -1387,6 +1410,12 @@ function CooldownIcons:RebuildAllRows()
         end -- not skipForm/skipTotemBar/skipExclusiveSpells
     end
 
+    -- Inject trinket entries from TrinketTracker
+    local trinketTracker = addon:GetModule("TrinketTracker")
+    if trinketTracker then
+        trinketTracker:InjectRowEntries(self.iconsByRow, rowConfigs, spellCfg, self.spellAssignments)
+    end
+
     -- Sort spells within each row
     -- Custom order takes precedence, then priority, then cooldown
     for rowIndex, spells in pairs(self.iconsByRow) do
@@ -1613,6 +1642,13 @@ end
 -------------------------------------------------------------------------------
 
 function CooldownIcons:SetupIcon(frame, spellID, actualSpellID, spellData, rowConfig, rowIndex)
+    -- Trinket icons: delegate setup to TrinketTracker
+    local trinketTracker = addon:GetModule("TrinketTracker")
+    if trinketTracker and trinketTracker:IsTrinketSentinel(spellID) then
+        trinketTracker:SetupTrinketIcon(frame, spellID, rowConfig, rowIndex)
+        return
+    end
+
     -- spellID = canonical ID for identification and tag lookups
     -- actualSpellID = the actual rank ID the player knows (for WoW API calls)
     local texture = spellData.icon or self.Utils:GetSpellTexture(actualSpellID or spellID)
@@ -1962,6 +1998,15 @@ function CooldownIcons:ResetDynamicSortPositions()
 end
 
 function CooldownIcons:UpdateIconState(frame, db)
+    -- Trinket icons: delegate entirely to TrinketTracker
+    if frame.isTrinket then
+        local trinketTracker = addon:GetModule("TrinketTracker")
+        if trinketTracker then
+            trinketTracker:UpdateTrinketIconState(frame, db)
+        end
+        return
+    end
+
     local spellID = frame.spellID  -- Canonical ID for lookups
     local actualSpellID = frame.actualSpellID or spellID  -- Rank ID for WoW API calls
     if not spellID then return end
@@ -2601,17 +2646,12 @@ function CooldownIcons:UpdateIconState(frame, db)
             -- On actual cooldown (not just GCD): spinner + text always shown
             showSpinner = true
             showText = duration >= 2  -- Only show text if cooldown >= 2 sec
-            
+
+            -- Dim + desaturate (lifts when ready glow is active)
             if frame.readyGlowActive then
-                -- Ready glow is showing: lift dim and desaturation so glow isn't dimmed.
-                -- The glow is a child frame that inherits parent alpha, so both
-                -- the icon and glow brighten together as a cohesive "almost ready" signal.
-                -- Uses previous frame's glow state as single source of truth (1-tick delay).
                 alpha = db.readyAlpha
-                desaturate = false
                 showGlow = true
             else
-                -- Normal cooldown: dim + desaturate
                 alpha = db.cooldownAlpha
                 desaturate = true
             end
@@ -2637,200 +2677,27 @@ function CooldownIcons:UpdateIconState(frame, db)
         end
     end
 
-    -- Show/hide cooldown spiral (row-based setting)
-    local showSpiralForRow = addon.Database:IsRowSettingEnabled(db.showCooldownSpiralOn, rowIndex)
-    
-    -- Prediction mode can show spiral even when spell is off cooldown
-    local shouldShowSpiral = showSpinner or showPredictionSpiral
-    
-    if shouldShowSpiral and showSpiralForRow then
-        if showPredictionSpiral and predictionDuration > 0 then
-            -- Show prediction spiral (waiting for resources)
-            -- Uses same visual as cooldown: remaining = dark, elapsed = bright
-            frame.cooldown:SetAlpha(db.cooldownSpiralAlpha)
-            frame.cooldown:SetReverse(false)
-            -- Only update if prediction changed to avoid visual glitches
-            if frame.lastCdStart ~= predictionStartTime or frame.lastCdDuration ~= predictionDuration then
-                frame.cooldown:SetCooldown(predictionStartTime, predictionDuration)
-                frame.lastCdStart = predictionStartTime
-                frame.lastCdDuration = predictionDuration
-            end
-            frame.cooldown:Show()
-            frame._wasRealCooldown = false  -- Prediction, no bling
-        elseif showAuraActive and auraDisplayDuration > 0 then
-            -- Show aura duration spiral (remaining = bright, elapsed = dark)
-            frame.cooldown:SetAlpha(db.auraSpiralAlpha)
-            frame.cooldown:SetReverse(true)  -- Swipe fills as time passes (elapsed = dark)
-            local start = now - (auraDisplayDuration - auraDisplayRemaining)
-            -- Only update if cooldown changed to avoid visual glitches
-            if frame.lastCdStart ~= start or frame.lastCdDuration ~= auraDisplayDuration then
-                frame.cooldown:SetCooldown(start, auraDisplayDuration)
-                frame.lastCdStart = start
-                frame.lastCdDuration = auraDisplayDuration
-            end
-            frame.cooldown:Show()
-            frame._wasRealCooldown = false  -- Aura spiral, no bling
-        elseif duration > 0 and cdStartTime > 0 then
-            -- Normal cooldown spiral (remaining = dark, elapsed = bright)
-            -- Use actual start time from API for accuracy
-            frame.cooldown:SetAlpha(db.cooldownSpiralAlpha)
-            frame.cooldown:SetReverse(false)  -- Swipe drains as time passes (remaining = dark)
-            -- Only update if cooldown changed to avoid visual glitches
-            if frame.lastCdStart ~= cdStartTime or frame.lastCdDuration ~= duration then
-                frame.cooldown:SetCooldown(cdStartTime, duration)
-                frame.lastCdStart = cdStartTime
-                frame.lastCdDuration = duration
-            end
-            frame._wasRealCooldown = true  -- Real cooldown, bling should play
-            frame.cooldown:Show()
-        else
-            -- No active cooldown/aura - clear tracking
-            -- For real cooldowns: let bling animation finish naturally
-            -- For predictions/auras: clear immediately (no bling)
-            frame.cooldown:SetAlpha(1)  -- Reset alpha for bling effect
-            if not frame._wasRealCooldown then
-                frame.cooldown:SetCooldown(0, 0)  -- Clear non-cooldown spirals immediately
-            end
-            frame.lastCdStart = nil
-            frame.lastCdDuration = nil
-            frame._wasRealCooldown = nil
-        end
-    else
-        -- Row setting disables spiral
-        -- For real cooldowns: let bling play, for others: clear immediately
-        frame.cooldown:SetAlpha(1)  -- Reset alpha for bling effect
-        if not frame._wasRealCooldown then
-            frame.cooldown:SetCooldown(0, 0)
-        end
-        frame.lastCdStart = nil
-        frame.lastCdDuration = nil
-        frame._wasRealCooldown = nil
-    end
-
-    -- Show/hide cooldown text (or aura duration text) - row-based setting
-    local showTextForRow = addon.Database:IsRowSettingEnabled(db.showCooldownTextOn, rowIndex)
-    
-    if showPredictionSpiral and predictionRemaining > 0 and showTextForRow then
-        -- Show prediction remaining time (waiting for resources)
-        -- Use same color as cooldown text for consistency
-        frame.text:SetText(self.Utils:FormatCooldown(predictionRemaining))
-        frame.text:SetTextColor(addon.db.profile.appearance.textColor.r, addon.db.profile.appearance.textColor.g, addon.db.profile.appearance.textColor.b)
-    elseif frame.gcdContinueText and remaining > 0 and showTextForRow then
-        -- Prediction just ended but GCD still blocking — continue countdown text
-        -- GCD alone doesn't show text (too noisy), but if a prediction was already
-        -- counting down, the text should seamlessly reach 0
-        frame.text:SetText(self.Utils:FormatCooldown(remaining))
-        frame.text:SetTextColor(addon.db.profile.appearance.textColor.r, addon.db.profile.appearance.textColor.g, addon.db.profile.appearance.textColor.b)
-    elseif showAuraActive and auraDisplayRemaining > 0 and showTextForRow then
-        -- Show aura remaining time
-        -- Always show our own text for aura duration (OmniCC doesn't track this)
-        frame.text:SetText(self.Utils:FormatCooldown(auraDisplayRemaining))
-        frame.text:SetTextColor(addon.db.profile.appearance.textColor.r, addon.db.profile.appearance.textColor.g, addon.db.profile.appearance.textColor.b)
-    elseif showText and showTextForRow and remaining > 0 then
-        -- For cooldowns, respect useOwnCooldownText setting
-        local useOwnText = db.useOwnCooldownText
-        if useOwnText then
-            frame.text:SetText(self.Utils:FormatCooldown(remaining))
-            -- Always use the same color for cooldown text
-            frame.text:SetTextColor(addon.db.profile.appearance.textColor.r, addon.db.profile.appearance.textColor.g, addon.db.profile.appearance.textColor.b)
-        else
-            frame.text:SetText("")  -- Let external addon show text
-        end
-    else
-        frame.text:SetText("")
-    end
-
-    -- Resource-based desaturation: if ability is ready (off cooldown) but lacking resources,
-    -- desaturate to clearly show it's not usable yet
-    -- Only suppress when RESTING and OUT OF COMBAT (town/inn) to avoid grey icons there
-    -- In PvP/world, indicators remain active even if combat drops briefly
-    -- Note: For core rotation abilities, desaturation is already handled above via isUsable.
-    -- IsUsableSpell checks ALL conditions (resources, target health, etc.) so we don't
-    -- need a separate resource-based desaturation check here.
-
-    -- Store alpha on frame for use by glows and resource display
-    frame.iconAlpha = alpha
-    
-    -- Apply alpha to the entire frame (affects all children and styling)
-    -- Use smooth transition if enabled and alpha changed
-    local animDb = addon.db.profile.animations
-    local targetAlpha = frame._targetAlpha
-    local isTransitioning = frame._alphaAnimating
-    
-    -- Only animate dim transition when going ON cooldown (alpha decreasing)
-    -- When coming OFF cooldown, snap to full alpha so bling isn't dimmed
-    -- Timing: Delay 0.08s to sync with cast feedback shrink phase (if cast feedback enabled)
-    if animDb.dimTransition and self.Animations then
-        if targetAlpha ~= alpha then
-            local currentAlpha = frame:GetAlpha()
-            if alpha < currentAlpha then
-                -- Dimming - delay only if cast feedback animation is currently playing
-                -- Cancel any pending dim timer
-                if frame._dimTimer then
-                    frame._dimTimer:Cancel()
-                    frame._dimTimer = nil
-                end
-                
-                -- Only delay if cast feedback just played (within last 0.2s = total punch duration)
-                local castFeedbackPlaying = frame._lastCastFeedbackTime and
-                    (now - frame._lastCastFeedbackTime) < 0.2
-                local dimDelay = castFeedbackPlaying and 0.08 or 0
-                
-                -- Speed of 6 means ~0.12s for 0.7 alpha change (1.0 -> 0.3)
-                if dimDelay > 0 then
-                    frame._dimTimer = C_Timer.After(dimDelay, function()
-                        if frame and frame:IsShown() then
-                            self.Animations:TransitionAlpha(frame, alpha, 6)
-                        end
-                        frame._dimTimer = nil
-                    end)
-                else
-                    -- No delay - start dim immediately
-                    self.Animations:TransitionAlpha(frame, alpha, 6)
-                end
-            else
-                -- Brightening (coming off cooldown) - cancel pending dim and snap immediately
-                if frame._dimTimer then
-                    frame._dimTimer:Cancel()
-                    frame._dimTimer = nil
-                end
-                self.Animations:StopAlphaTransition(frame)
-                frame:SetAlpha(alpha)
-            end
-            frame._targetAlpha = alpha
-        end
-        -- If already transitioning to this alpha, let it continue
-    else
-        -- Animation disabled - cancel any pending dim and set directly
-        if frame._dimTimer then
-            frame._dimTimer:Cancel()
-            frame._dimTimer = nil
-        end
-        if self.Animations then
-            self.Animations:StopAlphaTransition(frame)
-        end
-        frame:SetAlpha(alpha)
-        frame._targetAlpha = alpha
-    end
-    
-    -- Apply desaturation to icon (instant - always accurate state)
-    frame.icon:SetDesaturated(desaturate)
-
-    -- Update charges display
-    if hasCharges then
-        frame.charges:SetText(charges)
-    else
-        frame.charges:SetText("")
-    end
-
-    -- Update stacks display (for aura stacks like Rampage, Lifebloom, Sunder)
-    -- Note: intentionally independent of suppressAura — cooldownPriority spells
-    -- still show stacks (e.g., Bloodthirst heal charges) alongside the cooldown spiral
-    if auraActive and auraStacks and auraStacks > 1 then
-        frame.stacks:SetText(auraStacks)
-    else
-        frame.stacks:SetText("")
-    end
+    -- Apply shared visual state (spiral, text, alpha, desat, stacks, charges)
+    self:ApplyIconVisuals(frame, {
+        showAuraActive = showAuraActive,
+        auraRemaining = auraDisplayRemaining,
+        auraDuration = auraDisplayDuration,
+        auraStacks = auraStacks,
+        cdRemaining = remaining,
+        cdDuration = duration,
+        cdStartTime = cdStartTime,
+        alpha = alpha,
+        desaturate = desaturate,
+        showSpinner = showSpinner,
+        showText = showText,
+        showPrediction = showPredictionSpiral,
+        predictionRemaining = predictionRemaining,
+        predictionDuration = predictionDuration,
+        predictionStartTime = predictionStartTime,
+        gcdContinueText = frame.gcdContinueText,
+        charges = charges,
+        hasCharges = hasCharges,
+    }, db)
 
     -- Update resource display (only show when ability is ready but lacking resources)
     -- In prediction mode: hide during active prediction, show vertical fill as fallback
@@ -2900,6 +2767,210 @@ function CooldownIcons:UpdateIconState(frame, db)
             if frame.queuedHighlight:IsShown() then
                 frame.queuedHighlight:Hide()
             end
+        end
+    end
+end
+
+-------------------------------------------------------------------------------
+-- Shared Icon Rendering (used by both CooldownIcons and TrinketTracker)
+-------------------------------------------------------------------------------
+
+--- Apply visual state to an icon frame.
+-- Both UpdateIconState and TrinketTracker:UpdateTrinketIconState compute their
+-- domain-specific state, then call this method to apply spirals, text, alpha,
+-- desaturation, stacks, and charges identically.
+--
+-- @param frame    The icon frame
+-- @param state    Table with visual state fields (see below)
+-- @param db       icons config (addon.db.profile.icons)
+function CooldownIcons:ApplyIconVisuals(frame, state, db)
+    local rowIndex = frame.rowIndex or 1
+    local now = GetTime()
+
+    -- Unpack state
+    local showAuraActive = state.showAuraActive
+    local auraRemaining = state.auraRemaining or 0
+    local auraDuration = state.auraDuration or 0
+    local auraStacks = state.auraStacks or 0
+    local cdRemaining = state.cdRemaining or 0
+    local cdDuration = state.cdDuration or 0
+    local cdStartTime = state.cdStartTime or 0
+    local alpha = state.alpha
+    local desaturate = state.desaturate
+    local showSpinner = state.showSpinner
+    local showText = state.showText
+    local showPrediction = state.showPrediction
+    local predictionRemaining = state.predictionRemaining or 0
+    local predictionDuration = state.predictionDuration or 0
+    local predictionStartTime = state.predictionStartTime or 0
+    local gcdContinueText = state.gcdContinueText
+    local charges = state.charges
+    local hasCharges = state.hasCharges
+
+    -------------------------------------------------------------------
+    -- Spiral display
+    -------------------------------------------------------------------
+    local showSpiralForRow = addon.Database:IsRowSettingEnabled(db.showCooldownSpiralOn, rowIndex)
+    local shouldShowSpiral = showSpinner or showPrediction
+
+    if shouldShowSpiral and showSpiralForRow then
+        if showPrediction and predictionDuration > 0 then
+            -- Prediction spiral (waiting for resources)
+            frame.cooldown:SetAlpha(db.cooldownSpiralAlpha)
+            frame.cooldown:SetReverse(false)
+            if frame.lastCdStart ~= predictionStartTime or frame.lastCdDuration ~= predictionDuration then
+                frame.cooldown:SetCooldown(predictionStartTime, predictionDuration)
+                frame.lastCdStart = predictionStartTime
+                frame.lastCdDuration = predictionDuration
+            end
+            frame.cooldown:Show()
+            frame._wasRealCooldown = false
+        elseif showAuraActive and auraDuration > 0 then
+            -- Aura spiral (reverse: bright drains as time passes)
+            frame.cooldown:SetAlpha(db.auraSpiralAlpha)
+            frame.cooldown:SetReverse(true)
+            local start = now - (auraDuration - auraRemaining)
+            if frame.lastCdStart ~= start or frame.lastCdDuration ~= auraDuration then
+                frame.cooldown:SetCooldown(start, auraDuration)
+                frame.lastCdStart = start
+                frame.lastCdDuration = auraDuration
+            end
+            frame.cooldown:Show()
+            frame._wasRealCooldown = false
+        elseif cdDuration > 0 and cdStartTime > 0 then
+            -- Cooldown spiral (normal: dark drains as time passes)
+            frame.cooldown:SetAlpha(db.cooldownSpiralAlpha)
+            frame.cooldown:SetReverse(false)
+            if frame.lastCdStart ~= cdStartTime or frame.lastCdDuration ~= cdDuration then
+                frame.cooldown:SetCooldown(cdStartTime, cdDuration)
+                frame.lastCdStart = cdStartTime
+                frame.lastCdDuration = cdDuration
+            end
+            frame._wasRealCooldown = true
+            frame.cooldown:Show()
+        else
+            frame.cooldown:SetAlpha(1)
+            if not frame._wasRealCooldown then
+                frame.cooldown:SetCooldown(0, 0)
+            end
+            frame.lastCdStart = nil
+            frame.lastCdDuration = nil
+            frame._wasRealCooldown = nil
+        end
+    else
+        frame.cooldown:SetAlpha(1)
+        if not frame._wasRealCooldown then
+            frame.cooldown:SetCooldown(0, 0)
+        end
+        frame.lastCdStart = nil
+        frame.lastCdDuration = nil
+        frame._wasRealCooldown = nil
+    end
+
+    -------------------------------------------------------------------
+    -- Text display
+    -------------------------------------------------------------------
+    local showTextForRow = addon.Database:IsRowSettingEnabled(db.showCooldownTextOn, rowIndex)
+    local textColor = addon.db.profile.appearance.textColor
+
+    if showPrediction and predictionRemaining > 0 and showTextForRow then
+        frame.text:SetText(self.Utils:FormatCooldown(predictionRemaining))
+        frame.text:SetTextColor(textColor.r, textColor.g, textColor.b)
+    elseif gcdContinueText and cdRemaining > 0 and showTextForRow then
+        frame.text:SetText(self.Utils:FormatCooldown(cdRemaining))
+        frame.text:SetTextColor(textColor.r, textColor.g, textColor.b)
+    elseif showAuraActive and auraRemaining > 0 and showTextForRow then
+        frame.text:SetText(self.Utils:FormatCooldown(auraRemaining))
+        frame.text:SetTextColor(textColor.r, textColor.g, textColor.b)
+    elseif showText and showTextForRow and cdRemaining > 0 then
+        if db.useOwnCooldownText then
+            frame.text:SetText(self.Utils:FormatCooldown(cdRemaining))
+            frame.text:SetTextColor(textColor.r, textColor.g, textColor.b)
+        else
+            frame.text:SetText("")
+        end
+    else
+        frame.text:SetText("")
+    end
+
+    -------------------------------------------------------------------
+    -- Alpha transition (with cast-feedback delay)
+    -------------------------------------------------------------------
+    frame.iconAlpha = alpha
+
+    local animDb = addon.db.profile.animations
+    if animDb.dimTransition and self.Animations then
+        local targetAlpha = frame._targetAlpha
+        if targetAlpha ~= alpha then
+            local currentAlpha = frame:GetAlpha()
+            if alpha < currentAlpha then
+                -- Dimming - delay if cast feedback is playing
+                if frame._dimTimer then
+                    frame._dimTimer:Cancel()
+                    frame._dimTimer = nil
+                end
+
+                local castFeedbackPlaying = frame._lastCastFeedbackTime and
+                    (now - frame._lastCastFeedbackTime) < 0.2
+                local dimDelay = castFeedbackPlaying and 0.08 or 0
+
+                if dimDelay > 0 then
+                    frame._dimTimer = C_Timer.After(dimDelay, function()
+                        if frame and frame:IsShown() then
+                            self.Animations:TransitionAlpha(frame, alpha, 6)
+                        end
+                        frame._dimTimer = nil
+                    end)
+                else
+                    self.Animations:TransitionAlpha(frame, alpha, 6)
+                end
+            else
+                -- Brightening - cancel pending dim and snap immediately
+                if frame._dimTimer then
+                    frame._dimTimer:Cancel()
+                    frame._dimTimer = nil
+                end
+                self.Animations:StopAlphaTransition(frame)
+                frame:SetAlpha(alpha)
+            end
+            frame._targetAlpha = alpha
+        end
+    else
+        if frame._dimTimer then
+            frame._dimTimer:Cancel()
+            frame._dimTimer = nil
+        end
+        if self.Animations then
+            self.Animations:StopAlphaTransition(frame)
+        end
+        frame:SetAlpha(alpha)
+        frame._targetAlpha = alpha
+    end
+
+    -------------------------------------------------------------------
+    -- Desaturation
+    -------------------------------------------------------------------
+    frame.icon:SetDesaturated(desaturate)
+
+    -------------------------------------------------------------------
+    -- Charges
+    -------------------------------------------------------------------
+    if frame.charges then
+        if hasCharges then
+            frame.charges:SetText(charges)
+        else
+            frame.charges:SetText("")
+        end
+    end
+
+    -------------------------------------------------------------------
+    -- Stacks
+    -------------------------------------------------------------------
+    if frame.stacks then
+        if auraStacks > 1 then
+            frame.stacks:SetText(auraStacks)
+        else
+            frame.stacks:SetText("")
         end
     end
 end

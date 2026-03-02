@@ -315,6 +315,14 @@ function Utils:SmoothBarValue(currentValue, targetValue, speed)
 end
 
 -------------------------------------------------------------------------------
+-- Cooldown Dim State (shared by CooldownIcons and TrinketTracker)
+-------------------------------------------------------------------------------
+
+-- Determine alpha and desaturation for an icon that is on cooldown.
+-- When the ready glow is active (almost ready), lifts dim and desaturation
+-- so the glow and icon brighten together as a cohesive "almost ready" signal.
+-- Returns: alpha, desaturate
+-------------------------------------------------------------------------------
 -- LibCustomGlow Utilities (shared glow management)
 -------------------------------------------------------------------------------
 
@@ -387,6 +395,28 @@ function Utils:HidePixelGlow(frame, key)
         return true
     end
     return false
+end
+
+-------------------------------------------------------------------------------
+-- Friendly Target Resolution
+-------------------------------------------------------------------------------
+
+-- Returns the unit ID of the best friendly target to check for ally-applied buffs.
+-- Priority: friendly target > targettarget (if enemy targeted) > player
+-- Used by AuraTracker (Inspiration etc.) and TrinketTracker (target-applied procs).
+function Utils:GetFriendlyBuffUnit()
+    local targetExists = UnitExists("target")
+    if targetExists then
+        if UnitIsFriend("player", "target") then
+            return "target"
+        elseif UnitIsEnemy("player", "target") then
+            local useTargettarget = addon.db.profile.icons.auraTargettargetSupport
+            if useTargettarget and UnitExists("targettarget") and UnitIsFriend("player", "targettarget") then
+                return "targettarget"
+            end
+        end
+    end
+    return "player"
 end
 
 -------------------------------------------------------------------------------

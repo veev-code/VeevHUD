@@ -209,6 +209,11 @@ C.READY_GLOW_THRESHOLD = 0.5
 -- Mana spike threshold - gains above this % of max mana are filtered (potions, life tap)
 C.MANA_SPIKE_THRESHOLD = 0.10
 
+-- Trinket slot sentinel IDs (used as spellID keys for trinket tracking)
+-- These are far above any real WoW spell ID and serve as unique identifiers for equipment slots
+C.TRINKET_SLOT_13 = 9999913  -- Trinket 1
+C.TRINKET_SLOT_14 = 9999914  -- Trinket 2
+
 -------------------------------------------------------------------------------
 -- Spell IDs
 -------------------------------------------------------------------------------
@@ -591,7 +596,7 @@ C.DEFAULTS = {
                 -- Matches DPS or HEAL role tags, plus MAINTENANCE for tank upkeep
                 -- EXTERNAL_DEFENSIVE included: healer external CDs are their "throughput" equivalent
                 -- Self-only defensives (DEFENSIVE without EXTERNAL_DEFENSIVE) fall through to Utility
-                tags = {"DPS", "HEAL", "MAINTENANCE", "AOE", "EXTERNAL_DEFENSIVE",
+                tags = {"DPS", "HEAL", "MAINTENANCE", "AOE", "EXTERNAL_DEFENSIVE", "TRINKET",
                         -- Legacy tags for backward compatibility
                         "SITUATIONAL", "OFFENSIVE_CD", "OFFENSIVE_CD_MINOR", "HEALING_CD", "RESOURCE"},
                 maxIcons = 24,       -- No practical limit, grows horizontally

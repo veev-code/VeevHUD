@@ -75,6 +75,18 @@ Arrange your row as a priority order and the leftmost icon is always the next be
 
 Dynamic Sort is disabled by default.
 
+### Trinket Tracking
+
+Equipped trinkets automatically appear in your ability rows, showing:
+
+*   **On-use cooldowns** — Cooldown spiral and timer after activation
+*   **Proc buffs** — Glow and duration when passive procs are active (Dragonspine Trophy haste, Sextant of Unstable Currents spell damage, etc.)
+*   **Internal cooldowns** — Synthetic cooldown display showing when a proc can trigger again
+*   **Stack counts** — Stacking buffs like Darkmoon Card: Crusade or Pendant of the Violet Eye show their current stack count
+*   **Ready glow** — On-use trinkets glow when they come off cooldown
+
+On-use trinkets are auto-detected. Passive proc trinkets are identified via a curated database of 35+ TBC trinkets. Stat-stick trinkets with no trackable effect are automatically hidden. Trinkets can be moved between rows or disabled in the Spells configuration panel.
+
 ### Aura Tracker
 
 Small icons above the health bar for important buffs — class procs (Enrage, Flurry, Clearcasting), external buffs from other players (Bloodlust, Power Infusion, Innervate, Drums), and any custom auras you add by spell ID or name. They appear only when active, with configurable glows, backdrop halo, slide animations, and duration text.

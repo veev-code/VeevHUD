@@ -822,20 +822,7 @@ function AuraTracker:FindDebuffOnTarget(spellID, allRankIDs, spellName)
 end
 
 function AuraTracker:FindBuffOnAlly(spellID, allRankIDs, spellName)
-    -- Resolve which unit to check: friendly target, targettarget, or self
-    local unit = "player"
-    local useTargettarget = addon.db.profile.icons.auraTargettargetSupport
-
-    local targetExists = UnitExists("target")
-    if targetExists then
-        if UnitIsFriend("player", "target") then
-            unit = "target"
-        elseif UnitIsEnemy("player", "target") then
-            if useTargettarget and UnitExists("targettarget") and UnitIsFriend("player", "targettarget") then
-                unit = "targettarget"
-            end
-        end
-    end
+    local unit = self.Utils:GetFriendlyBuffUnit()
 
     -- Check primary spell ID (with name fallback — buff IDs may differ across game versions)
     local aura = self.Utils:GetCachedBuff(unit, spellID, spellName)
