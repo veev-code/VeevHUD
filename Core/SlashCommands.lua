@@ -321,17 +321,18 @@ function SlashCommands:DebugOverlay(spellIDStr)
         print("  IsSpellOverlayed API: |cffff0000not available|r")
     end
     
-    local icons = addon:GetModule("CooldownIcons")
-    if icons and icons.activeOverlays then
-        local tracked = icons.activeOverlays[spellID]
+    local glowManager = addon:GetModule("GlowManager")
+    if glowManager and glowManager.activeOverlays then
+        local tracked = glowManager.activeOverlays[spellID]
         print("  Event-tracked overlay: " .. tostring(tracked or false))
     end
-    
-    if icons then
-        local result = icons:HasSpellActivationOverlay(spellID)
+
+    if glowManager then
+        local result = glowManager:HasSpellActivationOverlay(spellID)
         print("  HasSpellActivationOverlay: " .. tostring(result))
     end
     
+    local icons = addon:GetModule("CooldownIcons")
     if icons and icons.rows then
         for _, rowFrame in ipairs(icons.rows) do
             if rowFrame.icons then

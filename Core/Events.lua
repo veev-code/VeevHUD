@@ -122,6 +122,30 @@ eventFrame:SetScript("OnEvent", function(self, event, ...)
 end)
 
 -------------------------------------------------------------------------------
+-- Addon Event Bus (internal module-to-module communication)
+-------------------------------------------------------------------------------
+
+local addonCallbacks = {} -- eventName -> { {owner, callback}, ... }
+
+function Events:RegisterAddonEvent(owner, eventName, callback)
+    if not addonCallbacks[eventName] then
+        addonCallbacks[eventName] = {}
+    end
+    table.insert(addonCallbacks[eventName], { owner = owner, callback = callback })
+end
+
+function Events:FireAddonEvent(eventName, ...)
+    local cbs = addonCallbacks[eventName]
+    if not cbs then return end
+    for _, entry in ipairs(cbs) do
+        local ok, err = pcall(entry.callback, entry.owner, eventName, ...)
+        if not ok then
+            addon.Utils:LogError("Addon event error [" .. eventName .. "]:", tostring(err))
+        end
+    end
+end
+
+-------------------------------------------------------------------------------
 -- Update Ticker System
 -------------------------------------------------------------------------------
 

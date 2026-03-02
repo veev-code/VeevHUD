@@ -467,6 +467,7 @@ function Animations:CreateSlideAnimator(container, speed)
                 frame._slideCurrentX = targetX
                 frame._slideTargetX = targetX
                 self.frames[frame] = nil
+                Animations:UpdatePunchBase(frame)
             end
         end
 
@@ -507,15 +508,21 @@ function Animations:CreateSlideAnimator(container, speed)
                 local diff = frame._slideTargetX - frame._slideCurrentX
 
                 if math.abs(diff) < self.snapThreshold then
-                    frame._slideCurrentX = frame._slideTargetX
-                    frame:ClearAllPoints()
-                    frame:SetPoint("CENTER", self.container, "CENTER", frame._slideTargetX, 0)
+                    if frame._slideCurrentX ~= frame._slideTargetX then
+                        frame._slideCurrentX = frame._slideTargetX
+                        frame:ClearAllPoints()
+                        frame:SetPoint("CENTER", self.container, "CENTER", frame._slideTargetX, 0)
+                        -- Keep punch animation in sync with new position
+                        Animations:UpdatePunchBase(frame)
+                    end
                 else
                     allSettled = false
                     local move = diff * math.min(1, elapsed * self.speed)
                     frame._slideCurrentX = frame._slideCurrentX + move
                     frame:ClearAllPoints()
                     frame:SetPoint("CENTER", self.container, "CENTER", frame._slideCurrentX, 0)
+                    -- Keep punch animation in sync with new position
+                    Animations:UpdatePunchBase(frame)
                 end
             end
         end

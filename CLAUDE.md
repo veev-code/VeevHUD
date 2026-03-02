@@ -48,8 +48,13 @@ VeevHUD is a lightweight, WeakAuras-inspired heads-up display addon for World of
 - `ComboPoints.lua` — Horizontal combo point bars with activation animation
 - `TotemBar.lua` — Shaman totem bar with 4 element slots, duration tracking, and one-per-element enforcement
 - `SwingBar.lua` — Auto-attack swing timer with class-specific mechanics (Hunter clip zones, dual-wield sync, Ret twist window)
-- `CooldownIcons.lua` — Main icon display: rows, cooldown spirals, resource cost, glows, sorting, queued highlight, item cooldown tracking
-- `TrinketTracker.lua` — Trinket tracking: equipment detection, on-use/proc classification, ICD tracking via CLEU, icon state computation. CooldownIcons delegates all trinket behavior here.
+- `IconRenderer.lua` — Stateless rendering service for icon frames: spirals, text, alpha transitions (with cast-feedback delay), desaturation, stacks, charges, resource cost display (bar/fill/prediction). Common rendering pipeline used by CooldownIcons and TrinketTracker via `ApplyIconVisuals` state table pattern.
+- `GlowManager.lua` — Composable glow service for icon frames: proc overlay glow, aura pixel glow, permanent buff glow, ready glow state machine. Owns `activeOverlays` table and fires `OVERLAY_STATE_CHANGED` addon event when overlays change.
+- `SpellAssignment.lua` — Pure spell-to-row assignment logic: exclusive BuffGroup collapse, druid form filtering, totem bar filtering, tag-based row matching, within-row sorting. Called by CooldownIcons:RebuildAllRows with tracked spells and config context, returns iconsByRow and spellAssignments.
+- `IconStateEngine.lua` — Pure state computation engine (WeakAuras trigger pattern). Queries WoW APIs to produce state tables consumed by CooldownIcons. Contains: aura detection, cooldown/item CD/GCD tracking, resource prediction, visual flags, usability checks, dodge windows. CooldownIcons:UpdateIconState NEVER queries WoW APIs — it reads state engine output only.
+- `IconFrameFactory.lua` — Icon frame construction service: creates Button frames with all child elements (texture, cooldown spiral, text, charges, stacks, keybind, resource display, range overlay, queued highlight). Handles Masque-compatible references (.Icon, .Cooldown, .NormalTexture, .Count). Called by CooldownIcons during row creation.
+- `CooldownIcons.lua` — Main icon orchestrator: event dispatch, row/icon management, dynamic layout, dynamic sorting, range indicator, queued highlight. Delegates assignment to SpellAssignment, frame construction to IconFrameFactory, state computation to IconStateEngine, rendering to IconRenderer, and glow to GlowManager.
+- `TrinketTracker.lua` — Trinket tracking: equipment detection, on-use/proc classification, ICD tracking via CLEU, icon state computation. Delegates rendering to IconRenderer and glow to GlowManager.
 - `AuraTracker.lua` — Aura icons (class procs, external buffs, custom auras) with stacks, glow, and configurable enable/disable
 - `BuffReminders.lua` — Buff reminder alerts for missing class/role buffs with per-spec configuration
 

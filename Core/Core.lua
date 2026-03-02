@@ -117,7 +117,8 @@ function addon:OnProfileChanged()
     -- Refresh modules in deterministic order.
     -- SpellTracker must run before CooldownIcons (rebuilds tracked spell list).
     local moduleOrder = {
-        "SpellTracker", "AuraState", "CooldownIcons",
+        "SpellTracker", "AuraState", "SpellAssignment", "IconStateEngine",
+        "IconFrameFactory", "CooldownIcons",
         "AuraTracker", "BuffReminders", "TotemBar",
         "ResourceBar", "HealthBar", "ComboPoints", "SwingBar",
     }
@@ -144,9 +145,9 @@ function addon:OnProfileChanged()
         end
     end
 
-    -- Force a layout refresh (some modules only update gaps).
+    -- Force a layout refresh (profile switch can change gaps without changing heights).
     if self.Layout then
-        self.Layout:Refresh()
+        self.Layout:ForceRefresh()
     end
 
     -- Ensure visibility/alpha is correct after changes.
@@ -365,10 +366,13 @@ function addon:CreateModuleFrames()
     -- Each module will create its own frames attached to self.hudFrame
     for name, module in pairs(self.modules) do
         if module.CreateFrames then
-            module:CreateFrames(self.hudFrame)
+            local ok, err = pcall(module.CreateFrames, module, self.hudFrame)
+            if not ok then
+                self.Utils:LogError("Error creating frames for", name, ":", err)
+            end
         end
     end
-    
+
     -- Trigger initial layout to position all elements
     if self.Layout then
         self.Layout:Refresh()

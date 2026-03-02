@@ -169,11 +169,12 @@ function TrinketTracker:OnAuraApplied(subEvent, cleuData)
             slotData.lastProcTime = GetTime()
 
             -- Play pop animation on proc trigger
+            local renderer = addon:GetModule("IconRenderer")
             local cooldownIcons = addon:GetModule("CooldownIcons")
-            if cooldownIcons then
+            if renderer and cooldownIcons then
                 local frame = cooldownIcons:FindIconFrameBySentinel(slotData.sentinelID)
                 if frame then
-                    cooldownIcons:PlayCastFeedback(frame)
+                    renderer:PlayCastFeedback(frame)
                 end
             end
             return
@@ -291,6 +292,8 @@ end
 -- Icon Setup (called by CooldownIcons:SetupIcon delegation)
 -------------------------------------------------------------------------------
 
+-- Note: CooldownIcons:ResetIconState(frame) is called before this method,
+-- clearing all runtime/visual state from the previous spell assignment.
 function TrinketTracker:SetupTrinketIcon(frame, sentinelID, rowConfig, rowIndex)
     local slotID = self:GetSlotForSentinel(sentinelID)
     local slotData = slotID and self.slots[slotID]
@@ -316,17 +319,10 @@ function TrinketTracker:SetupTrinketIcon(frame, sentinelID, rowConfig, rowIndex)
     -- UNIT_SPELLCAST_SUCCEEDED fires with the on-use spell ID, not the sentinel
     frame.onUseSpellID = slotData and slotData.onUseSpellID or nil
 
-    -- Clear spell-specific metadata that doesn't apply to trinkets
-    frame.isReactive = false
-    frame.isTotem = false
-    frame.reactiveWindow = nil
-    frame.reactiveWindowEvent = nil
-    frame.dodgeReactive = nil
-
     -- Configure cooldown text (OmniCC/ElvUI) based on row
-    local cooldownIcons = addon:GetModule("CooldownIcons")
-    if cooldownIcons and frame.cooldown then
-        cooldownIcons:ConfigureCooldownText(frame.cooldown, frame.rowIndex)
+    local renderer = addon:GetModule("IconRenderer")
+    if renderer and frame.cooldown then
+        renderer:ConfigureCooldownText(frame.cooldown, frame.rowIndex)
 
         local db = addon.db.profile.icons
         local blingEnabled = addon.Database:IsRowSettingEnabled(db.cooldownBlingRows, frame.rowIndex)
@@ -428,8 +424,10 @@ function TrinketTracker:UpdateTrinketIconState(frame, db)
     if not auraActive and slotData.hasProc and slotData.icd and slotData.icd > 0
         and slotData.lastProcTime and slotData.lastProcTime > 0 then
         local icdRemaining = slotData.icd - (now - slotData.lastProcTime)
-        -- Only show ICD if no on-use cooldown is active (on-use CD takes priority)
-        if icdRemaining > GCD_THRESHOLD and cdRemaining <= 0 then
+        -- Only show ICD if no on-use cooldown is active (on-use CD takes priority).
+        -- ICDs are synthetic (computed from lastProcTime, not the cooldown API),
+        -- so they can't be confused with GCD — use > 0 instead of > GCD_THRESHOLD.
+        if icdRemaining > 0 and cdRemaining <= 0 then
             cdRemaining = icdRemaining
             cdDuration = slotData.icd
             cdStartTime = slotData.lastProcTime
@@ -483,9 +481,11 @@ function TrinketTracker:UpdateTrinketIconState(frame, db)
     -------------------------------------------------------------------
     -- Apply shared visual state (spiral, text, alpha, desat, stacks)
     -------------------------------------------------------------------
-    local cooldownIcons = addon:GetModule("CooldownIcons")
-    if cooldownIcons then
-        cooldownIcons:ApplyIconVisuals(frame, {
+    local renderer = addon:GetModule("IconRenderer")
+    local glowManager = addon:GetModule("GlowManager")
+
+    if renderer then
+        renderer:ApplyIconVisuals(frame, {
             showAuraActive = showAuraActive,
             auraRemaining = auraDisplayRemaining,
             auraDuration = auraDisplayDuration,
@@ -504,9 +504,9 @@ function TrinketTracker:UpdateTrinketIconState(frame, db)
     if frame.resourceBar then frame.resourceBar:Hide() end
     if frame.resourceFill then frame.resourceFill:Hide() end
 
-    -- Glow (delegate to CooldownIcons for consistent glow rendering)
-    if cooldownIcons then
-        cooldownIcons:UpdateIconGlow(frame, showGlow, showAuraActive, false)
+    -- Glow (delegate to GlowManager for consistent glow rendering)
+    if glowManager then
+        glowManager:UpdateIconGlow(frame, showGlow, showAuraActive, false)
 
         -- Ready glow for on-use trinkets only (not ICD)
         if slotData.hasOnUse and not showAuraActive then
@@ -517,10 +517,10 @@ function TrinketTracker:UpdateTrinketIconState(frame, db)
                 onUseDuration = dur
                 if onUseRemaining <= 0 then onUseRemaining, onUseDuration = 0, 0 end
             end
-            cooldownIcons:UpdateReadyGlow(frame, frame.spellID, onUseRemaining, onUseDuration, true, false, db, false, true, false, 0, false)
+            glowManager:UpdateReadyGlow(frame, frame.spellID, onUseRemaining, onUseDuration, true, false, db, false, true, false, 0, false)
         else
             if frame.readyGlowActive then
-                cooldownIcons:HideReadyGlow(frame)
+                glowManager:HideReadyGlow(frame)
                 frame.readyGlowActive = false
             end
         end

@@ -80,22 +80,8 @@ local C = addon.Constants
 local GetTime = GetTime
 local GetSpellInfo = GetSpellInfo
 local UnitExists = UnitExists
-local UnitIsEnemy = UnitIsEnemy
-local UnitIsFriend = UnitIsFriend
-local UnitAffectingCombat = UnitAffectingCombat
-local IsResting = IsResting
-local IsUsableSpell = IsUsableSpell
 local IsCurrentSpell = IsCurrentSpell
-local IsSpellOverlayed = IsSpellOverlayed
-local GetActionInfo = GetActionInfo
-local GetActionCooldown = GetActionCooldown
-local GetItemCount = GetItemCount
 local UnitGUID = UnitGUID
-local UnitPower = UnitPower
-local UnitPowerMax = UnitPowerMax
-
--- Cached GetTime() value, set once per UpdateAllIcons cycle
-local now = 0
 
 local CooldownIcons = {}
 addon:RegisterModule("CooldownIcons", CooldownIcons)
@@ -112,86 +98,27 @@ CooldownIcons.spellAssignments = {}
 -- Feral druid form tracking (session state, default to cat)
 CooldownIcons.activeFeralForm = "CAT"
 
--- Icon naming counter for Masque
-CooldownIcons.iconCounter = 0
-
 -- Masque support
 CooldownIcons.Masque = nil
 CooldownIcons.MasqueGroup = nil
 
+-- Tick gating: skip the 0.05s ticker when no icons have active timers.
+-- Events (SPELL_UPDATE_COOLDOWN, UNIT_POWER_UPDATE, etc.) call UpdateAllIcons()
+-- directly for state changes; the ticker only exists for smooth timer text countdown.
+CooldownIcons._hasActiveTimers = true  -- Conservative default; recalculated each UpdateAllIcons
 
--------------------------------------------------------------------------------
--- Action bar cooldown fallback for item-based cooldowns (e.g., Soulstone)
--- GetItemCooldown() fails when the item is consumed. GetActionCooldown()
--- works like the native action bar: it returns the cooldown even without
--- the item in bags, and survives /reload.
--------------------------------------------------------------------------------
-local HasAction = HasAction
-local GetActionTexture = GetActionTexture
+-- Reusable table for ApplyIconVisuals (avoids per-icon per-tick allocation)
+local visualState = {}
 
-local function FindActionBarSlotForSpell(spellID, spellData)
-    local LibSpellDB = addon.LibSpellDB
-    if not LibSpellDB then return nil end
+-- Per-icon error isolation: throttled error tracking to avoid chat spam
+local iconErrorCounts = {}
+local ICON_ERROR_LOG_LIMIT = 3  -- Only log first N errors per spell per session
 
-    local rankSet = LibSpellDB:GetAllRankIDs(spellID)
-
-    -- Build item set for matching item-type action bar slots
-    local itemSet
-    if spellData and spellData.cooldownItemIDs then
-        itemSet = {}
-        for _, id in ipairs(spellData.cooldownItemIDs) do
-            itemSet[id] = true
-        end
-    end
-
-    -- Pass 1: Match by GetActionInfo type + ID.
-    -- Prefer the slot with an active cooldown (the spell "Create Soulstone" has no
-    -- cooldown, but the item does — if both are on the bar, pick the right one).
-    local fallbackSlot
-    for slot = 1, 120 do
-        local actionType, id = GetActionInfo(slot)
-        local isMatch = false
-        if actionType == "spell" and id and rankSet and rankSet[id] then
-            isMatch = true
-        elseif actionType == "item" and id and itemSet and itemSet[id] then
-            isMatch = true
-        end
-        if isMatch then
-            local start, dur = GetActionCooldown(slot)
-            if start and start > 0 and dur > 1.5 then
-                return slot  -- Has active cooldown — this is the one we want
-            end
-            fallbackSlot = fallbackSlot or slot
-        end
-    end
-
-    -- Pass 2: Match by icon texture (handles consumed items where GetActionInfo
-    -- may not return the expected type/id, but the slot still has the icon + cooldown).
-    -- Check both the spell icon and the item icons since they may differ.
-    local textures = {}
-    local spellTexture = GetSpellTexture(spellID)
-    if spellTexture then textures[spellTexture] = true end
-    if spellData and spellData.cooldownItemIDs then
-        for _, itemID in ipairs(spellData.cooldownItemIDs) do
-            local itemTexture = GetItemIcon(itemID)
-            if itemTexture then textures[itemTexture] = true end
-        end
-    end
-    for slot = 1, 120 do
-        if HasAction(slot) then
-            local texture = GetActionTexture(slot)
-            if texture and textures[texture] then
-                local start, dur = GetActionCooldown(slot)
-                if start and start > 0 and dur > 1.5 then
-                    return slot
-                end
-                fallbackSlot = fallbackSlot or slot
-            end
-        end
-    end
-
-    return fallbackSlot
+local function iconErrorHandler(err)
+    return tostring(err) .. "\n" .. debugstack(2, 5, 0)
 end
+
+
 
 -------------------------------------------------------------------------------
 -- Initialization
@@ -203,12 +130,30 @@ function CooldownIcons:Initialize()
     self.C = addon.Constants
     self.Animations = addon.Animations
 
-    -- Track active spell overlays (procs)
-    self.activeOverlays = {}
+    -- Cache rendering layer module references
+    self.renderer = addon:GetModule("IconRenderer")
+    self.glowManager = addon:GetModule("GlowManager")
+
+    -- Cache state engine module reference (state production / game state queries)
+    self.stateEngine = addon:GetModule("IconStateEngine")
+
+    -- Cache spell assignment module reference (spell-to-row logic)
+    self.spellAssignment = addon:GetModule("SpellAssignment")
+
+    -- Cache icon frame factory reference (frame construction)
+    self.iconFactory = addon:GetModule("IconFrameFactory")
+
+    -- Cache trinket tracker reference (delegation for trinket icons)
+    self.trinketTracker = addon:GetModule("TrinketTracker")
 
     -- Initialize Masque support if available
     self:InitializeMasque()
-    
+
+    -- Share Masque group with GlowManager
+    if self.MasqueGroup and self.glowManager then
+        self.glowManager:SetMasqueGroup(self.MasqueGroup)
+    end
+
     -- Check LibCustomGlow availability (shared via Utils)
     if self.Utils:GetLibCustomGlow() then
         self.Utils:LogInfo("LibCustomGlow support enabled")
@@ -219,11 +164,12 @@ function CooldownIcons:Initialize()
     self.Events:RegisterEvent(self, "SPELL_UPDATE_USABLE", self.OnSpellUpdate)
     self.Events:RegisterEvent(self, "UNIT_POWER_UPDATE", self.OnPowerUpdate)
     self.Events:RegisterEvent(self, "PLAYER_ENTERING_WORLD", self.OnPlayerEnteringWorld)
-    
-    -- Register for spell activation overlay events (procs)
-    self.Events:RegisterEvent(self, "SPELL_ACTIVATION_OVERLAY_GLOW_SHOW", self.OnOverlayShow)
-    self.Events:RegisterEvent(self, "SPELL_ACTIVATION_OVERLAY_GLOW_HIDE", self.OnOverlayHide)
-    
+
+    -- Subscribe to overlay state changes from GlowManager (decoupled via addon event bus)
+    self.Events:RegisterAddonEvent(self, "OVERLAY_STATE_CHANGED", function()
+        self:UpdateAllIcons()
+    end)
+
     -- Register for spell cast events (for cast feedback animation)
     self.Events:RegisterEvent(self, "UNIT_SPELLCAST_SUCCEEDED", self.OnSpellCastSucceeded)
     
@@ -272,27 +218,6 @@ function CooldownIcons:InitializeMasque()
     else
         self.Utils:LogDebug("Masque not found, using built-in Classic Enhanced style")
     end
-end
-
--- Configure external cooldown text addons (OmniCC, ElvUI, etc.)
--- If showCooldownText is enabled for this row, we use our own text and hide external addons
--- If showCooldownText is disabled for this row, we let external addons show their text
--- rowIndex: 1 = Primary, 2 = Secondary, 3+ = Utility (nil = use global setting)
-function CooldownIcons:ConfigureCooldownText(cooldown, rowIndex)
-    local db = addon.db.profile.icons
-    
-    -- Check if VeevHUD will show its own text for this specific row
-    local showOwnText
-    if rowIndex then
-        showOwnText = addon.Database:IsRowSettingEnabled(db.showCooldownTextOn, rowIndex)
-    else
-        -- No row specified (initial creation) - default to allowing external addons
-        -- Will be reconfigured when assigned to a row
-        showOwnText = false
-    end
-    
-    -- Use shared utility for the actual OmniCC/ElvUI configuration
-    self.Utils:ConfigureCooldownText(cooldown, showOwnText)
 end
 
 function CooldownIcons:OnPlayerEnteringWorld()
@@ -369,35 +294,23 @@ end
 function CooldownIcons:OnCurrentSpellChanged()
     if not IsCurrentSpell then return end
     local showQueued = addon.db.profile.icons.showQueuedHighlight
-    for rowIndex, icons in pairs(self.iconsByRow or {}) do
-        for _, frame in ipairs(icons) do
-            if frame.queuedHighlight and frame.actualSpellID then
-                local isQueued = showQueued and IsCurrentSpell(frame.actualSpellID)
-                if isQueued then
-                    if not frame.queuedHighlight:IsShown() then
-                        frame.queuedHighlight:Show()
-                    end
-                else
-                    if frame.queuedHighlight:IsShown() then
-                        frame.queuedHighlight:Hide()
+    for rowIndex, rowFrame in pairs(self.rows or {}) do
+        if rowFrame then
+            for _, frame in ipairs(rowFrame.icons) do
+                if frame.queuedHighlight and frame.actualSpellID then
+                    local isQueued = showQueued and IsCurrentSpell(frame.actualSpellID)
+                    if isQueued then
+                        if not frame.queuedHighlight:IsShown() then
+                            frame.queuedHighlight:Show()
+                        end
+                    else
+                        if frame.queuedHighlight:IsShown() then
+                            frame.queuedHighlight:Hide()
+                        end
                     end
                 end
             end
         end
-    end
-end
-
-function CooldownIcons:OnOverlayShow(event, spellID)
-    if spellID then
-        self.activeOverlays[spellID] = true
-        self:UpdateAllIcons()
-    end
-end
-
-function CooldownIcons:OnOverlayHide(event, spellID)
-    if spellID then
-        self.activeOverlays[spellID] = nil
-        self:UpdateAllIcons()
     end
 end
 
@@ -408,15 +321,12 @@ function CooldownIcons:OnSpellCastSucceeded(event, unit, castGUID, spellID)
     local frame = self:FindIconFrameBySpellID(spellID)
 
     -- Fallback: on-use trinket spell IDs don't match sentinel IDs
-    if not frame then
-        local trinketTracker = addon:GetModule("TrinketTracker")
-        if trinketTracker then
-            frame = trinketTracker:FindFrameByOnUseSpellID(spellID)
-        end
+    if not frame and self.trinketTracker then
+        frame = self.trinketTracker:FindFrameByOnUseSpellID(spellID)
     end
 
     if frame then
-        self:PlayCastFeedback(frame)
+        self.renderer:PlayCastFeedback(frame)
 
         -- Clear reactive window timer immediately on cast (e.g., Victory Rush used)
         -- Note: do NOT reset reactiveWindowWasUsable here — the API may still report
@@ -450,7 +360,7 @@ function CooldownIcons:OnReactiveWindowEvent(subEvent, data)
         for _, frame in ipairs(row.icons or {}) do
             if frame.reactiveWindowEvent == subEvent and frame.reactiveWindow then
                 local actualSpellID = frame.actualSpellID or frame.spellID
-                if self:IsSpellUsable(actualSpellID) then
+                if self.stateEngine:IsSpellUsable(actualSpellID) then
                     frame.reactiveWindowStart = GetTime()
                     frame.reactiveWindowExpires = GetTime() + frame.reactiveWindow
                 end
@@ -458,11 +368,6 @@ function CooldownIcons:OnReactiveWindowEvent(subEvent, data)
         end
     end
 end
-
--- Per-target dodge window tracking for dodge-reactive abilities (e.g., Overpower)
--- Keyed by destGUID → expiry time. Checked against current target in UpdateIconState.
--- Entries expire naturally; table stays small since only active combat targets accumulate.
-CooldownIcons.dodgeWindows = {}
 
 -- Handle CLEU miss events for dodge-reactive abilities (e.g., Overpower)
 -- When the player's attack is dodged, records which target dodged and when.
@@ -497,7 +402,7 @@ function CooldownIcons:OnCombatMissEvent(subEvent, data)
     end
 
     if dodgeDuration then
-        self.dodgeWindows[data.destGUID] = GetTime() + dodgeDuration
+        self.stateEngine:RecordDodge(data.destGUID, GetTime() + dodgeDuration)
     end
 end
 
@@ -571,7 +476,7 @@ function CooldownIcons:HandleExclusiveGroupCast(castSpellID)
                         iconFrame.spellID = castCanonicalID
                         iconFrame.actualSpellID = castSpellID  -- Rank ID for WoW API calls
                         iconFrame.spellData = castSpellData
-                        self:PlayCastFeedback(iconFrame)
+                        self.renderer:PlayCastFeedback(iconFrame)
                         self.Utils:Debug("ExclusiveGroup swap: now showing", castCanonicalID, "instead of original")
                         return
                     end
@@ -581,154 +486,6 @@ function CooldownIcons:HandleExclusiveGroupCast(castSpellID)
     end
 end
 
--- Check if a buff is active on the player (for shared CD abilities like Reck/Retal/SWall)
--- Returns: isActive, remaining, duration, stacks
--- Uses cached buff lookup to avoid scanning 40 buffs per icon per update
-function CooldownIcons:GetPlayerBuff(spellID)
-    local spellName = GetSpellInfo(spellID)
-    local aura = self.Utils:GetCachedBuff("player", spellID, spellName)
-    
-    if aura then
-        local remaining = 0
-        if aura.expirationTime and aura.expirationTime > 0 then
-            remaining = aura.expirationTime - now
-            if remaining < 0 then remaining = 0 end
-        end
-        return true, remaining, aura.duration or 0, aura.count or 0
-    end
-
-    return false, 0, 0, 0
-end
-
--- Check if a buff is active on the relevant unit (fallback for when AuraTracker doesn't track)
--- Used for shared CD abilities and other buffs that need direct scanning
---
--- When checkSelfOnly is true: always checks player
--- When checkSelfOnly is false: follows target context (ally if targeting ally, else self)
--- spellData (optional): if provided and has appliesBuff, checks those buff IDs instead
---
--- Filters out buffs cast by other players (source is a known non-player unit like
--- "party1", "raid5"). This prevents another priest's Renew from showing as active
--- on your Renew icon. Accepts source == "player", "pet", or nil (totems, items,
--- permanent buffs like Shadowform where source may not be reported).
---
--- Returns: isActive, remaining, duration, stacks
-function CooldownIcons:GetRelevantBuff(spellID, checkSelfOnly, spellData)
-    -- Determine which unit to check
-    local unit = "player"
-
-    if not checkSelfOnly then
-        local db = addon.db.profile.icons
-        local useTargettarget = db.auraTargettargetSupport
-
-        local targetExists = UnitExists("target")
-        local targetIsEnemy = targetExists and UnitIsEnemy("player", "target")
-        local targetIsFriend = targetExists and UnitIsFriend("player", "target")
-
-        if targetIsFriend then
-            -- Targeting an ally - check them for the buff
-            unit = "target"
-        elseif targetIsEnemy then
-            -- Targeting an enemy - check targettarget if friendly (and enabled), else self
-            if useTargettarget and UnitExists("targettarget") and UnitIsFriend("player", "targettarget") then
-                unit = "targettarget"
-            end
-            -- else: fallback to self (already set)
-        end
-        -- No target or neutral: fallback to self (already set)
-    end
-
-    -- If spell has appliesBuff (buff IDs differ from cast spell, e.g., Soulstone),
-    -- check those buff IDs on the unit instead of the cast spell name
-    if spellData and spellData.appliesBuff then
-        for _, buffID in ipairs(spellData.appliesBuff) do
-            local buffName = GetSpellInfo(buffID)
-            if buffName then
-                local aura = self.Utils:GetCachedBuff(unit, buffID, buffName)
-                local src = aura and aura.source
-                if aura and (not src or src == "player" or src == "pet") then
-                    local remaining = 0
-                    if aura.expirationTime and aura.expirationTime > 0 then
-                        remaining = aura.expirationTime - now
-                        if remaining < 0 then remaining = 0 end
-                    end
-                    return true, remaining, aura.duration or 0, aura.count or 0
-                end
-            end
-        end
-        return false, 0, 0, 0
-    end
-
-    local spellName = GetSpellInfo(spellID)
-    if not spellName then return false, 0, 0, 0 end
-
-    local aura = self.Utils:GetCachedBuff(unit, spellID, spellName)
-
-    local src = aura and aura.source
-    if aura and (not src or src == "player" or src == "pet") then
-        local remaining = 0
-        if aura.expirationTime and aura.expirationTime > 0 then
-            remaining = aura.expirationTime - now
-            if remaining < 0 then remaining = 0 end
-        end
-        return true, remaining, aura.duration or 0, aura.count or 0
-    end
-
-    return false, 0, 0, 0
-end
-
--- Check for target lockout debuff (e.g., Weakened Soul for PWS, Forbearance for Paladin spells)
--- Follows the same targeting logic as helpful effects (since lockouts restrict helpful spells)
--- Returns: isActive, remaining, duration, expirationTime
--- Note: Lockout debuffs are checked regardless of who applied them (any priest's Weakened Soul blocks your PWS)
-function CooldownIcons:GetTargetLockoutDebuff(debuffSpellID, isSelfOnly)
-    if not debuffSpellID then return false, 0, 0, 0 end
-    
-    local debuffName = GetSpellInfo(debuffSpellID)
-    if not debuffName then return false, 0, 0, 0 end
-    
-    -- Determine which unit to check using the same logic as helpful effects
-    -- Self-only spells (Divine Shield, Avenging Wrath) -> always check self
-    -- Targeting enemy: targettarget if friendly (and setting enabled), else self
-    -- Targeting ally: that ally
-    -- No target: self
-    local unit = "player"
-    
-    if not isSelfOnly then
-        local db = addon.db.profile.icons
-        local useTargettarget = db.auraTargettargetSupport
-        
-        local targetExists = UnitExists("target")
-        local targetIsEnemy = targetExists and UnitIsEnemy("player", "target")
-        local targetIsFriend = targetExists and UnitIsFriend("player", "target")
-        
-        if targetIsFriend then
-            -- Targeting an ally - check them for the lockout
-            unit = "target"
-        elseif targetIsEnemy then
-            -- Targeting an enemy - check targettarget if friendly (and enabled), else self
-            if useTargettarget and UnitExists("targettarget") and UnitIsFriend("player", "targettarget") then
-                unit = "targettarget"
-            end
-            -- else: fallback to self (already set)
-        end
-        -- No target or neutral: fallback to self (already set)
-    end
-    
-    -- Use cached debuff lookup (checks any debuff with this ID, not just player's)
-    local aura = self.Utils:GetCachedDebuff(unit, debuffSpellID, debuffName)
-    
-    if aura then
-        local remaining = 0
-        if aura.expirationTime and aura.expirationTime > 0 then
-            remaining = aura.expirationTime - now
-            if remaining < 0 then remaining = 0 end
-        end
-        return true, remaining, aura.duration or 0, aura.expirationTime or 0
-    end
-
-    return false, 0, 0, 0
-end
 
 -- Find icon frame by spell ID (checks ranks too)
 function CooldownIcons:FindIconFrameBySpellID(spellID)
@@ -769,27 +526,6 @@ function CooldownIcons:FindIconFrameBySentinel(sentinelID)
     return nil
 end
 
--- Play cast feedback animation (scale punch using Animations utility)
-function CooldownIcons:PlayCastFeedback(frame)
-    if not frame then return end
-    
-    local db = addon.db.profile.icons
-    
-    -- Check row-based setting
-    local rowIndex = frame.rowIndex or 1
-    if not addon.Database:IsRowSettingEnabled(db.castFeedbackRows, rowIndex) then return end
-    
-    local scale = db.castFeedbackScale
-    
-    -- Track when cast feedback plays so dim transition can sync with it
-    frame._lastCastFeedbackTime = GetTime()
-    
-    -- Use Animations utility for consistent scale punch behavior
-    if self.Animations then
-        self.Animations:PlayScalePunch(frame, scale, "punchAnim")
-    end
-end
-
 -------------------------------------------------------------------------------
 -- Frame Creation
 -------------------------------------------------------------------------------
@@ -824,22 +560,16 @@ function CooldownIcons:CreateFrames(parent)
     -- This handles cases where settings might not be fully loaded during CreateIcon
     self:ApplyIconTexCoords()
 
-    -- Start update ticker
-    self.Events:RegisterUpdate(self, 0.05, self.UpdateAllIcons)
+    -- Start update ticker (gated — skips when no icons have active timers)
+    self.Events:RegisterUpdate(self, 0.05, self.OnUpdateTick)
 end
 
 -- Apply texcoords to all icons based on current aspect ratio and zoom settings
 function CooldownIcons:ApplyIconTexCoords()
     local db = addon.db.profile.icons
-    -- iconZoom is total crop percentage; divide by 2 to get per-edge crop
-    local zoomPerEdge = db.iconZoom / 2
-    
     for _, rowFrame in ipairs(self.rows or {}) do
-        for _, icon in ipairs(rowFrame.icons or {}) do
-            if icon.icon then
-                local left, right, top, bottom = self.Utils:GetIconTexCoords(zoomPerEdge, db.iconAspectRatio)
-                icon.icon:SetTexCoord(left, right, top, bottom)
-            end
+        if rowFrame.icons then
+            self.iconFactory:ApplyTexCoords(rowFrame.icons, db.iconZoom, db.iconAspectRatio)
         end
     end
 end
@@ -890,10 +620,18 @@ function CooldownIcons:CreateRowFrames()
 
             -- Pre-create icon frames for this row
             for i = 1, rowConfig.maxIcons do
-                local icon = self:CreateIcon(rowFrame, i, rowIconSize)
+                local icon = self.iconFactory:CreateIconFrame(rowFrame, i, rowIconSize)
+                if self.MasqueGroup then
+                    self.iconFactory:RegisterWithMasque(icon, self.MasqueGroup)
+                else
+                    self.iconFactory:ApplyFallbackStyle(icon, rowIconSize, iconDb.iconAspectRatio)
+                end
                 icon:Hide()
                 rowFrame.icons[i] = icon
             end
+
+            -- Create slide animator for dynamic sort animations (shared driver, composes with punch)
+            rowFrame.slideAnimator = self.Animations:CreateSlideAnimator(rowFrame, 20)
 
             self.rows[rowIndex] = rowFrame
             self.iconsByRow[rowIndex] = {}
@@ -954,184 +692,6 @@ function CooldownIcons:SetRowPosition(rowIndex, topY)
     rowFrame:SetPoint("TOP", addon.hudFrame, "CENTER", 0, topY)
 end
 
-function CooldownIcons:CreateIcon(parent, index, size)
-    local db = addon.db.profile.icons
-    size = size or db.iconSize
-    
-    -- Get width/height based on aspect ratio (width = size * ratio, height = size)
-    local iconWidth, iconHeight = self.Utils:GetIconDimensions(size, db.iconAspectRatio)
-
-    -- Create as Button for Masque compatibility
-    local buttonName = "VeevHUDIcon" .. (self.iconCounter or 0)
-    self.iconCounter = (self.iconCounter or 0) + 1
-
-    local frame = CreateFrame("Button", buttonName, parent)
-    frame:SetSize(iconWidth, iconHeight)
-    frame:EnableMouse(false)  -- Click-through (display only, no interaction)
-    frame.iconSize = size  -- Base size (used for calculations)
-    frame.iconWidth = iconWidth
-    frame.iconHeight = iconHeight
-
-    -- Icon texture - fills the frame, spacing between icons creates separation
-    local icon = frame:CreateTexture(buttonName .. "Icon", "ARTWORK")
-    icon:SetAllPoints()
-    -- Apply texcoords with zoom and aspect ratio cropping (uses setting, will be reapplied in ApplyIconTexCoords)
-    -- iconZoom is total crop percentage; divide by 2 to get per-edge crop
-    local zoomPerEdge = db.iconZoom / 2
-    local left, right, top, bottom = self.Utils:GetIconTexCoords(zoomPerEdge, db.iconAspectRatio)
-    icon:SetTexCoord(left, right, top, bottom)
-    frame.icon = icon
-    frame.Icon = icon  -- Masque reference
-
-    -- Normal texture for Masque compatibility (hidden by default)
-    local normalTexture = frame:CreateTexture(buttonName .. "NormalTexture", "OVERLAY")
-    normalTexture:SetAllPoints()
-    normalTexture:SetTexture([[Interface\Buttons\UI-Quickslot2]])
-    normalTexture:SetAlpha(0)  -- Hidden, Masque will use if configured
-    frame:SetNormalTexture(normalTexture)
-    frame.NormalTexture = normalTexture
-
-    -- Cooldown spiral overlay (Masque expects this)
-    local cooldown = CreateFrame("Cooldown", buttonName .. "Cooldown", frame, "CooldownFrameTemplate")
-    cooldown:SetAllPoints(icon)
-    cooldown:SetDrawEdge(false)
-    -- Bling effect configured per-row in SetupIcon
-    cooldown:SetDrawBling(false)  -- Default off, SetupIcon enables per-row
-    cooldown:SetDrawSwipe(true)
-    -- Dark swipe for time remaining (covers the icon), light underneath for elapsed
-    cooldown:SetSwipeColor(0, 0, 0, 1)
-    cooldown:SetReverse(false)  -- Swipe = remaining time (drains as cooldown progresses)
-    frame.cooldown = cooldown
-    frame.Cooldown = cooldown  -- Masque reference
-    
-    -- Configure external cooldown text (OmniCC, ElvUI, etc.)
-    self:ConfigureCooldownText(cooldown)
-
-    -- Text overlay frame (above everything including pixel glow)
-    local textFrame = CreateFrame("Frame", nil, frame)
-    textFrame:SetAllPoints()
-    textFrame:SetFrameLevel(frame:GetFrameLevel() + 20)  -- Above pixel glow (which uses +8)
-    
-    -- Cooldown text (on top of everything) - scale font with icon size
-    local fontSize = math.max(14, math.floor(size * 0.38))  -- Larger cooldown text
-    local text = textFrame:CreateFontString(nil, "OVERLAY", nil, 7)
-    text:SetFont(addon:GetFont(), fontSize, "OUTLINE")  -- Lighter outline
-    text:SetPoint("CENTER", frame, "CENTER", 0, 0)
-    text:SetTextColor(addon.db.profile.appearance.textColor.r, addon.db.profile.appearance.textColor.g, addon.db.profile.appearance.textColor.b)
-    text:SetShadowOffset(0.5, -0.5)  -- Subtle shadow
-    text:SetShadowColor(0, 0, 0, 0.5)
-    frame.text = text
-    frame.textFrame = textFrame
-
-    -- Charges text (bottom right)
-    local chargesFontSize = math.max(9, math.floor(size * 0.24))
-    local charges = frame:CreateFontString(nil, "OVERLAY")
-    charges:SetFont(addon:GetFont(), chargesFontSize, "OUTLINE")
-    charges:SetPoint("BOTTOMRIGHT", -2, 2)
-    charges:SetTextColor(1, 1, 1)
-    frame.charges = charges
-    frame.Count = charges  -- Masque reference
-
-    -- Stacks text (top right, for aura stacks like Rampage, Lifebloom, Sunder)
-    -- Parented to textFrame so it renders above cooldown spiral
-    local stacksFontSize = math.max(10, math.floor(size * 0.26))
-    local stacks = textFrame:CreateFontString(nil, "OVERLAY", nil, 7)
-    stacks:SetFont(addon:GetFont(), stacksFontSize, "OUTLINE")
-    stacks:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 2, 2)
-    stacks:SetJustifyH("RIGHT")
-    stacks:SetJustifyV("TOP")
-    stacks:SetTextColor(addon.db.profile.appearance.textColor.r, addon.db.profile.appearance.textColor.g, addon.db.profile.appearance.textColor.b)
-    frame.stacks = stacks
-
-    -- Keybind text (bottom right, shows keyboard shortcut like default action bars)
-    -- Parented to textFrame so it renders above cooldown spiral
-    frame.keybindText = addon.Keybinds:CreateKeybindText(frame, textFrame, addon:GetFont(), db.keybindTextSize, size)
-
-    -- Resource cost display elements
-    -- Option A: Horizontal bar at bottom
-    local resourceBar = CreateFrame("Frame", nil, frame)
-    resourceBar:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 0, 0)
-    resourceBar:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 0, 0)
-    resourceBar:SetHeight(db.resourceBarHeight)
-    resourceBar:SetFrameLevel(frame:GetFrameLevel() + 5)
-    
-    local resourceBarBg = resourceBar:CreateTexture(nil, "BACKGROUND")
-    resourceBarBg:SetAllPoints()
-    resourceBarBg:SetTexture([[Interface\Buttons\WHITE8X8]])
-    resourceBarBg:SetVertexColor(0, 0, 0, 0.5)
-    resourceBar.bg = resourceBarBg
-    
-    local resourceBarFill = resourceBar:CreateTexture(nil, "ARTWORK")
-    resourceBarFill:SetPoint("TOPLEFT", resourceBar, "TOPLEFT", 0, 0)
-    resourceBarFill:SetPoint("BOTTOMLEFT", resourceBar, "BOTTOMLEFT", 0, 0)
-    resourceBarFill:SetTexture([[Interface\Buttons\WHITE8X8]])
-    resourceBarFill:SetVertexColor(1, 0, 0, 1)  -- Default red (will be updated based on power type)
-    resourceBarFill:SetWidth(1)  -- Start with minimal width
-    resourceBar.fill = resourceBarFill
-    
-    resourceBar:Hide()
-    frame.resourceBar = resourceBar
-    
-    -- Option B: Vertical fill from top (dark overlay showing missing resources)
-    -- Anchored at top, grows downward to show what % of resources are missing
-    local resourceFill = frame:CreateTexture(nil, "OVERLAY", nil, 1)
-    resourceFill:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, 0)
-    resourceFill:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 0, 0)
-    resourceFill:SetTexture([[Interface\Buttons\WHITE8X8]])
-    resourceFill:SetVertexColor(0, 0, 0, db.resourceFillAlpha)
-    resourceFill:SetHeight(0)
-    resourceFill:Hide()
-    frame.resourceFill = resourceFill
-
-    -- Range indicator overlay (red tint when target is out of range)
-    -- Uses same approach as Blizzard action buttons (red overlay)
-    -- We use a wrapper frame for the overlay so we can animate its alpha
-    local rangeFrame = CreateFrame("Frame", nil, frame)
-    rangeFrame:SetAllPoints(icon)
-    rangeFrame:SetAlpha(0)
-    rangeFrame:Hide()
-    
-    local rangeOverlay = rangeFrame:CreateTexture(nil, "OVERLAY", nil, 2)
-    rangeOverlay:SetAllPoints()
-    rangeOverlay:SetTexture([[Interface\Buttons\WHITE8X8]])
-    rangeOverlay:SetVertexColor(177/255, 22/255, 22/255, 0.4)  -- Out-of-range red: rgb(177, 22, 22)
-    
-    -- Create fade animations using Animations utility
-    if self.Animations then
-        self.Animations:CreateFadePair(rangeFrame, 0.15)
-    end
-    
-    frame.rangeOverlay = rangeOverlay
-    frame.rangeFrame = rangeFrame
-
-    -- Queued spell highlight (for "next melee" abilities like Heroic Strike, Cleave, Maul)
-    -- Uses the same texture as Blizzard's default action bar "checked" state
-    local queuedHighlight = frame:CreateTexture(nil, "OVERLAY", nil, 3)
-    queuedHighlight:SetTexture([[Interface\Buttons\CheckButtonHilight]])
-    queuedHighlight:SetBlendMode("ADD")
-    queuedHighlight:SetAllPoints()
-    queuedHighlight:Hide()
-    frame.queuedHighlight = queuedHighlight
-
-    frame.index = index
-    frame.spellID = nil
-
-    -- Register with Masque if available
-    -- Masque will override our default textures with its own styling
-    if self.MasqueGroup then
-        self.MasqueGroup:AddButton(frame, {
-            Icon = icon,
-            Cooldown = cooldown,
-            Normal = normalTexture,
-            Count = charges,
-        })
-    else
-        -- Apply built-in Classic Enhanced style when Masque is not installed
-        addon.IconStyling:Apply(frame, size, addon.db.profile.icons.iconAspectRatio)
-    end
-
-    return frame
-end
 
 -------------------------------------------------------------------------------
 -- Spell Assignment to Rows
@@ -1195,263 +755,49 @@ end
 
 function CooldownIcons:RebuildAllRows()
     local tracker = addon:GetModule("SpellTracker")
-    if not tracker then 
+    if not tracker then
         self.Utils:LogError("CooldownIcons: SpellTracker not found")
-        return 
+        return
     end
 
     local trackedSpells = tracker:GetTrackedSpells()
-    local LibSpellDB = addon.LibSpellDB
-    if not LibSpellDB then 
+    if not addon.LibSpellDB then
         self.Utils:LogError("CooldownIcons: LibSpellDB not found")
-        return 
+        return
     end
-    
+
     -- Reset dynamic sort animation state before rebuilding
     self:ResetDynamicSortPositions()
-    
+
     local spellCount = 0
     for _ in pairs(trackedSpells) do spellCount = spellCount + 1 end
     self.Utils:LogInfo("CooldownIcons: Rebuilding with", spellCount, "tracked spells")
 
-    -- Clear assignments
-    wipe(self.spellAssignments)
-    for rowIndex in pairs(self.iconsByRow) do
-        wipe(self.iconsByRow[rowIndex])
-    end
+    -- Build runtime context for assignment
+    local totemBarMod = addon:GetModule("TotemBar")
+    local context = {
+        isFeralDruid = addon.playerClass == "DRUID" and addon.playerSpec == "FERAL",
+        activeFeralForm = self.activeFeralForm,
+        totemBarActive = totemBarMod and totemBarMod.IsActive and totemBarMod:IsActive(),
+    }
 
-    -- Assign each tracked spell to a row based on tags (or spellConfig override)
+    -- Delegate spell-to-row assignment to SpellAssignment module
     local rowConfigs = addon.db.profile.rows
     local spellCfg = addon:GetSpellConfig()
-    local isFeralDruid = addon.playerClass == "DRUID" and addon.playerSpec == "FERAL"
+    local iconsByRow, spellAssignments = self.spellAssignment:AssignAllSpells(
+        trackedSpells, rowConfigs, spellCfg, context)
 
-    -- Check if TotemBar is active (zero-CD element-tagged totems move to totem bar)
-    local totemBarMod = addon:GetModule("TotemBar")
-    local totemBarActive = totemBarMod and totemBarMod.IsActive and totemBarMod:IsActive()
-
-    -- Collapse exclusive BuffGroup members into one representative per group.
-    -- Only one spell from each exclusive group gets an icon; the rest are skipped.
-    -- On cast, HandleExclusiveGroupCast() swaps the icon to the actually-used ability.
-    local skipExclusiveSpells = {}
-    do
-        -- Group tracked spells by their exclusive BuffGroup, sub-grouped by auraTarget.
-        -- Spells with different auraTargets (e.g., Earth Shield=ally vs Water Shield=self)
-        -- can coexist on different units, so they must NOT collapse together.
-        local exclusiveGroups = {}  -- subKey -> {spellID, ...}
-        for spellID, trackedData in pairs(trackedSpells) do
-            local groupName, groupInfo = LibSpellDB:GetBuffGroup(spellID)
-            if groupName and groupInfo and groupInfo.relationship == "exclusive" then
-                local auraTarget = LibSpellDB:GetAuraTarget(spellID) or "self"
-                local subKey = groupName .. "|" .. auraTarget
-                if not exclusiveGroups[subKey] then
-                    exclusiveGroups[subKey] = {}
-                end
-                table.insert(exclusiveGroups[subKey], {
-                    spellID = spellID,
-                    spellData = trackedData.spellData,
-                })
-            end
-        end
-
-        -- For each group with 2+ tracked members, pick the best representative
-        for groupName, members in pairs(exclusiveGroups) do
-            if #members >= 2 then
-                -- Pick representative: spellConfig rowIndex override > highest-priority row > priority > spellID
-                local bestSpellID = nil
-                local bestRowIndex = 999
-                local bestPriority = 999
-
-                for _, member in ipairs(members) do
-                    local cfg = spellCfg[member.spellID] or {}
-
-                    -- Determine effective row index (lower = higher priority)
-                    local rowIndex = 999
-                    if cfg.rowIndex then
-                        -- Use actual override row (consistent with UI representative selection)
-                        rowIndex = cfg.rowIndex
-                    else
-                        -- Find natural row by tag matching (same logic as main loop)
-                        for ri, rowConfig in ipairs(rowConfigs) do
-                            for _, tag in ipairs(rowConfig.tags) do
-                                if LibSpellDB:HasTag(member.spellID, tag) then
-                                    rowIndex = ri
-                                    break
-                                end
-                            end
-                            if rowIndex < 999 then break end
-                        end
-                    end
-
-                    local priority = member.spellData.priority or 999
-
-                    -- Lower rowIndex wins, then lower priority, then lower spellID
-                    if not bestSpellID
-                        or rowIndex < bestRowIndex
-                        or (rowIndex == bestRowIndex and priority < bestPriority)
-                        or (rowIndex == bestRowIndex and priority == bestPriority and member.spellID < bestSpellID) then
-                        bestSpellID = member.spellID
-                        bestRowIndex = rowIndex
-                        bestPriority = priority
-                    end
-                end
-
-                -- Mark all non-representative members for skipping
-                for _, member in ipairs(members) do
-                    if member.spellID ~= bestSpellID then
-                        skipExclusiveSpells[member.spellID] = true
-                    end
-                end
-
-                self.Utils:LogDebug("ExclusiveGroup", groupName .. ": representative", bestSpellID,
-                    "(" .. #members .. " members, skipping " .. (#members - 1) .. ")")
-            end
-        end
-    end
-
-    for spellID, trackedData in pairs(trackedSpells) do
-        local spellData = trackedData.spellData
-        local assigned = false
-        local cfg = spellCfg[spellID] or {}
-
-        -- Skip spells for the wrong feral form (respects per-spell druidForm override)
-        local skipForm = false
-        if isFeralDruid then
-            local formOverride = cfg.druidForm  -- "CAT", "BEAR", "ANY", or nil
-            if formOverride == "ANY" then
-                skipForm = false
-            elseif formOverride == "CAT" then
-                skipForm = (self.activeFeralForm ~= "CAT")
-            elseif formOverride == "BEAR" then
-                skipForm = (self.activeFeralForm ~= "BEAR")
-            else
-                -- Default: tag-based filtering
-                local isCatSpell = LibSpellDB:HasTag(spellID, "CAT_FORM")
-                local isBearSpell = LibSpellDB:HasTag(spellID, "BEAR_FORM")
-                if (isCatSpell and self.activeFeralForm ~= "CAT") or
-                   (isBearSpell and self.activeFeralForm ~= "BEAR") then
-                    skipForm = true
-                end
-            end
-        end
-
-        -- Skip zero-CD element-tagged totems when TotemBar is active
-        -- (they only appear in the totem bar element slots)
-        local skipTotemBar = false
-        if totemBarActive and not skipForm then
-            local hasElementTag = LibSpellDB:HasTag(spellID, "TOTEM_EARTH")
-                or LibSpellDB:HasTag(spellID, "TOTEM_FIRE")
-                or LibSpellDB:HasTag(spellID, "TOTEM_WATER")
-                or LibSpellDB:HasTag(spellID, "TOTEM_AIR")
-            if hasElementTag and (spellData.cooldown or 0) == 0 then
-                skipTotemBar = true
-            end
-        end
-
-        if not skipForm and not skipTotemBar and not skipExclusiveSpells[spellID] then
-        -- Check if spell has a row override in spellConfig
-        if cfg.rowIndex then
-            local rowIndex = cfg.rowIndex
-            local rowConfig = rowConfigs[rowIndex]
-
-            -- If the overridden row is disabled, skip the spell entirely (don't spill to other rows)
-            if rowConfig and rowConfig.enabled then
-                if not self.iconsByRow[rowIndex] then
-                    self.iconsByRow[rowIndex] = {}
-                end
-
-                if #self.iconsByRow[rowIndex] < rowConfig.maxIcons then
-                    table.insert(self.iconsByRow[rowIndex], {
-                        spellID = spellID,  -- Canonical ID for identification
-                        actualSpellID = trackedData.actualSpellID or spellID,  -- Rank ID for WoW API calls
-                        spellData = spellData,
-                        customOrder = cfg.order,  -- Store custom order if set
-                    })
-                    self.spellAssignments[spellID] = rowIndex
-                    assigned = true
-                end
-            else
-                assigned = true  -- Treat as assigned so it doesn't fall through
-            end
-        end
-
-        -- Default: Find first matching row based on tags.
-        -- Match against ALL rows (including disabled) to find the spell's natural home.
-        -- If that row is disabled, the spell is hidden — not moved to another row.
-        if not assigned then
-            for rowIndex, rowConfig in ipairs(rowConfigs) do
-                if not assigned then
-                    for _, requiredTag in ipairs(rowConfig.tags) do
-                        if LibSpellDB:HasTag(spellID, requiredTag) then
-                            -- This is the spell's natural row
-                            if rowConfig.enabled then
-                                if not self.iconsByRow[rowIndex] then
-                                    self.iconsByRow[rowIndex] = {}
-                                end
-
-                                if #self.iconsByRow[rowIndex] < rowConfig.maxIcons then
-                                    table.insert(self.iconsByRow[rowIndex], {
-                                        spellID = spellID,  -- Canonical ID for identification
-                                        actualSpellID = trackedData.actualSpellID or spellID,  -- Rank ID for WoW API calls
-                                        spellData = spellData,
-                                        customOrder = cfg.order,  -- Store custom order if set
-                                    })
-                                    self.spellAssignments[spellID] = rowIndex
-                                end
-                            end
-                            -- Whether enabled or not, this was the natural row — stop looking
-                            assigned = true
-                            break
-                        end
-                    end
-                end
-            end
-        end
-
-        end -- not skipForm/skipTotemBar/skipExclusiveSpells
-    end
+    self.iconsByRow = iconsByRow
+    self.spellAssignments = spellAssignments
 
     -- Inject trinket entries from TrinketTracker
-    local trinketTracker = addon:GetModule("TrinketTracker")
-    if trinketTracker then
-        trinketTracker:InjectRowEntries(self.iconsByRow, rowConfigs, spellCfg, self.spellAssignments)
-    end
-
-    -- Sort spells within each row
-    -- Custom order takes precedence, then priority, then cooldown
-    for rowIndex, spells in pairs(self.iconsByRow) do
-        -- First, assign default order indices for sorting
-        -- Sort initially by priority/cooldown/spellID to get default order (stable)
-        table.sort(spells, function(a, b)
-            local priorityA = a.spellData.priority or 999
-            local priorityB = b.spellData.priority or 999
-            if priorityA ~= priorityB then
-                return priorityA < priorityB
-            end
-            local cdA = a.spellData.cooldown or 0
-            local cdB = b.spellData.cooldown or 0
-            if cdA ~= cdB then
-                return cdA < cdB
-            end
-            -- Tie-breaker: spellID for stable sorting
-            return a.spellID < b.spellID
-        end)
-        
-        -- Assign default order to each spell
-        for i, spell in ipairs(spells) do
-            spell.defaultOrder = i
-        end
-        
-        -- Re-sort applying custom order overrides
-        table.sort(spells, function(a, b)
-            local orderA = a.customOrder or a.defaultOrder
-            local orderB = b.customOrder or b.defaultOrder
-            return orderA < orderB
-        end)
+    if self.trinketTracker then
+        self.trinketTracker:InjectRowEntries(self.iconsByRow, rowConfigs, spellCfg, self.spellAssignments)
     end
 
     -- Update icons to show assigned spells
     self:UpdateRowIcons()
-    
+
     -- Reposition rows based on actual icon counts (important for flow layout rows)
     self:RepositionRows()
 
@@ -1559,18 +905,19 @@ function CooldownIcons:PositionRowIcons(rowFrame, count, db)
             end
         end
     else
-        -- Non-flow layout rows use CENTER anchor
-        local totalWidth = count * iconWidth + (count - 1) * spacing
-        local startX = -totalWidth / 2 + iconWidth / 2
-
-        for i = 1, count do
-            local frame = rowFrame.icons[i]
-            if frame and frame:IsShown() then
-                local x = startX + (i - 1) * (iconWidth + spacing)
-                frame:ClearAllPoints()
-                frame:SetPoint("CENTER", rowFrame, "CENTER", x, 0)
-                self.Animations:UpdatePunchBase(frame)
+        -- Non-flow rows: delegate to slide animator (same centering math,
+        -- initializes _slideCurrentX for smooth first dynamic sort transition,
+        -- and composes with punch animation automatically)
+        local animator = rowFrame.slideAnimator
+        if animator then
+            local visibleIcons = {}
+            for i = 1, count do
+                local frame = rowFrame.icons[i]
+                if frame and frame:IsShown() then
+                    visibleIcons[#visibleIcons + 1] = frame
+                end
             end
+            animator:LayoutFrames(visibleIcons, iconWidth, spacing, false)
         end
     end
 end
@@ -1641,11 +988,93 @@ end
 -- Icon Setup and Updates
 -------------------------------------------------------------------------------
 
+--- Reset all runtime state on an icon frame.
+-- Called before every SetupIcon to ensure a clean slate when frames are reused
+-- across RebuildAllRows calls (e.g., a frame that was a trinket is now a spell).
+-- Each field is grouped by the system that writes it.
+function CooldownIcons:ResetIconState(frame)
+    -- Identity / routing (prevents stale isTrinket delegation)
+    frame.isTrinket = false
+    frame.trinketSlotID = nil
+    frame.onUseSpellID = nil
+
+    -- Cooldown cache (IconStateEngine:_ComputeCooldownState)
+    frame.itemCdStart = nil
+    frame.itemCdDuration = nil
+    frame.actionBarSlot = nil
+    frame.actionBarSlotNextScan = nil
+    frame.itemWasAvailable = nil
+    frame.actualCdStart = nil
+    frame.actualCdDuration = nil
+
+    -- Resource prediction (IconStateEngine:_ComputePredictionState)
+    frame.predictionActive = false
+    frame.predictionStartTime = nil
+    frame.predictionDuration = nil
+    frame.predictionFallback = false
+    frame.predictionLastPower = nil
+    frame.gcdContinueText = nil
+
+    -- Reactive window (IconStateEngine:_ComputeCooldownState)
+    frame.reactiveWindowStart = nil
+    frame.reactiveWindowExpires = nil
+    frame.reactiveWindowWasUsable = nil
+
+    -- Dynamic sort
+    frame.actionableTime = nil
+
+    -- Glow tracking (GlowManager) — hide visuals then clear flags
+    if frame.readyGlowActive and self.glowManager then
+        self.glowManager:HideReadyGlow(frame)
+    end
+    if frame.glowActive and self.glowManager then
+        self.glowManager:HideGlow(frame)
+    end
+    frame.readyGlowShown = nil
+    frame.readyGlowExpires = nil
+    frame.readyGlowActive = false
+    frame.wasOnRealCooldown = nil
+    frame.wasUsable = nil
+    frame.glowActive = false
+    frame.glowType = nil
+    frame.glowAlpha = nil
+
+    -- Renderer cache (IconRenderer)
+    frame.lastCdStart = nil
+    frame.lastCdDuration = nil
+    frame._wasRealCooldown = nil
+    frame._lastCastFeedbackTime = nil
+    frame.iconAlpha = nil
+    if frame._dimTimer then
+        frame._dimTimer:Cancel()
+        frame._dimTimer = nil
+    end
+    if frame.cooldown then
+        frame.cooldown:SetCooldown(0, 0)
+    end
+
+    -- Alpha transition (Animations)
+    if addon.Animations then
+        addon.Animations:StopAlphaTransition(frame)
+    end
+
+    -- Range indicator
+    frame.rangeWantShow = nil
+    if frame.rangeFrame then
+        frame.rangeFrame.fadeIn:Stop()
+        frame.rangeFrame.fadeOut:Stop()
+        frame.rangeFrame:SetAlpha(0)
+        frame.rangeFrame:Hide()
+    end
+end
+
 function CooldownIcons:SetupIcon(frame, spellID, actualSpellID, spellData, rowConfig, rowIndex)
+    -- Reset all runtime state from previous spell assignment
+    self:ResetIconState(frame)
+
     -- Trinket icons: delegate setup to TrinketTracker
-    local trinketTracker = addon:GetModule("TrinketTracker")
-    if trinketTracker and trinketTracker:IsTrinketSentinel(spellID) then
-        trinketTracker:SetupTrinketIcon(frame, spellID, rowConfig, rowIndex)
+    if self.trinketTracker and self.trinketTracker:IsTrinketSentinel(spellID) then
+        self.trinketTracker:SetupTrinketIcon(frame, spellID, rowConfig, rowIndex)
         return
     end
 
@@ -1662,7 +1091,7 @@ function CooldownIcons:SetupIcon(frame, spellID, actualSpellID, spellData, rowCo
     -- Configure external cooldown text (OmniCC, ElvUI) based on row assignment
     -- This allows OmniCC to show text on rows where VeevHUD doesn't
     if frame.cooldown then
-        self:ConfigureCooldownText(frame.cooldown, frame.rowIndex)
+        self.renderer:ConfigureCooldownText(frame.cooldown, frame.rowIndex)
         
         -- Configure bling effect per-row
         local db = addon.db.profile.icons
@@ -1698,7 +1127,7 @@ function CooldownIcons:SetupIcon(frame, spellID, actualSpellID, spellData, rowCo
     end
 
     -- Check if this spell has dodge-reactive glow (e.g., Overpower)
-    -- When set, CLEU dodge detection stores per-target windows in self.dodgeWindows for stance-independent glow
+    -- When set, CLEU dodge detection stores per-target windows in stateEngine.dodgeWindows for stance-independent glow
     frame.dodgeReactive = nil
     if addon.LibSpellDB then
         frame.dodgeReactive = addon.LibSpellDB:GetDodgeReactive(spellID)
@@ -1733,12 +1162,20 @@ function CooldownIcons:UpdateAllKeybindText()
     end
 end
 
+-- Ticker-only entry point with idle gating.
+-- The 0.05s ticker calls this; event handlers call UpdateAllIcons() directly.
+function CooldownIcons:OnUpdateTick()
+    if not self._hasActiveTimers then return end
+    self:UpdateAllIcons()
+end
+
 function CooldownIcons:UpdateAllIcons()
     if not self.rows then return end
 
-    now = GetTime()
+    self.stateEngine:SetTime(GetTime())
     local db = addon.db.profile.icons
     self._iconsDb = db  -- Cache for per-frame resource animation hooks
+    self.renderer._iconsDb = db  -- Share with IconRenderer for AnimateResourceDisplay
 
     -- Cache target context once for all aura checks this cycle
     local auraTracker = addon:GetModule("AuraState")
@@ -1746,21 +1183,46 @@ function CooldownIcons:UpdateAllIcons()
         auraTracker:CacheTargetContext()
     end
 
+    local hasActiveTimers = false
+
     for rowIndex, rowFrame in pairs(self.rows) do
         if rowFrame then
             for _, iconFrame in ipairs(rowFrame.icons) do
                 if iconFrame:IsShown() and iconFrame.spellID then
-                    self:UpdateIconState(iconFrame, db)
+                    local ok, result = xpcall(self.UpdateIconState, iconErrorHandler, self, iconFrame, db)
+                    if ok then
+                        if result then hasActiveTimers = true end
+                    else
+                        -- Per-icon error isolation: log throttled, continue to next icon
+                        local sid = iconFrame.spellID or 0
+                        iconErrorCounts[sid] = (iconErrorCounts[sid] or 0) + 1
+                        if iconErrorCounts[sid] <= ICON_ERROR_LOG_LIMIT then
+                            self.Utils:LogError("UpdateIconState error [spell " .. tostring(sid) .. "]:", result)
+                        end
+                        hasActiveTimers = true  -- Keep ticking to allow retry
+                    end
                 end
             end
         end
     end
-    
+
     -- Apply dynamic sorting to configured rows
     local dynamicSortRows = db.dynamicSortRows
     if dynamicSortRows ~= "none" then
         self:ApplyDynamicSorting(dynamicSortRows)
     end
+
+    -- Update tick gating flag: skip future ticker calls when no timers are active
+    -- Check if any row's slide animator is still running
+    if not hasActiveTimers then
+        for _, rowFrame in pairs(self.rows) do
+            if rowFrame and rowFrame.slideAnimator and rowFrame.slideAnimator.running then
+                hasActiveTimers = true
+                break
+            end
+        end
+    end
+    self._hasActiveTimers = hasActiveTimers
 end
 
 -- Determine which rows should have dynamic sorting based on setting
@@ -1855,7 +1317,7 @@ function CooldownIcons:SortRowByTimeRemaining(rowFrame, rowIndex)
         -- Verify all icons have valid positions before skipping
         local allPositioned = true
         for i = 1, iconCount do
-            if not dynamicSortCache[i].dynamicSortCurrentX then
+            if not dynamicSortCache[i]._slideCurrentX then
                 allPositioned = false
                 break
             end
@@ -1864,902 +1326,108 @@ function CooldownIcons:SortRowByTimeRemaining(rowFrame, rowIndex)
             return
         end
     end
-    
+
     -- Use per-row settings
     local iconWidth = rowFrame.iconWidth or db.iconSize
     local spacing = rowFrame.iconSpacing
     if spacing == nil then
         spacing = db.iconSpacing
     end
-    
-    -- Calculate centered positioning
-    local totalWidth = iconCount * iconWidth + (iconCount - 1) * spacing
-    local startX = -totalWidth / 2 + iconWidth / 2
-    
-    for i, iconFrame in ipairs(dynamicSortCache) do
-        local targetX = startX + (i - 1) * (iconWidth + spacing)
-        
-        if useAnimation then
-            -- Initialize current position if not set (first time)
-            if not iconFrame.dynamicSortCurrentX then
-                iconFrame.dynamicSortCurrentX = targetX
-                iconFrame:ClearAllPoints()
-                iconFrame:SetPoint("CENTER", rowFrame, "CENTER", targetX, 0)
-            end
-            
-            -- Only update target if it changed (avoids unnecessary work)
-            if iconFrame.dynamicSortTargetX ~= targetX then
-                iconFrame.dynamicSortTargetX = targetX
-            end
-        else
-            -- No animation - only reposition if position actually changed
-            if iconFrame.dynamicSortCurrentX ~= targetX then
-                iconFrame:ClearAllPoints()
-                iconFrame:SetPoint("CENTER", rowFrame, "CENTER", targetX, 0)
-                iconFrame.dynamicSortCurrentX = targetX
-                iconFrame.dynamicSortTargetX = targetX
-            end
-        end
-    end
-    
-    -- Start slide animation if enabled
-    -- Per-row check is done inside StartDynamicSortSlideUpdate
-    if useAnimation then
-        self:StartDynamicSortSlideUpdate(rowFrame)
-    end
-end
 
--- Smooth sliding animation for dynamic sort repositioning
--- Uses lerp with a fast slide speed for snappy, combat-friendly feedback
--- Handles multiple rows with animations running simultaneously
-function CooldownIcons:StartDynamicSortSlideUpdate(rowFrame)
-    -- Track per-row animation state
-    if not self.dynamicSortSlideActive then
-        self.dynamicSortSlideActive = {}
+    -- Delegate positioning and animation to the shared slide animator
+    local animator = rowFrame.slideAnimator
+    if animator then
+        animator:LayoutFrames(dynamicSortCache, iconWidth, spacing, useAnimation)
     end
-    
-    -- If this row already has an animation running, don't start another
-    if self.dynamicSortSlideActive[rowFrame] then return end
-    
-    self.dynamicSortSlideActive[rowFrame] = true
-    self.dynamicSortSlideRunning = true
-    
-    -- Fast slide speed for snappy feel (higher = faster)
-    -- 20 is faster than AuraTracker's 12, suitable for combat tracking
-    local slideSpeed = 20
-    
-    rowFrame:SetScript("OnUpdate", function(_, elapsed)
-        local allSettled = true
-        
-        for _, iconFrame in ipairs(rowFrame.icons) do
-            if iconFrame:IsShown() and iconFrame.dynamicSortCurrentX and iconFrame.dynamicSortTargetX then
-                local diff = iconFrame.dynamicSortTargetX - iconFrame.dynamicSortCurrentX
-                
-                -- If close enough, snap to target
-                if math.abs(diff) < 0.5 then
-                    if iconFrame.dynamicSortCurrentX ~= iconFrame.dynamicSortTargetX then
-                        iconFrame.dynamicSortCurrentX = iconFrame.dynamicSortTargetX
-                        iconFrame:ClearAllPoints()
-                        iconFrame:SetPoint("CENTER", rowFrame, "CENTER", iconFrame.dynamicSortTargetX, 0)
-                    end
-                else
-                    -- Lerp toward target (ease-out feel)
-                    allSettled = false
-                    local move = diff * math.min(1, elapsed * slideSpeed)
-                    iconFrame.dynamicSortCurrentX = iconFrame.dynamicSortCurrentX + move
-                    iconFrame:ClearAllPoints()
-                    iconFrame:SetPoint("CENTER", rowFrame, "CENTER", iconFrame.dynamicSortCurrentX, 0)
-                end
-            end
-        end
-        
-        -- Stop updating when all icons have settled
-        if allSettled then
-            rowFrame:SetScript("OnUpdate", nil)
-            self.dynamicSortSlideActive[rowFrame] = nil
-            
-            -- Check if any rows still have active animations
-            local anyActive = false
-            for _, active in pairs(self.dynamicSortSlideActive) do
-                if active then
-                    anyActive = true
-                    break
-                end
-            end
-            if not anyActive then
-                self.dynamicSortSlideRunning = false
-            end
-        end
-    end)
 end
 
 -- Reset dynamic sort position tracking (called when rebuilding rows)
 function CooldownIcons:ResetDynamicSortPositions()
-    -- Reset all rows
     for rowIndex, rowFrame in pairs(self.rows or {}) do
         if rowFrame then
-            for _, iconFrame in ipairs(rowFrame.icons) do
-                iconFrame.dynamicSortCurrentX = nil
-                iconFrame.dynamicSortTargetX = nil
-            end
-            
-            -- Stop any running animation on this row
-            if self.dynamicSortSlideActive and self.dynamicSortSlideActive[rowFrame] then
-                rowFrame:SetScript("OnUpdate", nil)
-                self.dynamicSortSlideActive[rowFrame] = nil
+            local animator = rowFrame.slideAnimator
+            if animator then
+                animator:Stop()
+                for _, iconFrame in ipairs(rowFrame.icons) do
+                    animator:ResetFrame(iconFrame)
+                end
             end
         end
     end
-    
+
     -- Clear cached sort order for all rows
     wipe(previousSortOrder)
-    
-    self.dynamicSortSlideRunning = false
 end
 
 function CooldownIcons:UpdateIconState(frame, db)
     -- Trinket icons: delegate entirely to TrinketTracker
     if frame.isTrinket then
-        local trinketTracker = addon:GetModule("TrinketTracker")
-        if trinketTracker then
-            trinketTracker:UpdateTrinketIconState(frame, db)
+        if self.trinketTracker then
+            self.trinketTracker:UpdateTrinketIconState(frame, db)
         end
-        return
+        -- Trinkets need periodic refresh when displaying countdown text
+        local text = frame.text and frame.text:GetText()
+        return text and text ~= ""
     end
 
-    local spellID = frame.spellID  -- Canonical ID for lookups
-    local actualSpellID = frame.actualSpellID or spellID  -- Rank ID for WoW API calls
-    if not spellID then return end
+    if not frame.spellID then return end
 
-    -- Check for active aura (debuff/buff applied by this spell)
-    -- Only if aura tracking is enabled in settings
-    local auraActive = false
-    local auraRemaining, auraDuration, auraStacks = 0, 0, 0
-    local spellData = frame.spellData
+    -- Compute all state (aura, cooldown, prediction, visual flags, glow params)
+    -- The state engine queries WoW APIs; this orchestrator only reads its output.
+    local s = self.stateEngine:ComputeIconState(frame, db)
 
-    -- Pre-compute spell targeting behavior (reused for buff checks and lockout checks)
-    -- If spell targets allies (auraTarget = "ally"/"pet"), check the relevant ally for buffs
-    local checkSelfOnly = true
-    if addon.LibSpellDB then
-        checkSelfOnly = addon.LibSpellDB:IsSelfOnly(spellData)
+    -- Apply BuffGroup swap (state engine signals via swapTexture; orchestrator owns frame mutation)
+    if s.swapTexture then
+        frame.icon:SetTexture(s.swapTexture)
+        frame.spellID = s.spellID
+        frame.actualSpellID = s.actualSpellID
+        frame.spellData = s.spellData
     end
 
-    if db.showAuraTracking then
-        local auraTracker = addon:GetModule("AuraState")
-        if auraTracker and auraTracker.GetAuraState then
-            auraActive, auraRemaining, auraDuration, auraStacks = auraTracker:GetAuraState(spellID)
-        end
-        
-        -- For shared CD abilities (Reck/Retal/SWall), also check buffs directly
-        -- since AuraTracker may not track non-displayed spells
-        -- Respects target context: heals/external buffs check the relevant target
-        local shouldCheckBuff = true
-        
-        if shouldCheckBuff then
-            local isBuffActive, buffRemaining, buffDuration, buffStacks = self:GetRelevantBuff(actualSpellID, checkSelfOnly, spellData)
-            if isBuffActive then
-                -- Always prefer buff data for permanent buffs (duration=0)
-                -- This handles Shadowform, Stealth, Aspects, etc. correctly
-                if buffDuration == 0 or not auraActive then
-                    auraActive = true
-                    auraRemaining = buffRemaining
-                    auraDuration = buffDuration
-                    auraStacks = buffStacks or 0
-                end
-            end
-        end
-    end
+    -- 1. Apply rendering (spiral, text, alpha, desat, stacks, charges)
+    visualState.showAuraActive = s.showAuraActive
+    visualState.auraRemaining = s.auraDisplayRemaining
+    visualState.auraDuration = s.auraDisplayDuration
+    visualState.auraStacks = s.auraStacks
+    visualState.cdRemaining = s.remaining
+    visualState.cdDuration = s.duration
+    visualState.cdStartTime = s.cdStartTime
+    visualState.alpha = s.alpha
+    visualState.desaturate = s.desaturate
+    visualState.showSpinner = s.showSpinner
+    visualState.showText = s.showText
+    visualState.showPrediction = s.showPredictionSpiral
+    visualState.predictionRemaining = s.predictionRemaining
+    visualState.predictionDuration = s.predictionDuration
+    visualState.predictionStartTime = s.predictionStartTime
+    visualState.gcdContinueText = s.gcdContinueText
+    visualState.charges = s.charges
+    visualState.hasCharges = s.hasCharges
+    self.renderer:ApplyIconVisuals(frame, visualState, db)
 
-    -- Exclusive BuffGroup target-aware swap: if no aura found for the current spell,
-    -- check if a different group member's aura is active on the current target.
-    -- Handles target switching (e.g., CoA on Mob1, CoE on Mob2 → icon follows target).
-    if not auraActive and db.showAuraTracking and addon.LibSpellDB then
-        local groupName, groupInfo = addon.LibSpellDB:GetBuffGroup(spellID)
-        if groupName and groupInfo and groupInfo.relationship == "exclusive" then
-            local myAuraTarget = addon.LibSpellDB:GetAuraTarget(spellID) or "self"
-            local auraTracker = addon:GetModule("AuraState")
-            for _, memberID in ipairs(groupInfo.spells) do
-                local memberAuraTarget = addon.LibSpellDB:GetAuraTarget(memberID) or "self"
-                if memberID ~= spellID and memberAuraTarget == myAuraTarget then
-                    -- Check AuraTracker first (CLEU-based, player's own debuffs)
-                    local mActive, mRemaining, mDuration, mStacks
-                    if auraTracker and auraTracker.GetAuraState then
-                        mActive, mRemaining, mDuration, mStacks = auraTracker:GetAuraState(memberID)
-                    end
-                    -- Fallback to direct buff check
-                    if not mActive then
-                        local mData = addon.LibSpellDB:GetSpellInfo(memberID)
-                        if mData then
-                            local mActualID = self.Utils:GetEffectiveSpellID(memberID) or memberID
-                            local mCheckSelf = addon.LibSpellDB:IsSelfOnly(mData)
-                            mActive, mRemaining, mDuration, mStacks = self:GetRelevantBuff(mActualID, mCheckSelf, mData)
-                        end
-                    end
-                    if mActive then
-                        -- Swap icon to the group member whose aura is on the current target
-                        local mData = addon.LibSpellDB:GetSpellInfo(memberID)
-                        if mData then
-                            local mActualID = self.Utils:GetEffectiveSpellID(memberID) or memberID
-                            local texture = mData.icon or self.Utils:GetSpellTexture(mActualID)
-                            frame.icon:SetTexture(texture)
-                            frame.spellID = memberID
-                            frame.actualSpellID = mActualID
-                            frame.spellData = mData
-                            -- Update locals for the rest of UpdateIconState
-                            spellID = memberID
-                            actualSpellID = mActualID
-                            spellData = mData
-                            checkSelfOnly = addon.LibSpellDB:IsSelfOnly(mData)
-                            auraActive = true
-                            auraRemaining = mRemaining
-                            auraDuration = mDuration
-                            auraStacks = mStacks or 0
-                            break
-                        end
-                    end
-                end
-            end
-        end
-    end
+    -- 2. Resource display
+    self.renderer:UpdateResourceDisplay(frame, s.spellID, s.remaining, s.hasResourceCost, s.resourcePercent, s.powerColor, db, s.showPredictionSpiral, s.inPredictionFallback)
 
-    -- Suppress aura display for element-tagged TOTEM spells when TotemBar is active
-    -- (TotemBar element slots already show active state; avoid duplication on cooldown icon)
-    if frame.isTotem then
-        local totemBarMod = addon:GetModule("TotemBar")
-        if totemBarMod and totemBarMod.IsActive and totemBarMod:IsActive() then
-            auraActive = false
-            auraRemaining, auraDuration, auraStacks = 0, 0, 0
-        end
-    end
+    -- 3. Glow (aura active / permanent buff / normal)
+    self.glowManager:UpdateIconGlow(frame, s.showGlow, s.showAuraActive, s.isPermanentBuffActive)
 
-    -- Get cooldown info (including actual start time for accurate spiral)
-    -- Use actualSpellID (the rank the player knows) for WoW API calls
-    local remaining, duration, cdEnabled, cdStartTime = self.Utils:GetSpellCooldown(actualSpellID)
-
-    -- Item cooldown fallback for spells that create usable items (e.g., Soulstone).
-    -- The spell itself has no cooldown — the cooldown is on the created item.
-    -- Challenge: the item is consumed when used, so GetItemCooldown() returns nil.
-    -- The native action bar handles this via GetActionCooldown() which works even
-    -- after the item is consumed. We use a three-tier approach:
-    --   Tier 1: GetItemCooldown — item still in bags (e.g., just created, not yet used)
-    --   Tier 2: GetActionCooldown — item consumed but spell/item on action bar
-    --   Tier 3: Frame cache — populated by Tier 1 or 2, bridges ticks/brief gaps
-
-    if spellData and spellData.cooldownItemIDs and not self.Utils:IsOnRealCooldown(remaining, duration) then
-        local foundCooldown = false
-
-        -- Tier 1: Direct item cooldown query (item in bags)
-        if addon.LibSpellDB then
-            local itemRemaining, itemDuration, itemStartTime = addon.LibSpellDB:GetItemCooldown(spellData)
-            if itemRemaining then
-                remaining = itemRemaining
-                duration = itemDuration
-                cdStartTime = itemStartTime
-                frame.itemCdStart = itemStartTime
-                frame.itemCdDuration = itemDuration
-                foundCooldown = true
-            end
-        end
-
-        -- Tier 2: Action bar cooldown (same mechanism the native bar uses)
-        if not foundCooldown then
-            -- Check cached slot first
-            local slot = frame.actionBarSlot
-            if slot then
-                local start, dur = GetActionCooldown(slot)
-                if start and start > 0 and dur > self.C.GCD_THRESHOLD then
-                    local actionRemaining = (start + dur) - now
-                    if actionRemaining > 0 then
-                        remaining = actionRemaining
-                        duration = dur
-                        cdStartTime = start
-                        frame.itemCdStart = start
-                        frame.itemCdDuration = dur
-                        foundCooldown = true
-                    end
-                end
-            end
-
-            -- If cached slot has no cooldown (or no slot yet), re-scan periodically.
-            -- The initial scan may have cached the spell slot (no CD) before the item
-            -- was used; re-scanning finds the item slot once its cooldown starts.
-            if not foundCooldown and (not frame.actionBarSlotNextScan or now >= frame.actionBarSlotNextScan) then
-                local newSlot = FindActionBarSlotForSpell(spellID, spellData)
-                if newSlot then
-                    frame.actionBarSlot = newSlot
-                    local start, dur = GetActionCooldown(newSlot)
-                    if start and start > 0 and dur > self.C.GCD_THRESHOLD then
-                        local actionRemaining = (start + dur) - now
-                        if actionRemaining > 0 then
-                            remaining = actionRemaining
-                            duration = dur
-                            cdStartTime = start
-                            frame.itemCdStart = start
-                            frame.itemCdDuration = dur
-                            foundCooldown = true
-                        end
-                    end
-                end
-                frame.actionBarSlotNextScan = now + 1
-            end
-        end
-
-        -- Populate cache from active aura timing when no other source found.
-        -- For item-cooldown spells (e.g., Soulstone), the cooldown starts when the
-        -- item is used — the same moment the buff is applied. We derive the cooldown
-        -- start time from the buff's timing so the cache is ready when the buff ends.
-        if not foundCooldown and not frame.itemCdStart
-            and auraActive and auraDuration > 0 and auraRemaining > 0 then
-            frame.itemCdStart = now - (auraDuration - auraRemaining)
-            frame.itemCdDuration = auraDuration
-        end
-
-        -- Tier 3: Frame cache (bridges gaps if action bar scan not ready yet)
-        if not foundCooldown and frame.itemCdStart and frame.itemCdDuration then
-            local cachedRemaining = (frame.itemCdStart + frame.itemCdDuration) - now
-            if cachedRemaining > 0 then
-                remaining = cachedRemaining
-                duration = frame.itemCdDuration
-                cdStartTime = frame.itemCdStart
-            else
-                frame.itemCdStart = nil
-                frame.itemCdDuration = nil
-            end
-        end
-    end
-
-    -- Item availability and consumption detection for spells that create usable items
-    -- (Healthstone, Soulstone). Handles two cases:
-    -- 1. Item in bags + off cooldown → permanent buff glow ("you have one ready")
-    -- 2. Item just consumed (was in bags, now gone) → start synthetic cooldown
-    if spellData and spellData.cooldownItemIDs then
-        local itemAvailable = false
-        for _, itemID in ipairs(spellData.cooldownItemIDs) do
-            if GetItemCount(itemID) > 0 then
-                itemAvailable = true
-                break
-            end
-        end
-
-        -- Consumption detection: items were available last tick but gone now,
-        -- and no cooldown was found by Tier 1-3 — start synthetic cooldown.
-        if spellData.itemCooldown
-            and frame.itemWasAvailable and not itemAvailable
-            and not self.Utils:IsOnRealCooldown(remaining, duration) then
-            frame.itemCdStart = now
-            frame.itemCdDuration = spellData.itemCooldown
-            remaining = spellData.itemCooldown
-            duration = spellData.itemCooldown
-            cdStartTime = now
-        end
-
-        frame.itemWasAvailable = itemAvailable
-
-        -- Availability indicator: show permanent buff glow when item is
-        -- in bags and ready to use (not on cooldown, no aura active).
-        if itemAvailable
-            and not auraActive
-            and not self.Utils:IsOnRealCooldown(remaining, duration) then
-            auraActive = true
-            auraDuration = 0
-            auraRemaining = 0
-        end
-    end
-
-    -- GCD override protection: The WoW API can briefly return GCD info (1.5s duration)
-    -- instead of the actual cooldown for certain spells (e.g., Blood Fury variants 33697, 33702).
-    -- This causes the icon to briefly show as "ready" during GCD when it's actually on cooldown.
-    -- Fix: Track real cooldowns and don't let GCD override them.
-    local GCD_THRESHOLD = self.C.GCD_THRESHOLD
-    if duration > GCD_THRESHOLD and cdStartTime > 0 then
-        -- Store real cooldown info for this spell
-        frame.actualCdStart = cdStartTime
-        frame.actualCdDuration = duration
-    elseif duration > 0 and duration <= GCD_THRESHOLD and frame.actualCdStart and frame.actualCdDuration then
-        -- API returned GCD-like duration, but we have a tracked real cooldown
-        -- Check if the tracked cooldown should still be active
-        local trackedRemaining = (frame.actualCdStart + frame.actualCdDuration) - now
-        if trackedRemaining > GCD_THRESHOLD then
-            -- Real cooldown is still active and longer than GCD - use tracked values
-            cdStartTime = frame.actualCdStart
-            duration = frame.actualCdDuration
-            remaining = trackedRemaining
-        else
-            -- Tracked cooldown has expired or is about to - clear tracking
-            frame.actualCdStart = nil
-            frame.actualCdDuration = nil
-        end
-    elseif remaining <= 0 then
-        -- Spell is off cooldown - clear tracking
-        frame.actualCdStart = nil
-        frame.actualCdDuration = nil
-    end
-    
-    -- Calculate "actionable time" for dynamic sorting
-    -- This is when the ability will need attention: max(cooldown_remaining, aura_remaining)
-    -- If both are 0, the ability is ready to be cast now
-    -- Permanent buffs (Shadowform, Stealth, etc.) get very high actionableTime to sort right
-    local hasCooldownPriority = spellData and spellData.cooldownPriority
-    local effectiveCooldownRemaining = self.Utils:IsOnRealCooldown(remaining, duration) and remaining or 0
-    local isPermanentBuffActive = auraActive and auraDuration == 0 and auraRemaining == 0
-    if isPermanentBuffActive then
-        -- Permanent buff active - sort to the right (doesn't need attention)
-        frame.actionableTime = 999999
-    elseif hasCooldownPriority then
-        -- Cooldown-priority spells: actionable when CD ends (aura irrelevant for sorting)
-        frame.actionableTime = effectiveCooldownRemaining
+    -- 4. Ready glow (proc-style glow when ability becomes usable)
+    if not s.showAuraActive then
+        self.glowManager:UpdateReadyGlow(frame, s.spellID, s.remaining, s.duration, s.isUsable, s.isReactive, db, s.lockoutIsLimitingFactor, s.canAfford, s.predictionIsLimitingFactor, s.predictionRemaining, s.dodgeGlowOverride)
     else
-        frame.actionableTime = math.max(effectiveCooldownRemaining, auraRemaining or 0)
-    end
-    
-    -- Check for target lockout debuff (e.g., Weakened Soul for PWS, Forbearance for Paladin immunities)
-    -- Use the MORE RESTRICTIVE of actual cooldown vs lockout debuff
-    -- Example: Divine Shield (5min CD) + Forbearance (1min) -> show 5min CD
-    -- Example: Avenging Wrath (ready) + Forbearance (1min) -> show 1min lockout
-    local targetLockoutActive = false
-    local targetLockoutRemaining, targetLockoutDuration, targetLockoutExpiration = 0, 0, 0
-    local lockoutIsLimitingFactor = false  -- Track if lockout (not CD) is what's limiting us
-    
-    if spellData and spellData.targetLockoutDebuff then
-        targetLockoutActive, targetLockoutRemaining, targetLockoutDuration, targetLockoutExpiration =
-            self:GetTargetLockoutDebuff(spellData.targetLockoutDebuff, checkSelfOnly)
-        
-        if targetLockoutActive and targetLockoutRemaining > 0 then
-            -- Use whichever is more restrictive (longer remaining time)
-            if targetLockoutRemaining > remaining then
-                -- Lockout debuff is more restrictive - use it
-                lockoutIsLimitingFactor = true
-                remaining = targetLockoutRemaining
-                duration = targetLockoutDuration
-                -- Calculate start time from expiration for accurate spiral
-                cdStartTime = targetLockoutExpiration - targetLockoutDuration
-            end
-            -- else: actual cooldown is more restrictive - keep it
-            
-            -- Update actionableTime to factor in the lockout for dynamic sorting
-            if not isPermanentBuffActive then
-                frame.actionableTime = math.max(frame.actionableTime, targetLockoutRemaining)
-            end
-        end
-    end
-    
-    -- Determine if this is GCD vs actual cooldown
-    local isOnGCD = self.Utils:IsOnGCD(remaining, duration)
-    local isOnActualCooldown = self.Utils:IsOnRealCooldown(remaining, duration)
-    local readyGlowThreshold = db.readyGlowThreshold
-    local almostReady = remaining > 0 and remaining <= readyGlowThreshold and isOnActualCooldown
-
-    -- Determine if this row dims icons on cooldown based on global setting
-    -- When false: full alpha + desaturation (keeps core rotation visually prominent)
-    -- When true: reduced alpha on cooldown (traditional behavior)
-    local rowIndex = frame.rowIndex or 1
-    local dimOnCooldown = addon.Database:IsRowSettingEnabled(db.dimOnCooldown, rowIndex)
-    
-    -- Determine if GCD should be shown for this row based on settings
-    local showGCDForThisRow = addon.Database:IsRowSettingEnabled(db.showGCDOn, rowIndex)
-
-    -- Get usability info (uses spell NAME which correctly handles Execute, Revenge, etc.)
-    -- Uses actualSpellID since GetEffectiveSpellID handles rank conversion internally
-    local isUsable, notEnoughMana = self:IsSpellUsable(actualSpellID)
-    
-    -- Update actionableTime for conditional spells (Execute, Victory Rush, etc.)
-    -- If spell is off cooldown but not usable, sort it after short-cooldown spells
-    -- This prevents Execute from always sorting left when target is >20% HP
-    if not isPermanentBuffActive and frame.actionableTime == 0 and not isUsable then
-        -- Spell is "ready" but not usable due to conditions
-        -- Give it low priority (after most cooldowns, before permanent buffs)
-        frame.actionableTime = 60
-    end
-    
-    -- Reactive window tracking: for spells with reactiveWindow (e.g., Victory Rush),
-    -- start a synthetic aura timer when the spell becomes usable, clear when
-    -- it becomes unusable (cast or expired)
-    if frame.reactiveWindow then
-        local wasUsableForWindow = frame.reactiveWindowWasUsable or false
-
-        -- Transition: unusable -> usable: start timer
-        if isUsable and not wasUsableForWindow then
-            frame.reactiveWindowStart = now
-            frame.reactiveWindowExpires = now + frame.reactiveWindow
-        end
-
-        -- Transition: usable -> unusable: clear timer (cast or conditions lost)
-        if not isUsable and wasUsableForWindow then
-            frame.reactiveWindowStart = nil
-            frame.reactiveWindowExpires = nil
-        end
-
-        -- Natural expiration
-        if frame.reactiveWindowExpires and now >= frame.reactiveWindowExpires then
-            frame.reactiveWindowStart = nil
-            frame.reactiveWindowExpires = nil
-        end
-
-        frame.reactiveWindowWasUsable = isUsable
-    end
-
-    -- Check for spell activation overlay (for proc glow display)
-    -- Use actualSpellID since WoW overlay events use actual spell IDs
-    local hasOverlay = self:HasSpellActivationOverlay(actualSpellID)
-
-    -- Get power/resource info for resource display
-    -- Uses actualSpellID since GetEffectiveSpellID handles rank conversion internally
-    local powerCost, currentPower, maxPower, powerType, powerColor = self.Utils:GetSpellPowerInfo(actualSpellID)
-    local hasResourceCost = powerCost and powerCost > 0
-    local resourcePercent = hasResourceCost and math.min(1, currentPower / powerCost) or 1
-    local canAfford = resourcePercent >= 1
-
-    -- Prediction mode: extend cooldown to show when spell will be affordable
-    -- Track state on frame for fallback handling
-    local displayMode = db.resourceDisplayMode
-    local displayRows = db.resourceDisplayRows
-    local rowIndex = frame.rowIndex or 1
-    local isPredictionMode = displayMode == C.RESOURCE_DISPLAY_MODE.PREDICTION
-    local resourceEnabledForRow = addon.Database:IsRowSettingEnabled(displayRows, rowIndex)
-    local timeUntilAffordable = 0
-    local predictionRemaining = 0
-    local predictionDuration = 0
-    local predictionStartTime = 0
-    local showPredictionSpiral = false
-    local inPredictionFallback = false
-    
-    -- Skip prediction if aura is active - aura display takes precedence
-    -- (e.g., Power Word: Shield active - show buff duration, not mana prediction)
-    -- Exception: cooldownPriority spells prioritize cooldown/prediction over aura display
-    -- (e.g., Rake debuff active but not enough energy - show prediction, not debuff)
-    -- Also skip if resource display is not enabled for this row
-    local auraBlocksPrediction = auraActive and auraRemaining > 0 and not hasCooldownPriority
-    local skipPrediction = auraBlocksPrediction or isPermanentBuffActive or not resourceEnabledForRow
-    
-    if isPredictionMode and hasResourceCost and not skipPrediction then
-        if canAfford then
-            -- Can afford now - clear any prediction state
-            -- If prediction was counting down and GCD is still blocking,
-            -- remember to show text through the GCD for visual continuity
-            if frame.predictionActive and self.Utils:IsOnGCD(remaining, duration) then
-                frame.gcdContinueText = true
-            end
-            -- Reset ready glow tracking so it can trigger on this transition
-            if frame.predictionActive then
-                frame.readyGlowShown = false  -- Allow ready glow to show
-            end
-            frame.predictionActive = false
-            frame.predictionStartTime = nil
-            frame.predictionDuration = nil
-            frame.predictionFallback = false
-            frame.predictionLastPower = nil
-        else
-            frame.gcdContinueText = nil  -- Back to prediction mode
-            -- Can't afford - calculate time until affordable
-            local ResourcePrediction = addon.ResourcePrediction
-            if ResourcePrediction then
-                timeUntilAffordable = ResourcePrediction:GetTimeUntilAffordable(spellID)
-            end
-            
-            -- Ensure timeUntilAffordable is reasonable (at least 0.1s to avoid flicker)
-            -- This handles race conditions where tick tracking hasn't updated yet
-            if timeUntilAffordable > 0 and timeUntilAffordable < 0.1 then
-                timeUntilAffordable = 0.1
-            end
-            
-            -- Determine what to show
-            local isOffCooldown = self.Utils:IsOffCooldown(remaining, duration)
-            local cdRemaining = isOffCooldown and 0 or remaining
-            
-            -- Use max of cooldown and resource prediction
-            -- When a resource prediction is active, also extend by GCD since the
-            -- spell can't be cast until both resource AND GCD are ready.
-            -- GCD alone should NOT create a prediction (e.g., rage spells where
-            -- prediction returns 0 because rage is unpredictable).
-            local effectiveWait = math.max(cdRemaining, timeUntilAffordable)
-            if timeUntilAffordable > 0 and remaining and remaining > 0 then
-                effectiveWait = math.max(effectiveWait, remaining)
-            end
-            
-            -- Only restart prediction when mana DECREASES (player cast a spell).
-            -- Mana increases from ticks are already accounted for in the original
-            -- prediction. Unexpected gains (IED procs, potions) just make the spell
-            -- affordable sooner, handled by the currentPower >= cost check above.
-            local resourcesDecreased = frame.predictionActive and frame.predictionLastPower and currentPower < frame.predictionLastPower
-
-            -- If prediction is already active and in fallback mode, stay in fallback
-            -- (don't restart prediction spiral after fallback was triggered)
-            if frame.predictionFallback and not resourcesDecreased then
-                inPredictionFallback = true
-            elseif effectiveWait > 0 then
-                if not frame.predictionActive or resourcesDecreased then
-                    -- Start new prediction (or restart because mana was spent)
-                    frame.predictionActive = true
-                    frame.predictionStartTime = now
-                    frame.predictionDuration = effectiveWait
-                    frame.predictionFallback = false
-                    -- Reset ready glow so it can trigger when prediction completes
-                    if not resourcesDecreased then
-                        frame.readyGlowShown = false
-                    end
-                end
-
-                -- Track current power to detect spending
-                frame.predictionLastPower = currentPower
-                
-                -- Calculate remaining time from when prediction started
-                -- Use stored values to ensure smooth countdown (no recalculation mid-prediction)
-                local elapsed = now - frame.predictionStartTime
-                predictionRemaining = math.max(0, frame.predictionDuration - elapsed)
-                predictionDuration = frame.predictionDuration
-                predictionStartTime = frame.predictionStartTime
-                
-                -- Check if prediction expired but still can't afford (fallback case)
-                -- Use small threshold to avoid floating point issues
-                if predictionRemaining < 0.05 then
-                    -- Prediction was wrong - switch to deterministic fallback
-                    frame.predictionFallback = true
-                    inPredictionFallback = true
-                else
-                    showPredictionSpiral = true
-                end
-            else
-                -- effectiveWait is 0 but we can't afford - use fallback
-                -- This happens for rage (unpredictable) or if tick tracking isn't ready
-                frame.predictionFallback = true
-                inPredictionFallback = true
-            end
-        end
-    elseif not isPredictionMode then
-        -- Not in prediction mode - clear any state
-        frame.predictionActive = false
-        frame.predictionStartTime = nil
-        frame.predictionDuration = nil
-        frame.predictionFallback = false
-    end
-
-    -- Clear GCD text continuation flag when no longer on GCD
-    if frame.gcdContinueText and not self.Utils:IsOnGCD(remaining, duration) then
-        frame.gcdContinueText = nil
-    end
-
-    -- Get charges
-    local charges, maxCharges = self:GetSpellCharges(spellID)
-    local hasCharges = maxCharges and maxCharges > 1
-    local noChargesLeft = hasCharges and charges == 0
-
-    -- Only suppress desaturation/usability checks when RESTING and OUT OF COMBAT
-    -- This means in PvP or open world, you'll still see indicators even if combat drops
-    local inCombat = UnitAffectingCombat("player")
-    local isResting = IsResting()
-    local showUsabilityIndicators = inCombat or not isResting
-
-    -- Initialize state
-    local alpha = db.readyAlpha
-    local desaturate = false
-    local showSpinner = false
-    local showText = false
-    local showGlow = false
-    local showAuraActive = false
-    local auraDisplayRemaining = 0
-    local auraDisplayDuration = 0
-    
-    -- Detect permanent buff (active but no duration, e.g., Shadowform, Stealth)
-    local isPermanentBuffActive = auraActive and auraDuration == 0 and auraRemaining == 0
-
-    -- Reactive window: inject synthetic aura data for spells with a timed usability
-    -- window (e.g., Victory Rush 20s after kill). This reuses all existing aura display
-    -- infrastructure (glow, countdown spiral, duration text) with no changes to that code.
-    if frame.reactiveWindow and frame.reactiveWindowExpires then
-        local rwRemaining = frame.reactiveWindowExpires - now
-        if rwRemaining > 0 then
-            auraActive = true
-            auraRemaining = rwRemaining
-            auraDuration = frame.reactiveWindow
-        end
-    end
-
-    -----------------------------------------------------------------------
-    -- AURA ACTIVE STATE (overrides normal cooldown display)
-    -- When a debuff/buff from this spell is active on a target
-    -- For cooldownPriority spells: suppress aura display while on cooldown.
-    -- If the spell also has a resource cost, always suppress — affordability
-    -- can change rapidly (energy/rage spent on other abilities) which would
-    -- cause the aura to flicker on and off. Spells gated purely by cooldown
-    -- (no resource cost) show the aura once the cooldown ends.
-    -----------------------------------------------------------------------
-    local suppressAura = hasCooldownPriority and
-        (isOnActualCooldown or hasResourceCost)
-
-    if auraActive and auraRemaining > 0 and not suppressAura then
-        -----------------------------------------------------------------------
-        -- TIMED AURA ACTIVE STATE
-        -- Debuff/buff from this spell is active with a duration
-        -----------------------------------------------------------------------
-        showAuraActive = true
-        auraDisplayRemaining = auraRemaining
-        auraDisplayDuration = auraDuration
-        alpha = db.readyAlpha  -- Full alpha
-        showGlow = true  -- Show animated glow while active
-        showSpinner = true  -- Show spiral for aura duration
-        showText = true  -- Show aura duration
-        desaturate = false
-        
-    elseif isPermanentBuffActive then
-        -----------------------------------------------------------------------
-        -- PERMANENT BUFF ACTIVE STATE (e.g., Shadowform, Stealth, Aspects)
-        -- Buff is active but has no duration - show subtle active indicator
-        -- Don't show cooldown while buff is active (it's already cast)
-        -- Cooldown only matters if buff is removed and needs to be recast
-        -----------------------------------------------------------------------
-        showAuraActive = true
-        alpha = db.readyAlpha  -- Full alpha
-        showGlow = true  -- Subtle static glow to indicate active state
-        desaturate = false
-        showSpinner = false  -- No cooldown display while buff is active
-        showText = false
-        
-    elseif not dimOnCooldown then
-        -----------------------------------------------------------------------
-        -- NO DIM ON COOLDOWN (default for Primary row)
-        -- Always 100% alpha, use desaturation for unavailable state
-        -----------------------------------------------------------------------
-        alpha = db.readyAlpha  -- Always 100%
-
-        -- Desaturate when: no charges OR not usable
-        -- Only suppress when resting AND out of combat (e.g., in town)
-        if showUsabilityIndicators then
-            if noChargesLeft then
-                desaturate = true
-            elseif not isUsable then
-                desaturate = true
-            end
-        end
-
-        -- Show GCD spinner for core abilities
-        if isOnGCD then
-            showSpinner = true
-            showText = false  -- No text for GCD
-        elseif isOnActualCooldown then
-            showSpinner = true
-            showText = duration >= 2  -- Only show text if cooldown >= 2 sec
-        end
-
-        -- Glow when almost ready (< 1 sec remaining on real cooldown)
-        if almostReady then
-            showGlow = true
-        end
-
-        -- Check for spell activation overlay (proc)
-        -- Use actualSpellID since WoW overlay events use actual spell IDs
-        if self:HasSpellActivationOverlay(actualSpellID) then
-            showGlow = true
-            desaturate = false  -- Never desaturate a proc
-        end
-
-    else
-        -----------------------------------------------------------------------
-        -- DIM ON COOLDOWN (default for Secondary/Utility rows)
-        -- Reduced alpha when on cooldown
-        -- GCD display controlled by showGCDOn setting
-        -----------------------------------------------------------------------
-        
-        -- Is this a real cooldown (duration > GCD) or just the GCD?
-        local isRealCooldown = self.Utils:IsOnRealCooldown(remaining, duration)
-        
-        if isRealCooldown then
-            -- On actual cooldown (not just GCD): spinner + text always shown
-            showSpinner = true
-            showText = duration >= 2  -- Only show text if cooldown >= 2 sec
-
-            -- Dim + desaturate (lifts when ready glow is active)
-            if frame.readyGlowActive then
-                alpha = db.readyAlpha
-                showGlow = true
-            else
-                alpha = db.cooldownAlpha
-                desaturate = true
-            end
-        elseif isOnGCD and showGCDForThisRow then
-            -- Show GCD spinner for this row (based on setting)
-            showSpinner = true
-            showText = false  -- No text for GCD
-            alpha = db.readyAlpha  -- Keep full alpha during GCD
-        elseif noChargesLeft then
-            -- No charges left: dim + desaturate
-            alpha = db.cooldownAlpha
-            desaturate = true
-            showSpinner = true
-            showText = true
-        else
-            -- Ready to use (ignore GCD for non-core)
-            alpha = db.readyAlpha
-            
-            -- Desaturate when not usable (suppressed only when resting and out of combat)
-            if showUsabilityIndicators and not isUsable and db.desaturateNoResources then
-                desaturate = true
-            end
-        end
-    end
-
-    -- Apply shared visual state (spiral, text, alpha, desat, stacks, charges)
-    self:ApplyIconVisuals(frame, {
-        showAuraActive = showAuraActive,
-        auraRemaining = auraDisplayRemaining,
-        auraDuration = auraDisplayDuration,
-        auraStacks = auraStacks,
-        cdRemaining = remaining,
-        cdDuration = duration,
-        cdStartTime = cdStartTime,
-        alpha = alpha,
-        desaturate = desaturate,
-        showSpinner = showSpinner,
-        showText = showText,
-        showPrediction = showPredictionSpiral,
-        predictionRemaining = predictionRemaining,
-        predictionDuration = predictionDuration,
-        predictionStartTime = predictionStartTime,
-        gcdContinueText = frame.gcdContinueText,
-        charges = charges,
-        hasCharges = hasCharges,
-    }, db)
-
-    -- Update resource display (only show when ability is ready but lacking resources)
-    -- In prediction mode: hide during active prediction, show vertical fill as fallback
-    self:UpdateResourceDisplay(frame, spellID, remaining, hasResourceCost, resourcePercent, powerColor, db, showPredictionSpiral, inPredictionFallback)
-
-    -- Handle glow effect (aura active / permanent buff / normal almost-ready glow)
-    self:UpdateIconGlow(frame, showGlow, showAuraActive, isPermanentBuffActive)
-    
-    -- Handle ready glow (proc-style glow when ability becomes usable)
-    -- Uses isUsable which checks ALL conditions (resources, target health for Execute, etc.)
-    -- Skip if aura is active (that has its own glow)
-    if not showAuraActive then
-        local isReactive = frame.isReactive or false
-        -- Pass lockoutIsLimitingFactor so glow can trigger when lockout is almost expired
-        -- (WoW API reports isUsable=false while lockout is active, but we want glow at <1s remaining)
-        -- Also pass prediction state so glow can trigger when prediction has <1s remaining
-        local predictionIsLimitingFactor = showPredictionSpiral and predictionRemaining > 0
-
-        -- Dodge-reactive glow override (e.g., Overpower when not in Battle Stance)
-        -- When the current target has dodged recently, show ready glow if off CD + can afford, regardless of stance
-        -- Uses per-target tracking so tab-targeting to a target that dodged will show the glow
-        local dodgeGlowOverride = false
-        if frame.dodgeReactive then
-            local targetGUID = UnitGUID("target")
-            local dodgeExpires = targetGUID and self.dodgeWindows[targetGUID]
-            if dodgeExpires then
-                if now >= dodgeExpires then
-                    -- Dodge window expired, clean up
-                    self.dodgeWindows[targetGUID] = nil
-                else
-                    -- Dodge window active: glow if off real cooldown and can afford
-                    local isOffRealCooldown = not self.Utils:IsOnRealCooldown(remaining, duration)
-                    if isOffRealCooldown and canAfford then
-                        dodgeGlowOverride = true
-                    end
-                end
-            end
-        end
-
-        self:UpdateReadyGlow(frame, spellID, remaining, duration, isUsable, isReactive, db, lockoutIsLimitingFactor, canAfford, predictionIsLimitingFactor, predictionRemaining, dodgeGlowOverride)
-    else
-        -- Aura is active - hide ready glow but keep wasUsable updated
-        -- This prevents false "just became usable" triggers when aura ends
-        frame.wasUsable = isUsable
+        frame.wasUsable = s.isUsable
         if frame.readyGlowActive then
-            self:HideReadyGlow(frame)
+            self.glowManager:HideReadyGlow(frame)
             frame.readyGlowActive = false
         end
     end
-    
-    -- Handle range indicator (red overlay when target is out of range)
-    -- Only check if setting is enabled for this row and we have a target
-    self:UpdateRangeIndicator(frame, actualSpellID, db)
 
-    -- Handle queued spell highlight (Heroic Strike, Cleave, Maul, etc.)
-    -- IsCurrentSpell returns true when a "next melee" ability is queued
+    -- 5. Range indicator
+    self:UpdateRangeIndicator(frame, s.actualSpellID, db)
+
+    -- 6. Queued spell highlight
     if frame.queuedHighlight then
-        local isQueued = false
-        if db.showQueuedHighlight and IsCurrentSpell then
-            isQueued = IsCurrentSpell(actualSpellID)
-        end
-        if isQueued then
+        if s.isQueued then
             if not frame.queuedHighlight:IsShown() then
                 frame.queuedHighlight:Show()
             end
@@ -2769,703 +1437,16 @@ function CooldownIcons:UpdateIconState(frame, db)
             end
         end
     end
+
+    -- Return true if this icon has time-based state needing periodic refresh
+    -- (cooldown spiral, prediction spiral, or timed aura counting down)
+    return s.showSpinner or s.showPredictionSpiral
+        or (s.showAuraActive and s.auraDisplayRemaining and s.auraDisplayRemaining > 0)
 end
 
--------------------------------------------------------------------------------
--- Shared Icon Rendering (used by both CooldownIcons and TrinketTracker)
--------------------------------------------------------------------------------
-
---- Apply visual state to an icon frame.
--- Both UpdateIconState and TrinketTracker:UpdateTrinketIconState compute their
--- domain-specific state, then call this method to apply spirals, text, alpha,
--- desaturation, stacks, and charges identically.
---
--- @param frame    The icon frame
--- @param state    Table with visual state fields (see below)
--- @param db       icons config (addon.db.profile.icons)
-function CooldownIcons:ApplyIconVisuals(frame, state, db)
-    local rowIndex = frame.rowIndex or 1
-    local now = GetTime()
-
-    -- Unpack state
-    local showAuraActive = state.showAuraActive
-    local auraRemaining = state.auraRemaining or 0
-    local auraDuration = state.auraDuration or 0
-    local auraStacks = state.auraStacks or 0
-    local cdRemaining = state.cdRemaining or 0
-    local cdDuration = state.cdDuration or 0
-    local cdStartTime = state.cdStartTime or 0
-    local alpha = state.alpha
-    local desaturate = state.desaturate
-    local showSpinner = state.showSpinner
-    local showText = state.showText
-    local showPrediction = state.showPrediction
-    local predictionRemaining = state.predictionRemaining or 0
-    local predictionDuration = state.predictionDuration or 0
-    local predictionStartTime = state.predictionStartTime or 0
-    local gcdContinueText = state.gcdContinueText
-    local charges = state.charges
-    local hasCharges = state.hasCharges
-
-    -------------------------------------------------------------------
-    -- Spiral display
-    -------------------------------------------------------------------
-    local showSpiralForRow = addon.Database:IsRowSettingEnabled(db.showCooldownSpiralOn, rowIndex)
-    local shouldShowSpiral = showSpinner or showPrediction
-
-    if shouldShowSpiral and showSpiralForRow then
-        if showPrediction and predictionDuration > 0 then
-            -- Prediction spiral (waiting for resources)
-            frame.cooldown:SetAlpha(db.cooldownSpiralAlpha)
-            frame.cooldown:SetReverse(false)
-            if frame.lastCdStart ~= predictionStartTime or frame.lastCdDuration ~= predictionDuration then
-                frame.cooldown:SetCooldown(predictionStartTime, predictionDuration)
-                frame.lastCdStart = predictionStartTime
-                frame.lastCdDuration = predictionDuration
-            end
-            frame.cooldown:Show()
-            frame._wasRealCooldown = false
-        elseif showAuraActive and auraDuration > 0 then
-            -- Aura spiral (reverse: bright drains as time passes)
-            frame.cooldown:SetAlpha(db.auraSpiralAlpha)
-            frame.cooldown:SetReverse(true)
-            local start = now - (auraDuration - auraRemaining)
-            if frame.lastCdStart ~= start or frame.lastCdDuration ~= auraDuration then
-                frame.cooldown:SetCooldown(start, auraDuration)
-                frame.lastCdStart = start
-                frame.lastCdDuration = auraDuration
-            end
-            frame.cooldown:Show()
-            frame._wasRealCooldown = false
-        elseif cdDuration > 0 and cdStartTime > 0 then
-            -- Cooldown spiral (normal: dark drains as time passes)
-            frame.cooldown:SetAlpha(db.cooldownSpiralAlpha)
-            frame.cooldown:SetReverse(false)
-            if frame.lastCdStart ~= cdStartTime or frame.lastCdDuration ~= cdDuration then
-                frame.cooldown:SetCooldown(cdStartTime, cdDuration)
-                frame.lastCdStart = cdStartTime
-                frame.lastCdDuration = cdDuration
-            end
-            frame._wasRealCooldown = true
-            frame.cooldown:Show()
-        else
-            frame.cooldown:SetAlpha(1)
-            if not frame._wasRealCooldown then
-                frame.cooldown:SetCooldown(0, 0)
-            end
-            frame.lastCdStart = nil
-            frame.lastCdDuration = nil
-            frame._wasRealCooldown = nil
-        end
-    else
-        frame.cooldown:SetAlpha(1)
-        if not frame._wasRealCooldown then
-            frame.cooldown:SetCooldown(0, 0)
-        end
-        frame.lastCdStart = nil
-        frame.lastCdDuration = nil
-        frame._wasRealCooldown = nil
-    end
-
-    -------------------------------------------------------------------
-    -- Text display
-    -------------------------------------------------------------------
-    local showTextForRow = addon.Database:IsRowSettingEnabled(db.showCooldownTextOn, rowIndex)
-    local textColor = addon.db.profile.appearance.textColor
-
-    if showPrediction and predictionRemaining > 0 and showTextForRow then
-        frame.text:SetText(self.Utils:FormatCooldown(predictionRemaining))
-        frame.text:SetTextColor(textColor.r, textColor.g, textColor.b)
-    elseif gcdContinueText and cdRemaining > 0 and showTextForRow then
-        frame.text:SetText(self.Utils:FormatCooldown(cdRemaining))
-        frame.text:SetTextColor(textColor.r, textColor.g, textColor.b)
-    elseif showAuraActive and auraRemaining > 0 and showTextForRow then
-        frame.text:SetText(self.Utils:FormatCooldown(auraRemaining))
-        frame.text:SetTextColor(textColor.r, textColor.g, textColor.b)
-    elseif showText and showTextForRow and cdRemaining > 0 then
-        if db.useOwnCooldownText then
-            frame.text:SetText(self.Utils:FormatCooldown(cdRemaining))
-            frame.text:SetTextColor(textColor.r, textColor.g, textColor.b)
-        else
-            frame.text:SetText("")
-        end
-    else
-        frame.text:SetText("")
-    end
-
-    -------------------------------------------------------------------
-    -- Alpha transition (with cast-feedback delay)
-    -------------------------------------------------------------------
-    frame.iconAlpha = alpha
-
-    local animDb = addon.db.profile.animations
-    if animDb.dimTransition and self.Animations then
-        local targetAlpha = frame._targetAlpha
-        if targetAlpha ~= alpha then
-            local currentAlpha = frame:GetAlpha()
-            if alpha < currentAlpha then
-                -- Dimming - delay if cast feedback is playing
-                if frame._dimTimer then
-                    frame._dimTimer:Cancel()
-                    frame._dimTimer = nil
-                end
-
-                local castFeedbackPlaying = frame._lastCastFeedbackTime and
-                    (now - frame._lastCastFeedbackTime) < 0.2
-                local dimDelay = castFeedbackPlaying and 0.08 or 0
-
-                if dimDelay > 0 then
-                    frame._dimTimer = C_Timer.After(dimDelay, function()
-                        if frame and frame:IsShown() then
-                            self.Animations:TransitionAlpha(frame, alpha, 6)
-                        end
-                        frame._dimTimer = nil
-                    end)
-                else
-                    self.Animations:TransitionAlpha(frame, alpha, 6)
-                end
-            else
-                -- Brightening - cancel pending dim and snap immediately
-                if frame._dimTimer then
-                    frame._dimTimer:Cancel()
-                    frame._dimTimer = nil
-                end
-                self.Animations:StopAlphaTransition(frame)
-                frame:SetAlpha(alpha)
-            end
-            frame._targetAlpha = alpha
-        end
-    else
-        if frame._dimTimer then
-            frame._dimTimer:Cancel()
-            frame._dimTimer = nil
-        end
-        if self.Animations then
-            self.Animations:StopAlphaTransition(frame)
-        end
-        frame:SetAlpha(alpha)
-        frame._targetAlpha = alpha
-    end
-
-    -------------------------------------------------------------------
-    -- Desaturation
-    -------------------------------------------------------------------
-    frame.icon:SetDesaturated(desaturate)
-
-    -------------------------------------------------------------------
-    -- Charges
-    -------------------------------------------------------------------
-    if frame.charges then
-        if hasCharges then
-            frame.charges:SetText(charges)
-        else
-            frame.charges:SetText("")
-        end
-    end
-
-    -------------------------------------------------------------------
-    -- Stacks
-    -------------------------------------------------------------------
-    if frame.stacks then
-        if auraStacks > 1 then
-            frame.stacks:SetText(auraStacks)
-        else
-            frame.stacks:SetText("")
-        end
-    end
-end
-
--- Update resource cost display (horizontal bar or vertical fill)
--- In prediction mode:
---   - While prediction spiral is active: hide resource display (spiral is the indicator)
---   - When prediction failed (fallback): show vertical fill as deterministic feedback
-function CooldownIcons:UpdateResourceDisplay(frame, spellID, cooldownRemaining, hasResourceCost, resourcePercent, powerColor, db, showPredictionSpiral, inPredictionFallback)
-    local displayMode = db.resourceDisplayMode
-    local displayRows = db.resourceDisplayRows
-    local rowIndex = frame.rowIndex or 1
-    local isPredictionMode = displayMode == C.RESOURCE_DISPLAY_MODE.PREDICTION
-    
-    -- Check if resource display is enabled for this row
-    local enabledForRow = addon.Database:IsRowSettingEnabled(displayRows, rowIndex)
-    
-    -- Prediction mode: hide display while spiral is active
-    if isPredictionMode and showPredictionSpiral then
-        if frame.resourceBar then frame.resourceBar:Hide() end
-        if frame.resourceFill then frame.resourceFill:Hide() end
-        frame.resourceTarget = nil
-        return
-    end
-    
-    -- Only show resource indicator if:
-    -- 1. Not resting and out of combat (show in PvP/world even if combat drops)
-    -- 2. The spell has a resource cost
-    -- 3. We don't have enough resources (resourcePercent < 1)
-    -- 4. The ability is off cooldown (cooldown takes visual priority) - unless in prediction fallback
-    -- 5. Resource display is enabled for this row
-    local inCombat = UnitAffectingCombat("player")
-    local isResting = IsResting()
-    local showUsability = inCombat or not isResting
-    
-    -- In prediction fallback, show resource display regardless of cooldown
-    local cooldownCheck = inPredictionFallback or cooldownRemaining <= 0
-    local showResource = showUsability and hasResourceCost and resourcePercent < 1 and cooldownCheck and enabledForRow
-    
-    if not showResource then
-        -- Hide and reset
-        if frame.resourceBar then frame.resourceBar:Hide() end
-        if frame.resourceFill then frame.resourceFill:Hide() end
-        frame.resourceTarget = nil
-        return
-    end
-    
-    local iconSize = frame.iconSize or db.iconSize
-    local iconWidth = frame.iconWidth or iconSize
-    local iconHeight = frame.iconHeight or iconSize
-    
-    -- Initialize smooth animation state
-    if not frame.resourceCurrent then
-        frame.resourceCurrent = resourcePercent
-    end
-    frame.resourceTarget = resourcePercent
-    frame.resourcePowerColor = powerColor
-    frame.resourceIconSize = iconSize
-    frame.resourceIconWidth = iconWidth
-    frame.resourceIconHeight = iconHeight
-    
-    -- In prediction fallback, always use vertical fill regardless of configured mode
-    local effectiveMode = inPredictionFallback and C.RESOURCE_DISPLAY_MODE.FILL or displayMode
-    frame.resourceDisplayMode = effectiveMode
-    
-    -- Set up OnUpdate for smooth animation if not already
-    if not frame.resourceOnUpdate then
-        frame.resourceOnUpdate = true
-        frame:HookScript("OnUpdate", function(f, elapsed)
-            self:AnimateResourceDisplay(f, elapsed, self._iconsDb)
-        end)
-    end
-    
-    if effectiveMode == C.RESOURCE_DISPLAY_MODE.BAR and frame.resourceBar then
-        frame.resourceBar:SetHeight(db.resourceBarHeight)
-        frame.resourceBar:Show()
-        if frame.resourceFill then frame.resourceFill:Hide() end
-    elseif effectiveMode == C.RESOURCE_DISPLAY_MODE.FILL and frame.resourceFill then
-        -- Frame alpha already handles visibility, just set the resource fill's own alpha
-        frame.resourceFill:SetVertexColor(0, 0, 0, db.resourceFillAlpha)
-        frame.resourceFill:Show()
-        if frame.resourceBar then frame.resourceBar:Hide() end
-    end
-end
-
--- Animate resource display smoothly (or instantly if smoothing disabled)
-function CooldownIcons:AnimateResourceDisplay(frame, elapsed, db)
-    if not frame.resourceTarget then return end
-    
-    local displayMode = frame.resourceDisplayMode or db.resourceDisplayMode
-    local current = frame.resourceCurrent or 0
-    local target = frame.resourceTarget
-    
-    -- Check global animation setting
-    local animDb = addon.db.profile.animations
-    if animDb.smoothBars then
-        -- Smooth interpolation (lerp)
-        local speed = 8  -- Higher = faster animation
-        local diff = target - current
-        
-        if math.abs(diff) < 0.01 then
-            current = target
-        else
-            current = current + diff * math.min(1, elapsed * speed)
-        end
-    else
-        -- Instant update
-        current = target
-    end
-    
-    frame.resourceCurrent = current
-    
-    local iconWidth = frame.resourceIconWidth or frame.resourceIconSize or db.iconSize
-    local iconHeight = frame.resourceIconHeight or frame.resourceIconSize or db.iconSize
-    
-    if displayMode == C.RESOURCE_DISPLAY_MODE.BAR and frame.resourceBar and frame.resourceBar:IsShown() then
-        -- Horizontal bar fill - use width
-        local fillWidth = iconWidth * current
-        frame.resourceBar.fill:SetWidth(math.max(1, fillWidth))
-        
-        if frame.resourcePowerColor then
-            local c = frame.resourcePowerColor
-            frame.resourceBar.fill:SetVertexColor(c[1], c[2], c[3], 1)
-        end
-        
-    elseif displayMode == C.RESOURCE_DISPLAY_MODE.FILL and frame.resourceFill and frame.resourceFill:IsShown() then
-        -- Vertical fill (dark overlay showing missing portion) - use height
-        -- Frame alpha handles visibility; vertex color just controls fill darkness
-        local missingPercent = 1 - current
-        local fillHeight = iconHeight * missingPercent
-        frame.resourceFill:SetHeight(math.max(0, fillHeight))
-    end
-end
-
--- Check if spell has activation overlay (proc is active)
-function CooldownIcons:HasSpellActivationOverlay(spellID)
-    -- Check our event-tracked table first
-    if self.activeOverlays and self.activeOverlays[spellID] then
-        return true
-    end
-    -- Fallback to API if available
-    if IsSpellOverlayed then
-        return IsSpellOverlayed(spellID)
-    end
-    return false
-end
-
--- Update glow effect on icon
--- glowStyle: "aura" (timed aura), "permanent" (permanent buff), or nil (proc/ready glow)
-function CooldownIcons:UpdateIconGlow(frame, showGlow, isAuraActive, isPermanentBuff)
-    if showGlow then
-        local glowType = isPermanentBuff and "permanent" or (isAuraActive and "aura" or "normal")
-        local iconAlpha = frame.iconAlpha or 1
-        
-        -- Check if glow is already showing with correct type AND same alpha
-        -- We need to refresh the glow if alpha changed
-        if frame.glowActive and frame.glowType == glowType and frame.glowAlpha == iconAlpha then
-            return
-        end
-        
-        -- Hide existing glow first if type or alpha changed
-        if frame.glowActive then
-            self:HideGlow(frame)
-        end
-        
-        if isPermanentBuff then
-            -- Permanent buff: Use subtle static glow (like default UI)
-            self:ShowPermanentBuffGlow(frame)
-        elseif isAuraActive then
-            -- Timed aura active: Use pixel glow (animated border)
-            self:ShowAuraGlow(frame)
-        else
-            -- Normal glow: Use standard overlay glow
-            if ActionButton_ShowOverlayGlow then
-                ActionButton_ShowOverlayGlow(frame)
-            elseif self.MasqueGroup and frame.NormalTexture then
-                -- Fallback glow only when Masque is active
-                frame.NormalTexture:SetVertexColor(1, 1, 0.3)
-            end
-        end
-        
-        frame.glowActive = true
-        frame.glowType = glowType
-        frame.glowAlpha = iconAlpha
-    else
-        if frame.glowActive then
-            self:HideGlow(frame)
-            frame.glowActive = false
-            frame.glowType = nil
-            frame.glowAlpha = nil
-        end
-    end
-end
-
--- Show static glow for permanent buffs (like Shadowform, Stealth)
--- Mimics the subtle glow effect from the default UI action buttons
-function CooldownIcons:ShowPermanentBuffGlow(frame)
-    local iconAlpha = frame.iconAlpha or 1
-    
-    -- Create the static glow overlay if it doesn't exist
-    if not frame.permanentGlow then
-        frame.permanentGlow = frame:CreateTexture(nil, "OVERLAY", nil, 1)
-        frame.permanentGlow:SetTexture("Interface\\Buttons\\UI-ActionButton-Border")
-        frame.permanentGlow:SetBlendMode("ADD")
-        -- Offset Y slightly upward to center the glow visually (texture has asymmetric glow)
-        frame.permanentGlow:SetPoint("CENTER", frame, "CENTER", 0, 1)
-    end
-    
-    -- Size it slightly larger than the icon for a subtle border glow
-    -- Use width (larger dimension with aspect ratio) for proper coverage
-    local iconDb = addon.db.profile.icons
-    local glowWidth = (frame.iconWidth or frame.iconSize or iconDb.iconSize) * 1.5
-    local glowHeight = (frame.iconHeight or frame.iconSize or iconDb.iconSize) * 1.5
-    frame.permanentGlow:SetSize(glowWidth, glowHeight)
-    
-    -- Golden/yellow color to match the default UI active state
-    frame.permanentGlow:SetVertexColor(1.0, 0.82, 0.0, 0.6 * iconAlpha)
-    frame.permanentGlow:Show()
-end
-
--- Update the "ready glow" - shows when ability becomes ready
--- Triggers:
---   1. <1s remaining on CD/lockout/prediction AND usable -> show for remaining duration
---   2. Was not usable, just became usable (while off CD) -> show for configured duration
--- For Execute: "usable" means target < 20% AND enough rage
--- readyGlowRows controls which rows show the glow ("none" = disabled)
--- readyGlowAlwaysRows controls which rows use persistent "always" mode (others use "once")
--- Reactive abilities (Execute, Overpower) always behave as "always" regardless of setting
--- lockoutIsLimitingFactor: true if the "remaining" time is from a lockout debuff, not the actual CD
--- canAfford: true if player has enough resources to cast the spell
--- predictionIsLimitingFactor: true if Resource Timer prediction is active and limiting usability
--- predictionRemaining: time remaining on prediction (when predictionIsLimitingFactor is true)
--- dodgeGlowOverride: true if dodge-reactive window is active and conditions met (stance-independent)
-function CooldownIcons:UpdateReadyGlow(frame, spellID, remaining, duration, isUsable, isReactive, db, lockoutIsLimitingFactor, canAfford, predictionIsLimitingFactor, predictionRemaining, dodgeGlowOverride)
-    local glowRows = db.readyGlowRows
-    local rowIndex = frame.rowIndex or 1
-
-    -- Check row-based setting first
-    local enabledForRow = addon.Database:IsRowSettingEnabled(glowRows, rowIndex)
-
-    -- Disabled or not enabled for this row: hide any active glow and return (unless reactive or dodge override)
-    if not enabledForRow and not isReactive and not dodgeGlowOverride then
-        if frame.readyGlowActive then
-            self:HideReadyGlow(frame)
-            frame.readyGlowActive = false
-        end
-        return
-    end
-    
-    -- Determine effective mode per row:
-    -- Reactive abilities (Execute, Overpower) always use "always" behavior
-    -- Otherwise, check readyGlowAlwaysRows to see if this row uses persistent glow
-    local alwaysForRow = addon.Database:IsRowSettingEnabled(db.readyGlowAlwaysRows, rowIndex)
-    local effectiveMode = (isReactive or alwaysForRow) and C.GLOW_MODE.ALWAYS or C.GLOW_MODE.ONCE
-    
-    local isOnRealCooldown = self.Utils:IsOnRealCooldown(remaining, duration)
-    local readyGlowThreshold = db.readyGlowThreshold
-    local isAlmostReady = remaining > 0 and remaining <= readyGlowThreshold and isOnRealCooldown
-    local isOffCooldown = self.Utils:IsOffCooldown(remaining, duration)
-    
-    -- Check if prediction is almost complete (Resource Timer mode for energy/mana)
-    -- When prediction is the limiting factor and almost ready, treat as almost ready
-    local isPredictionAlmostReady = predictionIsLimitingFactor and predictionRemaining > 0 and predictionRemaining <= readyGlowThreshold
-    
-    -- When lockout is the limiting factor and almost expired, treat as usable for glow purposes
-    -- The WoW API reports isUsable=false while lockout is active, but we want to trigger
-    -- the "almost ready" glow when the lockout has <1s remaining (if resources allow)
-    local effectiveUsable = isUsable
-    if lockoutIsLimitingFactor and isAlmostReady and canAfford then
-        effectiveUsable = true
-    end
-    -- Similarly, when prediction is almost complete, treat as usable for glow purposes
-    -- The ability will become usable in <1s when we have enough resources
-    if isPredictionAlmostReady then
-        effectiveUsable = true
-        -- Also treat as "almost ready" for the glow trigger
-        isAlmostReady = true
-    end
-    -- Dodge-reactive override: when target dodges, treat as usable for glow even if wrong stance
-    -- (e.g., Overpower while in Berserker Stance - signals "swap stance and use this!")
-    if dodgeGlowOverride then
-        effectiveUsable = true
-    end
-
-    -- Track previous states
-    local wasOnRealCooldown = frame.wasOnRealCooldown or false
-    local wasUsable = frame.wasUsable or false
-    
-    -- Detect when ability goes on cooldown (used) -> reset tracking for ALL abilities
-    if isOnRealCooldown and not wasOnRealCooldown then
-        frame.readyGlowShown = false
-        frame.readyGlowExpires = nil
-    end
-    
-    local inCombat = UnitAffectingCombat("player")
-    
-    -- Reset glow tracking based on effective mode
-    if effectiveMode == C.GLOW_MODE.ALWAYS then
-        -- Reset glow when usability changes (allows re-triggering)
-        if effectiveUsable and not wasUsable then
-            frame.readyGlowShown = false
-        end
-    end
-    -- "once" mode: readyGlowShown stays true until ability is used (goes on CD)
-    
-    -- Check if ready glow should be triggered
-    -- IMPORTANT: canAfford is required in addition to effectiveUsable because
-    -- WoW's IsUsableSpell is unreliable during cooldowns -- it may return true
-    -- even when the player lacks the resources (rage/mana/energy) to cast.
-    -- canAfford uses the addon's own power cost calculation which is always accurate.
-    local showReadyGlow = false
-    
-    if not frame.readyGlowShown then
-        local glowDuration = db.readyGlowDuration
-        
-        -- Condition 1: <1s remaining on CD AND usable AND can afford
-        if isAlmostReady and effectiveUsable and canAfford and inCombat then
-            showReadyGlow = true
-            frame.readyGlowShown = true
-            frame.readyGlowExpires = now + glowDuration
-
-        -- Condition 2: Just became usable while off CD (canAfford is implicit in effectiveUsable when off CD)
-        elseif isOffCooldown and effectiveUsable and canAfford and not wasUsable and inCombat then
-            showReadyGlow = true
-            frame.readyGlowShown = true
-            frame.readyGlowExpires = now + glowDuration
-        end
-    end
-
-    -- Check if existing ready glow should continue
-    -- Cancel early if player can no longer afford the spell (e.g. spent rage on something else)
-    if not canAfford then
-        frame.readyGlowExpires = nil
-    elseif frame.readyGlowExpires and frame.readyGlowExpires > now then
-        showReadyGlow = true
-    elseif frame.readyGlowExpires and frame.readyGlowExpires <= now then
-        -- Glow expired
-        frame.readyGlowExpires = nil
-    end
-    
-    -- Update stored state for next frame
-    frame.wasOnRealCooldown = isOnRealCooldown
-    frame.wasUsable = isUsable
-    
-    -- Show or hide the ready glow
-    if showReadyGlow then
-        if not frame.readyGlowActive then
-            self:ShowReadyGlow(frame)
-            frame.readyGlowActive = true
-        end
-    else
-        if frame.readyGlowActive then
-            self:HideReadyGlow(frame)
-            frame.readyGlowActive = false
-        end
-    end
-end
-
-function CooldownIcons:ShowReadyGlow(frame)
-    self.Utils:ShowButtonGlow(frame)
-end
-
-function CooldownIcons:HideReadyGlow(frame)
-    self.Utils:HideButtonGlow(frame)
-end
-
-function CooldownIcons:ShowAuraGlow(frame)
-    -- Get icon's current alpha so glow respects Ready/Cooldown Alpha settings
-    local iconAlpha = frame.iconAlpha or 1
-    
-    -- Use shared utility for LibCustomGlow pixel glow
-    -- Color #ffcfaf (peachy gold), offset inward by -2
-    local color = {1.0, 0.812, 0.686, iconAlpha}
-    if self.Utils:ShowPixelGlow(frame, color, "aura", 8, 0.1, 10, 1, -2, -2) then
-        return
-    end
-    
-    -- Fallback: Create simple pixel border for aura active state
-    if not frame.pixelGlow then
-        frame.pixelGlow = {}
-        local r, g, b, a = 1, 0.82, 0, iconAlpha  -- Golden yellow with icon alpha
-        local thickness = 2
-        local offset = 1  -- Offset from icon edge
-        
-        -- Helper to set solid color (compatible with Classic)
-        local function SetSolidColor(tex, r, g, b, a)
-            tex:SetTexture("Interface\\Buttons\\WHITE8X8")
-            tex:SetVertexColor(r, g, b, a)
-        end
-        
-        -- Top border
-        frame.pixelGlow.top = frame:CreateTexture(nil, "OVERLAY", nil, 7)
-        SetSolidColor(frame.pixelGlow.top, r, g, b, a)
-        frame.pixelGlow.top:SetPoint("TOPLEFT", frame, "TOPLEFT", -offset, offset)
-        frame.pixelGlow.top:SetPoint("TOPRIGHT", frame, "TOPRIGHT", offset, offset)
-        frame.pixelGlow.top:SetHeight(thickness)
-        
-        -- Bottom border
-        frame.pixelGlow.bottom = frame:CreateTexture(nil, "OVERLAY", nil, 7)
-        SetSolidColor(frame.pixelGlow.bottom, r, g, b, a)
-        frame.pixelGlow.bottom:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", -offset, -offset)
-        frame.pixelGlow.bottom:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", offset, -offset)
-        frame.pixelGlow.bottom:SetHeight(thickness)
-        
-        -- Left border
-        frame.pixelGlow.left = frame:CreateTexture(nil, "OVERLAY", nil, 7)
-        SetSolidColor(frame.pixelGlow.left, r, g, b, a)
-        frame.pixelGlow.left:SetPoint("TOPLEFT", frame, "TOPLEFT", -offset, offset - thickness)
-        frame.pixelGlow.left:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", -offset, -offset + thickness)
-        frame.pixelGlow.left:SetWidth(thickness)
-        
-        -- Right border
-        frame.pixelGlow.right = frame:CreateTexture(nil, "OVERLAY", nil, 7)
-        SetSolidColor(frame.pixelGlow.right, r, g, b, a)
-        frame.pixelGlow.right:SetPoint("TOPRIGHT", frame, "TOPRIGHT", offset, offset - thickness)
-        frame.pixelGlow.right:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", offset, -offset + thickness)
-        frame.pixelGlow.right:SetWidth(thickness)
-    end
-    
-    -- Show all border pieces
-    for _, tex in pairs(frame.pixelGlow) do
-        tex:Show()
-    end
-    
-    -- Hide old auraGlow if exists
-    if frame.auraGlow then
-        frame.auraGlow:Hide()
-    end
-end
-
-function CooldownIcons:HideGlow(frame)
-    -- Hide overlay glow
-    if ActionButton_HideOverlayGlow then
-        ActionButton_HideOverlayGlow(frame)
-    end
-    
-    -- Stop LibCustomGlow pixel glow (via shared utility)
-    self.Utils:HidePixelGlow(frame, "aura")
-    
-    -- Hide fallback pixel glow borders
-    if frame.pixelGlow then
-        for _, tex in pairs(frame.pixelGlow) do
-            tex:Hide()
-        end
-    end
-    
-    -- Hide old auraGlow if exists
-    if frame.auraGlow then
-        frame.auraGlow:Hide()
-    end
-    
-    -- Hide permanent buff glow
-    if frame.permanentGlow then
-        frame.permanentGlow:Hide()
-    end
-    
-    -- Reset border color (only when Masque is active)
-    if self.MasqueGroup and frame.NormalTexture then
-        frame.NormalTexture:SetVertexColor(1, 1, 1)
-    end
-end
-
--------------------------------------------------------------------------------
--- Spell State Helpers
--------------------------------------------------------------------------------
-
-function CooldownIcons:IsSpellUsable(spellID)
-    -- Get effective spell ID (action bar rank, or highest known rank)
-    -- This ensures we check usability for the same rank used for cost calculations
-    local effectiveSpellID = self.Utils:GetEffectiveSpellID(spellID)
-    
-    if C_Spell and C_Spell.IsSpellUsable then
-        local isUsable, notEnoughMana = C_Spell.IsSpellUsable(effectiveSpellID)
-        return isUsable, notEnoughMana
-    elseif IsUsableSpell then
-        -- Try spell NAME first (like WeakAuras does), then fall back to ID
-        local spellName = GetSpellInfo(effectiveSpellID)
-        if spellName then
-            local usable, noMana = IsUsableSpell(spellName)
-            if usable ~= nil then
-                return usable, noMana
-            end
-        end
-        return IsUsableSpell(effectiveSpellID)
-    end
-    return true, false
-end
-
-function CooldownIcons:GetSpellCharges(spellID)
-    if GetSpellCharges then
-        local charges, maxCharges, start, duration = GetSpellCharges(spellID)
-        return charges, maxCharges, start, duration
-    end
-    return nil, nil
-end
+-- State computation (ComputeAuraState, ComputeCooldownState, ComputePredictionState,
+-- ComputeVisualFlags) has been extracted to IconStateEngine.lua.
+-- CooldownIcons:UpdateIconState is now a pure consumption orchestrator.
 
 -------------------------------------------------------------------------------
 -- Range Indicator
@@ -3508,12 +1489,12 @@ function CooldownIcons:UpdateRangeIndicator(frame, spellID, db)
         local actualSpellID = frame.actualSpellID or frame.spellID
         local spellData = frame.spellData
         local shouldCheckBuff = not (spellData and spellData.cooldownPriority)
-        local isBuffActive = shouldCheckBuff and self:GetPlayerBuff(actualSpellID)
+        local isBuffActive = shouldCheckBuff and self.stateEngine:GetPlayerBuff(actualSpellID)
         
         -- Skip if ability is not usable (resources, conditions, etc.)
         -- This ensures range doesn't compete with resource indicators
         -- Note: We DO show range during cooldown if otherwise usable (gives heads-up on positioning)
-        local isUsable = self:IsSpellUsable(actualSpellID)
+        local isUsable = self.stateEngine:IsSpellUsable(actualSpellID)
         
         if not hasActiveAura and not isBuffActive and isUsable then
             -- Check range - only show if explicitly out of range (false)
@@ -3605,7 +1586,7 @@ function CooldownIcons:Refresh()
             icon.iconHeight = iconHeight
             
             if icon.cooldown then
-                self:ConfigureCooldownText(icon.cooldown, icon.rowIndex)
+                self.renderer:ConfigureCooldownText(icon.cooldown, icon.rowIndex)
                 -- Clear cached cooldown values to force re-apply of spiral settings
                 icon.lastCdStart = nil
                 icon.lastCdDuration = nil
@@ -3643,7 +1624,8 @@ function CooldownIcons:Refresh()
     end
     
     -- Final repositioning based on actual icon counts (overrides the estimated positions above)
-    self:RepositionRows()
+    -- Use ForceRefresh since config changes (gaps, etc.) may not affect element heights
+    addon.Layout:ForceRefresh()
 end
 
 function CooldownIcons:RefreshFonts(fontPath)

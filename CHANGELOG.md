@@ -1,5 +1,17 @@
 # VeevHUD Changelog
 
+## [1.0.128] - 2026-03-02
+
+### Fixed
+- **Blood Fury (and other abilities) showing wrong state after trinket changes** — When a trinket swap or spell config change caused icon positions to shift, abilities could inherit stale trinket data and display the wrong cooldown or ICD timer. Added centralized frame state cleanup to prevent this class of bug. *(Thanks Seifer for reporting)*
+- **Dynamic sort snap-back on cast** — When casting an ability that triggered dynamic sort reordering, the icon would briefly slide to its new position then snap back. Cast feedback and sort animations now compose correctly.
+- **Queued ability highlight not appearing** — The queued spell highlight (e.g., queueing Renew while casting) was not showing on any abilities due to an internal bug.
+- **Trinket ICD display cutoff** — Very short internal cooldowns on proc trinkets could be hidden instead of showing a countdown.
+
+### Changed
+- Improved addon performance — Icons skip update processing when idle with no active cooldowns or buffs. Layout system skips redundant repositioning when element heights haven't changed.
+- Improved addon stability — An error in one icon no longer prevents all other icons from updating.
+
 ## [1.0.127] - 2026-03-01
 
 ### Added

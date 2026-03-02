@@ -43,6 +43,11 @@ local PRIMARY_TOP_OFFSET = -9
 -- Key: element key (string), Value: { module, getHeight, setPosition }
 Layout.elements = {}
 
+-- Height/gap cache for skip-if-unchanged optimization
+Layout._cachedHeights = {}
+Layout._cachedGaps = {}
+Layout._forceRefresh = false
+
 --[[
     Register a layout element.
 
@@ -141,6 +146,20 @@ function Layout:Refresh()
     local gaps = db.layout.gaps
     if not order or not gaps then return end
 
+    -- Gather current heights and check if anything changed since last refresh
+    local heights = {}
+    local anyChanged = self._forceRefresh
+    for _, key in ipairs(order) do
+        local h = self:GetElementHeight(key)
+        heights[key] = h
+        if not anyChanged then
+            if self._cachedHeights[key] ~= h then anyChanged = true end
+            if self._cachedGaps[key] ~= (gaps[key] or 0) then anyChanged = true end
+        end
+    end
+    if not anyChanged then return end
+    self._forceRefresh = false
+
     -- Phase 1: Collect visible elements and stack downward from Y=0
     local visible = {}
     local currentY = 0
@@ -149,7 +168,7 @@ function Layout:Refresh()
     local pendingGap = 0  -- max gap accumulated from hidden elements
 
     for _, key in ipairs(order) do
-        local height = self:GetElementHeight(key)
+        local height = heights[key]
         if height > 0 then
             visibleCount = visibleCount + 1
 
@@ -220,7 +239,20 @@ function Layout:Refresh()
         end
     end
 
+    -- Update caches
+    self._cachedHeights = heights
+    for _, key in ipairs(order) do
+        self._cachedGaps[key] = gaps[key] or 0
+    end
+
     addon.Utils:LogDebug("Layout: Refreshed, elements:", visibleCount, "offset:", offset)
+end
+
+-- Force a layout refresh, bypassing height/gap caching.
+-- Use for config changes where gaps may have changed without height changes.
+function Layout:ForceRefresh()
+    self._forceRefresh = true
+    self:Refresh()
 end
 
 -------------------------------------------------------------------------------
