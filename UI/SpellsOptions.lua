@@ -645,8 +645,10 @@ function SpellsOptions:GetEffectiveSpellList()
         for spellID, spellData in pairs(allClassSpells) do
             -- Skip if already displayed
             if not displayedSpellIDs[spellID] then
-                -- Skip PROC-tagged spells — they belong in AuraTracker, not ability rows
-                if addon.LibSpellDB:HasTag(spellID, "PROC") then
+                -- Skip PROC-tagged spells — they belong in AuraTracker, not ability rows.
+                -- Exception: reactive-window procs (e.g., Victory Rush) are castable abilities
+                -- that can optionally be shown as cooldown icons.
+                if addon.LibSpellDB:HasTag(spellID, "PROC") and not addon.LibSpellDB:GetReactiveWindow(spellID) then
                     -- skip
                 -- Check if player knows this spell
                 elseif spellTracker:IsSpellKnown(spellID, spellData) then

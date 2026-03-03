@@ -244,7 +244,8 @@ function IconStateEngine:GetRelevantBuff(spellID, checkSelfOnly, spellData)
 end
 
 -- Check for target lockout debuff (e.g., Weakened Soul for PWS, Forbearance for Paladin spells)
--- Follows the same targeting logic as helpful effects (since lockouts restrict helpful spells)
+-- Checks target context first (the unit you'd cast on), then falls back to player.
+-- The player fallback ensures self-applied lockouts always show regardless of targeting.
 -- Returns: isActive, remaining, duration, expirationTime
 -- Note: Lockout debuffs are checked regardless of who applied them (any priest's Weakened Soul blocks your PWS)
 function IconStateEngine:GetTargetLockoutDebuff(debuffSpellID, isSelfOnly)
@@ -273,8 +274,14 @@ function IconStateEngine:GetTargetLockoutDebuff(debuffSpellID, isSelfOnly)
         end
     end
 
-    -- Use cached debuff lookup (checks any debuff with this ID, not just player's)
+    -- Check target-context unit first
     local aura = self.Utils:GetCachedDebuff(unit, debuffSpellID, debuffName)
+
+    -- Fallback: also check player when target-context unit is different
+    -- Ensures self-applied lockouts (e.g., self-shield Weakened Soul) always display
+    if not aura and unit ~= "player" then
+        aura = self.Utils:GetCachedDebuff("player", debuffSpellID, debuffName)
+    end
 
     if aura then
         local remaining = 0

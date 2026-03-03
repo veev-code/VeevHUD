@@ -1,5 +1,14 @@
 # VeevHUD Changelog
 
+## [1.0.129] - 2026-03-02
+
+### Fixed
+- **Power Word: Shield lockout timer disappearing** — The Weakened Soul cooldown text on the PW:S icon would vanish when targeting a different unit than the one you shielded. The lockout timer now correctly falls back to checking yourself, matching WoW's auto-self-cast behavior for friendly spells.
+- **Reactive abilities missing from Spell Configuration** — Abilities with a reactive window (e.g., Victory Rush) were filtered out of the Available pool in the Spells config, making them impossible to enable. They now appear correctly.
+
+### Improved
+- **Icon frame state cleanup** — Resource display state (cost fill, bar, prediction) is now cleared when icons are reassigned, preventing potential stale visual artifacts after spec changes or trinket swaps.
+
 ## [1.0.128] - 2026-03-02
 
 ### Fixed

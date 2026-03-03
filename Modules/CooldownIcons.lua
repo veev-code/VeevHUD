@@ -992,6 +992,20 @@ end
 -- Called before every SetupIcon to ensure a clean slate when frames are reused
 -- across RebuildAllRows calls (e.g., a frame that was a trinket is now a spell).
 -- Each field is grouped by the system that writes it.
+--
+-- SYNC CONTRACT: Any module that writes frame.X during update/setup MUST have
+-- a corresponding reset here. Writers:
+--   CooldownIcons  (SetupIcon)          — identity/routing fields
+--   IconStateEngine (_Compute* methods) — cooldown cache, prediction, reactive
+--   IconRenderer    (ApplyIconVisuals, UpdateResourceDisplay) — renderer cache, resource display
+--   GlowManager     (Show/HideGlow/ReadyGlow) — glow tracking flags
+--   Animations      (TransitionAlpha)   — alpha transition
+--   TrinketTracker  (SetupTrinketIcon)  — trinket identity (isTrinket, trinketSlotID, onUseSpellID)
+--
+-- NOT reset (intentionally):
+--   frame.resourceOnUpdate — HookScript sentinel; hook persists and self-guards
+--   Structural children (icon, cooldown, text, charges, stacks) — created once by IconFrameFactory
+--   Slide positions (_slideCurrentX, _slideTargetX) — reset by ResetDynamicSortPositions()
 function CooldownIcons:ResetIconState(frame)
     -- Identity / routing (prevents stale isTrinket delegation)
     frame.isTrinket = false
@@ -1052,6 +1066,15 @@ function CooldownIcons:ResetIconState(frame)
     if frame.cooldown then
         frame.cooldown:SetCooldown(0, 0)
     end
+
+    -- Resource display cache (IconRenderer:UpdateResourceDisplay)
+    frame.resourceTarget = nil
+    frame.resourceCurrent = nil
+    frame.resourcePowerColor = nil
+    frame.resourceIconSize = nil
+    frame.resourceIconWidth = nil
+    frame.resourceIconHeight = nil
+    frame.resourceDisplayMode = nil
 
     -- Alpha transition (Animations)
     if addon.Animations then
