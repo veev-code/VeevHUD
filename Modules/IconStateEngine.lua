@@ -656,6 +656,7 @@ function IconStateEngine:_ComputeCooldownState(frame, db, s)
                 s.duration = duration
                 s.cdStartTime = cdStartTime
                 -- Recompute: lockout overrode remaining/duration after initial computation
+                s.isOnGCD = self.Utils:IsOnGCD(remaining, duration)
                 s.isOnActualCooldown = self.Utils:IsOnRealCooldown(remaining, duration)
             end
             if not s.isPermanentBuffActive then

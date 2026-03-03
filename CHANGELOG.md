@@ -1,5 +1,10 @@
 # VeevHUD Changelog
 
+## [1.0.132] - 2026-03-03
+
+### Fixed
+- **Lockout timer text flickering during GCD** — Spells with target lockout debuffs (Power Word: Shield / Weakened Soul, Paladin Forbearance spells) would lose their cooldown text every time a GCD triggered from casting another spell. The text would rapidly appear and disappear, making the remaining lockout time unreadable.
+
 ## [1.0.131] - 2026-03-02
 
 ### Fixed
