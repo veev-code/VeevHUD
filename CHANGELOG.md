@@ -1,5 +1,14 @@
 # VeevHUD Changelog
 
+## [1.0.133] - 2026-03-03
+
+### Fixed
+- **Aura Tracker icons overlapping bars after rebuild** — When the Aura Tracker rebuilt its frames (e.g., after a weapon swap), icons could appear at the center of the HUD overlapping bars instead of at their correct position. A `/reload` was previously required to fix the layout.
+- **Aura Tracker text not scaling with icon size** — Changing the Aura Tracker icon size in settings would resize icons but leave the duration and stack count text at the original size.
+
+### Improved
+- **Aura Tracker text proportions** — Duration and stack count text on Aura Tracker icons is now smaller and better proportioned, matching the text sizing used by cooldown icons. Previously the text was large enough to obscure the icon art at default sizes.
+
 ## [1.0.132] - 2026-03-03
 
 ### Fixed

@@ -239,7 +239,7 @@ function AuraTracker:RebuildFrames()
 
     -- Recreate
     self:CreateFrames(addon.hudFrame)
-    addon.Layout:Refresh()
+    addon.Layout:ForceRefresh()
 end
 
 function AuraTracker:OnAuraUpdate(event, unit)
@@ -420,7 +420,7 @@ function AuraTracker:CreateProcIcon(parent, procData, index, size, iconWidth, ic
 
     -- Duration text (center) — on textContainer (unaffected by visual's scale)
     local textContainer = frame.textContainer
-    local durationFontSize = math.max(10, math.floor(size * 0.5))
+    local durationFontSize = math.max(10, math.floor(size * 0.38))
     local text = textContainer:CreateFontString(nil, "OVERLAY", nil, 7)
     text:SetFont(addon:GetFont(), durationFontSize, "OUTLINE")
     text:SetPoint("CENTER", textContainer, "CENTER", 0, 0)
@@ -428,7 +428,7 @@ function AuraTracker:CreateProcIcon(parent, procData, index, size, iconWidth, ic
     frame.text = text
 
     -- Stack count (top right corner) — on textContainer
-    local stacksFontSize = math.max(11, math.floor(size * 0.55))
+    local stacksFontSize = math.max(10, math.floor(size * 0.26))
     local stacks = textContainer:CreateFontString(nil, "OVERLAY", nil, 7)
     stacks:SetFont(addon:GetFont(), stacksFontSize, "OUTLINE")
     stacks:SetPoint("TOPRIGHT", textContainer, "TOPRIGHT", 4, 4)
@@ -950,6 +950,17 @@ function AuraTracker:Refresh()
                 frame.backdropGlow:SetSize(glowWidth, glowHeight)
             end
 
+            -- Update font sizes to match new icon size
+            local fontPath = addon:GetFont()
+            if frame.text then
+                local durationFontSize = math.max(10, math.floor(iconSize * 0.38))
+                frame.text:SetFont(fontPath, durationFontSize, "OUTLINE")
+            end
+            if frame.stacks then
+                local stacksFontSize = math.max(10, math.floor(iconSize * 0.26))
+                frame.stacks:SetFont(fontPath, stacksFontSize, "OUTLINE")
+            end
+
             -- Reset slide animation position so RepositionIcons will snap to new position
             if self.slideAnimator then
                 self.slideAnimator:ResetFrame(frame)
@@ -986,14 +997,14 @@ function AuraTracker:RefreshFonts(fontPath)
     for _, frame in ipairs(self.icons or {}) do
         -- Duration text
         if frame.text then
-            local durationFontSize = math.max(10, math.floor(iconSize * 0.5))
+            local durationFontSize = math.max(10, math.floor(iconSize * 0.38))
             frame.text:SetFont(fontPath, durationFontSize, "OUTLINE")
             frame.text:SetTextColor(tc.r, tc.g, tc.b)
         end
 
         -- Stacks text
         if frame.stacks then
-            local stacksFontSize = math.max(11, math.floor(iconSize * 0.55))
+            local stacksFontSize = math.max(10, math.floor(iconSize * 0.26))
             frame.stacks:SetFont(fontPath, stacksFontSize, "OUTLINE")
             frame.stacks:SetTextColor(tc.r, tc.g, tc.b)
         end
