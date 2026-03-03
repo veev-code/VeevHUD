@@ -1,5 +1,10 @@
 # VeevHUD Changelog
 
+## [1.0.130] - 2026-03-02
+
+### Fixed
+- **Power Word: Shield showing false lockout on allies** — After self-shielding, targeting a different ally would incorrectly display your own Weakened Soul timer on the PW:S icon, making it appear you couldn't shield that ally. The lockout check now only examines the unit the spell would actually land on.
+
 ## [1.0.129] - 2026-03-02
 
 ### Fixed

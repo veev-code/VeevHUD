@@ -244,8 +244,8 @@ function IconStateEngine:GetRelevantBuff(spellID, checkSelfOnly, spellData)
 end
 
 -- Check for target lockout debuff (e.g., Weakened Soul for PWS, Forbearance for Paladin spells)
--- Checks target context first (the unit you'd cast on), then falls back to player.
--- The player fallback ensures self-applied lockouts always show regardless of targeting.
+-- Checks the unit the spell would actually land on (same target context as GetRelevantBuff):
+--   Targeting friendly → check them. Targeting enemy → check self (auto-self-cast). No target → check self.
 -- Returns: isActive, remaining, duration, expirationTime
 -- Note: Lockout debuffs are checked regardless of who applied them (any priest's Weakened Soul blocks your PWS)
 function IconStateEngine:GetTargetLockoutDebuff(debuffSpellID, isSelfOnly)
@@ -274,14 +274,8 @@ function IconStateEngine:GetTargetLockoutDebuff(debuffSpellID, isSelfOnly)
         end
     end
 
-    -- Check target-context unit first
+    -- Check target-context unit (the unit the spell would actually land on)
     local aura = self.Utils:GetCachedDebuff(unit, debuffSpellID, debuffName)
-
-    -- Fallback: also check player when target-context unit is different
-    -- Ensures self-applied lockouts (e.g., self-shield Weakened Soul) always display
-    if not aura and unit ~= "player" then
-        aura = self.Utils:GetCachedDebuff("player", debuffSpellID, debuffName)
-    end
 
     if aura then
         local remaining = 0
@@ -668,6 +662,7 @@ function IconStateEngine:_ComputeCooldownState(frame, db, s)
                 frame.actionableTime = math.max(frame.actionableTime, tlRemaining)
             end
         end
+
     end
 
     -- GCD/cooldown classification
@@ -934,4 +929,5 @@ function IconStateEngine:_ComputeVisualFlags(frame, db, s)
             end
         end
     end
+
 end
