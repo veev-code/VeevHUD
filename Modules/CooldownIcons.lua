@@ -790,9 +790,12 @@ function CooldownIcons:RebuildAllRows()
     self.iconsByRow = iconsByRow
     self.spellAssignments = spellAssignments
 
-    -- Inject trinket entries from TrinketTracker
+    -- Inject trinket entries from TrinketTracker, then re-sort affected rows
+    -- (trinkets are injected after AssignAllSpells sorts, so re-sort is needed
+    -- for customOrder overrides like user-configured trinket position to apply)
     if self.trinketTracker then
         self.trinketTracker:InjectRowEntries(self.iconsByRow, rowConfigs, spellCfg, self.spellAssignments)
+        self.spellAssignment:_SortRowSpells(self.iconsByRow)
     end
 
     -- Update icons to show assigned spells

@@ -1,5 +1,10 @@
 # VeevHUD Changelog
 
+## [1.0.131] - 2026-03-02
+
+### Fixed
+- **Trinket icon ignoring custom sort order** — Trinkets assigned to a row via Spell Configuration always appeared at the end of the row regardless of their configured position. They now respect the user-set order like regular spells.
+
 ## [1.0.130] - 2026-03-02
 
 ### Fixed
