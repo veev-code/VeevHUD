@@ -1,5 +1,10 @@
 # VeevHUD Changelog
 
+## [1.0.135] - 2026-03-04
+
+### Fixed
+- **Combo-point finisher buff timers showing wrong duration** — When refreshing Slice and Dice (or other combo-point finishers like Rupture, Expose Armor) while the buff was still active, VeevHUD would display the duration from the previous cast instead of the new one. For example, casting SnD at 4 combo points (18s) then recasting at 2 combo points would still show 18s remaining instead of 12s. *(Thanks amhoe for reporting)*
+
 ## [1.0.134] - 2026-03-04
 
 ### Improved

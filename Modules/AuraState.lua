@@ -369,37 +369,54 @@ function AuraState:OnAuraEvent(subEvent, data)
         local duration = 0
         local stacks = 0
 
-        -- On REFRESH, prefer recalculating from known duration rather than trusting UnitDebuff.
-        -- UnitDebuff can return stale (pre-refresh) data when called during the CLEU handler,
-        -- causing the timer to never update on reapplication.
+        -- On REFRESH, try the live API first — duration may have changed (e.g. combo-point
+        -- finishers like Slice and Dice).  Fall back to stored duration only if the API fails,
+        -- and schedule a one-frame delayed rescan as a safety net against stale API data.
         local isRefresh = (subEvent == "SPELL_AURA_REFRESH")
         local existing = isRefresh and self.activeAuras[storageID] and self.activeAuras[storageID][destGUID]
 
-        if isRefresh and existing and type(existing) == "table" and existing.duration and existing.duration > 0 then
-            -- We know the duration from the initial application — just reset the timer
+        -- Always try the live API first (works for both fresh applications and refreshes)
+        local unit = self:GetUnitFromGUID(destGUID)
+        if unit then
+            local actualDuration, actualExpiration, actualStacks = self:GetAuraDurationOnUnit(unit, spellID, spellName, isBuff)
+            if actualExpiration and actualExpiration > 0 then
+                expiration = actualExpiration
+                duration = actualDuration or 0
+                stacks = actualStacks or 0
+            end
+        end
+
+        -- If the API failed on a refresh, fall back to stored duration and reset the timer
+        if not expiration and isRefresh and existing and type(existing) == "table" and existing.duration and existing.duration > 0 then
             duration = existing.duration
             expiration = GetTime() + duration
             stacks = existing.stacks or 0
+        end
 
-            -- Still try to update stacks from UnitDebuff (stack count may change on refresh)
-            local unit = self:GetUnitFromGUID(destGUID)
-            if unit then
-                local _, _, actualStacks = self:GetAuraDurationOnUnit(unit, spellID, spellName, isBuff)
-                if actualStacks then
-                    stacks = actualStacks
+        -- Schedule a delayed rescan for refreshes to correct any stale API data
+        if isRefresh and unit then
+            local capturedStorageID = storageID
+            local capturedDestGUID = destGUID
+            local capturedSpellID = spellID
+            local capturedSpellName = spellName
+            local capturedIsBuff = isBuff
+            local capturedSourceSpellID = sourceSpellID
+            C_Timer.After(0, function()
+                if not self.activeAuras[capturedStorageID] or not self.activeAuras[capturedStorageID][capturedDestGUID] then return end
+                local refreshUnit = self:GetUnitFromGUID(capturedDestGUID)
+                if not refreshUnit then return end
+                local newDuration, newExpiration, newStacks = self:GetAuraDurationOnUnit(refreshUnit, capturedSpellID, capturedSpellName, capturedIsBuff)
+                if newExpiration and newExpiration > 0 then
+                    local entry = self.activeAuras[capturedStorageID][capturedDestGUID]
+                    if type(entry) == "table" and entry.expiration ~= newExpiration then
+                        entry.expiration = newExpiration
+                        entry.duration = newDuration or entry.duration
+                        entry.stacks = newStacks or entry.stacks
+                        self.Utils:LogDebug("AuraState: REFRESH rescan corrected", capturedSpellName, "(", capturedSpellID, ") to", string.format("%.1f", newExpiration - GetTime()) .. "s")
+                        self:NotifyAuraChange(capturedSourceSpellID, true)
+                    end
                 end
-            end
-        else
-            -- Fresh application — scan UnitDebuff for actual duration
-            local unit = self:GetUnitFromGUID(destGUID)
-            if unit then
-                local actualDuration, actualExpiration, actualStacks = self:GetAuraDurationOnUnit(unit, spellID, spellName, isBuff)
-                if actualExpiration and actualExpiration > 0 then
-                    expiration = actualExpiration
-                    duration = actualDuration or 0
-                    stacks = actualStacks or 0
-                end
-            end
+            end)
         end
 
         -- Fallback to estimated duration if we couldn't get actual
@@ -432,8 +449,8 @@ function AuraState:OnAuraEvent(subEvent, data)
         }
         
         local stackInfo = stacks > 0 and (" (" .. stacks .. " stacks)") or ""
-        local refreshInfo = isRefresh and " [REFRESH via stored duration]" or ""
-        self.Utils:LogDebug("AuraState:", subEvent, spellName, "(", spellID, "->", storageID, ") on", destName, "expires in", string.format("%.1f", expiration - GetTime()) .. stackInfo .. refreshInfo)
+        local refreshInfo = isRefresh and " [REFRESH]" or ""
+        self.Utils:LogDebug("AuraState:", subEvent, spellName, "(", spellID, "->", storageID, ") on", destName, "expires in", string.format("%.1f", expiration - GetTime()) .. "s dur=" .. string.format("%.1f", duration) .. stackInfo .. refreshInfo)
 
         -- Notify CooldownIcons
         self:NotifyAuraChange(sourceSpellID, true)
