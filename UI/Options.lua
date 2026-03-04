@@ -2817,7 +2817,7 @@ function Options:BuildBuffRemindersOptions()
 
 				-- Add min stacks option for spells with charges (Inner Fire, Water Shield, Lightning Shield)
 				if spellData.duration and spellData.duration <= 600 then
-					local isChargeSpell = (spellID == 588 or spellID == 324 or spellID == 24398)
+					local isChargeSpell = LibSpellDB and LibSpellDB:HasCharges(spellID)
 					if isChargeSpell then
 						args[spellKey].args.minStacks = {
 							type = "range",

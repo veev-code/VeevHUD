@@ -100,30 +100,38 @@ C.TEXT_FORMAT = {
 -- GetShapeshiftForm() returns the stance bar index, which shifts when forms
 -- aren't trained (e.g., missing Aquatic Form moves Cat from slot 3 to slot 2).
 -- We use GetShapeshiftFormInfo() to identify forms by spell ID instead.
+-- Form-type mapping is sourced from LibSpellDB (formType field on SHAPESHIFT spells).
 do
-    local BEAR_FORM_SPELLS = { [5487] = true, [9634] = true }  -- Bear Form, Dire Bear Form
-    local CAT_FORM_SPELL = 768
-    local AQUATIC_FORM_SPELL = 1066
-    local TRAVEL_FORM_SPELL = 783
-    local MOONKIN_FORM_SPELL = 24858
+    local formLookup  -- spellID -> formType string, built lazily from LibSpellDB
+
+    local function BuildFormLookup()
+        formLookup = {}
+        local LibSpellDB = LibStub and LibStub("LibSpellDB-1.0", true)
+        if LibSpellDB then
+            local shapeshifts = LibSpellDB:GetSpellsByClassAndTag("DRUID", "SHAPESHIFT")
+            for spellID, data in pairs(shapeshifts) do
+                if data.formType then
+                    formLookup[spellID] = data.formType
+                    if data.ranks then
+                        for _, rankID in ipairs(data.ranks) do
+                            formLookup[rankID] = data.formType
+                        end
+                    end
+                end
+            end
+        end
+    end
 
     --- Returns the current druid form as a string: "CASTER", "BEAR", "CAT",
     --- "AQUATIC", "TRAVEL", or "MOONKIN". Works regardless of which forms
     --- are trained or their position on the shapeshift bar.
     function C.GetDruidForm()
+        if not formLookup then BuildFormLookup() end
         local formIndex = GetShapeshiftForm()
         if formIndex == 0 then return "CASTER" end
 
         local _, _, _, spellID = GetShapeshiftFormInfo(formIndex)
-        if not spellID then return "CASTER" end
-
-        if BEAR_FORM_SPELLS[spellID] then return "BEAR" end
-        if spellID == CAT_FORM_SPELL then return "CAT" end
-        if spellID == AQUATIC_FORM_SPELL then return "AQUATIC" end
-        if spellID == TRAVEL_FORM_SPELL then return "TRAVEL" end
-        if spellID == MOONKIN_FORM_SPELL then return "MOONKIN" end
-
-        return "CASTER"
+        return formLookup[spellID] or "CASTER"
     end
 end
 

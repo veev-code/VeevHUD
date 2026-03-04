@@ -544,11 +544,11 @@ function BuffReminders:GetOrCreateIcon(key)
     -- Build animation groups on the visual frame
     SetupAnimations(visual)
 
-    -- Apply icon zoom texcoords (Masque compositing handled by factory)
+    -- Apply full texcoords (no icon zoom for buff reminders — they're alerts, not ability icons)
     if self.iconFactory and frame.icon then
         self.iconFactory:ApplyTexCoords(
             {frame},
-            addon.db.profile.icons.iconZoom,
+            0,
             1.0,
             self.MasqueGroup
         )
@@ -560,7 +560,7 @@ function BuffReminders:GetOrCreateIcon(key)
     return frame
 end
 
--- Apply icon zoom texcoords to all buff reminder icons.
+-- Apply full texcoords to all buff reminder icons (no icon zoom — they're alerts, not ability icons).
 -- Delegates to IconFrameFactory which handles Masque compositing.
 function BuffReminders:ApplyIconTexCoords()
     if self.iconFactory then
@@ -570,7 +570,7 @@ function BuffReminders:ApplyIconTexCoords()
         end
         self.iconFactory:ApplyTexCoords(
             icons,
-            addon.db.profile.icons.iconZoom,
+            0,
             1.0,  -- BuffReminders uses square icons
             self.MasqueGroup
         )
@@ -1363,18 +1363,28 @@ end
 -- Preview (shows a sample icon so users can see settings changes in real-time)
 -------------------------------------------------------------------------------
 
--- A well-known spell icon per class for preview purposes
-local PREVIEW_ICONS = {
-    WARRIOR = 2457,     -- Battle Shout
-    PALADIN = 19740,    -- Blessing of Might
-    PRIEST = 1243,      -- Power Word: Fortitude
-    DRUID = 1126,       -- Mark of the Wild
-    MAGE = 1459,        -- Arcane Intellect
-    WARLOCK = 28176,    -- Fel Armor
-    SHAMAN = 24398,     -- Water Shield
-    HUNTER = 19506,     -- Trueshot Aura
-    ROGUE = 2823,       -- Deadly Poison
-}
+-- Resolve a preview icon for a class from LibSpellDB (first BUFF by lowest spellID,
+-- preferring LONG_BUFF, then any BUFF-tagged spell)
+local previewIconCache = {}
+local function GetPreviewSpellID(class)
+    if previewIconCache[class] then return previewIconCache[class] end
+    local LibSpellDB = LibStub and LibStub("LibSpellDB-1.0", true)
+    if not LibSpellDB then return nil end
+
+    -- Try LONG_BUFF first (30+ min class buffs), fall back to any BUFF
+    for _, tag in ipairs({"LONG_BUFF", "BUFF"}) do
+        local spells = LibSpellDB:GetSpellsByClassAndTag(class, tag)
+        local lowest
+        for id in pairs(spells) do
+            if not lowest or id < lowest then lowest = id end
+        end
+        if lowest then
+            previewIconCache[class] = lowest
+            return lowest
+        end
+    end
+    return nil
+end
 
 function BuffReminders:ShowPreview()
     if not self.initialized then return end
@@ -1383,11 +1393,13 @@ function BuffReminders:ShowPreview()
     -- Use a unique key that won't collide with spellID-keyed pool entries
     local frame = self:GetOrCreateIcon("preview")
 
-    -- Pick an icon for this class
-    local previewSpellID = PREVIEW_ICONS[self.playerClass] or 2457
-    local _, _, spellIcon = GetSpellInfo(previewSpellID)
-    if spellIcon then
-        frame.icon:SetTexture(spellIcon)
+    -- Pick an icon for this class (first LONG_BUFF or BUFF from LibSpellDB)
+    local previewSpellID = GetPreviewSpellID(self.playerClass)
+    if previewSpellID then
+        local _, _, spellIcon = GetSpellInfo(previewSpellID)
+        if spellIcon then
+            frame.icon:SetTexture(spellIcon)
+        end
     end
 
     -- Position at center of container

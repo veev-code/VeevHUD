@@ -1,5 +1,16 @@
 # VeevHUD Changelog
 
+## [1.0.141] - 2026-03-04
+
+### Improved
+- **Spell data centralized to LibSpellDB** — Druid form detection, Innervate resource bar highlight, charge spell detection (Inner Fire, shields), and Buff Reminders preview icons now pull from LibSpellDB instead of hardcoded spell IDs.
+- **Buff Reminders: no icon zoom** — Buff reminder icons now always display at full size without icon zoom cropping, visually distinguishing them from ability row icons.
+
+### LibSpellDB Updates
+- New `formType` field on shapeshift spells and `GetFormType()` / `HasCharges()` API methods.
+- Added Aquatic Form (1066) to Druid data.
+- Added `charges` field to Inner Fire (20), Lightning Shield (3), Water Shield (3).
+
 ## [1.0.140] - 2026-03-04
 
 ### Fixed

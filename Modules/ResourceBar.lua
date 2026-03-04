@@ -16,6 +16,20 @@ local IsSpellKnown = IsSpellKnown
 local ResourceBar = {}
 addon:RegisterModule("ResourceBar", ResourceBar)
 
+-- Resolve Innervate spell ID + name from LibSpellDB (tagged IMPORTANT_EXTERNAL + RESOURCE)
+local innervateSpellID, innervateName
+do
+    local LibSpellDB = LibStub and LibStub("LibSpellDB-1.0", true)
+    if LibSpellDB then
+        local spells = LibSpellDB:GetSpellsByAllTags({"IMPORTANT_EXTERNAL", "RESOURCE"})
+        for id, data in pairs(spells) do
+            innervateSpellID = id
+            innervateName = data.name or GetSpellInfo(id)
+            break
+        end
+    end
+end
+
 -------------------------------------------------------------------------------
 -- Initialization
 -------------------------------------------------------------------------------
@@ -62,7 +76,7 @@ function ResourceBar:CheckInnervate()
         for i = 1, 40 do
             local name, _, _, _, _, _, _, _, _, spellID = UnitBuff("player", i)
             if not name then break end
-            if spellID == 29166 or name == "Innervate" then
+            if (innervateSpellID and spellID == innervateSpellID) or (innervateName and name == innervateName) then
                 hasInnervate = true
                 break
             end
