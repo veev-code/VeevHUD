@@ -179,6 +179,7 @@ function BuffReminders:Initialize()
     self.Events = addon.Events
     self.Utils = addon.Utils
     self.Animations = addon.Animations
+    self.iconFactory = addon:GetModule("IconFrameFactory")
     self.LibSpellDB = addon.LibSpellDB
     self.playerClass = addon.playerClass
     self.playerGUID = UnitGUID("player")
@@ -543,10 +544,37 @@ function BuffReminders:GetOrCreateIcon(key)
     -- Build animation groups on the visual frame
     SetupAnimations(visual)
 
+    -- Apply icon zoom texcoords (Masque compositing handled by factory)
+    if self.iconFactory and frame.icon then
+        self.iconFactory:ApplyTexCoords(
+            {frame},
+            addon.db.profile.icons.iconZoom,
+            1.0,
+            self.MasqueGroup
+        )
+    end
+
     frame:Hide()
 
     self.iconPool[key] = frame
     return frame
+end
+
+-- Apply icon zoom texcoords to all buff reminder icons.
+-- Delegates to IconFrameFactory which handles Masque compositing.
+function BuffReminders:ApplyIconTexCoords()
+    if self.iconFactory then
+        local icons = {}
+        for _, frame in pairs(self.iconPool) do
+            icons[#icons + 1] = frame
+        end
+        self.iconFactory:ApplyTexCoords(
+            icons,
+            addon.db.profile.icons.iconZoom,
+            1.0,  -- BuffReminders uses square icons
+            self.MasqueGroup
+        )
+    end
 end
 
 function BuffReminders:UpdateIconSize()
@@ -581,6 +609,9 @@ function BuffReminders:UpdateIconSize()
     if self.MasqueGroup then
         self.MasqueGroup:ReSkin()
     end
+
+    -- Apply icon zoom texcoords (must run after ReSkin for Masque compositing)
+    self:ApplyIconTexCoords()
 end
 
 function BuffReminders:LayoutIcons()

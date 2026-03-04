@@ -127,11 +127,9 @@ function AuraTracker:GetExternalAuras()
 
     -- Build a set of proc spellIDs we already have (avoid duplicates)
     local procIDs = {}
-    if self.LibSpellDB then
-        local libProcs = self.LibSpellDB:GetProcs(addon.playerClass)
-        for _, spellData in ipairs(libProcs) do
-            procIDs[spellData.spellID] = true
-        end
+    local libProcs = self.LibSpellDB:GetProcs(addon.playerClass)
+    for _, spellData in ipairs(libProcs) do
+        procIDs[spellData.spellID] = true
     end
 
     -- Collect from both IMPORTANT_EXTERNAL and MINOR_EXTERNAL tags
@@ -396,11 +394,7 @@ function AuraTracker:CreateProcIcon(parent, procData, index, size, iconWidth, ic
     border:SetPoint("BOTTOMRIGHT", 1, -1)
     frame.border = border
 
-    -- Apply texcoords with zoom and aspect ratio cropping
-    local zoomPerEdge = addon.db.profile.icons.iconZoom / 2
-    local aspectRatio = addon.db.profile.auraTracker.iconAspectRatio
-    local left, right, top, bottom = self.Utils:GetIconTexCoords(zoomPerEdge, aspectRatio)
-    icon:SetTexCoord(left, right, top, bottom)
+    -- Texcoords are set by ApplyIconTexCoords() after all icons are created
 
     -- Get icon texture: LibSpellDB icon (handles overrides) > GetSpellInfo icon > equipped item icon
     local spellName, _, spellIcon = GetSpellInfo(procData.spellID)

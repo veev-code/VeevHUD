@@ -1,5 +1,13 @@
 # VeevHUD Changelog
 
+## [1.0.137] - 2026-03-04
+
+### Added
+- **Totem Bar: Masque support** — Shaman Totem Bar icons now support Masque skinning. Appears as "Totem Bar" in Masque's VeevHUD group settings, alongside Cooldowns, Aura Tracker, and Buff Reminders.
+
+### Fixed
+- **Icon zoom not applying to all modules** — Icon zoom now applies consistently to Buff Reminders and Totem Bar icons. Previously only Cooldown Icons and Aura Tracker respected the zoom setting.
+
 ## [1.0.136] - 2026-03-04
 
 ### Fixed

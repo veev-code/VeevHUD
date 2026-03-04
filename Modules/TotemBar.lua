@@ -89,6 +89,13 @@ function TotemBar:Initialize()
     self.Utils = addon.Utils
     self.C = addon.Constants
     self.LibSpellDB = addon.LibSpellDB
+    self.iconFactory = addon:GetModule("IconFrameFactory")
+
+    -- Initialize Masque support if available
+    local MSQ = LibStub and LibStub("Masque", true)
+    if MSQ then
+        self.MasqueGroup = MSQ:Group("VeevHUD", "Totem Bar")
+    end
 
     -- Initialize element state
     for _, element in ipairs(ELEMENT_ORDER) do
@@ -381,6 +388,9 @@ function TotemBar:CreateFrames(parent)
         self.slots[element] = self:CreateSlotFrame(container, element, i, iconWidth, iconHeight, spacing, db)
     end
 
+    -- Apply texcoords after all slots are created (handles Masque compositing)
+    self:ApplyIconTexCoords()
+
     -- Register update ticker
     self.Events:RegisterUpdate(self, 0.1, self.UpdateAllSlots)
 
@@ -406,10 +416,7 @@ function TotemBar:CreateSlotFrame(parent, element, index, iconWidth, iconHeight,
     icon:SetAllPoints()
     frame.icon = icon
 
-    -- Apply texcoords with zoom
-    local zoomPerEdge = addon.db.profile.icons.iconZoom / 2
-    local left, right, top, bottom = self.Utils:GetIconTexCoords(zoomPerEdge, addon.db.profile.totemBar.iconAspectRatio)
-    icon:SetTexCoord(left, right, top, bottom)
+    -- Texcoords are set by ApplyIconTexCoords() after all slots are created
 
     -- Cooldown spiral for duration
     local cooldown = CreateFrame("Cooldown", nil, frame, "CooldownFrameTemplate")
@@ -438,8 +445,17 @@ function TotemBar:CreateSlotFrame(parent, element, index, iconWidth, iconHeight,
     text:SetTextColor(addon.db.profile.appearance.textColor.r, addon.db.profile.appearance.textColor.g, addon.db.profile.appearance.textColor.b)
     frame.text = text
 
-    -- Apply built-in icon styling
-    addon.IconStyling:Apply(frame, db.iconSize, db.iconAspectRatio)
+    -- Register with Masque or apply built-in styling
+    if self.MasqueGroup then
+        self.MasqueGroup:AddButton(frame, {
+            Icon = icon,
+            Cooldown = cooldown,
+            Normal = frame:GetNormalTexture(),
+        })
+        border:Hide()
+    else
+        addon.IconStyling:Apply(frame, db.iconSize, db.iconAspectRatio)
+    end
 
     -- Start hidden (never-cast state)
     frame:Hide()
@@ -596,6 +612,28 @@ function TotemBar:RepositionSlots()
 end
 
 -------------------------------------------------------------------------------
+-- Texcoords
+-------------------------------------------------------------------------------
+
+-- Apply icon zoom texcoords to all totem slot icons.
+-- Delegates to IconFrameFactory which handles Masque compositing.
+function TotemBar:ApplyIconTexCoords()
+    if not self.iconFactory or not self.slots then return end
+    local icons = {}
+    for _, element in ipairs(ELEMENT_ORDER) do
+        if self.slots[element] then
+            icons[#icons + 1] = self.slots[element]
+        end
+    end
+    self.iconFactory:ApplyTexCoords(
+        icons,
+        addon.db.profile.icons.iconZoom,
+        addon.db.profile.totemBar.iconAspectRatio,
+        self.MasqueGroup
+    )
+end
+
+-------------------------------------------------------------------------------
 -- Refresh
 -------------------------------------------------------------------------------
 
@@ -619,20 +657,20 @@ function TotemBar:Refresh()
 
         -- Update icon sizes
         local iconWidth, iconHeight = self.Utils:GetIconDimensions(db.iconSize, db.iconAspectRatio)
-        local zoomPerEdge = addon.db.profile.icons.iconZoom / 2
-        local left, right, top, bottom = self.Utils:GetIconTexCoords(zoomPerEdge, db.iconAspectRatio)
 
         for _, element in ipairs(ELEMENT_ORDER) do
             local frame = self.slots[element]
             if frame then
                 frame:SetSize(iconWidth, iconHeight)
-                if frame.icon then
-                    frame.icon:SetTexCoord(left, right, top, bottom)
-                end
-                -- Update built-in style
-                addon.IconStyling:Update(frame, db.iconSize, false, db.iconAspectRatio)
+                addon.IconStyling:Update(frame, db.iconSize, self.MasqueGroup ~= nil, db.iconAspectRatio)
             end
         end
+
+        -- Reapply Masque skins at new sizes, then texcoords
+        if self.MasqueGroup then
+            self.MasqueGroup:ReSkin()
+        end
+        self:ApplyIconTexCoords()
     end
 
     self:UpdateAllSlots()
