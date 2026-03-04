@@ -1,5 +1,13 @@
 # VeevHUD Changelog
 
+## [1.0.140] - 2026-03-04
+
+### Fixed
+- **Paladin error spam on login** — Fixed a `bad argument #1 to 'ipairs'` error that fired every update tick for Paladin characters, caused by Divine Intervention's spell data. This error blocked normal icon updates and prevented drag-to-reorder from working. *(Thanks Kalle Fornien for reporting)*
+
+### LibSpellDB Updates
+- Fixed Divine Intervention `appliesBuff` field using wrong format (bare number instead of table).
+
 ## [1.0.139] - 2026-03-04
 
 ### Improved
