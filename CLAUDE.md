@@ -26,7 +26,8 @@ VeevHUD is a lightweight, WeakAuras-inspired heads-up display addon for World of
 ### Core (`Core/`)
 - `Core.lua` — Main entry point: addon init, module registration, HUD frame, visibility, scale
 - `Constants.lua` — Static values, class/power colors, timing constants, `C.DEFAULTS.profile`
-- `Database.lua` — AceDB wrapper: profiles, overrides, spell config, aura config, migrations
+- `Database.lua` — AceDB wrapper: profiles, overrides, spell config, aura config, legacy key migrations
+- `Migrations.lua` — Versioned migration system: `dataVersion` integer, popup UI, data migrations. Add new migrations by bumping `CURRENT_VERSION` and adding a numbered entry.
 - `Events.lua` — Centralized event system: RegisterEvent, CLEU parsing, throttled update tickers
 - `Utils.lua` — Utilities: formatting, scale compensation, frame creation, bar helpers, glow wrappers
 - `Layout.lua` — Vertical stacking system for HUD elements (priority-based)
@@ -67,12 +68,7 @@ VeevHUD is a lightweight, WeakAuras-inspired heads-up display addon for World of
 ### UI (`UI/`)
 - `Options.lua` — AceConfig options panel (General, Ability Rows, Bars, Aura Tracker, Totem Bar, Buff Reminders, Spells, Layout, Profiles)
 - `SpellsOptions.lua` — Standalone spell config window with drag-and-drop row assignment
-- `MigrationManager.lua` — One-time migration notice system (supports `silent = true` for data-only migrations that skip the popup)
-- `ScaleMigration.lua` — UI scale auto-compensation migration notice
 - `WelcomePopup.lua` — First-time welcome dialog with Discord link
-- `BuffRemindersMigration.lua` — Migration notice for buff reminders feature
-- `AuraTrackerMigration.lua` — Migration: ProcTracker→AuraTracker key rename, config flattening, user popup
-- `TrinketMigration.lua` — Migration notice for trinket tracking feature
 - `Templates.xml` — UI frame templates
 
 ### Other

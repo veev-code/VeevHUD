@@ -2079,14 +2079,14 @@ end
 -- External Buffs Args
 -------------------------------------------------------------------------------
 
--- Category grouping for external buffs in the Options UI
-local WATCH_CATEGORIES = {
-	{ name = "Raid Cooldowns", order = 1, spells = {2825, 32182} },
-	{ name = "Healer Externals", order = 2, spells = {10060, 33206, 29166} },
-	{ name = "Defensive Externals", order = 3, spells = {1022, 1044, 6940} },
-	{ name = "Other", order = 4, spells = {6346, 974, 34477} },
-	{ name = "Drums", order = 5, spells = {35476, 35475, 35477, 351355, 351360, 351359} },
-}
+-- Classify an external spell into a UI category based on its LibSpellDB tags.
+-- Returns categoryName, categoryOrder. First matching rule wins.
+local function ClassifyExternal(lib, spellID, isMinor)
+	if isMinor then return "Minor Externals", 4 end
+	if lib:HasTag(spellID, "RAID_DEFENSIVE") then return "Raid Cooldowns", 1 end
+	if lib:HasTag(spellID, "EXTERNAL_DEFENSIVE") or lib:HasTag(spellID, "DEFENSIVE") then return "Defensive Externals", 2 end
+	return "Other Externals", 3
+end
 
 function Options:BuildExternalBuffsArgs()
 	local args = {}
@@ -2098,12 +2098,43 @@ function Options:BuildExternalBuffsArgs()
 		order = 0,
 	}
 
-	local groupOrder = 1
-	for _, category in ipairs(WATCH_CATEGORIES) do
+	local lib = addon.LibSpellDB
+	if not lib then return args end
+
+	-- Collect all external spells from LibSpellDB and classify into categories
+	local categories = {}  -- name -> {order, spells={{spellID, sortName}}}
+	for _, tag in ipairs({"IMPORTANT_EXTERNAL", "MINOR_EXTERNAL"}) do
+		local isMinor = (tag == "MINOR_EXTERNAL")
+		local tagged = lib:GetSpellsByTag(tag)
+		for _, spellData in pairs(tagged) do
+			local catName, catOrder = ClassifyExternal(lib, spellData.spellID, isMinor)
+			if not categories[catName] then
+				categories[catName] = {order = catOrder, spells = {}}
+			end
+			local sortName = spellData.name or GetSpellInfo(spellData.spellID) or ""
+			table.insert(categories[catName].spells, {spellID = spellData.spellID, sortName = sortName})
+		end
+	end
+
+	-- Sort spells alphabetically within each category
+	for _, cat in pairs(categories) do
+		table.sort(cat.spells, function(a, b) return a.sortName < b.sortName end)
+	end
+
+	-- Build sorted category list
+	local sortedCats = {}
+	for catName, cat in pairs(categories) do
+		table.insert(sortedCats, {name = catName, order = cat.order, spells = cat.spells})
+	end
+	table.sort(sortedCats, function(a, b) return a.order < b.order end)
+
+	-- Build AceConfig args
+	for _, category in ipairs(sortedCats) do
 		local groupArgs = {}
 		local spellOrder = 1
 
-		for _, spellID in ipairs(category.spells) do
+		for _, entry in ipairs(category.spells) do
+			local spellID = entry.spellID
 			local spellName, _, spellIcon = GetSpellInfo(spellID)
 			spellName = spellName or ("Spell " .. spellID)
 			local iconString = spellIcon and ("|T" .. spellIcon .. ":16|t ") or ""
@@ -2145,10 +2176,9 @@ function Options:BuildExternalBuffsArgs()
 			type = "group",
 			name = category.name,
 			inline = true,
-			order = groupOrder,
+			order = category.order,
 			args = groupArgs,
 		}
-		groupOrder = groupOrder + 1
 	end
 
 	return args

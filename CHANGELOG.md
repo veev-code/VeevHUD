@@ -1,5 +1,14 @@
 # VeevHUD Changelog
 
+## [1.0.138] - 2026-03-04
+
+### Improved
+- **External Buffs tab built dynamically from LibSpellDB** — The Aura Tracker's External Buffs settings tab now automatically discovers all external buffs from LibSpellDB instead of using a hardcoded list. New external buffs added to LibSpellDB will appear in settings without requiring a VeevHUD update.
+- **Consolidated migration system** — Replaced 5 separate migration files with a single versioned system. No user-facing changes, but future update notifications are now easier to add and maintain.
+
+### LibSpellDB Updates
+- **Divine Intervention** — Now trackable as an external buff in the Aura Tracker. Shows when a Paladin casts it on you with full duration tracking (3 min).
+
 ## [1.0.137] - 2026-03-04
 
 ### Added

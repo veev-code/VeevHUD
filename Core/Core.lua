@@ -208,8 +208,8 @@ function addon:OnPlayerLogin()
     -- Show welcome popup on first load
     self.WelcomePopup:Show()
     
-    -- Show any pending migration notices
-    self.MigrationManager:Show()
+    -- Run any pending versioned migrations
+    self.Migrations:Run()
 end
 
 function addon:OnPlayerLogout()

@@ -22,9 +22,7 @@ function Database:Initialize()
     self:UpgradeLegacyDBIfNeeded()
 
     -- Migrate legacy config keys to current names (before AceDB wraps the table).
-    if addon.AuraTrackerMigration then
-        addon.AuraTrackerMigration:MigrateRawKeys()
-    end
+    self:MigrateAuraTrackerKeys()
 
     local AceDB = LibStub and LibStub("AceDB-3.0", true)
     if not AceDB then
@@ -36,9 +34,10 @@ function Database:Initialize()
     -- Use a shared global profile called "Default" (matches legacy behavior).
     addon.db = AceDB:New("VeevHUDDB", defaults, true)
 
-    -- Ensure expected global tables exist even if user DB is missing them.
-    addon.db.global = addon.db.global or {}
-    addon.db.global.migrationsShown = addon.db.global.migrationsShown or {}
+    -- Initialize versioned migration system (sets dataVersion for new users).
+    if addon.Migrations then
+        addon.Migrations:Initialize()
+    end
 
     -- Hook profile change events so the HUD refreshes when profiles/specializations switch.
     -- These use AceDB's standard callback mechanism (CallbackHandler dispatch).
@@ -97,7 +96,6 @@ function Database:GetAceDefaults()
         profile = addon.Constants.DEFAULTS.profile,
         global = {
             welcomeShown = false,
-            migrationsShown = {},
         },
     }
 end
@@ -444,6 +442,84 @@ function Database:SetValueAtPath(root, path, value)
 
     local finalKey = addon.Utils:ToKeyType(keys[#keys])
     current[finalKey] = value
+end
+
+-------------------------------------------------------------------------------
+-- Aura Tracker Key Migration (pre-AceDB, idempotent)
+-------------------------------------------------------------------------------
+
+-- Flatten per-spec procConfig into profile-wide auraConfig.
+-- Old format: procConfig[specKey][spellID] = true/false
+-- New format: auraConfig[spellID] = true/false
+-- Conflicts (different values across specs) -> keep the most permissive (true).
+local function FlattenProcConfig(procConfig)
+    if type(procConfig) ~= "table" then return {} end
+
+    local flat = {}
+    for specKey, spells in pairs(procConfig) do
+        if type(spells) == "table" then
+            for spellID, value in pairs(spells) do
+                if flat[spellID] == nil or value == true then
+                    flat[spellID] = value
+                end
+            end
+        end
+    end
+
+    if next(flat) == nil then return nil end
+    return flat
+end
+
+local function MigrateAuraTrackerProfile(profile)
+    -- 1. procTracker -> auraTracker
+    if profile.procTracker and not profile.auraTracker then
+        profile.auraTracker = profile.procTracker
+        profile.procTracker = nil
+    elseif profile.procTracker then
+        profile.procTracker = nil
+    end
+
+    -- 2. procConfig -> auraConfig (flatten per-spec -> profile-wide)
+    if profile.procConfig then
+        if not profile.auraConfig then
+            profile.auraConfig = FlattenProcConfig(profile.procConfig)
+        end
+        profile.procConfig = nil
+    end
+
+    -- 3. layout.elementOrder: "procTracker" -> "auraTracker"
+    local layout = profile.layout
+    if layout and layout.elementOrder then
+        for i, key in ipairs(layout.elementOrder) do
+            if key == "procTracker" then
+                layout.elementOrder[i] = "auraTracker"
+            end
+        end
+    end
+
+    -- 4. layout.gaps.procTracker -> layout.gaps.auraTracker
+    if layout and layout.gaps and layout.gaps.procTracker ~= nil then
+        if layout.gaps.auraTracker == nil then
+            layout.gaps.auraTracker = layout.gaps.procTracker
+        end
+        layout.gaps.procTracker = nil
+    end
+end
+
+-- Operates on the raw VeevHUDDB table before AceDB wraps it.
+-- Idempotent: safe to call even if already migrated or on a fresh DB.
+function Database:MigrateAuraTrackerKeys()
+    local db = VeevHUDDB
+    if not db or type(db) ~= "table" then return end
+
+    local profiles = db.profiles
+    if not profiles or type(profiles) ~= "table" then return end
+
+    for _, profileData in pairs(profiles) do
+        if type(profileData) == "table" then
+            MigrateAuraTrackerProfile(profileData)
+        end
+    end
 end
 
 -------------------------------------------------------------------------------
