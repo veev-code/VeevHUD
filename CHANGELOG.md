@@ -1,5 +1,10 @@
 # VeevHUD Changelog
 
+## [1.0.136] - 2026-03-04
+
+### Fixed
+- **Masque skin settings not persisting** — Selecting a Masque skin (e.g., Zoomed, Blizzard Modern) for VeevHUD icons would appear to reset to default after `/reload` or relog. VeevHUD was overwriting Masque's icon texcoords with its own zoom settings on every load. Now uses WeakAuras-style compositing — reads Masque's applied texcoords first, then applies VeevHUD's icon zoom on top, so both the skin appearance and the zoom setting coexist correctly. Also properly handles the case where a Masque group is disabled in Masque's settings. *(Thanks Kalle Fornien for reporting)*
+
 ## [1.0.135] - 2026-03-04
 
 ### Fixed

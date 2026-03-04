@@ -556,20 +556,21 @@ function CooldownIcons:CreateFrames(parent)
         self.Utils:LogError("CooldownIcons: CreateRowFrames failed:", err)
     end
 
-    -- Apply texcoords after all icons are created (ensures aspect ratio is respected)
-    -- This handles cases where settings might not be fully loaded during CreateIcon
+    -- Apply texcoords after all icons are created (handles Masque compositing)
     self:ApplyIconTexCoords()
 
     -- Start update ticker (gated — skips when no icons have active timers)
     self.Events:RegisterUpdate(self, 0.05, self.OnUpdateTick)
 end
 
--- Apply texcoords to all icons based on current aspect ratio and zoom settings
+-- Apply texcoords to all icons based on current aspect ratio and zoom settings.
+-- When Masque is active, reads Masque's texcoords and applies VeevHUD zoom on top
+-- (WeakAuras-style compositing so both the Masque skin and VeevHUD's iconZoom coexist).
 function CooldownIcons:ApplyIconTexCoords()
     local db = addon.db.profile.icons
     for _, rowFrame in ipairs(self.rows or {}) do
         if rowFrame.icons then
-            self.iconFactory:ApplyTexCoords(rowFrame.icons, db.iconZoom, db.iconAspectRatio)
+            self.iconFactory:ApplyTexCoords(rowFrame.icons, db.iconZoom, db.iconAspectRatio, self.MasqueGroup)
         end
     end
 end
@@ -1632,7 +1633,7 @@ function CooldownIcons:Refresh()
     self:RebuildAllRows()
     self:UpdateAllIcons()
 
-    -- Reapply texcoords (ensures aspect ratio cropping is applied)
+    -- Reapply texcoords (handles Masque compositing)
     self:ApplyIconTexCoords()
     
     -- Update cooldown bling setting on all icons (per-row)

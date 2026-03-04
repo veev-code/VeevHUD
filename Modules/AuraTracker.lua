@@ -27,6 +27,7 @@ function AuraTracker:Initialize()
     self.Utils = addon.Utils
     self.C = addon.Constants
     self.Animations = addon.Animations
+    self.iconFactory = addon:GetModule("IconFrameFactory")
 
     -- Icon frames
     self.icons = {}
@@ -323,7 +324,7 @@ function AuraTracker:CreateFrames(parent)
         self.icons[i] = frame
     end
     
-    -- Apply texcoords after all icons are created (ensures aspect ratio is respected)
+    -- Apply texcoords after all icons are created (handles Masque compositing)
     self:ApplyIconTexCoords()
     
     -- Start update ticker
@@ -333,16 +334,17 @@ function AuraTracker:CreateFrames(parent)
     self:UpdateAllProcs()
 end
 
--- Apply texcoords to all proc icons based on current aspect ratio and zoom settings
+-- Apply texcoords to all proc icons based on current aspect ratio and zoom settings.
+-- Delegates to IconFrameFactory which handles Masque compositing (reads Masque's
+-- texcoords and applies VeevHUD zoom on top when Masque is active).
 function AuraTracker:ApplyIconTexCoords()
-    -- iconZoom is total crop percentage; divide by 2 to get per-edge crop
-    local zoomPerEdge = addon.db.profile.icons.iconZoom / 2
-    local aspectRatio = addon.db.profile.auraTracker.iconAspectRatio
-    local left, right, top, bottom = self.Utils:GetIconTexCoords(zoomPerEdge, aspectRatio)
-    for _, frame in ipairs(self.icons or {}) do
-        if frame.icon then
-            frame.icon:SetTexCoord(left, right, top, bottom)
-        end
+    if self.iconFactory then
+        self.iconFactory:ApplyTexCoords(
+            self.icons or {},
+            addon.db.profile.icons.iconZoom,
+            addon.db.profile.auraTracker.iconAspectRatio,
+            self.MasqueGroup
+        )
     end
 end
 
@@ -922,8 +924,6 @@ function AuraTracker:Refresh()
         self.container:SetSize(totalWidth, iconHeight)
         
         -- Resize all icons and update stored dimensions
-        local zoomPerEdge = addon.db.profile.icons.iconZoom / 2
-        local left, right, top, bottom = self.Utils:GetIconTexCoords(zoomPerEdge, aspectRatio)
         for i, frame in ipairs(self.icons or {}) do
             local xOffset = (i - 1) * (iconWidth + spacing) - (totalWidth / 2) + (iconWidth / 2)
             -- Resize both wrapper and visual
@@ -937,10 +937,9 @@ function AuraTracker:Refresh()
             frame:ClearAllPoints()
             frame:SetPoint("CENTER", self.container, "CENTER", xOffset, 0)
 
-            -- Resize icon texture
+            -- Resize icon texture (texcoords handled by ApplyIconTexCoords after ReSkin)
             if frame.icon then
                 frame.icon:SetSize(iconWidth, iconHeight)
-                frame.icon:SetTexCoord(left, right, top, bottom)
             end
 
             -- Update backdrop glow size to match new icon size
@@ -976,9 +975,9 @@ function AuraTracker:Refresh()
         end
     end
 
-    -- Apply texcoords for aspect ratio cropping
+    -- Reapply texcoords (handles Masque compositing)
     self:ApplyIconTexCoords()
-    
+
     -- Reposition to re-center visible icons
     self:RepositionIcons()
     

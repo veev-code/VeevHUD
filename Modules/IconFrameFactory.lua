@@ -248,12 +248,59 @@ end
 
 -- Apply zoom/aspect ratio texcoords to a list of icon frames.
 -- Called after config changes that affect icon zoom or aspect ratio.
-function IconFrameFactory:ApplyTexCoords(icons, zoom, aspectRatio)
+-- When masqueActive is true, reads Masque's applied texcoords first and applies
+-- VeevHUD's zoom on top (WeakAuras-style compositing), so both the Masque skin's
+-- texcoords and VeevHUD's iconZoom coexist.
+function IconFrameFactory:ApplyTexCoords(icons, zoom, aspectRatio, masqueGroup)
     local zoomPerEdge = zoom / 2
-    for _, icon in ipairs(icons) do
-        if icon.icon then
-            local left, right, top, bottom = self.Utils:GetIconTexCoords(zoomPerEdge, aspectRatio)
-            icon.icon:SetTexCoord(left, right, top, bottom)
+    -- Check if Masque is actively skinning (installed AND not disabled for this group)
+    local masqueActive = masqueGroup and not (masqueGroup.db and masqueGroup.db.Disabled)
+    if masqueActive then
+        for _, icon in ipairs(icons) do
+            if icon.icon then
+                self:ApplyZoomOverMasque(icon.icon, zoomPerEdge, aspectRatio)
+            end
+        end
+    else
+        local left, right, top, bottom = self.Utils:GetIconTexCoords(zoomPerEdge, aspectRatio)
+        for _, icon in ipairs(icons) do
+            if icon.icon then
+                icon.icon:SetTexCoord(left, right, top, bottom)
+            end
         end
     end
+end
+
+-- Apply VeevHUD's zoom on top of Masque's texcoords (WeakAuras-style).
+-- Reads the icon's current texcoords (set by Masque skin), then applies
+-- VeevHUD's zoom as a proportional inward crop.
+function IconFrameFactory:ApplyZoomOverMasque(iconTexture, zoomPerEdge, aspectRatio)
+    -- Read Masque's applied texcoords (8-value: ULx,ULy, LLx,LLy, URx,URy, LRx,LRy)
+    local ULx, ULy, LLx, LLy, URx, URy, LRx, LRy = iconTexture:GetTexCoord()
+
+    -- Convert to 4-value (left, right, top, bottom) assuming no rotation
+    local baseLeft = ULx
+    local baseRight = URx
+    local baseTop = ULy
+    local baseBottom = LLy
+
+    -- Apply zoom as proportional inward crop on Masque's range
+    local rangeH = baseRight - baseLeft
+    local rangeV = baseBottom - baseTop
+    local left = baseLeft + zoomPerEdge * rangeH
+    local right = baseRight - zoomPerEdge * rangeH
+    local top = baseTop + zoomPerEdge * rangeV
+    local bottom = baseBottom - zoomPerEdge * rangeV
+
+    -- Apply aspect ratio crop (additional vertical crop for wide icons)
+    if aspectRatio > 1.0 then
+        local visibleH = rangeH * (1 - 2 * zoomPerEdge)
+        local visibleV = visibleH / aspectRatio
+        local currentV = rangeV * (1 - 2 * zoomPerEdge)
+        local extraCrop = (currentV - visibleV) / 2
+        top = top + extraCrop
+        bottom = bottom - extraCrop
+    end
+
+    iconTexture:SetTexCoord(left, right, top, bottom)
 end
