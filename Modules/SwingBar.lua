@@ -87,38 +87,25 @@ addon:RegisterModule("SwingBar", SwingBar)
 -- Constants
 -------------------------------------------------------------------------------
 
--- Spells that reset the melee swing timer when they land (SPELL_DAMAGE/SPELL_MISSED)
-local SWING_RESET_SPELLS = {
-    -- Warrior: Heroic Strike (all ranks) — replaces white hit with yellow
-    [78]=true, [284]=true, [285]=true, [1608]=true,
-    [11564]=true, [11565]=true, [11566]=true, [11567]=true,
-    [25286]=true, [29707]=true, [30324]=true,
-    -- Warrior: Cleave (all ranks) — same mechanic as Heroic Strike
-    [845]=true, [7369]=true, [11608]=true, [11609]=true,
-    [20569]=true, [25231]=true,
-    -- Warrior: Slam (all ranks) — 1.5s cast, resets timer on completion
-    [1464]=true, [8820]=true, [11604]=true, [11605]=true,
-    [25241]=true, [25242]=true,
-    -- Hunter: Raptor Strike (all ranks)
-    [2973]=true, [14260]=true, [14261]=true, [14262]=true,
-    [14263]=true, [14264]=true, [14265]=true, [14266]=true, [27014]=true,
-    -- Druid: Maul (all ranks) — bear form only
-    [6807]=true, [6808]=true, [6809]=true, [8972]=true,
-    [9745]=true, [9880]=true, [9881]=true,
-}
+-- Spells that reset the melee swing timer when they land (SPELL_DAMAGE/SPELL_MISSED).
+-- Built dynamically from LibSpellDB's SWING_RESET tag at init time.
+local SWING_RESET_SPELLS = {}
+
+local function BuildSwingResetLookup()
+    local lib = addon.LibSpellDB
+    if not lib then return end
+    local tagged = lib:GetSpellsByTag("SWING_RESET")
+    for spellID in pairs(tagged) do
+        local allRanks = lib:GetAllRankIDs(spellID)
+        for rankID in pairs(allRanks) do
+            SWING_RESET_SPELLS[rankID] = true
+        end
+    end
+end
 
 -- Auto Shot and Shoot (wand) spell IDs
 local AUTO_SHOT_ID = 75
 local SHOOT_ID = 5019
-
--- Fixed cast time for Auto Shot and Wand wind-up (520ms)
-local AUTO_CAST_TIME = 0.52
-
--- Multi-Shot ranks (for Hunter 3-color zone calculation)
-local MULTI_SHOT_IDS = {
-    [2643]=true, [14288]=true, [14289]=true, [14290]=true,
-    [25294]=true, [27021]=true,
-}
 
 -- Base cast times (scaled by haste in-game, but we read effective speed from API)
 local STEADY_SHOT_CAST_TIME = 1.5
@@ -176,6 +163,9 @@ function SwingBar:Initialize()
     self.C = addon.Constants
 
     self.playerGUID = UnitGUID("player")
+
+    -- Build swing reset lookup from LibSpellDB
+    BuildSwingResetLookup()
 
     -- Class detection
     self.isHunter = (class == "HUNTER")

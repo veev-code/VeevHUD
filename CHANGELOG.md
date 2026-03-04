@@ -1,5 +1,13 @@
 # VeevHUD Changelog
 
+## [1.0.139] - 2026-03-04
+
+### Improved
+- **Swing Bar data loaded from LibSpellDB** — Swing reset spells (Heroic Strike, Cleave, Slam, Raptor Strike, Maul) are now queried from LibSpellDB at init instead of being hardcoded. New swing reset abilities added to LibSpellDB will be picked up automatically.
+
+### LibSpellDB Updates
+- New `SWING_RESET` tag for melee abilities that reset the swing timer.
+
 ## [1.0.138] - 2026-03-04
 
 ### Improved
