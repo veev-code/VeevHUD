@@ -1,5 +1,13 @@
 # VeevHUD Changelog
 
+## [1.0.134] - 2026-03-04
+
+### Improved
+- **Library packaging** — Migrated all embedded libraries (Ace3, LibSharedMedia, LibCustomGlow, etc.) to `.pkgmeta` externals, following the standard WoW addon community convention used by WeakAuras, DBM, and BigWigs. No user-facing changes — libraries are fetched automatically during packaging.
+
+### LibSpellDB Updates
+- Fixed a "Duplicate File Load Detected" warning that appeared in BugSack when LibSpellDB was loaded as a standalone addon.
+
 ## [1.0.133] - 2026-03-03
 
 ### Fixed

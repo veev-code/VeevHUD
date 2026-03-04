@@ -79,7 +79,8 @@ VeevHUD is a lightweight, WeakAuras-inspired heads-up display addon for World of
 - `Locales/enUS.lua` — English localization strings
 - `Media/Statusbar_Clean.blp` — Bundled status bar texture
 - `Fonts/Expressway-Bold.ttf` — Bundled font
-- `Libs/` — Embedded libraries (Ace3 suite, LibSharedMedia, LibDualSpec, LibCustomGlow, etc.)
+- `Libs/embeds.xml` — Library loader (only tracked file in `Libs/`; library source fetched by `.pkgmeta` externals)
+- `Tools/fetch-libs.sh` — Fetches all library externals into `Libs/` for local development
 
 ## Architecture
 
@@ -295,11 +296,14 @@ For tagging guidelines (FILLER vs ROTATIONAL, PERSONAL_DEFENSIVE vs HEAL, specs/
 
 ## Dependencies
 
-### Embedded (`Libs/`)
-LibStub, CallbackHandler-1.0, AceAddon-3.0, AceEvent-3.0, AceHook-3.0, AceConsole-3.0, AceLocale-3.0, AceDB-3.0, AceDBOptions-3.0, AceGUI-3.0, AceConfig-3.0, AceGUI-3.0-SharedMediaWidgets, LibDualSpec-1.0, LibSharedMedia-3.0, LibCustomGlow-1.0
+All libraries are fetched via `.pkgmeta` externals at release time (by `BigWigsMods/packager@v2`). They are NOT committed to git — `Libs/*/` is gitignored.
 
-### External (OptionalDeps)
-- `LibSpellDB` — Spell database (not embedded, installed separately)
+**Local dev workflow:** Run `bash Tools/fetch-libs.sh` to populate `Libs/`, test in-game, then release in the same session to ensure version consistency.
+
+### Libraries (`Libs/`)
+LibStub, CallbackHandler-1.0, AceAddon-3.0, AceEvent-3.0, AceHook-3.0, AceConsole-3.0, AceLocale-3.0, AceDB-3.0, AceDBOptions-3.0, AceGUI-3.0, AceConfig-3.0, AceGUI-3.0-SharedMediaWidgets, LibDualSpec-1.0, LibSharedMedia-3.0, LibCustomGlow-1.0, LibSpellDB
+
+### Optional
 - `Masque` — Icon skinning (optional)
 
 ## Slash Commands

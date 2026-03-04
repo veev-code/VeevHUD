@@ -1,0 +1,2 @@
+# Library externals (fetched by .pkgmeta at release, Tools/fetch-libs.sh for local dev)
+Libs/*/
