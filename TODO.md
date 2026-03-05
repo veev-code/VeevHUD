@@ -14,9 +14,7 @@ Reported missing or broken spell support (not confirmed fixed):
 
 ## Bugs
 
-- **Timer text rounding** — Buff/debuff minute display rounds *down* while WoW's native buff bar rounds *up* (e.g., addon shows "3m" when WoW shows "4m"). *(Shadowhawk)*
 - **Resource-gated cooldown transition** — When an ability comes off cooldown but the player lacks the resource (e.g., rage) to cast it, the icon transition is jarring — it briefly looks ready, then snaps to the "not usable" state instead of filling smoothly. Investigate a more seamless visual path for this case.
-- Grow out animation on buff reminders can end somewhat abruptly
 
 ---
 
@@ -30,9 +28,6 @@ These were requested by multiple people or have strong gameplay impact.
 
 ## Feature Requests — Medium Priority
 
-- **Custom Buff/Debuff Display Near Health Bar** — Let users select arbitrary important buffs and debuffs to display near the health bar (extending beyond just procs), keeping all critical info in one place. *(Soveliss)*
-
-- **Track Shared Debuffs from Any Caster** — Debuffs like Faerie Fire and Sunder Armor should show on your HUD even when applied by another player, since only one instance of the debuff matters. Should also handle cross-ability equivalence (e.g., Sunder Armor and Expose Armor share the same armor-reduction debuff slot). *(Artvil)*
 - **Dual Countdown on Icons (CD + Debuff)** — For abilities where both a cooldown and a debuff matter (e.g., Mangle Cat — no CD but debuff is key), show a secondary timer in an icon corner so both can be tracked on one icon without adding a separate icon. *(Artvil)*
 - **Health Bar Improvements** — Potential enhancements:
   - Text options: max health, health deficit, whole numbers (not just "k" abbreviation)
@@ -131,3 +126,4 @@ Items from feedback that have been completed, with the version they shipped in.
 | Absorb Shields not working                                        | 1.0.85  | Removed non-functional feature (Classic API lacks absorb support) |
 | Usable mana prediction is sometimes off                           | 1.0.92  | Fixed ~2s overshoot, spiral resets, and IED/potion tick corruption |
 | Trinket Tracking                                                  | 1.0.127 | On-use cooldowns, proc buffs, ICD display, stacks, pop animation |
+| Track Shared Debuffs from Any Caster                              | 1.0.143 | Same-class shared debuffs (17 spells); cross-class equivalence intentionally not in scope |

@@ -1,5 +1,13 @@
 # VeevHUD Changelog
 
+## [1.0.143] - 2026-03-04
+
+### Added
+- **Shared Debuff Tracking** — Maintenance debuffs like Thunder Clap, Sunder Armor, Faerie Fire, and Hunter's Mark now show as active on your HUD even when applied by another player of the same class. This covers 17 shared debuffs across all classes including utility curses (Curse of Elements, Curse of Shadow, etc.), Demoralizing Shout/Roar, Mangle, Expose Armor, and Stormstrike. Per-warlock damage curses (Curse of Agony, Curse of Doom) are correctly excluded. *(Artvil)*
+
+### LibSpellDB Updates
+- New `sharedAura` field and `IsSharedAura()` API for marking debuffs shared across all players. 17 spells tagged across 6 classes.
+
 ## [1.0.142] - 2026-03-04
 
 ### Improved

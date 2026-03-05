@@ -287,8 +287,16 @@ function AuraState:OnAuraEvent(subEvent, data)
     local destGUID = data.destGUID
     local destName = data.destName
     
-    -- Must be from us (we only track our own auras)
-    if sourceGUID ~= self.playerGUID then return end
+    -- Must be from us (we only track our own auras), unless it's a shared aura
+    -- (e.g., Thunder Clap, Sunder Armor — any player of the same class can apply/refresh)
+    if sourceGUID ~= self.playerGUID then
+        local isShared = false
+        if self.LibSpellDB then
+            local canonicalID = self.LibSpellDB:GetCanonicalSpellID(spellID) or spellID
+            isShared = self.LibSpellDB:IsSharedAura(canonicalID)
+        end
+        if not isShared then return end
+    end
     
     -- Check if this aura is explicitly mapped (different aura ID than spell ID)
     local sourceSpellID = self.auraToSpellMap[spellID]
@@ -906,28 +914,35 @@ end
 -- Get aura duration, expiration, and stack count from a unit
 function AuraState:GetAuraDurationOnUnit(unit, spellID, spellName, isBuff)
     if not unit or not UnitExists(unit) then return nil, nil, nil end
-    
+
     local scanFunc = isBuff and UnitBuff or UnitDebuff
     local filter = isBuff and "HELPFUL" or "HARMFUL"
-    
+
+    -- For debuffs, check if this is a shared aura (accept any source)
+    local isSharedAura = false
+    if not isBuff and self.LibSpellDB then
+        local canonicalID = self.LibSpellDB:GetCanonicalSpellID(spellID) or spellID
+        isSharedAura = self.LibSpellDB:IsSharedAura(canonicalID)
+    end
+
     -- Scan auras on the unit
     for i = 1, 40 do
-        local name, icon, count, debuffType, duration, expirationTime, source, 
+        local name, icon, count, debuffType, duration, expirationTime, source,
               isStealable, nameplateShowPersonal, auraSpellID = scanFunc(unit, i, filter)
-        
+
         if not name then break end
-        
+
         -- Match by spell ID or name
         if (auraSpellID and auraSpellID == spellID) or name == spellName then
-            -- For debuffs, make sure it's ours
-            if not isBuff and source and source ~= "player" then
+            -- For debuffs, make sure it's ours (unless it's a shared aura)
+            if not isBuff and not isSharedAura and source and source ~= "player" then
                 -- Not our debuff, keep scanning
             else
                 return duration, expirationTime, count or 0
             end
         end
     end
-    
+
     return nil, nil, nil
 end
 
