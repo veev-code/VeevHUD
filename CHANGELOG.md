@@ -1,5 +1,13 @@
 # VeevHUD Changelog
 
+## [1.0.142] - 2026-03-04
+
+### Improved
+- **Buff Reminders: Min Stacks slider** — The slider max is now based on the actual charge count from spell data instead of a hardcoded 25. For grouped spells (e.g., Shaman Shields), the max reflects the highest charge count across the group (Earth Shield = 6).
+
+### LibSpellDB Updates
+- Added `charges` field to Earth Shield (6) and Shadowguard (3).
+
 ## [1.0.141] - 2026-03-04
 
 ### Improved

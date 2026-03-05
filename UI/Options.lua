@@ -2817,13 +2817,27 @@ function Options:BuildBuffRemindersOptions()
 
 				-- Add min stacks option for spells with charges (Inner Fire, Water Shield, Lightning Shield)
 				if spellData.duration and spellData.duration <= 600 then
-					local isChargeSpell = LibSpellDB and LibSpellDB:HasCharges(spellID)
-					if isChargeSpell then
+					-- Check if any spell in this entry (or its group) has charges
+					local maxCharges = 0
+					if groupName and LibSpellDB then
+						local groupInfo = LibSpellDB.BuffGroups[groupName]
+						if groupInfo and groupInfo.spells then
+							for _, gSpellID in ipairs(groupInfo.spells) do
+								local gData = LibSpellDB:GetSpellInfo(gSpellID)
+								if gData and gData.charges and gData.charges > maxCharges then
+									maxCharges = gData.charges
+								end
+							end
+						end
+					elseif spellData.charges then
+						maxCharges = spellData.charges
+					end
+					if maxCharges > 0 then
 						args[spellKey].args.minStacks = {
 							type = "range",
 							name = "Min Stacks",
 							desc = "Show the reminder when stacks fall below this number. Set to 0 to disable stack checking. This is an OR condition with the time threshold.",
-							min = 0, max = 25, step = 1,
+							min = 0, max = maxCharges, step = 1,
 							disabled = isSpellDisabled,
 							get = function()
 								local cfg = getBRSpellConfig(spellID)
