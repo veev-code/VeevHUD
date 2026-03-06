@@ -365,3 +365,4 @@ VeevHUD has built-in persistent debug logging that makes it easy to diagnose tim
 - Animations: `addon.Animations:PlayScalePunch(frame)` (custom OnUpdate driver, avoids WoW Scale animation CooldownFrame bug)
 - Animations: `addon.Animations:CreateSlideAnimator(container, speed)` — centered horizontal icon reordering with ease-out lerp
 - Animations: `addon.Animations:TransitionAlpha(frame, targetAlpha, speed, callback)` — smooth alpha fade via OnUpdate
+- **No hardcoded spell IDs** — VeevHUD must never contain hardcoded spell IDs. All spell knowledge (IDs, durations, tags, cooldowns, proc info, etc.) lives in LibSpellDB. VeevHUD queries LibSpellDB at runtime via its API. If a spell needs special handling, add the appropriate tag or field in LibSpellDB and query it from VeevHUD — don't embed spell IDs in VeevHUD code.

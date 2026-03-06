@@ -776,7 +776,7 @@ function Options:BuildOptionsTable()
 									iconAspectRatio = {
 										type = "select",
 										name = "Aspect Ratio",
-										desc = "Makes ability icons wider and shorter (like widescreen). Aura Tracker and Totem Bar have their own settings under Modules.",
+										desc = "Makes ability icons wider and shorter (like widescreen). Aura Tracker and Totem Bar have their own settings under Bars.",
 										values = {
 											[1.0] = "Square (1:1)",
 											[1.165] = "Slightly Compact",
@@ -1488,7 +1488,7 @@ function Options:BuildOptionsTable()
 						args = {
 							description = {
 								type = "description",
-								name = "The Aura Tracker shows small icons for important temporary buffs — class procs (Enrage, Flurry, Clearcasting), external buffs (Bloodlust, Power Infusion, Innervate), and any custom auras you add.\n\nUse the tabs below to configure which auras to show.\n",
+								name = "The Aura Tracker shows small icons for important temporary buffs — class procs (Enrage, Flurry, Clearcasting), external buffs (Bloodlust, Power Infusion, Innervate), and any custom auras you add.\n\nUse the tabs above to configure which auras to show.\n",
 								fontSize = "medium",
 								order = 0,
 							},
@@ -3250,6 +3250,40 @@ function Options:Initialize()
 	-- initialized yet. Register() builds the options table and needs module
 	-- defaults to be available. Instead, defer to Open() / first use, which is
 	-- guaranteed to happen after all modules are initialized.
+
+	-- Register an entry in the native addon options (ESC > Options > AddOns)
+	self:RegisterSettingsPanel()
+end
+
+function Options:RegisterSettingsPanel()
+	if not Settings or not Settings.RegisterCanvasLayoutCategory then return end
+
+	local panel = CreateFrame("Frame")
+	panel.name = "VeevHUD"
+
+	local title = panel:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+	title:SetPoint("TOPLEFT", 16, -16)
+	title:SetText("VeevHUD")
+
+	local desc = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+	desc:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -8)
+	desc:SetText("Cooldown, buff/debuff, and resource HUD.")
+
+	local openBtn = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+	openBtn:SetText("Open VeevHUD Settings")
+	openBtn:SetWidth(180)
+	openBtn:SetHeight(24)
+	openBtn:SetPoint("TOPLEFT", desc, "BOTTOMLEFT", 0, -16)
+	openBtn:SetScript("OnClick", function()
+		-- Close the Blizzard settings window via HideUIPanel (preserves ESC key handling)
+		if SettingsPanel and SettingsPanel:IsShown() then
+			HideUIPanel(SettingsPanel)
+		end
+		Options:Open()
+	end)
+
+	local category = Settings.RegisterCanvasLayoutCategory(panel, panel.name, panel.name)
+	Settings.RegisterAddOnCategory(category)
 end
 
 function Options:Open(centerX, centerY)

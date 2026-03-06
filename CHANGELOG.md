@@ -1,5 +1,13 @@
 # VeevHUD Changelog
 
+## [1.0.145] - 2026-03-06
+
+### Added
+- **Settings Panel Entry** — VeevHUD now appears in the native addon options (ESC > Options > AddOns) with a button to open the full settings window.
+
+### Fixed
+- Fixed stale config text referencing old tab names in Aspect Ratio and Aura Tracker descriptions.
+
 ## [1.0.144] - 2026-03-06
 
 ### Added
