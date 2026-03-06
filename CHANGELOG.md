@@ -1,5 +1,13 @@
 # VeevHUD Changelog
 
+## [1.0.144] - 2026-03-06
+
+### Added
+- **Timed Effect Countdown** — Spells that create a timed effect with no trackable buff now show an aura-style countdown (glow, spiral, timer text) after casting. This covers Flamestrike (8s ground fire), Distract (10s distraction), Consecration (8s ground AoE), and Flare (20s stealth reveal). *(Shadowhawk)*
+
+### LibSpellDB Updates
+- New `TIMED_EFFECT` tag and `IsTimedEffect()` API for marking cast-and-forget spells with fixed durations but no unit aura. 4 spells tagged across 4 classes.
+
 ## [1.0.143] - 2026-03-04
 
 ### Added

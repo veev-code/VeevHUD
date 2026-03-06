@@ -847,6 +847,19 @@ function IconStateEngine:_ComputeVisualFlags(frame, db, s)
         end
     end
 
+    -- Timed effect: inject synthetic aura data (Flamestrike, Distract, Consecration)
+    if frame.timedEffectExpires then
+        local teRemaining = frame.timedEffectExpires - now
+        if teRemaining > 0 then
+            s.auraActive = true
+            s.auraRemaining = teRemaining
+            s.auraDuration = frame.timedEffectDuration
+        else
+            frame.timedEffectStart = nil
+            frame.timedEffectExpires = nil
+        end
+    end
+
     local dimOnCooldown = self.Database:IsRowSettingEnabled(db.dimOnCooldown, rowIndex)
     local showGCDForThisRow = self.Database:IsRowSettingEnabled(db.showGCDOn, rowIndex)
 

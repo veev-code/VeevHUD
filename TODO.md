@@ -36,9 +36,6 @@ These were requested by multiple people or have strong gameplay impact.
 
 ## Feature Requests — Low Priority / Ideas
 
-- **PvP Trinket Tracking** — Track PvP trinket cooldown.
-- **WoW Animation API** — Migrate animations to use WoW's built-in Animation system for smoother/more efficient playback. *(Buff Reminders already uses native Animation API; consider migrating other modules.)*
-- **Separate Movable Buffs Bar** — A dedicated area for tracking arbitrary buffs that can be positioned independently from the main HUD stack. *(Shadowhawk)* *(Maintenance buffs now covered by Buff Reminders; this request is for broader arbitrary buff tracking.)*
 - **Consume Relationship on Icons** — Spells that consume another spell's effect (e.g., Conflagrate consumes Immolate) could show the remaining duration of the consumed effect on their icon, warning players when consuming would be wasteful. Would need a new LibSpellDB field like `consumes = {spellID}` and VeevHUD display logic.
 
 ---

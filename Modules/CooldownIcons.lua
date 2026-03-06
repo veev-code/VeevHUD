@@ -336,6 +336,13 @@ function CooldownIcons:OnSpellCastSucceeded(event, unit, castGUID, spellID)
             frame.reactiveWindowStart = nil
             frame.reactiveWindowExpires = nil
         end
+
+        -- Start timed effect countdown on cast (Flamestrike, Distract, Consecration)
+        if frame.timedEffectDuration then
+            local now = GetTime()
+            frame.timedEffectStart = now
+            frame.timedEffectExpires = now + frame.timedEffectDuration
+        end
     end
 
     -- Check if this spell is part of a shared cooldown group
@@ -1038,6 +1045,10 @@ function CooldownIcons:ResetIconState(frame)
     frame.reactiveWindowExpires = nil
     frame.reactiveWindowWasUsable = nil
 
+    -- Timed effect (IconStateEngine:_ComputeVisualFlags)
+    frame.timedEffectStart = nil
+    frame.timedEffectExpires = nil
+
     -- Dynamic sort
     frame.actionableTime = nil
 
@@ -1151,6 +1162,13 @@ function CooldownIcons:SetupIcon(frame, spellID, actualSpellID, spellData, rowCo
             local spellInfo = addon.LibSpellDB:GetSpellInfo(spellID)
             frame.reactiveWindowEvent = spellInfo and spellInfo.reactiveWindowEvent
         end
+    end
+
+    -- Check if this spell is a timed effect (e.g., Flamestrike 8s ground fire, Distract 10s)
+    -- When set, OnSpellCastSucceeded starts a synthetic aura countdown using the spell's duration
+    frame.timedEffectDuration = nil
+    if addon.LibSpellDB and addon.LibSpellDB:IsTimedEffect(spellID) then
+        frame.timedEffectDuration = spellData.duration
     end
 
     -- Check if this spell has dodge-reactive glow (e.g., Overpower)
