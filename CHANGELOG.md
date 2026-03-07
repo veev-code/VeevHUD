@@ -1,5 +1,10 @@
 # VeevHUD Changelog
 
+## [1.0.147] - 2026-03-06
+
+### Fixed
+- **Pet Health Bar** — Fixed bar appearing when a pet is summoned even after disabling the feature in settings.
+
 ## [1.0.146] - 2026-03-06
 
 ### Added

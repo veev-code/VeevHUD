@@ -71,7 +71,8 @@ function PetHealthBar:CheckPetStatus()
     self.hasPet = UnitExists("pet") and not UnitIsDead("pet")
 
     if self.hasPet ~= hadPet then
-        if self.bar then
+        local db = addon.db.profile.petHealthBar
+        if self.bar and db.enabled then
             if self.hasPet then
                 self.bar:Show()
             else
