@@ -97,6 +97,10 @@ function AuraState:Initialize()
     -- killed by damage, grounding absorb, zone transition, etc.)
     self.Events:RegisterEvent(self, "PLAYER_TOTEM_UPDATE", self.OnPlayerTotemUpdate)
 
+    -- Fallback for pet death: CLEU UNIT_DIED doesn't always fire for temporary
+    -- pets (e.g., Shadowfiend in Anniversary Edition). UNIT_PET fires reliably.
+    self.Events:RegisterEvent(self, "UNIT_PET", self.OnUnitPet)
+
     -- Periodic cleanup of expired auras
     self.cleanupTicker = C_Timer.NewTicker(1, function()
         self:CleanupExpiredAuras()
@@ -687,6 +691,33 @@ function AuraState:OnPlayerTotemUpdate(event, slot)
         self:ClearSummonTracking(trackedSpellID)
         self:ClearTotemElementForSpell(trackedSpellID)
         self:NotifyAuraChange(trackedSpellID, false)
+    end
+end
+
+-- Fallback for pet death: CLEU UNIT_DIED doesn't always fire for temporary
+-- pets (e.g., Shadowfiend in Anniversary Edition). Check if any tracked summon
+-- pets are gone when the pet unit changes.
+function AuraState:OnUnitPet(event, unit)
+    if unit ~= "player" then return end
+
+    -- If we have no tracked summon pets, nothing to do
+    if not next(self.summonPetToSpell) then return end
+
+    -- Check if the pet is dead or gone
+    if not UnitExists("pet") or UnitIsDead("pet") then
+        -- Collect non-totem summon spells to clear (can't modify table during iteration)
+        local toClear = {}
+        for petGUID, baseSpellID in pairs(self.summonPetToSpell) do
+            local summonInfo = self.summonSpells[baseSpellID]
+            if summonInfo and not summonInfo.totemElementTag then
+                toClear[baseSpellID] = true
+            end
+        end
+        for baseSpellID in pairs(toClear) do
+            self.Utils:LogInfo("AuraState: Pet died/dismissed (UNIT_PET), clearing", baseSpellID)
+            self:ClearSummonTracking(baseSpellID)
+            self:NotifyAuraChange(baseSpellID, false)
+        end
     end
 end
 

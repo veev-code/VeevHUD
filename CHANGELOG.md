@@ -1,5 +1,16 @@
 # VeevHUD Changelog
 
+## [1.0.146] - 2026-03-06
+
+### Added
+- **Pet Health Bar** — New bar displaying your pet's health, positioned between the player health bar and resource bar. Auto-hides when you have no active pet and collapses the layout accordingly (like the swing bar). Includes heal prediction overlay, smooth animation, gradient, and configurable size/color/text. Default: thin 4px green bar with no text, enabled for all classes.
+
+### Fixed
+- **Temporary pet aura not clearing on death** — Shadowfiend (and similar temporary pet summons) now correctly clears its "buff active" glow when the pet dies early. Anniversary Edition doesn't fire CLEU death events for guardian pets, so the addon now uses the `UNIT_PET` game event as a reliable fallback.
+
+### LibSpellDB Updates
+- Added Spirit of Redemption (Priest Holy) proc entry.
+
 ## [1.0.145] - 2026-03-06
 
 ### Added

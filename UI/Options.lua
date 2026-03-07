@@ -1450,6 +1450,56 @@ function Options:BuildOptionsTable()
 							},
 						},
 					},
+					petHealth = {
+						type = "group",
+						name = "Pet Health Bar",
+						order = 2.5,
+						args = {
+							enabled = { type = "toggle", name = "Enabled", desc = "Shows a bar displaying your pet's current health. Automatically hides when you have no active pet.", arg = "petHealthBar.enabled", order = 1 },
+							sizeSettings = {
+								type = "group",
+								name = "Size",
+								inline = true,
+								order = 2,
+								disabled = function() return not addon.db.profile.petHealthBar.enabled end,
+								args = {
+									width = { type = "range", name = "Width", desc = "How wide the pet health bar is in pixels.", min = 50, max = 600, step = 1, arg = "petHealthBar.width", order = 1 },
+									height = { type = "range", name = "Height", desc = "How tall/thick the pet health bar is in pixels.", min = 2, max = 60, step = 1, arg = "petHealthBar.height", order = 2 },
+								},
+							},
+							textSettings = {
+								type = "group",
+								name = "Text",
+								inline = true,
+								order = 3,
+								disabled = function() return not addon.db.profile.petHealthBar.enabled end,
+								args = {
+									textFormat = { type = "select", name = "Text Format", desc = "Controls what text is shown on the pet health bar.\n\n'Current Value' shows actual health.\n'Percent' shows health percentage.\n'Both' shows both.\n'None' hides the text.", values = textFormatValues, arg = "petHealthBar.textFormat", order = 1 },
+									textSize = { type = "range", name = "Text Size", desc = "Font size for the pet health text.", min = 6, max = 24, step = 1, arg = "petHealthBar.textSize", order = 2, disabled = function() return addon.db.profile.petHealthBar.textFormat == C.TEXT_FORMAT.NONE end },
+								},
+							},
+							colorSettings = {
+								type = "group",
+								name = "Color",
+								inline = true,
+								order = 4,
+								disabled = function() return not addon.db.profile.petHealthBar.enabled end,
+								args = {
+									color = { type = "color", name = "Bar Color", desc = "The color for the pet health bar.", hasAlpha = false, get = colorGet, set = colorSet, arg = "petHealthBar.color", order = 1 },
+								},
+							},
+							overlaySettings = {
+								type = "group",
+								name = "Overlays",
+								inline = true,
+								order = 5,
+								disabled = function() return not addon.db.profile.petHealthBar.enabled end,
+								args = {
+									showHealPrediction = { type = "toggle", name = "Heal Prediction", desc = "Shows a lighter overlay on the pet health bar representing incoming heals.", arg = "petHealthBar.showHealPrediction", order = 1 },
+								},
+							},
+						},
+					},
 				combopoints = {
 					type = "group",
 					name = "Combo Points",

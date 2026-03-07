@@ -239,6 +239,7 @@ C.LAYOUT_ELEMENTS = {
     auraTracker  = "Aura Tracker",
     totemBar     = "Totem Bar",
     healthBar    = "Health Bar",
+    petHealthBar = "Pet Health Bar",
     resourceBar  = "Resource Bar",
     comboPoints  = "Combo Points",
     swingBar     = "Swing Bar",
@@ -291,6 +292,7 @@ C.DEFAULTS = {
                 "auraTracker",
                 "totemBar",
                 "healthBar",
+                "petHealthBar",
                 "resourceBar",
                 "comboPoints",
                 "swingBar",
@@ -306,6 +308,7 @@ C.DEFAULTS = {
                 auraTracker  = 0,
                 totemBar     = 6,
                 healthBar    = 2,
+                petHealthBar = 0,
                 resourceBar  = 0,
                 comboPoints  = 0,
                 swingBar     = 0,
@@ -383,6 +386,17 @@ C.DEFAULTS = {
             classColored = true,
             color = { r = 0.0, g = 0.8, b = 0.0 },  -- Custom color when classColored is off (green default)
             showHealPrediction = true,   -- Show incoming heal overlay on bar
+        },
+
+        -- Pet health bar settings (auto-hides when no pet)
+        petHealthBar = {
+            enabled = true,
+            width = 230,
+            height = 4,
+            textFormat = "none",  -- "current", "percent", "both", "none"
+            textSize = 9,
+            color = { r = 0.0, g = 0.8, b = 0.0 },
+            showHealPrediction = true,
         },
 
         -- Combo points settings (for Rogues and Feral Druids)

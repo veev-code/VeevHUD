@@ -224,7 +224,7 @@ function Layout:Refresh()
     -- Bars that use skipTop=true hide their top edge when a bar is directly
     -- above them (sharing a 1px separator). When no bar is above, they need
     -- to show their own top edge.
-    local BAR_ELEMENTS = { healthBar = true, resourceBar = true, comboPoints = true, swingBar = true }
+    local BAR_ELEMENTS = { healthBar = true, petHealthBar = true, resourceBar = true, comboPoints = true, swingBar = true }
     local prevIsBar = false
     for _, elem in ipairs(visible) do
         if BAR_ELEMENTS[elem.key] then

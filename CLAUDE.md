@@ -46,6 +46,7 @@ VeevHUD is a lightweight, WeakAuras-inspired heads-up display addon for World of
 - `AuraState.lua` — Tracks buffs/debuffs applied by player spells via CLEU events. CC_HARD and `singleTarget` spells track across all targets regardless of current target.
 - `ResourceBar.lua` — Resource bar (mana/rage/energy) with predicted cost overlay and tickers
 - `HealthBar.lua` — Health bar with heal prediction overlay
+- `PetHealthBar.lua` — Pet health bar with heal prediction, auto-hides when no pet active
 - `ComboPoints.lua` — Horizontal combo point bars with activation animation
 - `TotemBar.lua` — Shaman totem bar with 4 element slots, duration tracking, and one-per-element enforcement
 - `SwingBar.lua` — Auto-attack swing timer with class-specific mechanics (Hunter clip zones, dual-wield sync, Ret twist window)
@@ -121,12 +122,13 @@ Default element order (top to bottom):
 1. Aura Tracker
 2. Totem Bar
 3. Health Bar
-4. Resource Bar
-5. Combo Points
-6. Swing Bar
-7. Primary Row
-8. Secondary Row
-9. Utility Row
+4. Pet Health Bar
+5. Resource Bar
+6. Combo Points
+7. Swing Bar
+8. Primary Row
+9. Secondary Row
+10. Utility Row
 
 Per-element gaps configured via `layout.gaps` (pixels above each element, skipped for first visible).
 
