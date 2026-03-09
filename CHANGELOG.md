@@ -1,5 +1,22 @@
 # VeevHUD Changelog
 
+## [1.0.148] - 2026-03-09
+
+### Added
+- **Auxiliary Row** — New 4th icon row that sits above the Health Bar by default. Use it to separate spells you want visually distinct from your main rows. Drag spells into it via Spell Configuration (`/vh spells`). Has its own icon size setting (default 36px). Collapses automatically when empty — no change for players who don't use it. *(Splicer006)*
+- **Totem Element Slots** — Shaman totem tracking has been upgraded from a standalone bar into 4 individual element slots (Fire, Earth, Water, Air) that live inside icon rows. You can now reorder totem slots and drag them between any row using Spell Configuration. By default they appear in the Auxiliary Row. Active totems show duration countdowns; expired totems appear dimmed. *(Splicer006)*
+- **Per-Row Aspect Ratio** — Each icon row can now override the global aspect ratio. Set individual rows to Square, Compact, or any other shape independently — useful for keeping main rotation icons compact while totems or utility stay square. Find it under Ability Rows > [Row Name] > Size.
+- **Scaled Pixel Glow** — Aura active glow (the animated pixel border) now scales proportionally with icon size. Previously the glow lines were the same length on all icons, looking oversized on smaller rows.
+
+### Changed
+- **Spell Configuration row order** — Rows now display in visual order (Auxiliary → Primary → Secondary → Utility → Available), matching the default HUD layout top-to-bottom.
+- **Ability Rows tab order** — Row settings tabs follow the same visual order.
+- **Migration popup** — Existing users see a one-time popup explaining the new Auxiliary Row, with a note about Shaman totem changes.
+
+### Fixed
+- **Stale migration data** — Cleaned up legacy `migrationsShown` tracking data left over from the old popup system.
+- **Migration per-profile tracking** — Each character's profile now migrates independently, fixing an issue where the first character to log in after an update could prevent other characters from receiving data migrations.
+
 ## [1.0.147] - 2026-03-06
 
 ### Fixed

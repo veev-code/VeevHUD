@@ -17,7 +17,7 @@
          bars above them appear or disappear
 
     Element keys (matching C.LAYOUT_ELEMENTS):
-      auraTracker, totemBar, healthBar, resourceBar, comboPoints,
+      auraTracker, auxiliaryRow, healthBar, resourceBar, comboPoints,
       swingBar, primaryRow, secondaryRow, utilityRow
 ]]
 
@@ -67,7 +67,7 @@ end
     Icon rows use function callbacks instead of module methods, since CooldownIcons
     manages all 3 rows and routes by row index.
 
-    @param key        Element key ("primaryRow", "secondaryRow", "utilityRow")
+    @param key        Element key ("primaryRow", "secondaryRow", "utilityRow", "auxiliaryRow")
     @param getHeight  Function() -> number (row pixel height, 0 if hidden)
     @param setPosition Function(topY) -> nil (position row at given Y offset)
 ]]

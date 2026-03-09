@@ -48,7 +48,7 @@ VeevHUD is a lightweight, WeakAuras-inspired heads-up display addon for World of
 - `HealthBar.lua` — Health bar with heal prediction overlay
 - `PetHealthBar.lua` — Pet health bar with heal prediction, auto-hides when no pet active
 - `ComboPoints.lua` — Horizontal combo point bars with activation animation
-- `TotemBar.lua` — Shaman totem bar with 4 element slots, duration tracking, and one-per-element enforcement
+- `TotemTracker.lua` — Shaman totem state tracker with 4 element sentinel slots, duration tracking, and one-per-element enforcement. Icons rendered within CooldownIcons rows (no standalone UI).
 - `SwingBar.lua` — Auto-attack swing timer with class-specific mechanics (Hunter clip zones, dual-wield sync, Ret twist window)
 - `IconRenderer.lua` — Stateless rendering service for icon frames: spirals, text, alpha transitions (with cast-feedback delay), desaturation, stacks, charges, resource cost display (bar/fill/prediction). Common rendering pipeline used by CooldownIcons and TrinketTracker via `ApplyIconVisuals` state table pattern.
 - `GlowManager.lua` — Composable glow service for icon frames: proc overlay glow, aura pixel glow, permanent buff glow, ready glow state machine. Owns `activeOverlays` table and fires `OVERLAY_STATE_CHANGED` addon event when overlays change.

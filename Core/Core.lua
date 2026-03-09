@@ -119,7 +119,7 @@ function addon:OnProfileChanged()
     local moduleOrder = {
         "SpellTracker", "AuraState", "SpellAssignment", "IconStateEngine",
         "IconFrameFactory", "CooldownIcons",
-        "AuraTracker", "BuffReminders", "TotemBar",
+        "AuraTracker", "BuffReminders", "TotemTracker",
         "ResourceBar", "HealthBar", "ComboPoints", "SwingBar",
     }
     for _, name in ipairs(moduleOrder) do

@@ -175,10 +175,16 @@ function GlowManager:ShowAuraGlow(frame)
     -- Get icon's current alpha so glow respects Ready/Cooldown Alpha settings
     local iconAlpha = frame.iconAlpha or 1
 
+    -- Scale glow line length proportional to icon size (reference: 56px Primary Row)
+    local iconSize = frame.iconSize or 56
+    local scale = iconSize / 56
+    local length = math.max(4, math.floor(10 * scale + 0.5))
+    local offset = math.min(-1, math.floor(-2 * scale + 0.5))
+
     -- Use shared utility for LibCustomGlow pixel glow
-    -- Color #ffcfaf (peachy gold), offset inward by -2
+    -- Color #ffcfaf (peachy gold), offset inward proportional to icon size
     local color = {1.0, 0.812, 0.686, iconAlpha}
-    if self.Utils:ShowPixelGlow(frame, color, "aura", 8, 0.1, 10, 1, -2, -2) then
+    if self.Utils:ShowPixelGlow(frame, color, "aura", 8, 0.1, length, 1, offset, offset) then
         return
     end
 

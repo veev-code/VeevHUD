@@ -222,6 +222,13 @@ C.MANA_SPIKE_THRESHOLD = 0.10
 C.TRINKET_SLOT_13 = 9999913  -- Trinket 1
 C.TRINKET_SLOT_14 = 9999914  -- Trinket 2
 
+-- Totem element slot sentinel IDs (used as spellID keys for totem element tracking)
+-- Each represents one of the four totem elements (Shaman only)
+C.TOTEM_SLOT_FIRE  = 9999901
+C.TOTEM_SLOT_EARTH = 9999902
+C.TOTEM_SLOT_WATER = 9999903
+C.TOTEM_SLOT_AIR   = 9999904
+
 -------------------------------------------------------------------------------
 -- Spell IDs
 -------------------------------------------------------------------------------
@@ -237,7 +244,7 @@ C.SPELL_ID_ADRENALINE_RUSH = 13750
 -- Keys are used in layout.elementOrder and layout.gaps.
 C.LAYOUT_ELEMENTS = {
     auraTracker  = "Aura Tracker",
-    totemBar     = "Totem Bar",
+    auxiliaryRow  = "Auxiliary Row",
     healthBar    = "Health Bar",
     petHealthBar = "Pet Health Bar",
     resourceBar  = "Resource Bar",
@@ -290,7 +297,7 @@ C.DEFAULTS = {
             -- All HUD elements are positioned in this order by Layout.lua.
             elementOrder = {
                 "auraTracker",
-                "totemBar",
+                "auxiliaryRow",
                 "healthBar",
                 "petHealthBar",
                 "resourceBar",
@@ -306,7 +313,7 @@ C.DEFAULTS = {
             -- own gap and any hidden elements' gaps above it.
             gaps = {
                 auraTracker  = 0,
-                totemBar     = 6,
+                auxiliaryRow  = 6,
                 healthBar    = 2,
                 petHealthBar = 0,
                 resourceBar  = 0,
@@ -427,11 +434,12 @@ C.DEFAULTS = {
             customAuras = {},  -- User-added auras: array of { id = spellID } or { name = "Spell Name" }
         },
 
-        -- Totem Bar settings (Shaman only - 4 element slots)
+        -- Totem Bar settings (DEPRECATED - migrated to Auxiliary Row totem slots)
+        -- Kept for migration compatibility only; new installs use rows[4]
         totemBar = {
             enabled = true,
             iconSize = 36,
-            iconAspectRatio = 1.0,  -- Independent aspect ratio (1.0 = square)
+            iconAspectRatio = 1.0,
             iconSpacing = 4,
         },
 
@@ -609,6 +617,7 @@ C.DEFAULTS = {
                 maxIcons = 24,       -- No practical limit, grows horizontally
                 enabled = true,
                 iconSize = 56,       -- Larger core icons (like retail)
+                iconAspectRatio = nil, -- nil = inherit from icons.iconAspectRatio
                 flowLayout = false,  -- Single line by default
                 iconsPerRow = 6,     -- Icons per row when flow layout is on
             },
@@ -624,13 +633,14 @@ C.DEFAULTS = {
                 maxIcons = 24,       -- No practical limit, grows horizontally
                 enabled = true,
                 iconSize = 48,
+                iconAspectRatio = nil, -- nil = inherit from icons.iconAspectRatio
                 flowLayout = false,  -- Single line by default
                 iconsPerRow = 6,     -- Icons per row when flow layout is on
             },
             {
                 -- Combined utility group - flows into multiple rows automatically
                 name = "Utility",
-                tags = {"CC_BREAK", "CC_IMMUNITY", "INTERRUPT", "CC_HARD", "CC_SOFT", "SILENCE", 
+                tags = {"CC_BREAK", "CC_IMMUNITY", "INTERRUPT", "CC_HARD", "CC_SOFT", "SILENCE",
                         "MOVEMENT", "MOVEMENT_GAP_CLOSE", "MOVEMENT_ESCAPE",
                         "TAUNT", "DEFENSIVE", "PERSONAL_DEFENSIVE", "EXTERNAL_DEFENSIVE", "IMMUNITY", "DAMAGE_REDUCTION",
                         "UTILITY", "DISPEL_MAGIC", "DISPEL_POISON", "DISPEL_DISEASE"},
@@ -638,7 +648,20 @@ C.DEFAULTS = {
                 iconsPerRow = 6,     -- Target icons per row
                 enabled = true,
                 iconSize = 42,
+                iconAspectRatio = nil, -- nil = inherit from icons.iconAspectRatio
                 flowLayout = true,   -- Enable multi-row flow layout
+            },
+            {
+                -- Auxiliary row - default home for totem element slots
+                -- No tags: only sentinel slots (totems) and user-dragged spells appear here
+                name = "Auxiliary",
+                tags = {},
+                maxIcons = 24,
+                enabled = true,
+                iconSize = 36,       -- Matches previous totem bar icon size
+                iconAspectRatio = nil, -- nil = inherit from icons.iconAspectRatio
+                flowLayout = false,
+                iconsPerRow = 6,
             },
         },
     },

@@ -124,3 +124,4 @@ Items from feedback that have been completed, with the version they shipped in.
 | Usable mana prediction is sometimes off                           | 1.0.92  | Fixed ~2s overshoot, spiral resets, and IED/potion tick corruption |
 | Trinket Tracking                                                  | 1.0.127 | On-use cooldowns, proc buffs, ICD display, stacks, pop animation |
 | Track Shared Debuffs from Any Caster                              | 1.0.143 | Same-class shared debuffs (17 spells); cross-class equivalence intentionally not in scope |
+| Totem element reordering + Auxiliary Row                          | 1.0.148 | Standalone Totem Bar → draggable element slots in new 4th row    |

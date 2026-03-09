@@ -53,8 +53,8 @@ function SpellAssignment:AssignAllSpells(trackedSpells, rowConfigs, spellCfg, co
             -- Excluded by exclusive group collapse
         elseif self:_ShouldSkipForDruidForm(spellID, cfg, context, LibSpellDB) then
             -- Wrong feral form
-        elseif self:_ShouldSkipForTotemBar(spellID, spellData, context, LibSpellDB) then
-            -- TotemBar handles this totem
+        elseif self:_ShouldSkipForTotemTracker(spellID, spellData, context, LibSpellDB) then
+            -- TotemTracker handles this totem
         else
             self:_AssignSpellToRow(spellID, trackedData, cfg, rowConfigs, iconsByRow, spellAssignments, LibSpellDB)
         end
@@ -181,12 +181,12 @@ function SpellAssignment:_ShouldSkipForDruidForm(spellID, cfg, context, LibSpell
 end
 
 -------------------------------------------------------------------------------
--- Internal: TotemBar Filtering
--- Returns true if spell should be skipped because TotemBar handles it.
--- Skips zero-CD element-tagged totems when TotemBar is active.
+-- Internal: TotemTracker Filtering
+-- Returns true if spell should be skipped because TotemTracker handles it.
+-- Skips zero-CD element-tagged totems when TotemTracker is active.
 -------------------------------------------------------------------------------
 
-function SpellAssignment:_ShouldSkipForTotemBar(spellID, spellData, context, LibSpellDB)
+function SpellAssignment:_ShouldSkipForTotemTracker(spellID, spellData, context, LibSpellDB)
     if not context.totemBarActive then return false end
 
     local hasElementTag = LibSpellDB:HasTag(spellID, "TOTEM_EARTH")

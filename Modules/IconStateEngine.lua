@@ -52,7 +52,7 @@ function IconStateEngine:Initialize()
 
     -- Module references (cached for hot path)
     self.auraState = addon:GetModule("AuraState")
-    self.totemBar = addon:GetModule("TotemBar")
+    self.totemBar = addon:GetModule("TotemTracker")
     self.glowManager = addon:GetModule("GlowManager")
 end
 
@@ -384,7 +384,7 @@ end
 -------------------------------------------------------------------------------
 -- Internal: Aura State
 -- Detects active buffs/debuffs, handles BuffGroup target-aware swaps,
--- suppresses totem auras when TotemBar is active.
+-- suppresses totem auras when TotemTracker is active.
 -------------------------------------------------------------------------------
 
 function IconStateEngine:_ComputeAuraState(frame, db, s)
@@ -464,7 +464,7 @@ function IconStateEngine:_ComputeAuraState(frame, db, s)
         end
     end
 
-    -- Suppress aura display for element-tagged TOTEM spells when TotemBar is active
+    -- Suppress aura display for element-tagged TOTEM spells when totem element slots are active
     if frame.isTotem then
         local totemBarMod = self.totemBar
         if totemBarMod and totemBarMod.IsActive and totemBarMod:IsActive() then

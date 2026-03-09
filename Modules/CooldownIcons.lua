@@ -146,6 +146,9 @@ function CooldownIcons:Initialize()
     -- Cache trinket tracker reference (delegation for trinket icons)
     self.trinketTracker = addon:GetModule("TrinketTracker")
 
+    -- Cache totem tracker reference (delegation for totem element slots)
+    self.totemTracker = addon:GetModule("TotemTracker")
+
     -- Initialize Masque support if available
     self:InitializeMasque()
 
@@ -574,10 +577,13 @@ end
 -- When Masque is active, reads Masque's texcoords and applies VeevHUD zoom on top
 -- (WeakAuras-style compositing so both the Masque skin and VeevHUD's iconZoom coexist).
 function CooldownIcons:ApplyIconTexCoords()
-    local db = addon.db.profile.icons
-    for _, rowFrame in ipairs(self.rows or {}) do
+    local iconDb = addon.db.profile.icons
+    local rowConfigs = addon.db.profile.rows
+    for rowIndex, rowFrame in ipairs(self.rows or {}) do
         if rowFrame.icons then
-            self.iconFactory:ApplyTexCoords(rowFrame.icons, db.iconZoom, db.iconAspectRatio, self.MasqueGroup)
+            local rowConfig = rowConfigs[rowIndex] or {}
+            local aspectRatio = rowConfig.iconAspectRatio or iconDb.iconAspectRatio
+            self.iconFactory:ApplyTexCoords(rowFrame.icons, iconDb.iconZoom, aspectRatio, self.MasqueGroup)
         end
     end
 end
@@ -607,8 +613,9 @@ function CooldownIcons:CreateRowFrames()
                 rowIconSpacing = iconDb.iconSpacing
             end
 
-            -- Get width/height based on aspect ratio
-            local rowIconWidth, rowIconHeight = self.Utils:GetIconDimensions(rowIconSize, iconDb.iconAspectRatio)
+            -- Get width/height based on aspect ratio (per-row override or global fallback)
+            local rowAspectRatio = rowConfig.iconAspectRatio or iconDb.iconAspectRatio
+            local rowIconWidth, rowIconHeight = self.Utils:GetIconDimensions(rowIconSize, rowAspectRatio)
 
             self.Utils:LogInfo("Row", rowIndex, rowConfig.name, "iconSize:", rowIconSize, "iconWidth:", rowIconWidth, "maxIcons:", rowConfig.maxIcons)
 
@@ -632,7 +639,7 @@ function CooldownIcons:CreateRowFrames()
                 if self.MasqueGroup then
                     self.iconFactory:RegisterWithMasque(icon, self.MasqueGroup)
                 else
-                    self.iconFactory:ApplyFallbackStyle(icon, rowIconSize, iconDb.iconAspectRatio)
+                    self.iconFactory:ApplyFallbackStyle(icon, rowIconSize, rowAspectRatio)
                 end
                 icon:Hide()
                 rowFrame.icons[i] = icon
@@ -655,7 +662,7 @@ end
 -------------------------------------------------------------------------------
 
 -- Map row indices to layout element keys
-local ROW_LAYOUT_KEYS = { "primaryRow", "secondaryRow", "utilityRow" }
+local ROW_LAYOUT_KEYS = { "primaryRow", "secondaryRow", "utilityRow", "auxiliaryRow" }
 
 -- Register all icon rows as layout elements
 function CooldownIcons:RegisterRowsWithLayout()
@@ -782,11 +789,10 @@ function CooldownIcons:RebuildAllRows()
     self.Utils:LogInfo("CooldownIcons: Rebuilding with", spellCount, "tracked spells")
 
     -- Build runtime context for assignment
-    local totemBarMod = addon:GetModule("TotemBar")
     local context = {
         isFeralDruid = addon.playerClass == "DRUID" and addon.playerSpec == "FERAL",
         activeFeralForm = self.activeFeralForm,
-        totemBarActive = totemBarMod and totemBarMod.IsActive and totemBarMod:IsActive(),
+        totemBarActive = self.totemTracker and self.totemTracker.IsActive and self.totemTracker:IsActive(),
     }
 
     -- Delegate spell-to-row assignment to SpellAssignment module
@@ -798,11 +804,16 @@ function CooldownIcons:RebuildAllRows()
     self.iconsByRow = iconsByRow
     self.spellAssignments = spellAssignments
 
-    -- Inject trinket entries from TrinketTracker, then re-sort affected rows
-    -- (trinkets are injected after AssignAllSpells sorts, so re-sort is needed
-    -- for customOrder overrides like user-configured trinket position to apply)
+    -- Inject trinket entries from TrinketTracker, then totem element slots from TotemTracker.
+    -- Both are injected after AssignAllSpells sorts, so re-sort is needed
+    -- for customOrder overrides like user-configured position to apply.
     if self.trinketTracker then
         self.trinketTracker:InjectRowEntries(self.iconsByRow, rowConfigs, spellCfg, self.spellAssignments)
+    end
+    if self.totemTracker and addon.playerClass == "SHAMAN" then
+        self.totemTracker:InjectRowEntries(self.iconsByRow, rowConfigs, spellCfg, self.spellAssignments)
+    end
+    if self.trinketTracker or (self.totemTracker and addon.playerClass == "SHAMAN") then
         self.spellAssignment:_SortRowSpells(self.iconsByRow)
     end
 
@@ -1012,16 +1023,19 @@ end
 --   GlowManager     (Show/HideGlow/ReadyGlow) — glow tracking flags
 --   Animations      (TransitionAlpha)   — alpha transition
 --   TrinketTracker  (SetupTrinketIcon)  — trinket identity (isTrinket, trinketSlotID, onUseSpellID)
+--   TotemTracker     (SetupTotemIcon)    — totem identity (isTotemSlot, totemElement)
 --
 -- NOT reset (intentionally):
 --   frame.resourceOnUpdate — HookScript sentinel; hook persists and self-guards
 --   Structural children (icon, cooldown, text, charges, stacks) — created once by IconFrameFactory
 --   Slide positions (_slideCurrentX, _slideTargetX) — reset by ResetDynamicSortPositions()
 function CooldownIcons:ResetIconState(frame)
-    -- Identity / routing (prevents stale isTrinket delegation)
+    -- Identity / routing (prevents stale isTrinket/isTotemSlot delegation)
     frame.isTrinket = false
     frame.trinketSlotID = nil
     frame.onUseSpellID = nil
+    frame.isTotemSlot = false
+    frame.totemElement = nil
 
     -- Cooldown cache (IconStateEngine:_ComputeCooldownState)
     frame.itemCdStart = nil
@@ -1116,6 +1130,12 @@ function CooldownIcons:SetupIcon(frame, spellID, actualSpellID, spellData, rowCo
         return
     end
 
+    -- Totem element slots: delegate setup to TotemTracker
+    if self.totemTracker and self.totemTracker:IsTotemSentinel(spellID) then
+        self.totemTracker:SetupTotemIcon(frame, spellID, rowConfig, rowIndex)
+        return
+    end
+
     -- spellID = canonical ID for identification and tag lookups
     -- actualSpellID = the actual rank ID the player knows (for WoW API calls)
     local texture = spellData.icon or self.Utils:GetSpellTexture(actualSpellID or spellID)
@@ -1139,7 +1159,7 @@ function CooldownIcons:SetupIcon(frame, spellID, actualSpellID, spellData, rowCo
     
     -- Check if this is a reactive spell (Execute, Revenge, Overpower)
     -- These allow repeated ready glows based on condition changes (e.g., target HP)
-    -- Also check if this is an element-tagged totem (for TotemBar aura suppression)
+    -- Also check if this is an element-tagged totem (for TotemTracker aura suppression)
     frame.isReactive = false
     frame.isTotem = false
     if spellData.tags then
@@ -1415,6 +1435,15 @@ function CooldownIcons:UpdateIconState(frame, db)
         return text and text ~= ""
     end
 
+    -- Totem element slots: delegate entirely to TotemTracker
+    if frame.isTotemSlot then
+        if self.totemTracker then
+            self.totemTracker:UpdateTotemIconState(frame, db)
+        end
+        local text = frame.text and frame.text:GetText()
+        return text and text ~= ""
+    end
+
     if not frame.spellID then return end
 
     -- Compute all state (aura, cooldown, prediction, visual flags, glow params)
@@ -1605,7 +1634,8 @@ function CooldownIcons:Refresh()
     for rowIndex, rowFrame in ipairs(self.rows or {}) do
         local rowConfig = rowConfigs[rowIndex] or {}
         local size = rowConfig.iconSize or iconDb.iconSize
-        local iconWidth, iconHeight = self.Utils:GetIconDimensions(size, iconDb.iconAspectRatio)
+        local rowAspectRatio = rowConfig.iconAspectRatio or iconDb.iconAspectRatio
+        local iconWidth, iconHeight = self.Utils:GetIconDimensions(size, rowAspectRatio)
 
         rowFrame.iconSize = size
         rowFrame.iconWidth = iconWidth
@@ -1638,7 +1668,7 @@ function CooldownIcons:Refresh()
             end
             
             -- Update built-in style if Masque is not installed
-            addon.IconStyling:Update(icon, size, self.MasqueGroup ~= nil, addon.db.profile.icons.iconAspectRatio)
+            addon.IconStyling:Update(icon, size, self.MasqueGroup ~= nil, rowAspectRatio)
         end
         
     end

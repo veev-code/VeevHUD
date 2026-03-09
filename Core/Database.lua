@@ -550,9 +550,8 @@ function Database:UpgradeLegacyDBIfNeeded()
     if legacy.welcomeShown ~= nil then
         migrated.global.welcomeShown = legacy.welcomeShown
     end
-    if type(legacy.migrationsShown) == "table" then
-        migrated.global.migrationsShown = legacy.migrationsShown
-    end
+    -- Note: legacy.migrationsShown intentionally not carried over.
+    -- The old per-key popup system was replaced by dataVersion in Migrations.lua.
 
     migrated.global.dbVersion = "ace3"
 

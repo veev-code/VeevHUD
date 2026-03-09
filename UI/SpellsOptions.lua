@@ -362,6 +362,17 @@ function SpellsOptions:GetDefaultValue(spellID, field)
         return nil
     end
 
+    -- Totem sentinel IDs — handle directly
+    local totemTracker = addon:GetModule("TotemTracker")
+    if totemTracker and totemTracker:IsTotemSentinel(spellID) then
+        if field == "enabled" then
+            return true  -- Totem slots enabled by default
+        elseif field == "rowIndex" then
+            return 4  -- Default to Auxiliary row
+        end
+        return nil
+    end
+
     if field == "enabled" then
         -- A spell is enabled by default if:
         -- 1. It has a default row assignment (spec-relevant and matches row tags)
@@ -481,8 +492,11 @@ function SpellsOptions:RefreshSpellList()
         noSpellsMsg:SetJustifyH("LEFT")
         yOffset = yOffset - 60
     else
-        -- Display the 3 main rows
-        for rowIndex, rowConfig in ipairs(rowConfigs) do
+        -- Display rows in visual order (matching default HUD layout: Aux above Primary)
+        local rowDisplayOrder = {4, 1, 2, 3}
+        for _, rowIndex in ipairs(rowDisplayOrder) do
+            local rowConfig = rowConfigs[rowIndex]
+            if not rowConfig then break end
             local spells = rowSpells[rowIndex]
 
             -- Always show row header (even when empty) so it remains a drop target
@@ -625,6 +639,31 @@ function SpellsOptions:GetEffectiveSpellList()
                     defaultRow = 2,
                     order = cfg.order,
                     isTrinket = true,
+                    isAvailable = (effectiveRow == AVAILABLE_ROW_INDEX),
+                })
+            end
+        end
+    end
+
+    -- Inject totem element entries for Shamans
+    local totemTracker = addon:GetModule("TotemTracker")
+    if totemTracker and addon.playerClass == "SHAMAN" then
+        local sentinelIDs = totemTracker:GetSentinelIDs()
+        if sentinelIDs then
+            for _, sentinelID in ipairs(sentinelIDs) do
+                local cfg = spellCfg[sentinelID] or {}
+                local label = totemTracker:GetSentinelLabel(sentinelID) or "Totem"
+                local icon = totemTracker:GetSentinelIcon(sentinelID)
+                local effectiveRow = cfg.rowIndex or 4  -- Default: Auxiliary
+                rows[effectiveRow] = rows[effectiveRow] or {}
+                table.insert(rows[effectiveRow], {
+                    spellID = sentinelID,
+                    spellData = { tags = {}, icon = icon, name = label, priority = 2000 + (sentinelID % 10) },
+                    enabled = cfg.enabled ~= false,
+                    rowIndex = effectiveRow,
+                    defaultRow = 4,
+                    order = cfg.order,
+                    isTotemSlot = true,
                     isAvailable = (effectiveRow == AVAILABLE_ROW_INDEX),
                 })
             end
@@ -896,7 +935,7 @@ function SpellsOptions:CreateSpellEntry(spellInfo, rowIndex, index, yOffset)
     icon:SetPoint("LEFT", 0, 0)
     icon:SetSize(ICON_SIZE, ICON_SIZE)
     local spellName, _, spellIcon
-    if spellInfo.isTrinket then
+    if spellInfo.isTrinket or spellInfo.isTotemSlot then
         spellName = spellInfo.spellData.name
         spellIcon = spellInfo.spellData.icon
     else
@@ -954,7 +993,9 @@ function SpellsOptions:CreateSpellEntry(spellInfo, rowIndex, index, yOffset)
         if enabled and spellInfo.isAvailable then
             local cooldownIcons = addon:GetModule("CooldownIcons")
             local defaultRow = 3  -- Default to Utility for non-spec-relevant spells
-            if spellInfo.isTrinket then
+            if spellInfo.isTotemSlot then
+                defaultRow = spellInfo.defaultRow or 4
+            elseif spellInfo.isTrinket then
                 defaultRow = spellInfo.defaultRow or 2
             elseif cooldownIcons and cooldownIcons.GetDefaultRowForSpell then
                 defaultRow = cooldownIcons:GetDefaultRowForSpell(spellInfo.spellID) or 3
@@ -1121,6 +1162,9 @@ function SpellsOptions:CreateSpellEntry(spellInfo, rowIndex, index, yOffset)
                     GameTooltip:AddLine(mName, 1, 0.82, 0)
                 end
             end
+        elseif spellInfo.isTotemSlot then
+            GameTooltip:AddLine(spellInfo.spellData.name, 1, 1, 1)
+            GameTooltip:AddLine("Element slot — shows your active totem for this element", 0.7, 0.7, 0.7, true)
         elseif spellInfo.isTrinket then
             local slotID = (spellInfo.spellID == addon.Constants.TRINKET_SLOT_13) and 13 or 14
             GameTooltip:SetInventoryItem("player", slotID)

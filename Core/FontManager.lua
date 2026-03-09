@@ -125,10 +125,7 @@ function FontManager:RefreshAllFonts()
         auraTracker:RefreshFonts(fontPath)
     end
 
-    local totemBar = addon:GetModule("TotemBar")
-    if totemBar and totemBar.RefreshFonts then
-        totemBar:RefreshFonts(fontPath)
-    end
+    -- TotemTracker fonts are now managed by CooldownIcons (totem slots live in icon rows)
 
     local swingBar = addon:GetModule("SwingBar")
     if swingBar and swingBar.RefreshFonts then

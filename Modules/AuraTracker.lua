@@ -876,7 +876,10 @@ end
 function AuraTracker:ShowProcGlow(frame)
     -- Proc glow on the visual (glow API attaches to a frame)
     local target = frame.visual or frame
-    self.Utils:ShowPixelGlow(target, {1.0, 0.75, 0.4, 1}, "procGlow", 6, 0.25, 4, 1, 0, 0)
+    -- Scale glow line length proportional to icon size (same ratio as ability icons: 10/56)
+    local iconSize = addon.db.profile.auraTracker.iconSize
+    local length = math.max(3, math.floor(iconSize * 10 / 56 + 0.5))
+    self.Utils:ShowPixelGlow(target, {1.0, 0.75, 0.4, 1}, "procGlow", 6, 0.25, length, 1, 0, 0)
 end
 
 function AuraTracker:HideProcGlow(frame)

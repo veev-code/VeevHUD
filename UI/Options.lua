@@ -150,17 +150,10 @@ function Options:ApplySettingChange(path)
 		return
 	end
 	if path:match("^totemBar%.") then
-		local m = addon:GetModule("TotemBar")
-		SafeCall(m and m.Refresh, m)
-		-- Toggling totemBar.enabled affects which totems appear in CooldownIcons rows
-		if path:match("enabled") then
-			local cooldownIcons = addon:GetModule("CooldownIcons")
-			if cooldownIcons and cooldownIcons.Refresh then
-				cooldownIcons:Refresh()
-			end
-		end
-		if path:match("iconAspectRatio") then
-			self:RefreshAllBarPositions()
+		-- Legacy totemBar settings are deprecated; refresh CooldownIcons which now owns totem display
+		local cooldownIcons = addon:GetModule("CooldownIcons")
+		if cooldownIcons and cooldownIcons.Refresh then
+			cooldownIcons:Refresh()
 		end
 		return
 	end
@@ -186,12 +179,13 @@ function Options:ApplySettingChange(path)
 		return
 	end
 
-	-- Aspect ratio affects HUD spell icon rows only
+	-- Aspect ratio affects HUD spell icon rows and layout heights
 	if path == "icons.iconAspectRatio" then
 		local cooldownIcons = addon:GetModule("CooldownIcons")
 		if cooldownIcons and cooldownIcons.Refresh then
 			cooldownIcons:Refresh()
 		end
+		SafeCall(addon.Layout and addon.Layout.Refresh, addon.Layout)
 		return
 	end
 
@@ -214,12 +208,10 @@ function Options:ApplySettingChange(path)
 	if path:match("^icons%.") then
 		local icons = addon:GetModule("CooldownIcons")
 		SafeCall(icons and icons.Refresh, icons)
-		-- iconZoom also affects AuraTracker and TotemBar
+		-- iconZoom also affects AuraTracker
 		if path == "icons.iconZoom" then
 			local auraTracker = addon:GetModule("AuraTracker")
 			SafeCall(auraTracker and auraTracker.Refresh, auraTracker)
-			local totemBar = addon:GetModule("TotemBar")
-			SafeCall(totemBar and totemBar.Refresh, totemBar)
 		end
 		return
 	end
@@ -411,6 +403,34 @@ function Options:BuildOptionsTable()
 								min = 1, max = 48, step = 1,
 								arg = ("rows.%d.maxIcons"):format(i),
 								order = 2,
+							},
+							iconAspectRatio = {
+								type = "select",
+								name = "Aspect Ratio",
+								desc = "Override the icon shape for this row. 'Inherit' uses the global setting from Appearance.",
+								values = {
+									[0] = "Inherit",
+									[1.0] = "Square (1:1)",
+									[1.165] = "Slightly Compact",
+									[1.33] = "Compact (4:3)",
+									[1.665] = "Very Compact",
+									[2.0] = "Ultra Compact (2:1)",
+								},
+								sorting = {0, 1.0, 1.165, 1.33, 1.665, 2.0},
+								get = function()
+									local val = addon.db.profile.rows[i] and addon.db.profile.rows[i].iconAspectRatio
+									if val == nil then return 0 end
+									return val
+								end,
+								set = function(info, value)
+									if value == 0 then
+										addon.Database:ClearOverride(("rows.%d.iconAspectRatio"):format(i))
+									else
+										addon.Database:SetOverride(("rows.%d.iconAspectRatio"):format(i), value)
+									end
+									Options:ApplySettingChange(("rows.%d.iconAspectRatio"):format(i))
+								end,
+								order = 3,
 							},
 						},
 					},
@@ -681,7 +701,7 @@ function Options:BuildOptionsTable()
 							iconZoom = {
 								type = "range",
 								name = "Icon Zoom",
-								desc = "Zooms into each icon's artwork, cropping the edges. Affects ability rows, Aura Tracker, and Totem Bar. Useful for removing the default border that some spell textures have. 0% shows the full icon, 16% is a subtle crop.",
+								desc = "Zooms into each icon's artwork, cropping the edges. Affects ability rows and Aura Tracker. Useful for removing the default border that some spell textures have. 0% shows the full icon, 16% is a subtle crop.",
 								min = 0, max = 0.6, step = 0.01,
 								isPercent = true,
 								arg = "icons.iconZoom",
@@ -776,7 +796,7 @@ function Options:BuildOptionsTable()
 									iconAspectRatio = {
 										type = "select",
 										name = "Aspect Ratio",
-										desc = "Makes ability icons wider and shorter (like widescreen). Aura Tracker and Totem Bar have their own settings under Bars.",
+										desc = "Default icon shape for all ability rows. Individual rows can override this in their own settings. Aura Tracker has its own setting under Bars.",
 										values = {
 											[1.0] = "Square (1:1)",
 											[1.165] = "Slightly Compact",
@@ -1600,45 +1620,6 @@ function Options:BuildOptionsTable()
 							},
 						},
 					},
-					totembar = {
-						type = "group",
-						name = "Totem Bar",
-						order = 2,
-						hidden = function() return addon.playerClass ~= C.CLASS.SHAMAN end,
-						args = {
-							enabled = { type = "toggle", name = "Enabled", desc = "Shows a dedicated totem element bar with four slots (Fire, Earth, Water, Air). Each slot displays the currently active totem for that element with a duration countdown, or a dimmed icon of the last totem you placed. Zero-cooldown totems are removed from the normal icon rows and only appear here.", arg = "totemBar.enabled", order = 1 },
-							layout = {
-								type = "group",
-								name = "Layout",
-								inline = true,
-								order = 2,
-								disabled = function() return addon.db and addon.db.profile and not addon.db.profile.totemBar.enabled end,
-								args = {
-									iconSize = { type = "range", name = "Icon Size", desc = "The size of each totem element slot icon in pixels.", min = 16, max = 80, step = 1, arg = "totemBar.iconSize", order = 1 },
-									iconSpacing = { type = "range", name = "Icon Spacing", desc = "The gap in pixels between each totem element slot.", min = 0, max = 40, step = 1, arg = "totemBar.iconSpacing", order = 2 },
-									iconAspectRatio = {
-										type = "select",
-										name = "Aspect Ratio",
-										desc = "Makes totem icons shorter by shrinking height while keeping width the same. Useful if you want compact spell rows but prefer totem icons to stay more square so duration text fits.",
-										values = {
-											[1.0] = "Square (1:1)",
-											[1.165] = "Slightly Compact",
-											[1.33] = "Compact (4:3)",
-											[1.665] = "Very Compact",
-											[2.0] = "Ultra Compact (2:1)",
-										},
-										sorting = {1.0, 1.165, 1.33, 1.665, 2.0},
-										arg = "totemBar.iconAspectRatio",
-										set = function(info, value)
-											addon.Database:SetOverride(info.arg, value)
-											Options:ApplySettingChange(info.arg)
-										end,
-										order = 3,
-									},
-								},
-							},
-						},
-					},
 					swingbar = {
 						type = "group",
 						name = "Swing Bar",
@@ -1896,8 +1877,11 @@ function Options:BuildOptionsTable()
 	}
 
 	-- Inject per-row settings as sub-tabs of Ability Rows
+	-- Display order matches default HUD layout: Aux above Primary
+	local rowTabOrder = { 8, 9, 10, 7 }  -- row1=8, row2=9, row3=10, row4=7 (Aux first)
 	for key, rowDef in pairs(rowArgs) do
-		rowDef.order = rowDef.order + 6  -- shift row orders to 7, 8, 9
+		local rowIndex = tonumber(key:match("(%d+)$"))
+		rowDef.order = rowTabOrder[rowIndex] or (rowIndex + 6)
 		if rowDef.name and not rowDef.name:match("Row$") then
 			rowDef.name = rowDef.name .. " Row"
 		end
@@ -1928,7 +1912,7 @@ function Options:BuildOptionsTable()
 	resourceArgs.druidManaBar = barsArgs.druidManaBar
 	barsArgs.druidManaBar = nil
 
-	-- Promote Aura Tracker, Totem Bar, Buff Reminders to top-level tabs
+	-- Promote Aura Tracker, Buff Reminders to top-level tabs
 	local auraTrackerOpts = self:BuildAuraTrackerOptions(barsArgs.procs)
 	if auraTrackerOpts then
 		auraTrackerOpts.order = 5
@@ -1936,8 +1920,7 @@ function Options:BuildOptionsTable()
 	end
 	barsArgs.procs = nil
 
-	barsArgs.totembar.order = 6
-	optionsTable.args.totembar = barsArgs.totembar
+	-- Remove deprecated Totem Bar section (totems now live in icon rows)
 	barsArgs.totembar = nil
 
 	local buffRemindersOpts = self:BuildBuffRemindersOptions()
@@ -3309,7 +3292,7 @@ function Options:RegisterSettingsPanel()
 	if not Settings or not Settings.RegisterCanvasLayoutCategory then return end
 
 	local panel = CreateFrame("Frame")
-	panel.name = "VeevHUD"
+	panel.name = "VeevHUD |TInterface\\Icons\\Spell_Nature_Reincarnation:16:16|t"
 
 	local title = panel:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
 	title:SetPoint("TOPLEFT", 16, -16)
