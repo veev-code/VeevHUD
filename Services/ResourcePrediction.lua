@@ -14,8 +14,9 @@ local ResourcePrediction = {}
 addon.ResourcePrediction = ResourcePrediction
 
 -- Debug logging helper - uses addon.Utils:LogDebug (enable with /vh debug)
+-- Gates on debugMode before string.format to avoid allocation when debug is off.
 local function DebugLog(category, message, ...)
-    if addon.Utils then
+    if addon.db.profile.debugMode and addon.Utils then
         addon.Utils:LogDebug(string.format("[%s] " .. message, category, ...))
     end
 end

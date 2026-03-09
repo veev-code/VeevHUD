@@ -54,8 +54,15 @@
        - UNIT_SPELLCAST_SUCCEEDED: Hunter Auto Shot / Wand Shoot completion.
        - START/STOP_AUTOREPEAT_SPELL: Auto-attack toggle.
        - UNIT_INVENTORY_CHANGED: Weapon swap detection.
+       - UNIT_SPELLCAST_FAILED_QUIET: Hunter auto-shot fail → +0.5s re-queue delay.
 
-    7. KEY FORMULAS
+    7. HUNTER-SPECIFIC EDGE CASES
+       - Feign Death: +0.15s penalty on ranged speed, timer resets on movement/jump out.
+       - Movement cancel: moving during auto-shot cast phase (last ~0.52s) resets timer.
+       - Auto-shot fail: client adds 0.5s delay before retrying (out of range, LoS, etc.).
+       - Auto-cast time scales with haste: 0.52 * (hastedSpeed / baseSpeed).
+
+    8. KEY FORMULAS
        - Parry haste: timer = timer - (weaponSpeed * 0.4), floor at weaponSpeed * 0.2
        - Haste change: timer = timer * (newSpeed / oldSpeed) (preserves progress ratio)
        - Hunter yellow boundary: steadyShotCastTime / rangedBaseSpeed from right
@@ -110,6 +117,19 @@ end
 local AUTO_SHOT_ID = 75
 local SHOOT_ID = 5019
 
+-- Hunter: Feign Death and Trueshot Aura reset ranged timer with +0.15s penalty
+local FEIGN_DEATH_ID = 5384
+local TRUESHOT_AURA_IDS = { [19506] = true, [20905] = true, [20906] = true }
+
+-- Hunter: base auto-shot animation time (seconds)
+local AUTO_CAST_TIME_BASE = 0.52
+
+-- Hunter: client re-queue delay when auto-shot fails to fire (out of range, LoS, etc.)
+local AUTO_SHOT_FAIL_DELAY = 0.5
+
+-- Spark texture extends this many pixels above/below the bar
+local SPARK_OVERFLOW = 6
+
 -- Hunter ranged clip zone thresholds (base values, before haste scaling).
 -- Both cast time and weapon speed scale by the same haste factor, so boundary
 -- fractions use base (unhasted) values and remain constant.
@@ -141,6 +161,12 @@ SwingBar.prevRangedSpeed = 0
 SwingBar.rangedBaseSpeed = 0  -- Unhasted weapon speed (from tooltip), used for clip zone accuracy
 SwingBar.autoRepeatActive = false
 SwingBar.lastShotTime = 0
+SwingBar.feignStatus = false       -- True while in Feign Death, cleared on movement/jump
+SwingBar.feignPenalty = 0          -- Active +0.15s feign penalty (added on top of API speed)
+SwingBar.lastRetryTime = 0         -- Timestamp of last FAILED_QUIET (tracks client retry cycle)
+SwingBar.wasMoving = false         -- Previous frame movement state (transition detection)
+SwingBar.moveStopTime = nil        -- Timestamp of last movement stop (debug logging)
+SwingBar.hasteAccum = 0            -- Accumulator for throttled haste checks
 
 -- Class detection (set in Initialize)
 SwingBar.isRanged = false
@@ -198,6 +224,18 @@ function SwingBar:Initialize()
     self.Events:RegisterEvent(self, "START_AUTOREPEAT_SPELL", self.OnAutoRepeatStart)
     self.Events:RegisterEvent(self, "STOP_AUTOREPEAT_SPELL", self.OnAutoRepeatStop)
 
+    -- Hunter: auto-shot failed to fire (out of range, LoS, etc.) → client re-queue delay
+    if self.isHunter then
+        self.Events:RegisterEvent(self, "UNIT_SPELLCAST_FAILED_QUIET", self.OnSpellCastFailedQuiet)
+        -- Detect jumping out of Feign Death
+        hooksecurefunc("JumpOrAscendStart", function()
+            if self.feignStatus then
+                self:ApplyFeignDeathReset()
+                self.feignStatus = false
+            end
+        end)
+    end
+
     -- Weapon changes
     self.Events:RegisterEvent(self, "UNIT_INVENTORY_CHANGED", self.OnInventoryChanged)
 
@@ -230,6 +268,11 @@ function SwingBar:OnPlayerEnteringWorld()
     self:UpdateSpecFeatures()
     self:UpdateRangedBaseSpeed()
     self:UpdateWeaponSpeeds()
+    -- Clear stale hunter state from previous session/death
+    self.feignStatus = false
+    self.feignPenalty = 0
+    self.lastRetryTime = 0
+    self.wasMoving = false
 end
 
 -------------------------------------------------------------------------------
@@ -300,7 +343,7 @@ function SwingBar:UpdateWeaponSpeeds()
         local speed = UnitRangedDamage("player")
         if speed and speed > 0 then
             self.prevRangedSpeed = self.rangedSpeed
-            self.rangedSpeed = speed
+            self.rangedSpeed = speed + self.feignPenalty
         end
     end
 
@@ -332,12 +375,16 @@ function SwingBar:CheckHasteChange()
 
     if self.isRanged or self.isWand then
         local speed = UnitRangedDamage("player")
-        if speed and speed > 0 and speed ~= self.rangedSpeed then
-            local oldSpeed = self.rangedSpeed
-            self.rangedSpeed = speed
-            speedChanged = true
-            if oldSpeed > 0 and self.rangedTimer > 0 then
-                self.rangedTimer = self.rangedTimer * (speed / oldSpeed)
+        if speed and speed > 0 then
+            -- Apply feign penalty on top of API speed
+            local effectiveSpeed = speed + self.feignPenalty
+            if effectiveSpeed ~= self.rangedSpeed then
+                local oldSpeed = self.rangedSpeed
+                self.rangedSpeed = effectiveSpeed
+                speedChanged = true
+                if oldSpeed > 0 and self.rangedTimer > 0 then
+                    self.rangedTimer = self.rangedTimer * (effectiveSpeed / oldSpeed)
+                end
             end
         end
     end
@@ -488,15 +535,106 @@ end
 function SwingBar:OnSpellCastSucceeded(event, unit, castGUID, spellID)
     if unit ~= "player" then return end
 
+    -- Hunter: Feign Death / Trueshot Aura reset ranged timer with penalty
+    if self.isHunter and (spellID == FEIGN_DEATH_ID or TRUESHOT_AURA_IDS[spellID]) then
+        if spellID == FEIGN_DEATH_ID then
+            self.feignStatus = true
+        end
+        self:ApplyFeignDeathReset()
+        return
+    end
+
     if spellID == AUTO_SHOT_ID or spellID == SHOOT_ID then
         -- Auto Shot or Wand completed: reset ranged timer
+        local now = GetTime()
+        if addon.db.profile.debugMode and self.moveStopTime and spellID == AUTO_SHOT_ID then
+            self.Utils:LogDebug("SwingBar", string.format(
+                "AUTO_SHOT_FIRED delaySinceStop=%.3f timeSinceLastShot=%.3f speed=%.3f autoCast=%.3f",
+                now - self.moveStopTime, now - self.lastShotTime, self.rangedSpeed, self:GetAutoCastTime()))
+            self.moveStopTime = nil
+        end
+        self.feignPenalty = 0  -- Clear feign penalty
+        self.lastRetryTime = 0  -- Clear retry cycle tracking
         self:UpdateWeaponSpeeds()
         if self.rangedSpeed > 0 then
             self.rangedTimer = self.rangedSpeed
-            self.lastShotTime = GetTime()
+            self.lastShotTime = now
             self:OnSwingEvent()
         end
     end
+end
+
+-- Hunter: Feign Death adds +0.15s penalty to ranged speed and resets timer.
+-- Called on Feign Death cast, Trueshot Aura cast, and movement/jump out of Feign.
+function SwingBar:ApplyFeignDeathReset()
+    self.lastShotTime = GetTime()
+    if self.feignPenalty == 0 then
+        -- Apply +0.15s penalty (persists until next successful Auto Shot)
+        self.feignPenalty = 0.15
+        -- Re-read speed with penalty applied
+        local speed = UnitRangedDamage("player")
+        if speed and speed > 0 then
+            self.rangedSpeed = speed + self.feignPenalty
+        end
+    end
+    self:ResetRangedTimer()
+end
+
+-- Hunter: auto-shot failed to fire (out of range, LoS, etc.) — client adds 0.5s re-queue delay.
+-- Skip when moving: the per-frame movement cancel in UpdateBars already pins the bar
+-- at the cast phase boundary. The 0.5s delay is only for stationary failures (range, LoS).
+function SwingBar:OnSpellCastFailedQuiet(event, unit, castGUID, spellID)
+    if unit ~= "player" then return end
+    if spellID ~= AUTO_SHOT_ID then return end
+    if not self.autoRepeatActive then return end
+
+    local now = GetTime()
+    self.lastRetryTime = now
+
+    local isMoving = GetUnitSpeed("player") > 0
+    if addon.db.profile.debugMode then
+        self.Utils:LogDebug("SwingBar", string.format(
+            "FAILED_QUIET moving=%s rangedTimer=%.3f timeSinceShot=%.3f timeSinceStop=%.3f",
+            tostring(isMoving), self.rangedTimer, now - self.lastShotTime,
+            self.moveStopTime and (now - self.moveStopTime) or -1))
+    end
+
+    -- While moving, the per-frame pin in UpdateBars handles the timer.
+    if isMoving then return end
+
+    -- Stationary failure (out of range, LoS): apply re-queue delay
+    local autoCastTime = self:GetAutoCastTime()
+    local timeSinceShot = now - self.lastShotTime
+    if timeSinceShot > (self.rangedSpeed - autoCastTime) then
+        self.rangedTimer = autoCastTime + AUTO_SHOT_FAIL_DELAY
+    end
+end
+
+-- Hunter: compute current auto-shot animation time (scales with haste)
+function SwingBar:GetAutoCastTime()
+    if self.rangedBaseSpeed > 0 and self.rangedSpeed > 0 then
+        return AUTO_CAST_TIME_BASE * (self.rangedSpeed / self.rangedBaseSpeed)
+    end
+    return AUTO_CAST_TIME_BASE
+end
+
+-- Reset ranged timer based on elapsed time since last shot (matches WST's ResetShotTimer logic)
+function SwingBar:ResetRangedTimer()
+    local now = GetTime()
+    local autoCastTime = self:GetAutoCastTime()
+    local elapsed = now - self.lastShotTime
+
+    if elapsed > (self.rangedSpeed - autoCastTime) then
+        -- Auto-shot is ready: show just the cast phase remaining
+        self.rangedTimer = autoCastTime
+    elseif elapsed > 0 then
+        -- Mid-cooldown: show remaining time
+        self.rangedTimer = self.rangedSpeed - elapsed
+    else
+        -- Full reset
+        self.rangedTimer = self.rangedSpeed
+    end
+    self:OnSwingEvent()
 end
 
 function SwingBar:OnAutoRepeatStart()
@@ -516,6 +654,7 @@ end
 
 function SwingBar:OnAutoRepeatStop()
     self.autoRepeatActive = false
+    self.wasMoving = false  -- Reset movement tracking
     if self.isHunter and not addon.db.profile.swingBar.enableMeleeWeaving then
         self.isRanged = false
         self.lastDualState = nil  -- Force container size update
@@ -817,6 +956,8 @@ end
 -- Get effective single-bar height (wand classes use smaller wandHeight)
 function SwingBar:GetSingleBarHeight(db)
     if self.isWand then return db.wandHeight end
+    local classHeight = db.classHeight[addon.playerClass]
+    if classHeight then return classHeight end
     return db.height
 end
 
@@ -843,7 +984,7 @@ function SwingBar:CreateBarFrame(barType, parent, db)
         local spark = bar:CreateTexture(nil, "OVERLAY")
         spark:SetTexture([[Interface\CastingBar\UI-CastingBar-Spark]])
         spark:SetBlendMode("ADD")
-        spark:SetSize(db.sparkWidth, height + 6)
+        spark:SetSize(db.sparkWidth, height + SPARK_OVERFLOW)
         spark:SetPoint("CENTER", bar, "LEFT", 0, 0)
         spark:SetAlpha(0.9)
         bar.spark = spark
@@ -873,6 +1014,12 @@ function SwingBar:CreateBarFrame(barType, parent, db)
     return bar
 end
 
+local function ResizeSpark(bar, barHeight, sparkWidth)
+    if bar.spark then
+        bar.spark:SetSize(sparkWidth, barHeight + SPARK_OVERFLOW)
+    end
+end
+
 function SwingBar:UpdateContainerSize()
     if not self.container then return end
 
@@ -897,11 +1044,13 @@ function SwingBar:UpdateContainerSize()
             self.mainBar:SetSize(db.width, rangedHeight)
             self.mainBar:ClearAllPoints()
             self.mainBar:SetPoint("TOP", self.container, "TOP", 0, 0)
+            ResizeSpark(self.mainBar, rangedHeight, db.sparkWidth)
 
             self.offBar:SetSize(db.width, meleeHeight)
             self.offBar:ClearAllPoints()
             self.offBar:SetPoint("TOP", self.mainBar, "BOTTOM", 0, -db.dualWieldSpacing)
             self.offBar:Show()
+            ResizeSpark(self.offBar, meleeHeight, db.sparkWidth)
         else
             -- Dual-wield: container holds bar content, border extends below
             local barHeight = db.dualWieldHeight
@@ -913,12 +1062,14 @@ function SwingBar:UpdateContainerSize()
             self.mainBar:SetSize(db.width, barHeight)
             self.mainBar:ClearAllPoints()
             self.mainBar:SetPoint("TOP", self.container, "TOP", 0, 0)
+            ResizeSpark(self.mainBar, barHeight, db.sparkWidth)
 
             -- OH bar below
             self.offBar:SetSize(db.width, barHeight)
             self.offBar:ClearAllPoints()
             self.offBar:SetPoint("TOP", self.mainBar, "BOTTOM", 0, -db.dualWieldSpacing)
             self.offBar:Show()
+            ResizeSpark(self.offBar, barHeight, db.sparkWidth)
         end
     else
         -- Single: container holds bar content, border extends below
@@ -929,6 +1080,7 @@ function SwingBar:UpdateContainerSize()
         self.mainBar:SetSize(db.width, barHeight)
         self.mainBar:ClearAllPoints()
         self.mainBar:SetPoint("TOP", self.container, "TOP", 0, 0)
+        ResizeSpark(self.mainBar, barHeight, db.sparkWidth)
 
         if self.offBar then
             self.offBar:Hide()
@@ -947,10 +1099,61 @@ function SwingBar:UpdateBars(dt)
     local db = addon.db.profile.swingBar
 
     -- Throttle haste check to ~10Hz (API call, not needed every frame)
-    self.hasteAccum = (self.hasteAccum or 0) + dt
+    self.hasteAccum = self.hasteAccum + dt
     if self.hasteAccum >= 0.1 then
         self:CheckHasteChange()
         self.hasteAccum = 0
+    end
+
+    -- Hunter: movement detection for auto-shot cast cancel and Feign Death resume
+    if self.isHunter and (self.feignStatus or self.autoRepeatActive) then
+        local isMoving = GetUnitSpeed("player") > 0
+
+        -- Moving out of Feign Death: resume auto-shot with penalty
+        if self.feignStatus and isMoving then
+            self:ApplyFeignDeathReset()
+            self.feignStatus = false
+        end
+
+        -- Track movement transitions and adjust timer on stop
+        if self.autoRepeatActive then
+            local autoCastTime = self:GetAutoCastTime()
+            local debugMode = addon.db.profile.debugMode
+
+            if isMoving and not self.wasMoving then
+                if debugMode then
+                    self.Utils:LogDebug("SwingBar", string.format(
+                        "MOVE_START rangedTimer=%.3f autoCast=%.3f speed=%.3f timeSinceShot=%.3f",
+                        self.rangedTimer, autoCastTime, self.rangedSpeed,
+                        GetTime() - self.lastShotTime))
+                end
+            elseif not isMoving and self.wasMoving then
+                -- On stop: compute exact time until shot using the client's
+                -- retry cycle. FAILED_QUIET fires every ~0.5s, so we know
+                -- when the next retry will attempt to start the cast.
+                local now = GetTime()
+                if debugMode then self.moveStopTime = now end
+                if self.rangedTimer <= autoCastTime and self.lastRetryTime > 0 then
+                    local timeUntilNextRetry = math_max(0, (self.lastRetryTime + AUTO_SHOT_FAIL_DELAY) - now)
+                    self.rangedTimer = timeUntilNextRetry + autoCastTime
+                elseif self.rangedTimer <= autoCastTime then
+                    -- No retry data: use worst-case estimate
+                    self.rangedTimer = autoCastTime + AUTO_SHOT_FAIL_DELAY
+                end
+                if debugMode then
+                    self.Utils:LogDebug("SwingBar", string.format(
+                        "MOVE_STOP rangedTimer=%.3f autoCast=%.3f speed=%.3f lastRetry=%.3f",
+                        self.rangedTimer, autoCastTime, self.rangedSpeed,
+                        self.lastRetryTime > 0 and (now - self.lastRetryTime) or -1))
+                end
+            end
+            self.wasMoving = isMoving
+
+            -- Moving during auto-shot cast phase: pin at cast boundary
+            if isMoving and self.rangedTimer > 0 and self.rangedTimer <= autoCastTime then
+                self.rangedTimer = autoCastTime
+            end
+        end
     end
 
     -- Decrement timers

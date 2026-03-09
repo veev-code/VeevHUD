@@ -103,12 +103,13 @@ TickTracker.formChangeTime = 0
     - FORM: druid shapeshift transitions (enter/leave cat form)
 ]]
 
-local function TickLog(...)
+-- Lazy-format: accepts format string + args, only allocates when debug is on.
+local function TickLog(fmt, ...)
     local db = addon.db
     if not (db and db.profile and db.profile.debugMode) then return end
     local Utils = addon.Utils
     if Utils and Utils.LogDebug then
-        Utils:LogDebug("[TickTracker]", ...)
+        Utils:LogDebug(string.format("[TickTracker] " .. fmt, ...))
     end
 end
 
@@ -188,8 +189,8 @@ function TickTracker:RecordEnergySample()
             
             -- Debug: Log observed tick with interval
             local interval = prevTickTime > 0 and (now - prevTickTime) or 0
-            TickLog(string.format("TICK observed: +%d energy, interval=%.3fs, now=%d/%d",
-                gained, interval, currentEnergy, maxEnergy))
+            TickLog("TICK observed: +%d energy, interval=%.3fs, now=%d/%d",
+                gained, interval, currentEnergy, maxEnergy)
         elseif isTooSoon and (isValidAmount or isPartialTick) then
             -- This is a real tick that arrived shortly after a phantom tick fired.
             -- The phantom tick was slightly early (server ticks are ~2.01s, not exactly 2.0s).
@@ -201,12 +202,12 @@ function TickTracker:RecordEnergySample()
             
             -- Debug: Log resync
             local interval = prevTickTime > 0 and (now - prevTickTime) or 0
-            TickLog(string.format("TICK resync: +%d energy, interval=%.3fs, phantomWas=%.3fs early, now=%d/%d",
-                gained, interval, phantomOffset, currentEnergy, maxEnergy))
+            TickLog("TICK resync: +%d energy, interval=%.3fs, phantomWas=%.3fs early, now=%d/%d",
+                gained, interval, phantomOffset, currentEnergy, maxEnergy)
         else
             -- Debug: Log filtered energy gain (bad amount - probably Thistle Tea, refund, etc.)
-            TickLog(string.format("FILTERED +%d energy: reason=bad_amount, timeSince=%.3fs, AR=%s",
-                gained, timeSinceLastTick, tostring(hasAdrenalineRush)))
+            TickLog("FILTERED +%d energy: reason=bad_amount, timeSince=%.3fs, AR=%s",
+                gained, timeSinceLastTick, tostring(hasAdrenalineRush))
         end
     end
     
@@ -222,8 +223,8 @@ function TickTracker:RecordEnergySample()
             self.lastEnergyTickTime = self.lastEnergyTickTime + (ticksMissed * C.TICK_RATE)
             
             -- Debug: Log phantom tick advancement
-            TickLog(string.format("PHANTOM tick: advanced by %d ticks (%.3fs), energy=%d/%d",
-                ticksMissed, now - oldTickTime, currentEnergy, maxEnergy))
+            TickLog("PHANTOM tick: advanced by %d ticks (%.3fs), energy=%d/%d",
+                ticksMissed, now - oldTickTime, currentEnergy, maxEnergy)
         end
     end
     
@@ -305,8 +306,8 @@ function TickTracker:RecordManaSample()
         if gained <= 0 then
             -- Entire increase was from external sources, not a tick
             if externalGain > 0 then
-                TickLog(string.format("MANA EXTERNAL +%d filtered (IED/potion: %d), mana=%d/%d",
-                    rawGained, externalGain, currentMana, maxMana))
+                TickLog("MANA EXTERNAL +%d filtered (IED/potion: %d), mana=%d/%d",
+                    rawGained, externalGain, currentMana, maxMana)
             end
             self.prevSampleMana = self.lastSampleMana
             self.lastSampleMana = currentMana
@@ -335,8 +336,8 @@ function TickTracker:RecordManaSample()
             
             -- Debug: Log observed tick with interval
             local interval = prevTickTime > 0 and (now - prevTickTime) or 0
-            TickLog(string.format("MANA TICK observed: +%d mana (%.1f%%), interval=%.3fs, now=%d/%d",
-                gained, percentGain * 100, interval, currentMana, maxMana))
+            TickLog("MANA TICK observed: +%d mana (%.1f%%), interval=%.3fs, now=%d/%d",
+                gained, percentGain * 100, interval, currentMana, maxMana)
         elseif isTooSoon and isValidAmount then
             -- This is a real tick that arrived shortly after a phantom tick fired.
             -- Resync to this as the authoritative tick time.
@@ -344,15 +345,15 @@ function TickTracker:RecordManaSample()
             self.lastManaTickTime = now
             self.hasConfirmedManaTick = true  -- Resync also confirms we have valid tick data
             tickObserved = true
-            
+
             -- Debug: Log resync
             local interval = prevTickTime > 0 and (now - prevTickTime) or 0
-            TickLog(string.format("MANA TICK resync: +%d mana (%.1f%%), interval=%.3fs, phantomWas=%.3fs early, now=%d/%d",
-                gained, percentGain * 100, interval, phantomOffset, currentMana, maxMana))
+            TickLog("MANA TICK resync: +%d mana (%.1f%%), interval=%.3fs, phantomWas=%.3fs early, now=%d/%d",
+                gained, percentGain * 100, interval, phantomOffset, currentMana, maxMana)
         elseif not isValidAmount and percentGain > self.manaSpikeThreshold then
             -- Debug: Log filtered mana gain (spike - probably potion, Life Tap, etc.)
-            TickLog(string.format("MANA FILTERED +%d (%.1f%%): reason=spike, timeSince=%.3fs",
-                gained, percentGain * 100, timeSinceLastTick))
+            TickLog("MANA FILTERED +%d (%.1f%%): reason=spike, timeSince=%.3fs",
+                gained, percentGain * 100, timeSinceLastTick)
         end
     end
     
@@ -368,8 +369,8 @@ function TickTracker:RecordManaSample()
             self.lastManaTickTime = self.lastManaTickTime + (ticksMissed * C.TICK_RATE)
             
             -- Debug: Log phantom tick advancement
-            TickLog(string.format("MANA PHANTOM tick: advanced by %d ticks (%.3fs), mana=%d/%d",
-                ticksMissed, now - oldTickTime, currentMana, maxMana))
+            TickLog("MANA PHANTOM tick: advanced by %d ticks (%.3fs), mana=%d/%d",
+                ticksMissed, now - oldTickTime, currentMana, maxMana)
         end
     end
     
@@ -499,8 +500,8 @@ function TickTracker:GetFullTickProgress()
     if progress >= 1.0 then
         -- Pin at 100% until we observe the full tick
         if not self.fullTickPinnedLogged then
-            TickLog(string.format("MANA FULLTICK: pinned at 100%%, waiting for tick (lastTick=%.3f, nextFull=%.3f)",
-                self.lastManaTickTime, nextFullTickTime))
+            TickLog("MANA FULLTICK: pinned at 100%%, waiting for tick (lastTick=%.3f, nextFull=%.3f)",
+                self.lastManaTickTime, nextFullTickTime)
             self.fullTickPinnedLogged = true
         end
         return 1.0
@@ -554,8 +555,8 @@ function TickTracker:OnShapeshiftChange()
     
     -- Leaving cat form
     if wasInEnergyForm and not nowInEnergyForm then
-        TickLog(string.format("FORM left cat form (to %s), lastTickTime was %.3f",
-            form, self.lastEnergyTickTime))
+        TickLog("FORM left cat form (to %s), lastTickTime was %.3f",
+            form, self.lastEnergyTickTime)
         self.formChangeTime = now
     end
     
@@ -574,7 +575,7 @@ function TickTracker:OnShapeshiftChange()
             if timeSinceLastTick >= C.TICK_RATE then
                 local ticksMissed = math.floor(timeSinceLastTick / C.TICK_RATE)
                 self.lastEnergyTickTime = self.lastEnergyTickTime + (ticksMissed * C.TICK_RATE)
-                TickLog(string.format("FORM entered cat form, caught up %d phantom ticks", ticksMissed))
+                TickLog("FORM entered cat form, caught up %d phantom ticks", ticksMissed)
             end
         end
         -- hasConfirmedTick stays as-is from previous cat form session.
@@ -592,9 +593,9 @@ function TickTracker:OnShapeshiftChange()
             RP.lastPredictionEnergy = currentEnergy
         end
 
-        TickLog(string.format("FORM entered cat form, timeOutOfForm=%.3fs, energy=%d, maxEnergy=%d, lastTickTime=%.3f, confirmed=%s",
+        TickLog("FORM entered cat form, timeOutOfForm=%.3fs, energy=%d, maxEnergy=%d, lastTickTime=%.3f, confirmed=%s",
             timeSinceFormChange, currentEnergy, UnitPowerMax("player", C.POWER_TYPE.ENERGY),
-            self.lastEnergyTickTime, tostring(self.hasConfirmedTick)))
+            self.lastEnergyTickTime, tostring(self.hasConfirmedTick))
     end
     
     self.lastKnownForm = form
@@ -638,5 +639,5 @@ function TickTracker:InitFormTracking()
     self.earliestPredictedFullTick = 0 -- Clear prediction tracking
     self.predictionAnchorTime = 0
     
-    TickLog(string.format("INIT tracking reset, current form=%s, waiting for confirmed ticks", tostring(self.lastKnownForm)))
+    TickLog("INIT tracking reset, current form=%s, waiting for confirmed ticks", tostring(self.lastKnownForm))
 end

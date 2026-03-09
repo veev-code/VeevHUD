@@ -424,7 +424,9 @@ function AuraState:OnAuraEvent(subEvent, data)
                         entry.expiration = newExpiration
                         entry.duration = newDuration or entry.duration
                         entry.stacks = newStacks or entry.stacks
-                        self.Utils:LogDebug("AuraState: REFRESH rescan corrected", capturedSpellName, "(", capturedSpellID, ") to", string.format("%.1f", newExpiration - GetTime()) .. "s")
+                        if addon.db.profile.debugMode then
+                            self.Utils:LogDebug("AuraState: REFRESH rescan corrected", capturedSpellName, "(", capturedSpellID, ") to", string.format("%.1f", newExpiration - GetTime()) .. "s")
+                        end
                         self:NotifyAuraChange(capturedSourceSpellID, true)
                     end
                 end
@@ -460,9 +462,11 @@ function AuraState:OnAuraEvent(subEvent, data)
             sourceSpellID = sourceSpellID,  -- For icon overlay lookup
         }
         
-        local stackInfo = stacks > 0 and (" (" .. stacks .. " stacks)") or ""
-        local refreshInfo = isRefresh and " [REFRESH]" or ""
-        self.Utils:LogDebug("AuraState:", subEvent, spellName, "(", spellID, "->", storageID, ") on", destName, "expires in", string.format("%.1f", expiration - GetTime()) .. "s dur=" .. string.format("%.1f", duration) .. stackInfo .. refreshInfo)
+        if addon.db.profile.debugMode then
+            local stackInfo = stacks > 0 and (" (" .. stacks .. " stacks)") or ""
+            local refreshInfo = isRefresh and " [REFRESH]" or ""
+            self.Utils:LogDebug("AuraState:", subEvent, spellName, "(", spellID, "->", storageID, ") on", destName, "expires in", string.format("%.1f", expiration - GetTime()) .. "s dur=" .. string.format("%.1f", duration) .. stackInfo .. refreshInfo)
+        end
 
         -- Notify CooldownIcons
         self:NotifyAuraChange(sourceSpellID, true)
@@ -648,7 +652,9 @@ function AuraState:RescanAuraOnTarget(baseSpellID, castSpellID, spellName, destG
                     if actualStacks then
                         existingData.stacks = actualStacks
                     end
-                    self.Utils:LogDebug("AuraState: Silent refresh detected", spellName, "on unit, new expiry in", string.format("%.1f", actualExpiration - GetTime()))
+                    if addon.db.profile.debugMode then
+                        self.Utils:LogDebug("AuraState: Silent refresh detected", spellName, "on unit, new expiry in", string.format("%.1f", actualExpiration - GetTime()))
+                    end
                     self:NotifyAuraChange(baseSpellID, true)
                 end
             else
@@ -662,7 +668,9 @@ function AuraState:RescanAuraOnTarget(baseSpellID, castSpellID, spellName, destG
                     duration = actualDuration or (spellData and spellData.duration) or 0,
                     stacks = actualStacks or 0,
                 }
-                self.Utils:LogDebug("AuraState: Cross-form aura detected", spellName, "found aura", auraID, "on unit, expiry in", string.format("%.1f", actualExpiration - GetTime()))
+                if addon.db.profile.debugMode then
+                    self.Utils:LogDebug("AuraState: Cross-form aura detected", spellName, "found aura", auraID, "on unit, expiry in", string.format("%.1f", actualExpiration - GetTime()))
+                end
                 self:NotifyAuraChange(baseSpellID, true)
             end
             return  -- Found the aura, done

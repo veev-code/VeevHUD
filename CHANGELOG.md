@@ -1,5 +1,16 @@
 # VeevHUD Changelog
 
+## [1.0.150] - 2026-03-09
+
+### Changed
+- **Hunter Swing Bar: Feign Death Accuracy** — Feign Death now correctly adds a +0.15s penalty to auto-shot speed that persists until the next successful shot. Previously the penalty was lost whenever haste changed (e.g., Trueshot Aura, Rapid Fire). Jumping out of Feign Death also properly resumes the timer with the penalty applied.
+- **Hunter Swing Bar: Movement Prediction** — The bar now accurately predicts when auto-shot will fire after you stop moving. While moving, the bar pins at the cast phase boundary instead of oscillating. On stop, it computes the exact remaining time based on the client's retry cycle, eliminating the old worst-case ~0.5s overshoot.
+- **Per-Class Swing Bar Height** — The swing bar height setting is now per-class on shared profiles. Hunters default to 6px while other classes keep 2px. Each class remembers its own height independently, so switching characters on the same profile won't override your preference.
+- **Swing Bar Spark Scales with Height** — The spark (glowing fill-edge highlight) now resizes when the bar height changes, instead of staying at the original creation size.
+
+### Fixed
+- **Swing Bar Height Slider** — Changing the height in options now updates the bar in real-time instead of requiring the bar to disappear and reappear.
+
 ## [1.0.149] - 2026-03-09
 
 ### Added
@@ -12,7 +23,7 @@
   - **Conservative red zone** — The red zone now starts at 0.52 seconds (the auto-shot animation time), which is slightly earlier than the previous Multi-Shot-only threshold. This ensures the green/yellow zones are always safe for both casting and movement.
   - **Automatic 2-zone/3-zone** — Below level 62 (before learning Steady Shot), the bar simplifies to a 2-zone model (green/red) since the yellow "Steady Shot clips" zone is irrelevant. Once Steady Shot is learned, the full 3-zone model appears automatically.
   - **Zones only while auto-shooting** — Shot zone overlays and colors are now hidden when auto-shot is not active (e.g., while purely meleeing), preventing orphaned red zone backgrounds on the melee bar.
-- **Hunter Swing Bar: Parry Haste Fix** — Fixed a bug where parry haste could incorrectly *increase* the swing timer when it was already below the 20% floor.
+- **Swing Bar: Parry Haste Fix** — Fixed a bug where parry haste could incorrectly *increase* the swing timer when it was already below the 20% floor. Affects all melee classes.
 - **Hunter Swing Bar: Melee Weaving Fix** — Fixed both bars showing melee data when Melee Weaving was enabled while auto-shot was stopped.
 - **Swing Bar Options Reorganized** — Zone-related options (Shot Zones toggle, zone colors, Twist Window, Zone Opacity) are now grouped together in Class Options. Zone colors and opacity are greyed out (disabled) instead of hidden when their feature is off. Bar Color is no longer incorrectly disabled when Shot Zones are enabled (it still applies to the melee bar).
 

@@ -1673,7 +1673,20 @@ function Options:BuildOptionsTable()
 								disabled = function() return not addon.db.profile.swingBar.enabled end,
 								args = {
 									width = { type = "range", name = "Width", desc = "Width of the swing bar in pixels.", min = 50, max = 600, step = 1, arg = "swingBar.width", order = 1 },
-									height = { type = "range", name = "Height", desc = "Height of the swing bar in pixels (single weapon). Applies to hunter ranged, melee 2H, and retribution paladin.", min = 1, max = 20, step = 1, arg = "swingBar.height", order = 2 },
+									height = {
+										type = "range", name = "Height", order = 2,
+										desc = "Height of the swing bar in pixels (single weapon). Per-class: each class remembers its own height.",
+										min = 1, max = 20, step = 1,
+										get = function()
+											local db = addon.db.profile.swingBar
+											return db.classHeight[addon.playerClass] or db.height
+										end,
+										set = function(_, val)
+											local db = addon.db.profile.swingBar
+											db.classHeight[addon.playerClass] = val
+											Options:ApplySettingChange("swingBar.classHeight")
+										end,
+									},
 									wandHeight = { type = "range", name = "Wand Height", desc = "Height of the swing bar in pixels for wand users (Mage, Priest, Warlock).", min = 1, max = 20, step = 1, arg = "swingBar.wandHeight", order = 3 },
 									dualWieldHeight = { type = "range", name = "Dual-Wield Height", desc = "Height of each bar when dual-wielding (MH and OH bars shown separately).", min = 1, max = 20, step = 1, arg = "swingBar.dualWieldHeight", order = 4 },
 									dualWieldSpacing = { type = "range", name = "Dual-Wield Spacing", desc = "Gap in pixels between the main-hand and off-hand bars.", min = 0, max = 10, step = 1, arg = "swingBar.dualWieldSpacing", order = 5 },
