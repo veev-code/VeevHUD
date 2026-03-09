@@ -1,5 +1,10 @@
 # VeevHUD Changelog
 
+## [1.0.151] - 2026-03-09
+
+### Fixed
+- **Melee Weaving Bar Height** — Fixed the ranged (auto-shot) bar using the base 2px height instead of the per-class height when Melee Weaving is enabled. Hunters with Melee Weaving now correctly see their configured height on the ranged bar.
+
 ## [1.0.150] - 2026-03-09
 
 ### Changed

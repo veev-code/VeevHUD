@@ -893,8 +893,8 @@ function SwingBar:GetLayoutHeight()
 
     local meleeWeaving = self.isHunter and db.enableMeleeWeaving
     if meleeWeaving then
-        -- Melee weaving: ranged bar (height) + melee bar (dualWieldHeight) + spacing
-        return db.height + db.dualWieldHeight + db.dualWieldSpacing + 1
+        -- Melee weaving: ranged bar (classHeight) + melee bar (dualWieldHeight) + spacing
+        return self:GetSingleBarHeight(db) + db.dualWieldHeight + db.dualWieldSpacing + 1
     elseif self.hasOffHand and not self.isRanged then
         -- Dual-wield: two bars + spacing + bottom border (skipTop: 1px bottom only)
         return (db.dualWieldHeight * 2) + db.dualWieldSpacing + 1
@@ -1035,7 +1035,7 @@ function SwingBar:UpdateContainerSize()
     if isDual then
         if meleeWeaving then
             -- Melee weaving: ranged bar (full height) on top, melee bar (small) below
-            local rangedHeight = db.height
+            local rangedHeight = self:GetSingleBarHeight(db)
             local meleeHeight = db.dualWieldHeight
             local contentHeight = rangedHeight + meleeHeight + db.dualWieldSpacing
 
