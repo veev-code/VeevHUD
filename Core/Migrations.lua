@@ -135,7 +135,7 @@ local migrations = {
         end,
         popup = {
             title = "New: Auxiliary Row",
-            message = "A new 4th icon row — the Auxiliary Row — is now available. Use it to separate spells you want visually distinct from your main rows, like tracking totems, trinkets, or niche abilities in their own group.\n\nDrag spells into it via Spell Configuration (/vh spells). By default it sits above the Health Bar, but you can reposition it in the Layout tab. It has its own icon size and aspect ratio settings under Ability Rows.\n\nFor Shamans, totem element slots now live here instead of the old standalone Totem Bar. You can reorder them and drag them between rows.\n\nThe row collapses automatically when empty.",
+            message = "A new 4th icon row — the Auxiliary Row — is now available. Use it to separate spells you want visually distinct from your main rows, like tracking totems, trinkets, or niche abilities in their own group.\n\nDrag spells into it via Spell Configuration (/vh spells). By default it sits above the Health Bar, but you can reposition it in the Layout tab. It has its own icon size and aspect ratio settings under Ability Rows.\n\nFor Shamans, totem element slots now live here instead of the old standalone Totem Bar. Warriors, Druids, and Paladins get a stance/form/aura indicator showing your current active state.\n\nThe row collapses automatically when empty.",
             buttons = {
                 { text = "Got It" },
             },

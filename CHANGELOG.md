@@ -1,5 +1,25 @@
 # VeevHUD Changelog
 
+## [1.0.149] - 2026-03-09
+
+### Added
+- **Stance/Form Indicator** — Warriors, Druids, and Paladins now see a stance/form/aura indicator icon in the Auxiliary Row showing your currently active state. The icon updates instantly when you switch stances, forms, or auras. Drag it to any row via Spell Configuration.
+- **Per-Row Masque Groups** — Each icon row now has its own Masque group ("Primary", "Secondary", etc.) instead of a single shared group. This lets you apply different Masque skins per row for visual distinction.
+
+### Changed
+- **Hunter Swing Bar: Improved Shot Zones** — Comprehensive accuracy improvements to the hunter auto-shot timing bar:
+  - **Haste-invariant clip boundaries** — Zone boundaries now use the unhasted base weapon speed (extracted from item tooltips) instead of the hasted value, so zones stay accurate under all haste effects.
+  - **Conservative red zone** — The red zone now starts at 0.52 seconds (the auto-shot animation time), which is slightly earlier than the previous Multi-Shot-only threshold. This ensures the green/yellow zones are always safe for both casting and movement.
+  - **Automatic 2-zone/3-zone** — Below level 62 (before learning Steady Shot), the bar simplifies to a 2-zone model (green/red) since the yellow "Steady Shot clips" zone is irrelevant. Once Steady Shot is learned, the full 3-zone model appears automatically.
+  - **Zones only while auto-shooting** — Shot zone overlays and colors are now hidden when auto-shot is not active (e.g., while purely meleeing), preventing orphaned red zone backgrounds on the melee bar.
+- **Hunter Swing Bar: Parry Haste Fix** — Fixed a bug where parry haste could incorrectly *increase* the swing timer when it was already below the 20% floor.
+- **Hunter Swing Bar: Melee Weaving Fix** — Fixed both bars showing melee data when Melee Weaving was enabled while auto-shot was stopped.
+- **Swing Bar Options Reorganized** — Zone-related options (Shot Zones toggle, zone colors, Twist Window, Zone Opacity) are now grouped together in Class Options. Zone colors and opacity are greyed out (disabled) instead of hidden when their feature is off. Bar Color is no longer incorrectly disabled when Shot Zones are enabled (it still applies to the melee bar).
+
+### LibSpellDB Updates
+- **Warrior: Stances** — Added Battle Stance, Defensive Stance, and Berserker Stance with `STANCE` tag (used by the new Stance Indicator).
+- **Druid: Moonkin Form** — Removed incorrect `DPS` tag (retains `SHAPESHIFT`).
+
 ## [1.0.148] - 2026-03-09
 
 ### Added

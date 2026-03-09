@@ -373,6 +373,17 @@ function SpellsOptions:GetDefaultValue(spellID, field)
         return nil
     end
 
+    -- Stance sentinel ID — handle directly
+    local stanceTracker = addon:GetModule("StanceTracker")
+    if stanceTracker and stanceTracker:IsStanceSentinel(spellID) then
+        if field == "enabled" then
+            return true  -- Stance indicator enabled by default
+        elseif field == "rowIndex" then
+            return 4  -- Default to Auxiliary row
+        end
+        return nil
+    end
+
     if field == "enabled" then
         -- A spell is enabled by default if:
         -- 1. It has a default row assignment (spec-relevant and matches row tags)
@@ -670,6 +681,32 @@ function SpellsOptions:GetEffectiveSpellList()
         end
     end
 
+    -- Inject stance indicator for supported classes (Warrior, Druid, Paladin)
+    -- Only shown when the player knows at least one stance/form/aura
+    local stanceTracker = addon:GetModule("StanceTracker")
+    local numShapeshiftForms = GetNumShapeshiftForms() or 0
+    local minFormsNeeded = (addon.playerClass == "DRUID") and 1 or 2
+    if stanceTracker and stanceTracker:GetSentinelID() and numShapeshiftForms >= minFormsNeeded then
+        local sentinelID = stanceTracker:GetSentinelID()
+        if sentinelID then
+            local cfg = spellCfg[sentinelID] or {}
+            local label = stanceTracker:GetSentinelLabel() or "Stance"
+            local icon = stanceTracker:GetSentinelIcon()
+            local effectiveRow = cfg.rowIndex or 4  -- Default: Auxiliary
+            rows[effectiveRow] = rows[effectiveRow] or {}
+            table.insert(rows[effectiveRow], {
+                spellID = sentinelID,
+                spellData = { tags = {}, icon = icon, name = label, priority = 3000 },
+                enabled = cfg.enabled ~= false,
+                rowIndex = effectiveRow,
+                defaultRow = 4,
+                order = cfg.order,
+                isStanceIndicator = true,
+                isAvailable = (effectiveRow == AVAILABLE_ROW_INDEX),
+            })
+        end
+    end
+
     -- Now find "available" spells - known spells not currently displayed
     -- These are ALL class spells the player knows but aren't tracked by default
     -- This includes off-spec abilities, out-of-combat spells, fillers, etc.
@@ -935,7 +972,7 @@ function SpellsOptions:CreateSpellEntry(spellInfo, rowIndex, index, yOffset)
     icon:SetPoint("LEFT", 0, 0)
     icon:SetSize(ICON_SIZE, ICON_SIZE)
     local spellName, _, spellIcon
-    if spellInfo.isTrinket or spellInfo.isTotemSlot then
+    if spellInfo.isTrinket or spellInfo.isTotemSlot or spellInfo.isStanceIndicator then
         spellName = spellInfo.spellData.name
         spellIcon = spellInfo.spellData.icon
     else
@@ -993,7 +1030,7 @@ function SpellsOptions:CreateSpellEntry(spellInfo, rowIndex, index, yOffset)
         if enabled and spellInfo.isAvailable then
             local cooldownIcons = addon:GetModule("CooldownIcons")
             local defaultRow = 3  -- Default to Utility for non-spec-relevant spells
-            if spellInfo.isTotemSlot then
+            if spellInfo.isTotemSlot or spellInfo.isStanceIndicator then
                 defaultRow = spellInfo.defaultRow or 4
             elseif spellInfo.isTrinket then
                 defaultRow = spellInfo.defaultRow or 2
@@ -1165,6 +1202,9 @@ function SpellsOptions:CreateSpellEntry(spellInfo, rowIndex, index, yOffset)
         elseif spellInfo.isTotemSlot then
             GameTooltip:AddLine(spellInfo.spellData.name, 1, 1, 1)
             GameTooltip:AddLine("Element slot — shows your active totem for this element", 0.7, 0.7, 0.7, true)
+        elseif spellInfo.isStanceIndicator then
+            GameTooltip:AddLine(spellInfo.spellData.name, 1, 1, 1)
+            GameTooltip:AddLine("Shows your current active stance, form, or aura", 0.7, 0.7, 0.7, true)
         elseif spellInfo.isTrinket then
             local slotID = (spellInfo.spellID == addon.Constants.TRINKET_SLOT_13) and 13 or 14
             GameTooltip:SetInventoryItem("player", slotID)

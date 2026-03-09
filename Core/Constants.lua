@@ -229,6 +229,9 @@ C.TOTEM_SLOT_EARTH = 9999902
 C.TOTEM_SLOT_WATER = 9999903
 C.TOTEM_SLOT_AIR   = 9999904
 
+-- Stance/form indicator sentinel ID (Warriors, Druids, Paladins)
+C.STANCE_INDICATOR = 9999905
+
 -------------------------------------------------------------------------------
 -- Spell IDs
 -------------------------------------------------------------------------------
@@ -461,8 +464,7 @@ C.DEFAULTS = {
             cautionColor = { r = 0.9, g = 0.8, b = 0.2 },     -- Yellow (Hunter 3-color)
             syncThreshold = 0.5,     -- Sync threshold (seconds). Enh Shaman: synced=green. Fury Warrior: synced=red (inverted).
             enableSyncColors = true, -- Enhancement/Fury: color bars by sync status
-            hunterThreeColor = false, -- Hunter: false = 2-color, true = 3-color with Multi-Shot zone
-            enableClipZones = true,  -- Hunter: color bar by safe/clip zones
+            enableClipZones = true,  -- Hunter: 3-zone bar (green=safe, yellow=Steady clips, red=don't move/Multi clips)
             enableTwistWindow = true, -- Ret Paladin: green zone at end for twist timing
             enableMeleeWeaving = false, -- Hunter: show both ranged + melee bars for weaving
             zoneAlpha = 0.4,         -- Alpha of zone background indicators

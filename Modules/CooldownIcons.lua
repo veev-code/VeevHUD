@@ -100,7 +100,7 @@ CooldownIcons.activeFeralForm = "CAT"
 
 -- Masque support
 CooldownIcons.Masque = nil
-CooldownIcons.MasqueGroup = nil
+CooldownIcons.MasqueGroups = {}  -- Per-row Masque groups: [rowIndex] = MSQ:Group()
 
 -- Tick gating: skip the 0.05s ticker when no icons have active timers.
 -- Events (SPELL_UPDATE_COOLDOWN, UNIT_POWER_UPDATE, etc.) call UpdateAllIcons()
@@ -149,12 +149,15 @@ function CooldownIcons:Initialize()
     -- Cache totem tracker reference (delegation for totem element slots)
     self.totemTracker = addon:GetModule("TotemTracker")
 
+    -- Cache stance tracker reference (delegation for stance/form indicator)
+    self.stanceTracker = addon:GetModule("StanceTracker")
+
     -- Initialize Masque support if available
     self:InitializeMasque()
 
-    -- Share Masque group with GlowManager
-    if self.MasqueGroup and self.glowManager then
-        self.glowManager:SetMasqueGroup(self.MasqueGroup)
+    -- Share Masque availability with GlowManager
+    if self.Masque and self.glowManager then
+        self.glowManager:SetMasqueEnabled(true)
     end
 
     -- Check LibCustomGlow availability (shared via Utils)
@@ -216,8 +219,11 @@ function CooldownIcons:InitializeMasque()
     local MSQ = LibStub and LibStub("Masque", true)
     if MSQ then
         self.Masque = MSQ
-        self.MasqueGroup = MSQ:Group("VeevHUD", "Cooldowns")
-        self.Utils:LogInfo("Masque support enabled - user can customize via Masque settings")
+        local rowConfigs = addon.Constants.DEFAULTS.profile.rows
+        for rowIndex, rowConfig in ipairs(rowConfigs) do
+            self.MasqueGroups[rowIndex] = MSQ:Group("VeevHUD", rowConfig.name)
+        end
+        self.Utils:LogInfo("Masque support enabled - per-row groups created")
     else
         self.Utils:LogDebug("Masque not found, using built-in Classic Enhanced style")
     end
@@ -583,7 +589,7 @@ function CooldownIcons:ApplyIconTexCoords()
         if rowFrame.icons then
             local rowConfig = rowConfigs[rowIndex] or {}
             local aspectRatio = rowConfig.iconAspectRatio or iconDb.iconAspectRatio
-            self.iconFactory:ApplyTexCoords(rowFrame.icons, iconDb.iconZoom, aspectRatio, self.MasqueGroup)
+            self.iconFactory:ApplyTexCoords(rowFrame.icons, iconDb.iconZoom, aspectRatio, self.MasqueGroups[rowIndex])
         end
     end
 end
@@ -634,10 +640,11 @@ function CooldownIcons:CreateRowFrames()
             rowFrame.icons = {}
 
             -- Pre-create icon frames for this row
+            local rowMasqueGroup = self.MasqueGroups[rowIndex]
             for i = 1, rowConfig.maxIcons do
                 local icon = self.iconFactory:CreateIconFrame(rowFrame, i, rowIconSize)
-                if self.MasqueGroup then
-                    self.iconFactory:RegisterWithMasque(icon, self.MasqueGroup)
+                if rowMasqueGroup then
+                    self.iconFactory:RegisterWithMasque(icon, rowMasqueGroup)
                 else
                     self.iconFactory:ApplyFallbackStyle(icon, rowIconSize, rowAspectRatio)
                 end
@@ -804,8 +811,8 @@ function CooldownIcons:RebuildAllRows()
     self.iconsByRow = iconsByRow
     self.spellAssignments = spellAssignments
 
-    -- Inject trinket entries from TrinketTracker, then totem element slots from TotemTracker.
-    -- Both are injected after AssignAllSpells sorts, so re-sort is needed
+    -- Inject sentinel entries (trinkets, totems, stance indicator).
+    -- All are injected after AssignAllSpells sorts, so re-sort is needed
     -- for customOrder overrides like user-configured position to apply.
     if self.trinketTracker then
         self.trinketTracker:InjectRowEntries(self.iconsByRow, rowConfigs, spellCfg, self.spellAssignments)
@@ -813,7 +820,10 @@ function CooldownIcons:RebuildAllRows()
     if self.totemTracker and addon.playerClass == "SHAMAN" then
         self.totemTracker:InjectRowEntries(self.iconsByRow, rowConfigs, spellCfg, self.spellAssignments)
     end
-    if self.trinketTracker or (self.totemTracker and addon.playerClass == "SHAMAN") then
+    if self.stanceTracker then
+        self.stanceTracker:InjectRowEntries(self.iconsByRow, rowConfigs, spellCfg, self.spellAssignments)
+    end
+    if self.trinketTracker or (self.totemTracker and addon.playerClass == "SHAMAN") or self.stanceTracker then
         self.spellAssignment:_SortRowSpells(self.iconsByRow)
     end
 
@@ -1024,6 +1034,7 @@ end
 --   Animations      (TransitionAlpha)   — alpha transition
 --   TrinketTracker  (SetupTrinketIcon)  — trinket identity (isTrinket, trinketSlotID, onUseSpellID)
 --   TotemTracker     (SetupTotemIcon)    — totem identity (isTotemSlot, totemElement)
+--   StanceTracker    (SetupStanceIcon)  — stance identity (isStanceIndicator)
 --
 -- NOT reset (intentionally):
 --   frame.resourceOnUpdate — HookScript sentinel; hook persists and self-guards
@@ -1036,6 +1047,7 @@ function CooldownIcons:ResetIconState(frame)
     frame.onUseSpellID = nil
     frame.isTotemSlot = false
     frame.totemElement = nil
+    frame.isStanceIndicator = false
 
     -- Cooldown cache (IconStateEngine:_ComputeCooldownState)
     frame.itemCdStart = nil
@@ -1133,6 +1145,12 @@ function CooldownIcons:SetupIcon(frame, spellID, actualSpellID, spellData, rowCo
     -- Totem element slots: delegate setup to TotemTracker
     if self.totemTracker and self.totemTracker:IsTotemSentinel(spellID) then
         self.totemTracker:SetupTotemIcon(frame, spellID, rowConfig, rowIndex)
+        return
+    end
+
+    -- Stance indicator: delegate setup to StanceTracker
+    if self.stanceTracker and self.stanceTracker:IsStanceSentinel(spellID) then
+        self.stanceTracker:SetupStanceIcon(frame, spellID, rowConfig, rowIndex)
         return
     end
 
@@ -1444,6 +1462,14 @@ function CooldownIcons:UpdateIconState(frame, db)
         return text and text ~= ""
     end
 
+    -- Stance indicator: delegate entirely to StanceTracker
+    if frame.isStanceIndicator then
+        if self.stanceTracker then
+            self.stanceTracker:UpdateStanceIconState(frame, db)
+        end
+        return false  -- No countdown text
+    end
+
     if not frame.spellID then return end
 
     -- Compute all state (aura, cooldown, prediction, visual flags, glow params)
@@ -1668,14 +1694,14 @@ function CooldownIcons:Refresh()
             end
             
             -- Update built-in style if Masque is not installed
-            addon.IconStyling:Update(icon, size, self.MasqueGroup ~= nil, rowAspectRatio)
+            addon.IconStyling:Update(icon, size, self.MasqueGroups[rowIndex] ~= nil, rowAspectRatio)
         end
         
     end
 
-    -- Tell Masque to re-apply skins at new icon sizes
-    if self.MasqueGroup then
-        self.MasqueGroup:ReSkin()
+    -- Tell Masque to re-apply skins at new icon sizes (per-row groups)
+    for _, group in pairs(self.MasqueGroups) do
+        group:ReSkin()
     end
 
     self:RebuildAllRows()

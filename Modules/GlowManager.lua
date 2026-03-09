@@ -38,8 +38,8 @@ function GlowManager:Initialize()
     -- Track active spell overlays (procs)
     self.activeOverlays = {}
 
-    -- Masque group reference (set by CooldownIcons after Masque init)
-    self.MasqueGroup = nil
+    -- Whether Masque is active (set by CooldownIcons after Masque init)
+    self.masqueEnabled = false
 
     -- Register for spell activation overlay events (procs)
     self.Events:RegisterEvent(self, "SPELL_ACTIVATION_OVERLAY_GLOW_SHOW", self.OnOverlayShow)
@@ -47,8 +47,8 @@ function GlowManager:Initialize()
 end
 
 -- Called by CooldownIcons after Masque initialization
-function GlowManager:SetMasqueGroup(group)
-    self.MasqueGroup = group
+function GlowManager:SetMasqueEnabled(enabled)
+    self.masqueEnabled = enabled
 end
 
 -------------------------------------------------------------------------------
@@ -118,7 +118,7 @@ function GlowManager:UpdateIconGlow(frame, showGlow, isAuraActive, isPermanentBu
             -- Normal glow: Use standard overlay glow
             if ActionButton_ShowOverlayGlow then
                 ActionButton_ShowOverlayGlow(frame)
-            elseif self.MasqueGroup and frame.NormalTexture then
+            elseif self.masqueEnabled and frame.NormalTexture then
                 -- Fallback glow only when Masque is active
                 frame.NormalTexture:SetVertexColor(1, 1, 0.3)
             end
@@ -272,7 +272,7 @@ function GlowManager:HideGlow(frame)
     end
 
     -- Reset border color (only when Masque is active)
-    if self.MasqueGroup and frame.NormalTexture then
+    if self.masqueEnabled and frame.NormalTexture then
         frame.NormalTexture:SetVertexColor(1, 1, 1)
     end
 end

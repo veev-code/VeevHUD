@@ -1631,7 +1631,7 @@ function Options:BuildOptionsTable()
 									local class = addon.playerClass
 									local spec = addon.playerSpec
 									if class == C.CLASS.HUNTER then
-										return "|cff888888Your character automatically fires auto-shots on a timer. If you cast an ability too late in the timer, it 'clips' (delays) your next auto-shot, costing you DPS. The bar turns green when it's safe to cast and red when casting would clip. With 3-Color Mode, a yellow zone means Steady Shot is safe but Multi-Shot would clip.|r\n"
+										return "|cff888888Your character automatically fires auto-shots on a timer. If you cast an ability too late in the timer, it 'clips' (delays) your next auto-shot, costing you DPS. The bar turns green when it's safe to cast and red when casting would clip. Once you learn Steady Shot, a yellow zone appears for the window where Steady Shot would clip but instants and movement are still safe.|r\n"
 									elseif class == C.CLASS.PALADIN then
 										if spec == "RETRIBUTION" then
 											return "|cff888888Seal twisting lets you get two seal procs on a single melee swing by swapping seals right before the hit lands. The bar turns green during the twist window — the last ~0.4 seconds before impact — telling you when to swap to your second seal.|r\n"
@@ -1698,23 +1698,10 @@ function Options:BuildOptionsTable()
 											local spec = addon.playerSpec
 											local db = addon.db.profile.swingBar
 											-- Full override: entire bar is zone-colored, base color unused
-											if class == C.CLASS.HUNTER and db.enableClipZones then return true end
+											-- Hunter shot zones only override ranged bar; melee still uses base color
 											if (class == C.CLASS.SHAMAN and spec == "ENHANCEMENT") and db.enableSyncColors then return true end
 											if (class == C.CLASS.WARRIOR and spec == "FURY") and db.enableSyncColors then return true end
 											return false
-										end,
-									},
-									zoneAlpha = {
-										type = "range", name = "Zone Opacity", min = 0, max = 1, step = 0.05,
-										desc = "Opacity of the background zone indicators that preview upcoming color changes on the bar.",
-										arg = "swingBar.zoneAlpha", order = 4, isPercent = true,
-										hidden = function()
-											local class = addon.playerClass
-											local spec = addon.playerSpec
-											local db = addon.db.profile.swingBar
-											if class == C.CLASS.HUNTER and db.enableClipZones then return false end
-											if class == C.CLASS.PALADIN and spec == "RETRIBUTION" and db.enableTwistWindow then return false end
-											return true
 										end,
 									},
 								},
@@ -1745,13 +1732,35 @@ function Options:BuildOptionsTable()
 										and not (class == C.CLASS.PALADIN and spec == "RETRIBUTION")
 								end,
 								args = {
-									-- Hunter: clip zone colors
-									enableClipZones = { type = "toggle", name = "Enable Shot Zones", desc = "Color the bar by auto-shot timing. When enabled, the bar changes color to show when it's safe to cast vs. when casting would clip your next auto-shot.", arg = "swingBar.enableClipZones", order = 1, width = "full", hidden = function() return addon.playerClass ~= C.CLASS.HUNTER end },
-									hunterThreeColor = { type = "toggle", name = "3-Color Mode", desc = "Adds a caution zone between safe and danger. Green means any shot is safe. Yellow means Steady Shot would clip but instant shots (Multi-Shot, Arcane Shot) are still safe. Red means any shot would clip your next auto-shot.", arg = "swingBar.hunterThreeColor", order = 2, hidden = function() return addon.playerClass ~= C.CLASS.HUNTER or not addon.db.profile.swingBar.enableClipZones end },
-									hunterSafeColor = { type = "color", name = "Safe Zone", desc = "Bar color when it's safe to cast without clipping.", hasAlpha = false, get = colorGet, set = colorSet, arg = "swingBar.safeColor", order = 3, hidden = function() return addon.playerClass ~= C.CLASS.HUNTER or not addon.db.profile.swingBar.enableClipZones end },
-									hunterDangerColor = { type = "color", name = "Clip Zone", desc = "Bar color when casting would clip your next auto-shot.", hasAlpha = false, get = colorGet, set = colorSet, arg = "swingBar.dangerColor", order = 4, hidden = function() return addon.playerClass ~= C.CLASS.HUNTER or not addon.db.profile.swingBar.enableClipZones end },
-									hunterCautionColor = { type = "color", name = "Caution Zone", desc = "Bar color when Steady Shot would clip but instant shots are still safe (3-Color Mode only).", hasAlpha = false, get = colorGet, set = colorSet, arg = "swingBar.cautionColor", order = 5, hidden = function() return addon.playerClass ~= C.CLASS.HUNTER or not addon.db.profile.swingBar.enableClipZones or not addon.db.profile.swingBar.hunterThreeColor end },
-									enableMeleeWeaving = { type = "toggle", name = "Melee Weaving", desc = "Show both ranged and melee swing bars simultaneously. For advanced hunters who weave melee attacks (e.g., Raptor Strike) between auto-shots.", arg = "swingBar.enableMeleeWeaving", order = 6, width = "full", hidden = function() return addon.playerClass ~= C.CLASS.HUNTER end },
+									-- Hunter: shot zones
+									enableClipZones = { type = "toggle", name = "Enable Shot Zones", desc = "Color the bar by auto-shot timing:\n\nGreen = safe to cast anything and move freely.\nYellow = Steady Shot would clip, but instants and movement are safe.\nRed = don't move or cast Multi-Shot (auto-shot animation playing).", arg = "swingBar.enableClipZones", order = 1, width = "full", hidden = function() return addon.playerClass ~= C.CLASS.HUNTER end },
+									hunterSafeColor = { type = "color", name = "Safe Zone (Green)", desc = "Bar color when it's safe to cast and move.", hasAlpha = false, get = colorGet, set = colorSet, arg = "swingBar.safeColor", order = 2, hidden = function() return addon.playerClass ~= C.CLASS.HUNTER end, disabled = function() return not addon.db.profile.swingBar.enableClipZones end },
+									hunterCautionColor = { type = "color", name = "Steady Zone (Yellow)", desc = "Bar color when Steady Shot would clip, but instant shots and movement are still safe.", hasAlpha = false, get = colorGet, set = colorSet, arg = "swingBar.cautionColor", order = 3, hidden = function() return addon.playerClass ~= C.CLASS.HUNTER end, disabled = function() return not addon.db.profile.swingBar.enableClipZones end },
+									hunterDangerColor = { type = "color", name = "Stop Zone (Red)", desc = "Bar color when moving would cancel your auto-shot and Multi-Shot would clip.", hasAlpha = false, get = colorGet, set = colorSet, arg = "swingBar.dangerColor", order = 4, hidden = function() return addon.playerClass ~= C.CLASS.HUNTER end, disabled = function() return not addon.db.profile.swingBar.enableClipZones end },
+
+									-- Ret Paladin: twist window
+									enableTwistWindow = { type = "toggle", name = "Enable Twist Window", desc = "Highlight the last ~0.4 seconds before your melee swing with a different color — your cue to swap seals for seal twisting.", arg = "swingBar.enableTwistWindow", order = 5, width = "full", hidden = function() return not (addon.playerClass == C.CLASS.PALADIN and addon.playerSpec == "RETRIBUTION") end },
+									twistColor = { type = "color", name = "Twist Window Color", desc = "Bar color during the seal twist window.", hasAlpha = false, get = colorGet, set = colorSet, arg = "swingBar.safeColor", order = 6, hidden = function() return not (addon.playerClass == C.CLASS.PALADIN and addon.playerSpec == "RETRIBUTION") end, disabled = function() return not addon.db.profile.swingBar.enableTwistWindow end },
+
+									-- Zone opacity (Hunter shot zones + Ret twist window)
+									zoneAlpha = {
+										type = "range", name = "Zone Opacity", min = 0, max = 1, step = 0.05,
+										desc = "Opacity of the background zone indicators that preview upcoming color changes on the bar.",
+										arg = "swingBar.zoneAlpha", order = 7, isPercent = true,
+										hidden = function()
+											return addon.playerClass ~= C.CLASS.HUNTER
+												and not (addon.playerClass == C.CLASS.PALADIN and addon.playerSpec == "RETRIBUTION")
+										end,
+										disabled = function()
+											local db = addon.db.profile.swingBar
+											if addon.playerClass == C.CLASS.HUNTER and db.enableClipZones then return false end
+											if addon.playerClass == C.CLASS.PALADIN and addon.playerSpec == "RETRIBUTION" and db.enableTwistWindow then return false end
+											return true
+										end,
+									},
+
+									-- Hunter: melee weaving (not zone-related, placed after zone options)
+									enableMeleeWeaving = { type = "toggle", name = "Melee Weaving", desc = "Show both ranged and melee swing bars simultaneously. For advanced hunters who weave melee attacks (e.g., Raptor Strike) between auto-shots.", arg = "swingBar.enableMeleeWeaving", order = 10, width = "full", hidden = function() return addon.playerClass ~= C.CLASS.HUNTER end },
 
 									-- Enhancement Shaman / Fury Warrior: sync colors
 									enableSyncColors = {
@@ -1762,7 +1771,7 @@ function Options:BuildOptionsTable()
 											end
 											return "Color both bars by how well your main-hand and off-hand swings are synced. Green when synced, red when drifted apart."
 										end,
-										arg = "swingBar.enableSyncColors", order = 10, width = "full",
+										arg = "swingBar.enableSyncColors", order = 20, width = "full",
 										hidden = function() return not ((addon.playerClass == C.CLASS.SHAMAN and addon.playerSpec == "ENHANCEMENT") or (addon.playerClass == C.CLASS.WARRIOR and addon.playerSpec == "FURY")) end,
 									},
 									syncThreshold = {
@@ -1773,7 +1782,7 @@ function Options:BuildOptionsTable()
 											end
 											return "How close (in seconds) your main-hand and off-hand swings need to be to count as synced (green). If the bars flicker between green and red too often, increase this value."
 										end,
-										min = 0.1, max = 2.0, step = 0.05, arg = "swingBar.syncThreshold", order = 11,
+										min = 0.1, max = 2.0, step = 0.05, arg = "swingBar.syncThreshold", order = 21,
 										hidden = function() return not ((addon.playerClass == C.CLASS.SHAMAN and addon.playerSpec == "ENHANCEMENT") or (addon.playerClass == C.CLASS.WARRIOR and addon.playerSpec == "FURY")) or not addon.db.profile.swingBar.enableSyncColors end,
 									},
 									syncSafeColor = {
@@ -1786,7 +1795,7 @@ function Options:BuildOptionsTable()
 											if addon.playerClass == C.CLASS.WARRIOR then return "Bar color when your weapons are well-separated (good — HS queue effective)." end
 											return "Bar color when both weapons are swinging in sync."
 										end,
-										hasAlpha = false, get = colorGet, set = colorSet, arg = "swingBar.safeColor", order = 12,
+										hasAlpha = false, get = colorGet, set = colorSet, arg = "swingBar.safeColor", order = 22,
 										hidden = function() return not ((addon.playerClass == C.CLASS.SHAMAN and addon.playerSpec == "ENHANCEMENT") or (addon.playerClass == C.CLASS.WARRIOR and addon.playerSpec == "FURY")) or not addon.db.profile.swingBar.enableSyncColors end,
 									},
 									syncDangerColor = {
@@ -1799,13 +1808,9 @@ function Options:BuildOptionsTable()
 											if addon.playerClass == C.CLASS.WARRIOR then return "Bar color when both weapons are swinging together (bad — HS queue ineffective)." end
 											return "Bar color when your weapons have drifted apart."
 										end,
-										hasAlpha = false, get = colorGet, set = colorSet, arg = "swingBar.dangerColor", order = 13,
+										hasAlpha = false, get = colorGet, set = colorSet, arg = "swingBar.dangerColor", order = 23,
 										hidden = function() return not ((addon.playerClass == C.CLASS.SHAMAN and addon.playerSpec == "ENHANCEMENT") or (addon.playerClass == C.CLASS.WARRIOR and addon.playerSpec == "FURY")) or not addon.db.profile.swingBar.enableSyncColors end,
 									},
-
-									-- Ret Paladin: twist window
-									enableTwistWindow = { type = "toggle", name = "Enable Twist Window", desc = "Highlight the last ~0.4 seconds before your melee swing with a different color — your cue to swap seals for seal twisting.", arg = "swingBar.enableTwistWindow", order = 20, width = "full", hidden = function() return not (addon.playerClass == C.CLASS.PALADIN and addon.playerSpec == "RETRIBUTION") end },
-									twistColor = { type = "color", name = "Twist Window Color", desc = "Bar color during the seal twist window.", hasAlpha = false, get = colorGet, set = colorSet, arg = "swingBar.safeColor", order = 21, hidden = function() return not (addon.playerClass == C.CLASS.PALADIN and addon.playerSpec == "RETRIBUTION") or not addon.db.profile.swingBar.enableTwistWindow end },
 								},
 							},
 						},

@@ -19,8 +19,11 @@
        - Yellow (Hunter option) = "some casts OK, but Multi-Shot would clip"
 
     3. CLASS-SPECIFIC BEHAVIOR
-       - Hunter (all): Single ranged bar. Green (safe) -> Red (would clip).
-         Optional 3-color mode: Green -> Yellow (Multi-Shot clips) -> Red.
+       - Hunter (all): Single ranged bar. Zones only visible while auto-shot active.
+         If Steady Shot known: 3-zone Green -> Yellow -> Red.
+         If not (< level 62): 2-zone Green -> Red.
+         Green = safe to cast + move, Yellow = Steady clips but instants OK,
+         Red = don't move or cast Multi-Shot (auto-shot animation playing).
        - Ret Paladin: Single MH bar. Neutral -> Green (last ~0.4s = twist window).
        - Enhancement Shaman: Dual MH+OH bars. Entire bar green (synced) or red (desynced).
        - Fury Warrior: Dual MH+OH bars. Entire bar green (desynced) or red (synced).
@@ -55,8 +58,8 @@
     7. KEY FORMULAS
        - Parry haste: timer = timer - (weaponSpeed * 0.4), floor at weaponSpeed * 0.2
        - Haste change: timer = timer * (newSpeed / oldSpeed) (preserves progress ratio)
-       - Hunter clip boundary (2-color): steadyShotCastTime / rangedSpeed from right
-       - Hunter clip boundary (3-color): multiShotCastTime / rangedSpeed from right
+       - Hunter yellow boundary: steadyShotCastTime / rangedBaseSpeed from right
+       - Hunter red boundary: max(multiShotCast, autoCastAnim) / rangedBaseSpeed from right
        - Ret twist window: last ~0.4s = starts at 1.0 - (0.4 / mainSpeed)
        - Sync delta: abs(mainTimer - offTimer) wrapped around swing period, compared to syncThreshold
 
@@ -107,9 +110,12 @@ end
 local AUTO_SHOT_ID = 75
 local SHOOT_ID = 5019
 
--- Base cast times (scaled by haste in-game, but we read effective speed from API)
-local STEADY_SHOT_CAST_TIME = 1.5
-local MULTI_SHOT_CAST_TIME = 0.5
+-- Hunter ranged clip zone thresholds (base values, before haste scaling).
+-- Both cast time and weapon speed scale by the same haste factor, so boundary
+-- fractions use base (unhasted) values and remain constant.
+local STEADY_SHOT_CAST_TIME = 1.5   -- Yellow boundary: Steady Shot would clip
+local RED_ZONE_THRESHOLD = 0.52     -- Red boundary: max(Multi-Shot 0.5s, auto-shot animation 0.52s)
+                                     -- Conservative: red starts as soon as EITHER is unsafe
 
 -- Ret Paladin seal twist window (seconds before swing)
 local TWIST_WINDOW = 0.4
@@ -132,6 +138,7 @@ SwingBar.extraAttackGuard = false
 SwingBar.rangedTimer = 0
 SwingBar.rangedSpeed = 0
 SwingBar.prevRangedSpeed = 0
+SwingBar.rangedBaseSpeed = 0  -- Unhasted weapon speed (from tooltip), used for clip zone accuracy
 SwingBar.autoRepeatActive = false
 SwingBar.lastShotTime = 0
 
@@ -140,6 +147,7 @@ SwingBar.isRanged = false
 SwingBar.isHunter = false
 SwingBar.isDualWieldSync = false
 SwingBar.hasTwistWindow = false
+SwingBar.knowsSteadyShot = false
 
 -- Visibility
 SwingBar.lastActiveTime = 0
@@ -207,6 +215,11 @@ function SwingBar:UpdateSpecFeatures()
     self.isDualWieldSync = (class == "SHAMAN" and spec == "ENHANCEMENT")
                         or (class == "WARRIOR" and spec == "FURY")
     self.hasTwistWindow = (class == "PALADIN" and spec == "RETRIBUTION")
+
+    -- Detect Steady Shot for zone display (skip yellow zone if not learned yet)
+    if self.isHunter then
+        self.knowsSteadyShot = IsPlayerSpell(34120) -- Steady Shot
+    end
 end
 
 function SwingBar:OnSpecChanged()
@@ -215,7 +228,65 @@ end
 
 function SwingBar:OnPlayerEnteringWorld()
     self:UpdateSpecFeatures()
+    self:UpdateRangedBaseSpeed()
     self:UpdateWeaponSpeeds()
+end
+
+-------------------------------------------------------------------------------
+-- Ranged Base Speed (tooltip extraction for accurate clip zone boundaries)
+-------------------------------------------------------------------------------
+
+-- Both cast time and weapon speed scale by the same haste factor, so the clip
+-- zone boundary fraction (baseCast / baseSpeed) is constant.  We need the
+-- unhasted base weapon speed, which WoW only exposes in the item tooltip.
+
+local baseSpeedCache = {}  -- [itemID] = baseSpeed
+local baseSpeedTooltip     -- lazily created scanning tooltip
+local SPEED_PATTERN        -- "Speed X.XX" pattern, built from global SPEED string
+
+function SwingBar:UpdateRangedBaseSpeed()
+    if not self.isHunter and not self.isWand then return end
+
+    local itemID = GetInventoryItemID("player", INVSLOT_RANGED)
+    if not itemID then
+        self.rangedBaseSpeed = 0
+        return
+    end
+
+    -- Return cached value if we've seen this weapon before
+    if baseSpeedCache[itemID] then
+        self.rangedBaseSpeed = baseSpeedCache[itemID]
+        return
+    end
+
+    -- Lazy-create the scanning tooltip
+    if not baseSpeedTooltip then
+        baseSpeedTooltip = CreateFrame("GameTooltip", "VeevHUDBaseSpeedTip", nil, "GameTooltipTemplate")
+        baseSpeedTooltip:SetOwner(WorldFrame, "ANCHOR_NONE")
+        -- Pattern: the global SPEED string followed by a decimal number
+        SPEED_PATTERN = SPEED .. " (%d%.%d%d)"
+    end
+
+    baseSpeedTooltip:ClearLines()
+    baseSpeedTooltip:SetItemByID(itemID)
+
+    local speed = 0
+    for i = 1, baseSpeedTooltip:NumLines() do
+        local fontString = _G["VeevHUDBaseSpeedTipTextRight" .. i]
+        local text = fontString and fontString:GetText()
+        if text then
+            local match = text:match(SPEED_PATTERN)
+            if match then
+                speed = tonumber(match)
+                break
+            end
+        end
+    end
+
+    if speed and speed > 0 then
+        baseSpeedCache[itemID] = speed
+        self.rangedBaseSpeed = speed
+    end
 end
 
 -------------------------------------------------------------------------------
@@ -378,8 +449,11 @@ end
 function SwingBar:ApplyParryHaste()
     if self.mainTimer <= 0 or self.mainSpeed <= 0 then return end
 
-    local reduction = self.mainSpeed * 0.4
+    -- If swing timer is already below 20% of weapon speed, parry haste does nothing
     local floor = self.mainSpeed * 0.2
+    if self.mainTimer <= floor then return end
+
+    local reduction = self.mainSpeed * 0.4
     self.mainTimer = math_max(self.mainTimer - reduction, floor)
 end
 
@@ -436,6 +510,7 @@ function SwingBar:OnAutoRepeatStart()
     -- Wand classes: wanding switches display from melee to wand
     if self.isWand then self.isRanged = true end
     self:UpdateWeaponSpeeds()
+    self:UpdateZoneMarkers()  -- Show zones now that auto-shot is active
     self:OnSwingEvent()
 end
 
@@ -448,12 +523,14 @@ function SwingBar:OnAutoRepeatStop()
         self:UpdateContainerSize()
         addon.Layout:Refresh()  -- Bar height may change between ranged/melee
     end
+    self:UpdateZoneMarkers()  -- Clear zones (works for both melee-weaving and normal paths)
     -- Wand classes: wanding stopped, switch back to melee display
     if self.isWand then self.isRanged = false end
 end
 
 function SwingBar:OnInventoryChanged(event, unit)
     if unit ~= "player" then return end
+    self:UpdateRangedBaseSpeed()
     self:UpdateWeaponSpeeds()
 end
 
@@ -500,24 +577,29 @@ end
 function SwingBar:UpdateZoneMarkers()
     local db = addon.db.profile.swingBar
 
-    -- Hunter clip zone backgrounds on ranged bar (not in melee mode)
-    if self.isHunter and self.isRanged and self.mainBar and db.enableClipZones then
+    -- Hunter ranged bar zone model:
+    --   If Steady Shot known: 3-zone (green / yellow / red)
+    --   If not known (< level 62): 2-zone (green / red)
+    if self.isHunter and self.isRanged and self.autoRepeatActive and self.mainBar and db.enableClipZones then
         local barWidth = db.width
+        -- Use base (unhasted) speed: both cast time and weapon speed scale by the
+        -- same haste factor, so boundary fractions are constant.
+        local baseSpeed = self.rangedBaseSpeed > 0 and self.rangedBaseSpeed or self.rangedSpeed
 
-        if self.rangedSpeed > 0 then
-            local steadyBoundary = 1.0 - (STEADY_SHOT_CAST_TIME / self.rangedSpeed)
-            if steadyBoundary < 0 then steadyBoundary = 0 end
+        if baseSpeed > 0 then
+            local redBoundary = 1.0 - (RED_ZONE_THRESHOLD / baseSpeed)
+            if redBoundary < 0 then redBoundary = 0 end
 
-            if db.hunterThreeColor then
-                local multiBoundary = 1.0 - (MULTI_SHOT_CAST_TIME / self.rangedSpeed)
-                if multiBoundary < 0 then multiBoundary = 0 end
+            if self.knowsSteadyShot then
+                local steadyBoundary = 1.0 - (STEADY_SHOT_CAST_TIME / baseSpeed)
+                if steadyBoundary < 0 then steadyBoundary = 0 end
 
                 EnsureZoneTextures(self.mainBar, 2)
-                SetZoneSegment(self.mainBar, 1, steadyBoundary, multiBoundary, db.cautionColor, barWidth, db.zoneAlpha)
-                SetZoneSegment(self.mainBar, 2, multiBoundary, 1.0, db.dangerColor, barWidth, db.zoneAlpha)
+                SetZoneSegment(self.mainBar, 1, steadyBoundary, redBoundary, db.cautionColor, barWidth, db.zoneAlpha)
+                SetZoneSegment(self.mainBar, 2, redBoundary, 1.0, db.dangerColor, barWidth, db.zoneAlpha)
             else
                 EnsureZoneTextures(self.mainBar, 1)
-                SetZoneSegment(self.mainBar, 1, steadyBoundary, 1.0, db.dangerColor, barWidth, db.zoneAlpha)
+                SetZoneSegment(self.mainBar, 1, redBoundary, 1.0, db.dangerColor, barWidth, db.zoneAlpha)
             end
         else
             EnsureZoneTextures(self.mainBar, 0)
@@ -574,28 +656,22 @@ function SwingBar:GetFillColor(progress, isOffHand)
         end
     end
 
-    -- Hunter: green = safe to cast, colored zones warn of clip danger (ranged only)
-    if self.isHunter and self.isRanged and self.rangedSpeed > 0 and db.enableClipZones then
-        local steadyBoundary = 1.0 - (STEADY_SHOT_CAST_TIME / self.rangedSpeed)
-        if steadyBoundary < 0 then steadyBoundary = 0 end
+    -- Hunter zone colors: 3-zone (green/yellow/red) or 2-zone (green/red) if no Steady Shot
+    if self.isHunter and self.isRanged and self.autoRepeatActive and self.rangedSpeed > 0 and db.enableClipZones then
+        local baseSpeed = self.rangedBaseSpeed > 0 and self.rangedBaseSpeed or self.rangedSpeed
+        local redBoundary = 1.0 - (RED_ZONE_THRESHOLD / baseSpeed)
+        if redBoundary < 0 then redBoundary = 0 end
 
-        if db.hunterThreeColor then
-            local multiBoundary = 1.0 - (MULTI_SHOT_CAST_TIME / self.rangedSpeed)
-            if multiBoundary < 0 then multiBoundary = 0 end
+        if self.knowsSteadyShot then
+            local steadyBoundary = 1.0 - (STEADY_SHOT_CAST_TIME / baseSpeed)
+            if steadyBoundary < 0 then steadyBoundary = 0 end
 
-            if progress < steadyBoundary then
-                return db.safeColor
-            elseif progress < multiBoundary then
-                return db.cautionColor
-            else
-                return db.dangerColor
-            end
+            if progress < steadyBoundary then return db.safeColor
+            elseif progress < redBoundary then return db.cautionColor
+            else return db.dangerColor end
         else
-            if progress < steadyBoundary then
-                return db.safeColor
-            else
-                return db.dangerColor
-            end
+            if progress < redBoundary then return db.safeColor
+            else return db.dangerColor end
         end
     end
 
@@ -1051,6 +1127,14 @@ function SwingBar:Refresh()
     end
 
     self:UpdateSpecFeatures()
+
+    -- Melee weaving requires isRanged=true so the main bar shows ranged data.
+    -- If the user enables melee weaving while auto-repeat is stopped (isRanged=false),
+    -- both bars would read melee data without this.
+    if self.isHunter and db.enableMeleeWeaving then
+        self.isRanged = true
+    end
+
     self:UpdateWeaponSpeeds()
     addon.Layout:Refresh()
 end
