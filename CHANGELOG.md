@@ -1,5 +1,15 @@
 # VeevHUD Changelog
 
+## [1.0.155] - 2026-03-10
+
+### Added
+- **Ret Paladin: Seal Twist Zones** — The swing bar now shows color-coded zones for seal twisting: yellow (prep zone — cast Seal of Command before this ends), green (twist zone — cast Seal of Blood now). The entire bar turns red when a twist becomes impossible — either because a GCD will extend past the swing, or because you entered the twist zone without Seal of Command active. Requires the "Twist Window" option to be enabled (on by default).
+- **Ret Paladin: Taller Default Bar** — Ret Paladin swing bar now defaults to 6px height (like Hunter) since the color zones are important to see. Holy and Prot Paladin remain at 2px. The height setting is now per-spec for specs that have a default override.
+
+### Fixed
+- **Swing Bar: Extra Attack Double-Reset** — Procs that generate bonus melee swings (Windfury Weapon, Sword Specialization, Hand of Justice) no longer incorrectly reset the swing timer. Previously only one extra attack was tracked; now all pending extra attacks are counted correctly.
+- **Swing Bar: Cast-Time Swing Reset** — Casting a spell with a cast time now correctly resets the melee swing timer on cast start. This is a universal WoW mechanic that affects all melee classes.
+
 ## [1.0.154] - 2026-03-09
 
 ### Added

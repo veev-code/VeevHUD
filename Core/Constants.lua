@@ -451,7 +451,8 @@ C.DEFAULTS = {
             enabled = true,
             width = 230,
             height = 2,              -- Single weapon bar height (default for most classes)
-            classHeight = { HUNTER = 6 },  -- Per-class height overrides (used when height is not user-modified)
+            classHeight = { HUNTER = 6 },  -- Per-class height overrides
+            specHeight = { RETRIBUTION = 6 },  -- Per-spec height overrides (takes priority over classHeight)
             wandHeight = 2,          -- Single bar height for wand users
             dualWieldHeight = 2,     -- Per-bar height for dual-wield
             dualWieldSpacing = 1,    -- Gap between MH and OH bars

@@ -24,7 +24,8 @@
          If not (< level 62): 2-zone Green -> Red.
          Green = safe to cast + move, Yellow = Steady clips but instants OK,
          Red = don't move or cast Multi-Shot (auto-shot animation playing).
-       - Ret Paladin: Single MH bar. Neutral -> Green (last ~0.4s = twist window).
+       - Ret Paladin: Single MH bar. Neutral -> Yellow (prep Command) -> Green (cast Blood).
+         Red override when twist is impossible (GCD lockout or Command not prepped).
        - Enhancement Shaman: Dual MH+OH bars. Entire bar green (synced) or red (desynced).
        - Fury Warrior: Dual MH+OH bars. Entire bar green (desynced) or red (synced).
        - Arms Warrior: Single MH bar. Neutral only (fill itself signals timing).
@@ -50,8 +51,9 @@
     6. SWING TRACKING (CLEU-driven)
        - SWING_DAMAGE / SWING_MISSED: Reset MH or OH timer.
        - SPELL_DAMAGE / SPELL_MISSED: Swing reset spells (HS, Cleave, Slam, Maul, Raptor Strike).
-       - SPELL_EXTRA_ATTACKS: Guard flag prevents double-reset (Windfury, Sword Spec).
-       - UNIT_SPELLCAST_SUCCEEDED: Hunter Auto Shot / Wand Shoot completion.
+       - SPELL_EXTRA_ATTACKS: Counter prevents double-reset (Windfury, Sword Spec).
+       - UNIT_SPELLCAST_START: Cast-time spells reset melee swing timer.
+       - UNIT_SPELLCAST_SUCCEEDED: Wand Shoot completion (+ strategy: Hunter Auto Shot).
        - START/STOP_AUTOREPEAT_SPELL: Auto-attack toggle.
        - UNIT_INVENTORY_CHANGED: Weapon swap detection.
        - UNIT_SPELLCAST_FAILED_QUIET: Hunter auto-shot fail → +0.5s re-queue delay.
@@ -62,12 +64,13 @@
        - Auto-shot fail: client adds 0.5s delay before retrying (out of range, LoS, etc.).
        - Auto-cast time scales with haste: 0.52 * (hastedSpeed / baseSpeed).
 
-    8. KEY FORMULAS
+    9. KEY FORMULAS
        - Parry haste: timer = timer - (weaponSpeed * 0.4), floor at weaponSpeed * 0.2
        - Haste change: timer = timer * (newSpeed / oldSpeed) (preserves progress ratio)
        - Hunter yellow boundary: steadyShotCastTime / rangedBaseSpeed from right
        - Hunter red boundary: max(multiShotCast, autoCastAnim) / rangedBaseSpeed from right
        - Ret twist window: last ~0.4s = starts at 1.0 - (0.4 / mainSpeed)
+       - Ret prep deadline: 1.0 - ((0.4 + 1.5) / mainSpeed) = last GCD before twist zone
        - Sync delta: abs(mainTimer - offTimer) wrapped around swing period, compared to syncThreshold
 
     8. LAYOUT
@@ -93,6 +96,17 @@ local math_max = math.max
 local SwingBar = {}
 addon:RegisterModule("SwingBar", SwingBar)
 
+-- Class-specific strategies loaded by SwingBarHunter.lua / SwingBarPaladin.lua
+addon.SwingBarStrategies = addon.SwingBarStrategies or {}
+
+-- Dispatch a strategy hook: CallStrategy(self, "HookName", ...) -> return value or nil
+local function CallStrategy(sb, hookName, ...)
+    local s = sb.strategy
+    if s and s[hookName] then
+        return s[hookName](s, sb, ...)
+    end
+end
+
 -------------------------------------------------------------------------------
 -- Constants
 -------------------------------------------------------------------------------
@@ -113,32 +127,11 @@ local function BuildSwingResetLookup()
     end
 end
 
--- Auto Shot and Shoot (wand) spell IDs
-local AUTO_SHOT_ID = 75
+-- Wand Shoot spell ID (core handles wand generically)
 local SHOOT_ID = 5019
-
--- Hunter: Feign Death and Trueshot Aura reset ranged timer with +0.15s penalty
-local FEIGN_DEATH_ID = 5384
-local TRUESHOT_AURA_IDS = { [19506] = true, [20905] = true, [20906] = true }
-
--- Hunter: base auto-shot animation time (seconds)
-local AUTO_CAST_TIME_BASE = 0.52
-
--- Hunter: client re-queue delay when auto-shot fails to fire (out of range, LoS, etc.)
-local AUTO_SHOT_FAIL_DELAY = 0.5
 
 -- Spark texture extends this many pixels above/below the bar
 local SPARK_OVERFLOW = 6
-
--- Hunter ranged clip zone thresholds (base values, before haste scaling).
--- Both cast time and weapon speed scale by the same haste factor, so boundary
--- fractions use base (unhasted) values and remain constant.
-local STEADY_SHOT_CAST_TIME = 1.5   -- Yellow boundary: Steady Shot would clip
-local RED_ZONE_THRESHOLD = 0.52     -- Red boundary: max(Multi-Shot 0.5s, auto-shot animation 0.52s)
-                                     -- Conservative: red starts as soon as EITHER is unsafe
-
--- Ret Paladin seal twist window (seconds before swing)
-local TWIST_WINDOW = 0.4
 
 -------------------------------------------------------------------------------
 -- State
@@ -152,28 +145,23 @@ SwingBar.offTimer = 0
 SwingBar.offSpeed = 0
 SwingBar.prevOffSpeed = 0
 SwingBar.hasOffHand = false
-SwingBar.extraAttackGuard = false
+SwingBar.extraAttacksPending = 0
 
 -- Ranged state (Hunter + Wand)
 SwingBar.rangedTimer = 0
 SwingBar.rangedSpeed = 0
 SwingBar.prevRangedSpeed = 0
-SwingBar.rangedBaseSpeed = 0  -- Unhasted weapon speed (from tooltip), used for clip zone accuracy
 SwingBar.autoRepeatActive = false
-SwingBar.lastShotTime = 0
-SwingBar.feignStatus = false       -- True while in Feign Death, cleared on movement/jump
-SwingBar.feignPenalty = 0          -- Active +0.15s feign penalty (added on top of API speed)
-SwingBar.lastRetryTime = 0         -- Timestamp of last FAILED_QUIET (tracks client retry cycle)
-SwingBar.wasMoving = false         -- Previous frame movement state (transition detection)
-SwingBar.moveStopTime = nil        -- Timestamp of last movement stop (debug logging)
+SwingBar.feignPenalty = 0          -- Written by Hunter strategy; read in speed calc (harmless 0 default)
 SwingBar.hasteAccum = 0            -- Accumulator for throttled haste checks
 
--- Class detection (set in Initialize)
+-- Class detection (set in Initialize, refined by strategies)
 SwingBar.isRanged = false
 SwingBar.isHunter = false
+SwingBar.isWand = false
 SwingBar.isDualWieldSync = false
-SwingBar.hasTwistWindow = false
-SwingBar.knowsSteadyShot = false
+SwingBar.invertSyncColors = false  -- Warriors invert sync color meaning
+SwingBar.hasTwistWindow = false    -- Set by Paladin strategy
 
 -- Visibility
 SwingBar.lastActiveTime = 0
@@ -206,6 +194,9 @@ function SwingBar:Initialize()
     self.isWand = (class == "MAGE") or (class == "PRIEST") or (class == "WARLOCK")
     self.isRanged = self.isHunter  -- Wand classes start in melee mode, switch dynamically
 
+    -- Select class-specific strategy (loaded by SwingBarHunter/Paladin.lua)
+    self.strategy = addon.SwingBarStrategies[class]
+
     -- Spec-dependent features (updated on spec change)
     self:UpdateSpecFeatures()
 
@@ -219,22 +210,13 @@ function SwingBar:Initialize()
     self.Events:RegisterCLEU(self, "SPELL_MISSED", self.OnSpellMissed)
     self.Events:RegisterCLEU(self, "SPELL_EXTRA_ATTACKS", self.OnExtraAttacks)
 
-    -- Hunter/Wand ranged tracking
+    -- Ranged tracking (Hunter auto-shot, Wand shoot)
     self.Events:RegisterEvent(self, "UNIT_SPELLCAST_SUCCEEDED", self.OnSpellCastSucceeded)
     self.Events:RegisterEvent(self, "START_AUTOREPEAT_SPELL", self.OnAutoRepeatStart)
     self.Events:RegisterEvent(self, "STOP_AUTOREPEAT_SPELL", self.OnAutoRepeatStop)
 
-    -- Hunter: auto-shot failed to fire (out of range, LoS, etc.) → client re-queue delay
-    if self.isHunter then
-        self.Events:RegisterEvent(self, "UNIT_SPELLCAST_FAILED_QUIET", self.OnSpellCastFailedQuiet)
-        -- Detect jumping out of Feign Death
-        hooksecurefunc("JumpOrAscendStart", function()
-            if self.feignStatus then
-                self:ApplyFeignDeathReset()
-                self.feignStatus = false
-            end
-        end)
-    end
+    -- Cast-time spells reset the melee swing timer (universal WoW mechanic)
+    self.Events:RegisterEvent(self, "UNIT_SPELLCAST_START", self.OnCastStart)
 
     -- Weapon changes
     self.Events:RegisterEvent(self, "UNIT_INVENTORY_CHANGED", self.OnInventoryChanged)
@@ -242,6 +224,9 @@ function SwingBar:Initialize()
     -- Spec changes
     self.Events:RegisterEvent(self, "CHARACTER_POINTS_CHANGED", self.OnSpecChanged)
     self.Events:RegisterEvent(self, "PLAYER_ENTERING_WORLD", self.OnPlayerEnteringWorld)
+
+    -- Strategy-specific initialization (extra events, state, hooks)
+    CallStrategy(self, "OnInitialize")
 
     self.Utils:LogDebug("SwingBar initialized for", class)
 end
@@ -252,12 +237,9 @@ function SwingBar:UpdateSpecFeatures()
 
     self.isDualWieldSync = (class == "SHAMAN" and spec == "ENHANCEMENT")
                         or (class == "WARRIOR" and spec == "FURY")
-    self.hasTwistWindow = (class == "PALADIN" and spec == "RETRIBUTION")
+    self.invertSyncColors = (class == "WARRIOR")
 
-    -- Detect Steady Shot for zone display (skip yellow zone if not learned yet)
-    if self.isHunter then
-        self.knowsSteadyShot = IsPlayerSpell(34120) -- Steady Shot
-    end
+    CallStrategy(self, "OnUpdateSpecFeatures")
 end
 
 function SwingBar:OnSpecChanged()
@@ -266,70 +248,8 @@ end
 
 function SwingBar:OnPlayerEnteringWorld()
     self:UpdateSpecFeatures()
-    self:UpdateRangedBaseSpeed()
     self:UpdateWeaponSpeeds()
-    -- Clear stale hunter state from previous session/death
-    self.feignStatus = false
-    self.feignPenalty = 0
-    self.lastRetryTime = 0
-    self.wasMoving = false
-end
-
--------------------------------------------------------------------------------
--- Ranged Base Speed (tooltip extraction for accurate clip zone boundaries)
--------------------------------------------------------------------------------
-
--- Both cast time and weapon speed scale by the same haste factor, so the clip
--- zone boundary fraction (baseCast / baseSpeed) is constant.  We need the
--- unhasted base weapon speed, which WoW only exposes in the item tooltip.
-
-local baseSpeedCache = {}  -- [itemID] = baseSpeed
-local baseSpeedTooltip     -- lazily created scanning tooltip
-local SPEED_PATTERN        -- "Speed X.XX" pattern, built from global SPEED string
-
-function SwingBar:UpdateRangedBaseSpeed()
-    if not self.isHunter and not self.isWand then return end
-
-    local itemID = GetInventoryItemID("player", INVSLOT_RANGED)
-    if not itemID then
-        self.rangedBaseSpeed = 0
-        return
-    end
-
-    -- Return cached value if we've seen this weapon before
-    if baseSpeedCache[itemID] then
-        self.rangedBaseSpeed = baseSpeedCache[itemID]
-        return
-    end
-
-    -- Lazy-create the scanning tooltip
-    if not baseSpeedTooltip then
-        baseSpeedTooltip = CreateFrame("GameTooltip", "VeevHUDBaseSpeedTip", nil, "GameTooltipTemplate")
-        baseSpeedTooltip:SetOwner(WorldFrame, "ANCHOR_NONE")
-        -- Pattern: the global SPEED string followed by a decimal number
-        SPEED_PATTERN = SPEED .. " (%d%.%d%d)"
-    end
-
-    baseSpeedTooltip:ClearLines()
-    baseSpeedTooltip:SetItemByID(itemID)
-
-    local speed = 0
-    for i = 1, baseSpeedTooltip:NumLines() do
-        local fontString = _G["VeevHUDBaseSpeedTipTextRight" .. i]
-        local text = fontString and fontString:GetText()
-        if text then
-            local match = text:match(SPEED_PATTERN)
-            if match then
-                speed = tonumber(match)
-                break
-            end
-        end
-    end
-
-    if speed and speed > 0 then
-        baseSpeedCache[itemID] = speed
-        self.rangedBaseSpeed = speed
-    end
+    CallStrategy(self, "OnPlayerEnteringWorld")
 end
 
 -------------------------------------------------------------------------------
@@ -423,6 +343,13 @@ end
 -- CLEU Event Handlers
 -------------------------------------------------------------------------------
 
+-- Consolidates main-hand swing timer reset + strategy notification.
+-- Called from all swing reset sources (CLEU damage, spell resets, cast-time resets).
+function SwingBar:ResetMainSwing()
+    self.mainTimer = self.mainSpeed
+    CallStrategy(self, "OnSwingReset")
+end
+
 -- Called from event handlers when a new swing is detected.
 -- Ensures the container is visible so OnUpdate fires for smooth animation.
 function SwingBar:OnSwingEvent()
@@ -437,8 +364,8 @@ function SwingBar:OnSwingDamage(subEvent, data)
 
     -- Extra attack guard: if an extra attack (Windfury, Sword Spec) just fired,
     -- don't reset the timer for the extra attack's SWING_DAMAGE
-    if self.extraAttackGuard then
-        self.extraAttackGuard = false
+    if self.extraAttacksPending > 0 then
+        self.extraAttacksPending = self.extraAttacksPending - 1
         return
     end
 
@@ -450,7 +377,7 @@ function SwingBar:OnSwingDamage(subEvent, data)
     if isOffHand then
         self.offTimer = self.offSpeed
     else
-        self.mainTimer = self.mainSpeed
+        self:ResetMainSwing()
     end
 
     -- Wand classes: melee swing switches display from wand to melee
@@ -465,8 +392,8 @@ function SwingBar:OnSwingMissed(subEvent, data)
 
     -- Case 1: Player's swing missed → reset swing timer
     if data.sourceGUID == self.playerGUID then
-        if self.extraAttackGuard then
-            self.extraAttackGuard = false
+        if self.extraAttacksPending > 0 then
+            self.extraAttacksPending = self.extraAttacksPending - 1
             return
         end
 
@@ -477,7 +404,7 @@ function SwingBar:OnSwingMissed(subEvent, data)
         if isOffHand then
             self.offTimer = self.offSpeed
         else
-            self.mainTimer = self.mainSpeed
+            self:ResetMainSwing()
         end
 
         -- Wand classes: melee swing switches display from wand to melee
@@ -510,7 +437,7 @@ function SwingBar:OnSpellDamage(subEvent, data)
 
     if SWING_RESET_SPELLS[data.spellID] then
         self:UpdateWeaponSpeeds()
-        self.mainTimer = self.mainSpeed
+        self:ResetMainSwing()
         self:OnSwingEvent()
     end
 end
@@ -521,155 +448,66 @@ function SwingBar:OnSpellMissed(subEvent, data)
 
     if SWING_RESET_SPELLS[data.spellID] then
         self:UpdateWeaponSpeeds()
-        self.mainTimer = self.mainSpeed
+        self:ResetMainSwing()
         self:OnSwingEvent()
     end
 end
 
 function SwingBar:OnExtraAttacks(subEvent, data)
     if data.sourceGUID ~= self.playerGUID then return end
-    -- Set guard flag so the next SWING_DAMAGE doesn't reset the timer
-    self.extraAttackGuard = true
+    -- Increment pending counter so subsequent extra attack SWING_DAMAGEs don't reset the timer
+    local amount = select(16, CombatLogGetCurrentEventInfo()) or 1
+    self.extraAttacksPending = self.extraAttacksPending + amount
+end
+
+-- Cast-time spells reset the melee swing timer on cast start (universal WoW mechanic).
+-- UNIT_SPELLCAST_START only fires for cast-time spells (not instant, not channeled).
+function SwingBar:OnCastStart(event, unit)
+    if unit ~= "player" then return end
+    if self.mainTimer > 0 then
+        self:UpdateWeaponSpeeds()
+        self:ResetMainSwing()
+        self:OnSwingEvent()
+    end
 end
 
 function SwingBar:OnSpellCastSucceeded(event, unit, castGUID, spellID)
     if unit ~= "player" then return end
 
-    -- Hunter: Feign Death / Trueshot Aura reset ranged timer with penalty
-    if self.isHunter and (spellID == FEIGN_DEATH_ID or TRUESHOT_AURA_IDS[spellID]) then
-        if spellID == FEIGN_DEATH_ID then
-            self.feignStatus = true
-        end
-        self:ApplyFeignDeathReset()
-        return
-    end
+    -- Strategy handles class-specific spells first (Hunter: Auto Shot, Feign Death, etc.)
+    if CallStrategy(self, "OnSpellCastSucceeded", spellID) then return end
 
-    if spellID == AUTO_SHOT_ID or spellID == SHOOT_ID then
-        -- Auto Shot or Wand completed: reset ranged timer
-        local now = GetTime()
-        if addon.db.profile.debugMode and self.moveStopTime and spellID == AUTO_SHOT_ID then
-            self.Utils:LogDebug("SwingBar", string.format(
-                "AUTO_SHOT_FIRED delaySinceStop=%.3f timeSinceLastShot=%.3f speed=%.3f autoCast=%.3f",
-                now - self.moveStopTime, now - self.lastShotTime, self.rangedSpeed, self:GetAutoCastTime()))
-            self.moveStopTime = nil
-        end
-        self.feignPenalty = 0  -- Clear feign penalty
-        self.lastRetryTime = 0  -- Clear retry cycle tracking
+    -- Wand Shoot completed: reset ranged timer
+    if spellID == SHOOT_ID then
         self:UpdateWeaponSpeeds()
         if self.rangedSpeed > 0 then
             self.rangedTimer = self.rangedSpeed
-            self.lastShotTime = now
             self:OnSwingEvent()
         end
     end
 end
 
--- Hunter: Feign Death adds +0.15s penalty to ranged speed and resets timer.
--- Called on Feign Death cast, Trueshot Aura cast, and movement/jump out of Feign.
-function SwingBar:ApplyFeignDeathReset()
-    self.lastShotTime = GetTime()
-    if self.feignPenalty == 0 then
-        -- Apply +0.15s penalty (persists until next successful Auto Shot)
-        self.feignPenalty = 0.15
-        -- Re-read speed with penalty applied
-        local speed = UnitRangedDamage("player")
-        if speed and speed > 0 then
-            self.rangedSpeed = speed + self.feignPenalty
-        end
-    end
-    self:ResetRangedTimer()
-end
-
--- Hunter: auto-shot failed to fire (out of range, LoS, etc.) — client adds 0.5s re-queue delay.
--- Skip when moving: the per-frame movement cancel in UpdateBars already pins the bar
--- at the cast phase boundary. The 0.5s delay is only for stationary failures (range, LoS).
-function SwingBar:OnSpellCastFailedQuiet(event, unit, castGUID, spellID)
-    if unit ~= "player" then return end
-    if spellID ~= AUTO_SHOT_ID then return end
-    if not self.autoRepeatActive then return end
-
-    local now = GetTime()
-    self.lastRetryTime = now
-
-    local isMoving = GetUnitSpeed("player") > 0
-    if addon.db.profile.debugMode then
-        self.Utils:LogDebug("SwingBar", string.format(
-            "FAILED_QUIET moving=%s rangedTimer=%.3f timeSinceShot=%.3f timeSinceStop=%.3f",
-            tostring(isMoving), self.rangedTimer, now - self.lastShotTime,
-            self.moveStopTime and (now - self.moveStopTime) or -1))
-    end
-
-    -- While moving, the per-frame pin in UpdateBars handles the timer.
-    if isMoving then return end
-
-    -- Stationary failure (out of range, LoS): apply re-queue delay
-    local autoCastTime = self:GetAutoCastTime()
-    local timeSinceShot = now - self.lastShotTime
-    if timeSinceShot > (self.rangedSpeed - autoCastTime) then
-        self.rangedTimer = autoCastTime + AUTO_SHOT_FAIL_DELAY
-    end
-end
-
--- Hunter: compute current auto-shot animation time (scales with haste)
-function SwingBar:GetAutoCastTime()
-    if self.rangedBaseSpeed > 0 and self.rangedSpeed > 0 then
-        return AUTO_CAST_TIME_BASE * (self.rangedSpeed / self.rangedBaseSpeed)
-    end
-    return AUTO_CAST_TIME_BASE
-end
-
--- Reset ranged timer based on elapsed time since last shot (matches WST's ResetShotTimer logic)
-function SwingBar:ResetRangedTimer()
-    local now = GetTime()
-    local autoCastTime = self:GetAutoCastTime()
-    local elapsed = now - self.lastShotTime
-
-    if elapsed > (self.rangedSpeed - autoCastTime) then
-        -- Auto-shot is ready: show just the cast phase remaining
-        self.rangedTimer = autoCastTime
-    elseif elapsed > 0 then
-        -- Mid-cooldown: show remaining time
-        self.rangedTimer = self.rangedSpeed - elapsed
-    else
-        -- Full reset
-        self.rangedTimer = self.rangedSpeed
-    end
-    self:OnSwingEvent()
-end
-
 function SwingBar:OnAutoRepeatStart()
     self.autoRepeatActive = true
-    if self.isHunter and not addon.db.profile.swingBar.enableMeleeWeaving then
-        self.isRanged = true
-        self.lastDualState = nil  -- Force container size update
-        self:UpdateContainerSize()
-        addon.Layout:Refresh()  -- Bar height may change between ranged/melee
-    end
+    CallStrategy(self, "OnAutoRepeatStart")
     -- Wand classes: wanding switches display from melee to wand
     if self.isWand then self.isRanged = true end
     self:UpdateWeaponSpeeds()
-    self:UpdateZoneMarkers()  -- Show zones now that auto-shot is active
+    self:UpdateZoneMarkers()
     self:OnSwingEvent()
 end
 
 function SwingBar:OnAutoRepeatStop()
     self.autoRepeatActive = false
-    self.wasMoving = false  -- Reset movement tracking
-    if self.isHunter and not addon.db.profile.swingBar.enableMeleeWeaving then
-        self.isRanged = false
-        self.lastDualState = nil  -- Force container size update
-        self:UpdateWeaponSpeeds()  -- Read melee weapon speeds
-        self:UpdateContainerSize()
-        addon.Layout:Refresh()  -- Bar height may change between ranged/melee
-    end
-    self:UpdateZoneMarkers()  -- Clear zones (works for both melee-weaving and normal paths)
+    CallStrategy(self, "OnAutoRepeatStop")
+    self:UpdateZoneMarkers()
     -- Wand classes: wanding stopped, switch back to melee display
     if self.isWand then self.isRanged = false end
 end
 
 function SwingBar:OnInventoryChanged(event, unit)
     if unit ~= "player" then return end
-    self:UpdateRangedBaseSpeed()
+    CallStrategy(self, "OnInventoryChanged")
     self:UpdateWeaponSpeeds()
 end
 
@@ -677,9 +515,9 @@ end
 -- Zone Backgrounds (colored segments behind the fill showing upcoming zones)
 -------------------------------------------------------------------------------
 
--- Ensure a bar has the required zone background textures (created lazily)
--- Uses the same status bar texture as the fill for visual consistency
-local function EnsureZoneTextures(bar, count)
+-- Ensure a bar has the required zone background textures (created lazily).
+-- Promoted to SwingBar method so strategies can call it.
+function SwingBar:EnsureZoneTextures(bar, count)
     if not bar._zones then bar._zones = {} end
     local barTexture = bar:GetStatusBarTexture():GetTexture()
     for i = 1, count do
@@ -698,8 +536,8 @@ local function EnsureZoneTextures(bar, count)
     end
 end
 
--- Position a zone texture as a horizontal segment of the bar background
-local function SetZoneSegment(bar, index, startFrac, endFrac, color, barWidth, alpha)
+-- Position a zone texture as a horizontal segment of the bar background.
+function SwingBar:SetZoneSegment(bar, index, startFrac, endFrac, color, barWidth, alpha)
     local tex = bar._zones[index]
     if startFrac >= endFrac then
         tex:Hide()
@@ -712,59 +550,19 @@ local function SetZoneSegment(bar, index, startFrac, endFrac, color, barWidth, a
     tex:Show()
 end
 
--- Update zone background positions based on current attack speed
+-- Update zone background positions based on current attack speed.
+-- Strategy provides class-specific zones; core falls through to "no zones."
 function SwingBar:UpdateZoneMarkers()
     local db = addon.db.profile.swingBar
 
-    -- Hunter ranged bar zone model:
-    --   If Steady Shot known: 3-zone (green / yellow / red)
-    --   If not known (< level 62): 2-zone (green / red)
-    if self.isHunter and self.isRanged and self.autoRepeatActive and self.mainBar and db.enableClipZones then
-        local barWidth = db.width
-        -- Use base (unhasted) speed: both cast time and weapon speed scale by the
-        -- same haste factor, so boundary fractions are constant.
-        local baseSpeed = self.rangedBaseSpeed > 0 and self.rangedBaseSpeed or self.rangedSpeed
-
-        if baseSpeed > 0 then
-            local redBoundary = 1.0 - (RED_ZONE_THRESHOLD / baseSpeed)
-            if redBoundary < 0 then redBoundary = 0 end
-
-            if self.knowsSteadyShot then
-                local steadyBoundary = 1.0 - (STEADY_SHOT_CAST_TIME / baseSpeed)
-                if steadyBoundary < 0 then steadyBoundary = 0 end
-
-                EnsureZoneTextures(self.mainBar, 2)
-                SetZoneSegment(self.mainBar, 1, steadyBoundary, redBoundary, db.cautionColor, barWidth, db.zoneAlpha)
-                SetZoneSegment(self.mainBar, 2, redBoundary, 1.0, db.dangerColor, barWidth, db.zoneAlpha)
-            else
-                EnsureZoneTextures(self.mainBar, 1)
-                SetZoneSegment(self.mainBar, 1, redBoundary, 1.0, db.dangerColor, barWidth, db.zoneAlpha)
-            end
-        else
-            EnsureZoneTextures(self.mainBar, 0)
-        end
-        return
-    end
-
-    -- Ret Paladin twist window background on melee bar
-    if self.hasTwistWindow and self.mainBar and db.enableTwistWindow then
-        local barWidth = db.width
-
-        if self.mainSpeed > 0 then
-            local twistThreshold = 1.0 - (TWIST_WINDOW / self.mainSpeed)
-            if twistThreshold < 0 then twistThreshold = 0 end
-
-            EnsureZoneTextures(self.mainBar, 1)
-            SetZoneSegment(self.mainBar, 1, twistThreshold, 1.0, db.safeColor, barWidth, db.zoneAlpha)
-        else
-            EnsureZoneTextures(self.mainBar, 0)
-        end
+    -- Delegate to strategy (Hunter clip zones, Paladin twist zones, etc.)
+    if self.mainBar and CallStrategy(self, "UpdateZoneMarkers", self.mainBar, db) then
         return
     end
 
     -- No zone feature active — hide all
     if self.mainBar then
-        EnsureZoneTextures(self.mainBar, 0)
+        self:EnsureZoneTextures(self.mainBar, 0)
     end
 end
 
@@ -777,51 +575,23 @@ function SwingBar:GetFillColor(progress, isOffHand)
 
     -- Dual-wield sync: entire bar colored by sync status.
     -- Enhancement Shamans want sync (Flurry charge efficiency): green = synced, red = desynced.
-    -- Fury Warriors want desync (HS queue removes OH miss penalty): green = desynced, red = synced.
+    -- Fury Warriors want desync (HS queue removes OH miss penalty): inverted.
     if self.isDualWieldSync and self.hasOffHand and db.enableSyncColors then
         local delta = math_abs(self.mainTimer - self.offTimer)
-        -- Wrap around swing period: when one timer just reset (e.g. 2.5s) while
-        -- the other is about to fire (0.1s), they're actually 0.2s apart, not 2.4s.
         local period = math_max(self.mainSpeed, self.offSpeed)
         if period > 0 and delta > period / 2 then
             delta = period - delta
         end
         if delta <= db.syncThreshold then
-            -- Synced: good for shamans (Flurry), bad for warriors (HS queue)
-            return (addon.playerClass == "WARRIOR") and db.dangerColor or db.safeColor
+            return self.invertSyncColors and db.dangerColor or db.safeColor
         else
-            -- Desynced: bad for shamans, good for warriors
-            return (addon.playerClass == "WARRIOR") and db.safeColor or db.dangerColor
+            return self.invertSyncColors and db.safeColor or db.dangerColor
         end
     end
 
-    -- Hunter zone colors: 3-zone (green/yellow/red) or 2-zone (green/red) if no Steady Shot
-    if self.isHunter and self.isRanged and self.autoRepeatActive and self.rangedSpeed > 0 and db.enableClipZones then
-        local baseSpeed = self.rangedBaseSpeed > 0 and self.rangedBaseSpeed or self.rangedSpeed
-        local redBoundary = 1.0 - (RED_ZONE_THRESHOLD / baseSpeed)
-        if redBoundary < 0 then redBoundary = 0 end
-
-        if self.knowsSteadyShot then
-            local steadyBoundary = 1.0 - (STEADY_SHOT_CAST_TIME / baseSpeed)
-            if steadyBoundary < 0 then steadyBoundary = 0 end
-
-            if progress < steadyBoundary then return db.safeColor
-            elseif progress < redBoundary then return db.cautionColor
-            else return db.dangerColor end
-        else
-            if progress < redBoundary then return db.safeColor
-            else return db.dangerColor end
-        end
-    end
-
-    -- Ret Paladin: green twist window at end
-    if self.hasTwistWindow and self.mainSpeed > 0 and db.enableTwistWindow then
-        local twistThreshold = 1.0 - (TWIST_WINDOW / self.mainSpeed)
-        if twistThreshold < 0 then twistThreshold = 0 end
-        if progress >= twistThreshold then
-            return db.safeColor
-        end
-    end
+    -- Strategy-provided fill color (Hunter clip zones, Paladin twist zones)
+    local strategyColor = CallStrategy(self, "GetFillColor", progress, isOffHand, db)
+    if strategyColor then return strategyColor end
 
     return db.color
 end
@@ -833,16 +603,15 @@ end
 function SwingBar:UpdateVisibility()
     local now = GetTime()
     local db = addon.db.profile.swingBar
-    local hasActiveTimer
 
-    if self.isHunter and db.enableMeleeWeaving then
-        -- Melee weaving: active if either ranged or melee timer is running
-        hasActiveTimer = ((self.rangedTimer > 0) and self.autoRepeatActive)
-                      or (self.mainTimer > 0)
-    elseif self.isRanged then
-        hasActiveTimer = (self.rangedTimer > 0) and self.autoRepeatActive
-    else
-        hasActiveTimer = (self.mainTimer > 0) or (self.offTimer > 0)
+    -- Strategy can override active timer detection (e.g., Hunter melee weaving)
+    local hasActiveTimer = CallStrategy(self, "GetActiveTimerOverride", db)
+    if hasActiveTimer == nil then
+        if self.isRanged then
+            hasActiveTimer = (self.rangedTimer > 0) and self.autoRepeatActive
+        else
+            hasActiveTimer = (self.mainTimer > 0) or (self.offTimer > 0)
+        end
     end
 
     if hasActiveTimer then
@@ -956,6 +725,8 @@ end
 -- Get effective single-bar height (wand classes use smaller wandHeight)
 function SwingBar:GetSingleBarHeight(db)
     if self.isWand then return db.wandHeight end
+    local specHeight = db.specHeight[addon.playerSpec]
+    if specHeight then return specHeight end
     local classHeight = db.classHeight[addon.playerClass]
     if classHeight then return classHeight end
     return db.height
@@ -1105,56 +876,8 @@ function SwingBar:UpdateBars(dt)
         self.hasteAccum = 0
     end
 
-    -- Hunter: movement detection for auto-shot cast cancel and Feign Death resume
-    if self.isHunter and (self.feignStatus or self.autoRepeatActive) then
-        local isMoving = GetUnitSpeed("player") > 0
-
-        -- Moving out of Feign Death: resume auto-shot with penalty
-        if self.feignStatus and isMoving then
-            self:ApplyFeignDeathReset()
-            self.feignStatus = false
-        end
-
-        -- Track movement transitions and adjust timer on stop
-        if self.autoRepeatActive then
-            local autoCastTime = self:GetAutoCastTime()
-            local debugMode = addon.db.profile.debugMode
-
-            if isMoving and not self.wasMoving then
-                if debugMode then
-                    self.Utils:LogDebug("SwingBar", string.format(
-                        "MOVE_START rangedTimer=%.3f autoCast=%.3f speed=%.3f timeSinceShot=%.3f",
-                        self.rangedTimer, autoCastTime, self.rangedSpeed,
-                        GetTime() - self.lastShotTime))
-                end
-            elseif not isMoving and self.wasMoving then
-                -- On stop: compute exact time until shot using the client's
-                -- retry cycle. FAILED_QUIET fires every ~0.5s, so we know
-                -- when the next retry will attempt to start the cast.
-                local now = GetTime()
-                if debugMode then self.moveStopTime = now end
-                if self.rangedTimer <= autoCastTime and self.lastRetryTime > 0 then
-                    local timeUntilNextRetry = math_max(0, (self.lastRetryTime + AUTO_SHOT_FAIL_DELAY) - now)
-                    self.rangedTimer = timeUntilNextRetry + autoCastTime
-                elseif self.rangedTimer <= autoCastTime then
-                    -- No retry data: use worst-case estimate
-                    self.rangedTimer = autoCastTime + AUTO_SHOT_FAIL_DELAY
-                end
-                if debugMode then
-                    self.Utils:LogDebug("SwingBar", string.format(
-                        "MOVE_STOP rangedTimer=%.3f autoCast=%.3f speed=%.3f lastRetry=%.3f",
-                        self.rangedTimer, autoCastTime, self.rangedSpeed,
-                        self.lastRetryTime > 0 and (now - self.lastRetryTime) or -1))
-                end
-            end
-            self.wasMoving = isMoving
-
-            -- Moving during auto-shot cast phase: pin at cast boundary
-            if isMoving and self.rangedTimer > 0 and self.rangedTimer <= autoCastTime then
-                self.rangedTimer = autoCastTime
-            end
-        end
-    end
+    -- Strategy pre-update (Hunter: movement detection, Feign Death resume)
+    CallStrategy(self, "OnPreUpdate", dt, db)
 
     -- Decrement timers
     local meleeWeaving = self.isHunter and db.enableMeleeWeaving
@@ -1176,6 +899,9 @@ function SwingBar:UpdateBars(dt)
             if self.offTimer < 0 then self.offTimer = 0 end
         end
     end
+
+    -- Strategy post-timer-update (Paladin: GCD/seal polling)
+    CallStrategy(self, "OnPostTimerUpdate")
 
     -- Update visibility (auto-hide)
     self:UpdateVisibility()
@@ -1330,13 +1056,7 @@ function SwingBar:Refresh()
     end
 
     self:UpdateSpecFeatures()
-
-    -- Melee weaving requires isRanged=true so the main bar shows ranged data.
-    -- If the user enables melee weaving while auto-repeat is stopped (isRanged=false),
-    -- both bars would read melee data without this.
-    if self.isHunter and db.enableMeleeWeaving then
-        self.isRanged = true
-    end
+    CallStrategy(self, "OnRefresh", db)
 
     self:UpdateWeaponSpeeds()
     addon.Layout:Refresh()

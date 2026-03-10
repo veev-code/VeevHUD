@@ -1675,16 +1675,21 @@ function Options:BuildOptionsTable()
 									width = { type = "range", name = "Width", desc = "Width of the swing bar in pixels.", min = 50, max = 600, step = 1, arg = "swingBar.width", order = 1 },
 									height = {
 										type = "range", name = "Height", order = 2,
-										desc = "Height of the swing bar in pixels (single weapon). Per-class: each class remembers its own height.",
+										desc = "Height of the swing bar in pixels (single weapon). Per-class/spec: each class or spec remembers its own height.",
 										min = 1, max = 20, step = 1,
 										get = function()
 											local db = addon.db.profile.swingBar
-											return db.classHeight[addon.playerClass] or db.height
+											return db.specHeight[addon.playerSpec] or db.classHeight[addon.playerClass] or db.height
 										end,
 										set = function(_, val)
 											local db = addon.db.profile.swingBar
-											db.classHeight[addon.playerClass] = val
-											Options:ApplySettingChange("swingBar.classHeight")
+											if db.specHeight[addon.playerSpec] ~= nil then
+												db.specHeight[addon.playerSpec] = val
+												Options:ApplySettingChange("swingBar.specHeight")
+											else
+												db.classHeight[addon.playerClass] = val
+												Options:ApplySettingChange("swingBar.classHeight")
+											end
 										end,
 									},
 									wandHeight = { type = "range", name = "Wand Height", desc = "Height of the swing bar in pixels for wand users (Mage, Priest, Warlock).", min = 1, max = 20, step = 1, arg = "swingBar.wandHeight", order = 3 },
