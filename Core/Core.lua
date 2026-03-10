@@ -265,6 +265,15 @@ function addon:GetSpecKey()
     return self.Database:GetSpecKey()
 end
 
+-- Format spec key "PRIEST_HOLY" as "Holy Priest" for display
+function addon:FormatSpecKey(specKey)
+    specKey = specKey or self:GetSpecKey()
+    local class, spec = specKey:match("^(%a+)_(%a+)$")
+    if not class then return specKey end
+    local function titleCase(s) return s:sub(1,1):upper() .. s:sub(2):lower() end
+    return titleCase(spec) .. " " .. titleCase(class)
+end
+
 function addon:GetSpellConfig(specKey)
     return self.Database:GetSpellConfig(specKey)
 end

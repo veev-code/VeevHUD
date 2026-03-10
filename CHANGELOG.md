@@ -1,5 +1,10 @@
 # VeevHUD Changelog
 
+## [1.0.156] - 2026-03-10
+
+### Changed
+- **Spec Display Formatting** — "Current spec" labels throughout the UI now show "Holy Priest" instead of "PRIEST HOLY" — properly title-cased with spec name first.
+
 ## [1.0.155] - 2026-03-10
 
 ### Added

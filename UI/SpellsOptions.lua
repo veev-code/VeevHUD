@@ -155,7 +155,7 @@ function SpellsOptions:CreateDialog()
         GameTooltip:AddLine("Resets all spell visibility, ordering, and", 1, 0.82, 0, true)
         GameTooltip:AddLine("proc tracker settings to defaults.", 1, 0.82, 0, true)
         GameTooltip:AddLine(" ", 1, 1, 1)
-        GameTooltip:AddLine("Current spec: " .. (SpellsOptions:GetSpecKey():gsub("_", " ")), 0.7, 0.7, 0.7)
+        GameTooltip:AddLine("Current spec: " .. addon:FormatSpecKey(SpellsOptions:GetSpecKey()), 0.7, 0.7, 0.7)
         GameTooltip:Show()
     end)
     resetSpellsButton:SetScript("OnLeave", function()
@@ -164,7 +164,7 @@ function SpellsOptions:CreateDialog()
     resetSpellsButton:SetScript("OnClick", function()
         local specKey = SpellsOptions:GetSpecKey()
         StaticPopupDialogs["VEEVHUD_RESET_SPELLS_CONFIRM"] = {
-            text = "Reset all spell configuration for " .. specKey:gsub("_", " ") .. " to defaults?",
+            text = "Reset all spell configuration for " .. addon:FormatSpecKey(specKey) .. " to defaults?",
             button1 = "Yes",
             button2 = "No",
             OnAccept = function()
@@ -454,7 +454,7 @@ function SpellsOptions:RefreshSpellList()
     -- Update subtitle with spec info
     local specKey = self:GetSpecKey()
     if self.subtitleText then
-        self.subtitleText:SetText("Current spec: " .. specKey:gsub("_", " "))
+        self.subtitleText:SetText("Current spec: " .. addon:FormatSpecKey(specKey))
     end
     
     -- Clear existing content (children/frames)

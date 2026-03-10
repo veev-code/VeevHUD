@@ -2015,7 +2015,7 @@ function Options:BuildAuraTrackerOptions(settingsGroup)
 			name = function()
 				local sk = addon.Database:GetSpecKey()
 				if sk then
-					return "|cff888888Current spec: " .. sk:gsub("_", " ") .. "|r"
+					return "|cff888888Current spec: " .. addon:FormatSpecKey(sk) .. "|r"
 				end
 				return "|cff888888Spec not yet detected|r"
 			end,
@@ -3005,7 +3005,7 @@ function Options:BuildBuffRemindersOptions()
 			name = function()
 				local sk = addon.Database:GetSpecKey()
 				if sk then
-					return "|cff888888Current spec: " .. sk:gsub("_", " ") .. "|r"
+					return "|cff888888Current spec: " .. addon:FormatSpecKey(sk) .. "|r"
 				end
 				return "|cff888888Spec not yet detected|r"
 			end,
