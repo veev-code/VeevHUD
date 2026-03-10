@@ -1,5 +1,17 @@
 # VeevHUD Changelog
 
+## [1.0.154] - 2026-03-09
+
+### Added
+- **Arcane Blast Stack Tracking** — The Arcane Blast icon now shows your self-debuff stacks (1/2/3), countdown timer until they expire, and aura glow while active. Previously the icon didn't track the debuff because it was looking on the enemy target instead of on the caster. *(Boosterseat)*
+
+### Fixed
+- **Self-Debuff Aura Targeting** — Spells that apply debuffs to the caster (like Arcane Blast stacks) are now correctly tracked on the player instead of the enemy target. Previously, self-debuffs on `ROTATIONAL` spells were routed to the enemy target and never found.
+- **Stack Event Buff/Debuff Detection** — Fixed stack change events (gaining/losing stacks) incorrectly assuming all self-applied auras are buffs. Self-debuffs now correctly scan `UnitDebuff` instead of `UnitBuff` when updating stack counts.
+
+### LibSpellDB Updates
+- Added `triggersAuras` mapping for Arcane Blast, linking the cast (30451) to the self-debuff (36032) with correct type, targeting, and 8s duration.
+
 ## [1.0.153] - 2026-03-09
 
 ### Fixed

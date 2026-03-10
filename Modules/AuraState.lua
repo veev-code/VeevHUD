@@ -510,16 +510,30 @@ function AuraState:OnAuraStackEvent(subEvent, data)
     -- This matches OnAuraEvent storage
     local storageID = spellID
     
-    -- Determine if this is a buff based on spell data
-    local isBuff = (destGUID == self.playerGUID)  -- Default: self = buff
-    local spellData = self.LibSpellDB and self.LibSpellDB:GetSpellInfo(sourceSpellID)
-    if spellData and spellData.tags then
-        for _, tag in ipairs(spellData.tags) do
-            if tag == "HOT" or tag == "HAS_HOT" or tag == "HEAL_SINGLE" or tag == "HEAL_AOE" 
-               or tag == "BUFF" or tag == "HAS_BUFF" or tag == "EXTERNAL_DEFENSIVE"
-               or tag == SUMMON_TAG or tag == TOTEM_TAG then
-                isBuff = true
+    -- Determine if this is a buff or debuff for UnitBuff/UnitDebuff scanning
+    -- First check explicit aura info from triggersAuras mapping (most reliable)
+    local isBuff = nil
+    local auraInfos = self.spellToAuraMap[sourceSpellID]
+    if auraInfos then
+        for _, info in ipairs(auraInfos) do
+            if info.spellID == spellID then
+                isBuff = info.isBuff
                 break
+            end
+        end
+    end
+    -- Fall back to tag-based inference
+    if isBuff == nil then
+        isBuff = (destGUID == self.playerGUID)  -- Default: self = buff
+        local spellData = self.LibSpellDB and self.LibSpellDB:GetSpellInfo(sourceSpellID)
+        if spellData and spellData.tags then
+            for _, tag in ipairs(spellData.tags) do
+                if tag == "HOT" or tag == "HAS_HOT" or tag == "HEAL_SINGLE" or tag == "HEAL_AOE"
+                   or tag == "BUFF" or tag == "HAS_BUFF" or tag == "EXTERNAL_DEFENSIVE"
+                   or tag == SUMMON_TAG or tag == TOTEM_TAG then
+                    isBuff = true
+                    break
+                end
             end
         end
     end
@@ -1370,13 +1384,15 @@ function AuraState:GetRelevantTargetGUIDForAura(auraSpellID)
     if isSingleTarget then
         return nil, true
     end
-    
-    -- For helpful spells (buffs/heals), check selfOnly and rotational status
+
+    -- Self-only auras always check the player, whether buff or debuff
+    -- (e.g. Barkskin, Evasion, Arcane Blast self-debuff stacks)
+    if isSelfOnly then
+        return playerGUID, false
+    end
+
+    -- For helpful spells (buffs/heals), check rotational status
     if isHelpful then
-        -- Self-only buffs always check self (Recklessness, Shadowform)
-        if isSelfOnly then
-            return playerGUID, false
-        end
         
         -- Non-rotational helpful spells (Pain Suppression, Fear Ward) track across all targets
         -- This ensures major cooldowns are always visible regardless of current target
