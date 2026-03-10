@@ -1,5 +1,10 @@
 # VeevHUD Changelog
 
+## [1.0.152] - 2026-03-09
+
+### Fixed
+- **Totem Glow Ignoring Aura Tracking Toggle** — Active totems no longer show the pixel glow effect when "Aura Tracking > Enabled" is turned off in Ability Rows > Effects. The duration countdown and other visuals still display normally.
+
 ## [1.0.151] - 2026-03-09
 
 ### Fixed

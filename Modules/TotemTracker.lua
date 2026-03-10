@@ -582,9 +582,10 @@ function TotemTracker:UpdateTotemIconState(frame, db)
             }, db)
         end
 
-        -- Aura glow for active totem
+        -- Aura glow for active totem (respects aura tracking toggle)
         if glowManager then
-            glowManager:UpdateIconGlow(frame, true, true, false)
+            local showGlow = db.showAuraTracking
+            glowManager:UpdateIconGlow(frame, showGlow, showGlow, false)
         end
 
     elseif state.lastUsed then
