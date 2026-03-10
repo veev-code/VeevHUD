@@ -1,5 +1,13 @@
 # VeevHUD Changelog
 
+## [1.0.153] - 2026-03-09
+
+### Fixed
+- **Buff Reminders: Missing Party/Raid Tracking Option** — The "Track" dropdown (Player/Party/Raid) was hidden for many ally-targetable buffs including Priest Fortitude, Paladin Blessings, and others. These buffs now correctly show the tracking option so you can monitor your group for missing buffs.
+
+### LibSpellDB Updates
+- Fixed missing `auraTarget` on 18 ally-targetable buff spells across Priest, Paladin, Hunter, Shaman, and Warlock. Single-target buffs (Fortitude, Blessings, Water Walking, etc.) now correctly marked as ally-castable; raid-wide versions (Prayer of Fortitude, Greater Blessings, Aspect of the Pack/Wild) marked as party-wide.
+
 ## [1.0.152] - 2026-03-09
 
 ### Fixed
