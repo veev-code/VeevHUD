@@ -2,22 +2,51 @@ name: Package and Release
 
 on:
   push:
+    branches:
+      - main
     tags:
       - '*'
 
 jobs:
-  release:
+  validate:
     runs-on: ubuntu-latest
-    
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Lua syntax check
+        run: |
+          sudo apt-get install -y lua5.1 > /dev/null 2>&1
+          echo "Checking Lua syntax..."
+          errors=0
+          while IFS= read -r file; do
+            if ! luac5.1 -p "$file" 2>/dev/null; then
+              echo "SYNTAX ERROR: $file"
+              luac5.1 -p "$file"
+              errors=$((errors + 1))
+            fi
+          done < <(find . -name '*.lua' -not -path './Libs/*')
+          if [ $errors -gt 0 ]; then
+            echo "Found $errors file(s) with syntax errors"
+            exit 1
+          fi
+          echo "All Lua files pass syntax check"
+
+  release:
+    needs: validate
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+
     permissions:
-      contents: write  # Required for creating GitHub releases
-    
+      contents: write
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Needed for changelog generation
-      
+          fetch-depth: 0
+
       - name: Package and Release
         uses: BigWigsMods/packager@v2
         with:
@@ -25,7 +54,7 @@ jobs:
         env:
           CF_API_KEY: ${{ secrets.CF_API_KEY }}
           GITHUB_OAUTH: ${{ secrets.GITHUB_TOKEN }}
-      
+
       - name: Discord Notification
         if: success()
         env:
@@ -34,7 +63,7 @@ jobs:
           # Extract version from tag (strip 'v' prefix if present for changelog matching)
           VERSION="${GITHUB_REF#refs/tags/}"
           VERSION_NUM="${VERSION#v}"
-          
+
           # Extract changelog for this version only (between current version header and next version header)
           CHANGELOG=$(awk -v ver="$VERSION_NUM" '
             /^## \[/ {
@@ -44,20 +73,20 @@ jobs:
             }
             found { print }
           ' CHANGELOG.md | head -30)
-          
+
           # Escape special characters for JSON
           CHANGELOG_ESCAPED=$(echo "$CHANGELOG" | sed 's/\\/\\\\/g' | sed 's/"/\\"/g' | sed ':a;N;$!ba;s/\n/\\n/g')
-          
+
           # Fallback if changelog extraction failed
           if [ -z "$CHANGELOG_ESCAPED" ]; then
             CHANGELOG_ESCAPED="See [GitHub release](https://github.com/veev-code/VeevHUD/releases/tag/${VERSION}) for details."
           fi
-          
+
           # Truncate if too long for Discord (4096 char limit for description, minus ~300 for intro/links)
           if [ ${#CHANGELOG_ESCAPED} -gt 3500 ]; then
             CHANGELOG_ESCAPED="${CHANGELOG_ESCAPED:0:3500}..."
           fi
-          
+
           # Post to Discord
           curl -H "Content-Type: application/json" \
             -d "{
