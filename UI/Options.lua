@@ -1175,7 +1175,7 @@ function Options:BuildOptionsTable()
 									readyGlowDuration = {
 										type = "range",
 										name = "Duration",
-										desc = "How long each ready glow animation lasts (in seconds). After this time, the glow fades out. On rows with Persistent Glow, the glow will re-trigger at this interval each time usability changes.",
+										desc = "How long each ready glow animation lasts (in seconds). After this time, the glow fades out. On rows with Re-trigger Glow, the glow will re-trigger at this interval each time usability changes.",
 										min = 0.1, max = 5.0, step = 0.05,
 										arg = "icons.readyGlowDuration",
 										order = 3,
@@ -2676,7 +2676,7 @@ function Options:RebuildRecentBuffEntries()
 	end
 	table.sort(filtered, function(a, b) return a.lastSeen > b.lastSeen end)
 
-	-- Show only the 10 most recent
+	-- Show only the 20 most recent
 	local MAX_DISPLAY = 20
 	if #filtered == 0 then
 		recentArgs["empty"] = {
