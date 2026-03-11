@@ -1,5 +1,13 @@
 # VeevHUD Changelog
 
+## [1.0.158] - 2026-03-11
+
+### Changed
+- **Debuff Tracking: Structural Fix** — Replaced the v1.0.157 workaround with a proper fix via LibSpellDB. Enemy debuff spells now correctly report `"enemy"` as their aura target type, so `IsSelfOnly()` returns `false` for them. This eliminates the entire class of bug where debuff target resolution could be confused with self-buff targeting.
+
+### LibSpellDB Updates
+- **New AuraTarget: `"enemy"`** — `GetAuraTarget()` now returns `"enemy"` for debuff/DOT spells. Previously they defaulted to `"self"`, which made `IsSelfOnly()` return `true` — the root cause of the v1.0.154 debuff tracking regression.
+
 ## [1.0.157] - 2026-03-11
 
 ### Fixed

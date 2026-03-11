@@ -1385,30 +1385,12 @@ function AuraState:GetRelevantTargetGUIDForAura(auraSpellID)
         return nil, true
     end
 
-    -- Self-only auras: check the player
-    -- For helpful spells (buffs): self-only means it always appears on the caster
-    -- (Barkskin, Evasion, Recklessness, Shadowform)
-    -- For non-helpful spells (debuffs): only check self for EXPLICIT self-debuffs
-    -- (e.g., Arcane Blast stacks via triggersAuras with onTarget=false).
-    -- GetAuraTarget defaults to "self" for all spells, but enemy debuffs
-    -- (Curse of Weakness, Corruption, etc.) should follow target context.
+    -- Self-only auras always check the player, whether buff or debuff
+    -- (e.g. Barkskin, Evasion, Arcane Blast self-debuff stacks)
+    -- Note: IsSelfOnly returns false for enemy debuffs (DEBUFF/DOT tags)
+    -- because GetAuraTarget returns "enemy" for those spells.
     if isSelfOnly then
-        if isHelpful then
-            return playerGUID, false
-        end
-        -- Non-helpful: only return playerGUID for triggered self-debuffs
-        local sourceSpellID = self.auraToSpellMap[auraSpellID]
-        if sourceSpellID then
-            local auraInfos = self.spellToAuraMap[sourceSpellID]
-            if auraInfos then
-                for _, info in ipairs(auraInfos) do
-                    if info.spellID == auraSpellID and not info.onTarget then
-                        return playerGUID, false
-                    end
-                end
-            end
-        end
-        -- Enemy debuffs fall through to target context
+        return playerGUID, false
     end
 
     -- For helpful spells (buffs/heals), check rotational status
