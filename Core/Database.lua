@@ -397,6 +397,44 @@ function Database:SetAuraSourceFilter(spellID, filter, auraSource)
 end
 
 -------------------------------------------------------------------------------
+-- Aura Glow Config
+-------------------------------------------------------------------------------
+
+-- Check if aura glow is enabled (default: true)
+function Database:IsAuraGlowEnabled(spellID)
+    local cfg = addon.db and addon.db.profile and addon.db.profile.auraGlowConfig
+    if cfg then
+        local override = cfg[spellID]
+        if override ~= nil then
+            return override
+        end
+    end
+    return true
+end
+
+-- Set aura glow override (sparse: removed when matching default)
+function Database:SetAuraGlowEnabled(spellID, enabled)
+    if not addon.db or not addon.db.profile then return end
+
+    if enabled == true then
+        -- Matches default: remove override to keep storage sparse
+        local cfg = addon.db.profile.auraGlowConfig
+        if cfg then
+            cfg[spellID] = nil
+            if next(cfg) == nil then
+                addon.db.profile.auraGlowConfig = nil
+            end
+        end
+    else
+        -- Differs from default: store explicit override
+        if not addon.db.profile.auraGlowConfig then
+            addon.db.profile.auraGlowConfig = {}
+        end
+        addon.db.profile.auraGlowConfig[spellID] = enabled
+    end
+end
+
+-------------------------------------------------------------------------------
 -- Spell Config Helpers (continued)
 -------------------------------------------------------------------------------
 

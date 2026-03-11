@@ -310,6 +310,14 @@ function addon:SetAuraSourceFilter(spellID, filter, auraSource)
     self.Database:SetAuraSourceFilter(spellID, filter, auraSource)
 end
 
+function addon:IsAuraGlowEnabled(spellID)
+    return self.Database:IsAuraGlowEnabled(spellID)
+end
+
+function addon:SetAuraGlowEnabled(spellID, enabled)
+    self.Database:SetAuraGlowEnabled(spellID, enabled)
+end
+
 function addon:GetDefaultValue(path)
     return self.Database:GetDefaultValue(path)
 end

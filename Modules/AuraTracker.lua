@@ -660,19 +660,23 @@ function AuraTracker:UpdateProcIcon(frame, db)
             frame.cooldown:Hide()
         end
         
-        -- Show backdrop glow (soft halo behind icon) if intensity > 0
-        if frame.backdropGlow and db.backdropGlowIntensity > 0 then
+        -- Per-aura glow check (global setting AND per-aura override)
+        local auraGlowEnabled = addon:IsAuraGlowEnabled(spellID)
+
+        -- Show backdrop glow (soft halo behind icon) if intensity > 0 and per-aura glow enabled
+        if frame.backdropGlow and db.backdropGlowIntensity > 0 and auraGlowEnabled then
             frame.backdropGlow:SetAlpha(db.backdropGlowIntensity)
             frame.backdropGlow:Show()
         elseif frame.backdropGlow then
             frame.backdropGlow:Hide()
         end
-        
+
         -- Show edge glow (pixel glow matching aura style)
-        if db.activeGlow and not frame.glowActive then
+        local edgeGlowEnabled = db.activeGlow and auraGlowEnabled
+        if edgeGlowEnabled and not frame.glowActive then
             self:ShowProcGlow(frame)
             frame.glowActive = true
-        elseif not db.activeGlow and frame.glowActive then
+        elseif not edgeGlowEnabled and frame.glowActive then
             self:HideProcGlow(frame)
             frame.glowActive = false
         end

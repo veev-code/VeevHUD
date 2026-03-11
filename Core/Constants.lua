@@ -610,6 +610,11 @@ C.DEFAULTS = {
         -- Absence = use default (externals -> "notOwn", others -> "any")
         auraSourceFilter = {},
 
+        -- Per-aura glow overrides (sparse storage, profile-wide)
+        -- Format: auraGlowConfig[spellID] = true/false
+        -- Absence = use default (true = glow enabled)
+        auraGlowConfig = {},
+
         -- Row definitions (order matters - top to bottom)
         -- Each row shows spells matching these LibSpellDB tags
         -- Spells are assigned to the FIRST matching row (no duplicates)

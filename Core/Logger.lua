@@ -90,7 +90,7 @@ end
 
 -- Safe print with addon prefix
 function Utils:Print(...)
-    print("|cff00ccffVeevHUD:|r", ...)
+    print("|TInterface\\Icons\\Spell_Nature_Reincarnation:0|t |cff00ccffVeevHUD:|r", ...)
 end
 
 -- Debug print (only when debug mode is on)
