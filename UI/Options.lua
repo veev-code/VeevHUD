@@ -25,6 +25,11 @@ local screenH = math.ceil((GetScreenHeight and GetScreenHeight() or 1080) / 100)
 -------------------------------------------------------------------------------
 
 
+local DESC_COLOR = "cff888888"
+local function Dim(text)
+	return "|" .. DESC_COLOR .. text .. "|r"
+end
+
 local function SafeCall(method, ...)
 	if not method then return end
 	local ok, err = pcall(method, ...)
@@ -309,7 +314,7 @@ function Options:BuildOptionsTable()
 								math.floor(default.r * 255 + 0.5),
 								math.floor(default.g * 255 + 0.5),
 								math.floor(default.b * 255 + 0.5))
-							return text .. "\n\n|cff888888Default: " .. hex .. "|r"
+							return text .. "\n\n" .. Dim("Default: " .. hex)
 						end
 						if type(default) == "table" then return text end
 						local formatted
@@ -340,7 +345,7 @@ function Options:BuildOptionsTable()
 						else
 							formatted = tostring(default)
 						end
-						return text .. "\n\n|cff888888Default: " .. formatted .. "|r"
+						return text .. "\n\n" .. Dim("Default: " .. formatted)
 					end
 				end
 			end
@@ -363,6 +368,13 @@ function Options:BuildOptionsTable()
 	end
 
 	-- Per-row options (Primary / Secondary / Utility)
+	local rowDescriptions = {
+		Dim("Core rotation abilities used every fight — your most important cooldowns."),
+		Dim("Throughput cooldowns, maintenance buffs, and situational damage or healing abilities."),
+		Dim("Crowd control, interrupts, defensives, and movement abilities."),
+		Dim("Totems, trinkets, and other supplementary icons."),
+	}
+
 	local rowArgs = {}
 	if addon.db and addon.db.profile and type(addon.db.profile.rows) == "table" then
 		for i, row in ipairs(addon.db.profile.rows) do
@@ -372,6 +384,12 @@ function Options:BuildOptionsTable()
 				name = row.name or ("Row " .. i),
 				order = i,
 				args = {
+					rowDesc = {
+						type = "description",
+						name = (rowDescriptions[i] or "") .. "\n",
+						fontSize = "medium",
+						order = 0,
+					},
 					enabled = {
 						type = "toggle",
 						name = "Enabled",
@@ -407,7 +425,7 @@ function Options:BuildOptionsTable()
 							iconAspectRatio = {
 								type = "select",
 								name = "Aspect Ratio",
-								desc = "Override the icon shape for this row. 'Inherit' uses the global setting from Appearance.",
+								desc = "Override the icon shape for this row. |cffffffffInherit|r uses the global setting from Appearance.",
 								values = {
 									[0] = "Inherit",
 									[1.0] = "Square (1:1)",
@@ -446,7 +464,7 @@ function Options:BuildOptionsTable()
 							flowLayout = {
 								type = "toggle",
 								name = "Enabled",
-								desc = "When enabled, this row wraps its icons into multiple lines instead of displaying them all in a single long line. The 'Icons Per Row' setting controls the maximum icons per line.\n\nTo avoid a sparse last row, icons are moved down from the previous row — for example, 8 icons at 6 per row becomes 5 and 3 instead of 6 and 2.",
+								desc = "Wraps icons into multiple lines instead of displaying them all in a single long line. The Icons Per Row setting controls the maximum icons per line.\n\nTo avoid a sparse last row, icons are moved down from the previous row — for example, 8 icons at 6 per row becomes 5 and 3 instead of 6 and 2.",
 								arg = ("rows.%d.flowLayout"):format(i),
 								order = 1,
 							},
@@ -487,6 +505,14 @@ function Options:BuildOptionsTable()
 		for k in pairs(layoutArgs) do
 			layoutArgs[k] = nil
 		end
+
+		-- Intro description
+		layoutArgs["introDesc"] = {
+			type = "description",
+			name = Dim("Reorder the vertical layout of the HUD and adjust spacing between elements.") .. "\n",
+			fontSize = "medium",
+			order = 0,
+		}
 
 		local db = addon.db.profile.layout
 		local order = db.elementOrder
@@ -595,10 +621,11 @@ function Options:BuildOptionsTable()
 					end
 				end
 
+				local nextDisplayName = C.LAYOUT_ELEMENTS[nextKey] or nextKey
 				layoutArgs["gap" .. i] = {
 					type = "range",
-					name = "Gap",
-					desc = "Pixels of space between the two adjacent elements.",
+					name = "Gap above " .. nextDisplayName,
+					desc = "Pixels of space between " .. displayName .. " and " .. nextDisplayName .. ".",
 					min = -20, max = 200, step = 1,
 					order = base + 5,
 					width = "full",
@@ -625,7 +652,7 @@ function Options:BuildOptionsTable()
 		args = {
 			header = {
 				type = "description",
-				name = "|cff888888Version " .. (addon.version or "1.0.0") .. "|r",
+				name = Dim("Version " .. (addon.version or "1.0.0")),
 				order = 0,
 				fontSize = "medium",
 			},
@@ -634,6 +661,12 @@ function Options:BuildOptionsTable()
 				name = "General",
 				order = 1,
 				args = {
+					introDesc = {
+						type = "description",
+						name = Dim("Global settings that affect the entire HUD. Individual modules have their own tabs.") .. "\n",
+						fontSize = "medium",
+						order = 0,
+					},
 					positionAndScale = {
 						type = "group",
 						name = "Position and Scale",
@@ -752,7 +785,7 @@ function Options:BuildOptionsTable()
 							smoothBars = {
 								type = "toggle",
 								name = "Smooth Bar Animation",
-								desc = "When enabled, health bars, resource bars, and the resource-cost overlay on ability icons animate smoothly instead of jumping when values change.",
+								desc = "Health bars, resource bars, and the resource-cost overlay on ability icons animate smoothly instead of jumping when values change.",
 								arg = "animations.smoothBars",
 								order = 1,
 							},
@@ -779,9 +812,15 @@ function Options:BuildOptionsTable()
 						name = "Appearance",
 						order = 1,
 						args = {
+							introDesc = {
+								type = "description",
+								name = Dim("Default visual settings for all ability rows. Individual rows can override size and shape in their own tabs.") .. "\n",
+								fontSize = "medium",
+								order = -1,
+							},
 							masqueTip = {
 								type = "description",
-								name = "|cff888888Tip: Install the Masque addon to reskin ability icons with custom button styles.|r",
+								name = Dim("Tip: Install the Masque addon to reskin ability icons with custom button styles."),
 								order = 0,
 								hidden = function()
 									return IsAddOnLoaded and IsAddOnLoaded("Masque")
@@ -830,26 +869,19 @@ function Options:BuildOptionsTable()
 									},
 									rowSpacing = {
 										type = "range",
-										name = "Wrap Row Spacing",
-										desc = "When a row wraps icons to a second line (flow layout), this is the gap between lines.",
+										name = "Flow Row Spacing",
+										desc = "When a row uses flow layout and icons overflow to a second line, this is the vertical gap between lines.",
 										min = -10, max = 40, step = 1,
 										arg = "icons.rowSpacing",
 										order = 2,
 									},
 								},
 							},
-						},
-					},
-					alpha = {
-						type = "group",
-						name = "Opacity",
-						order = 2,
-						args = {
 							opacity = {
 								type = "group",
-								name = "Icon Opacity",
+								name = "Opacity",
 								inline = true,
-								order = 1,
+								order = 3,
 								args = {
 									readyAlpha = {
 										type = "range",
@@ -869,20 +901,12 @@ function Options:BuildOptionsTable()
 										arg = "icons.cooldownAlpha",
 										order = 2,
 									},
-								},
-							},
-							visualFeedback = {
-								type = "group",
-								name = "Visual Feedback",
-								inline = true,
-								order = 2,
-								args = {
 									desaturateNoResources = {
 										type = "toggle",
 										name = "Grey Out When Not Usable",
 										desc = "Makes icons grey when you don't have enough mana, rage, or energy to use the ability, or when you're in the wrong stance. Works the same way as WoW's default action bars.\n\nAutomatically disabled while resting in an inn or city to avoid constant grey-outs on combat abilities.",
 										arg = "icons.desaturateNoResources",
-										order = 1,
+										order = 3,
 									},
 								},
 							},
@@ -891,8 +915,14 @@ function Options:BuildOptionsTable()
 					cooldowns = {
 						type = "group",
 						name = "Cooldowns",
-						order = 3,
+						order = 2,
 						args = {
+							introDesc = {
+								type = "description",
+								name = Dim("How cooldown information is displayed on ability icons.") .. "\n",
+								fontSize = "medium",
+								order = 0,
+							},
 							display = {
 								type = "group",
 								name = "Display",
@@ -933,16 +963,16 @@ function Options:BuildOptionsTable()
 									},
 								},
 							},
-							effects = {
+							behavior = {
 								type = "group",
-								name = "Effects",
+								name = "Behavior",
 								inline = true,
 								order = 2,
 								args = {
 									dimOnCooldown = {
 										type = "select",
 										name = "Dim On Cooldown",
-										desc = "Controls which rows fade out (become transparent) when abilities are on cooldown. The amount they fade is controlled by the 'Cooldown Alpha' setting.\n\nRows without dimming stay at full brightness and use greying-out to indicate unavailability instead. Many players keep the Primary row undimmed so their core rotation stays visually prominent.",
+										desc = "Controls which rows fade out (become transparent) when abilities are on cooldown. The amount they fade is controlled by the |cffffffffCooldown Opacity|r setting.\n\nRows without dimming stay at full brightness and use greying-out to indicate unavailability instead. Many players keep the Primary row undimmed so their core rotation stays visually prominent.",
 										values = rowSettingAll,
 										arg = "icons.dimOnCooldown",
 										order = 1,
@@ -950,14 +980,14 @@ function Options:BuildOptionsTable()
 									cooldownBlingRows = {
 										type = "select",
 										name = "Cooldown Sparkle",
-										desc = "Shows WoW's native sparkle effect when a cooldown finishes. This is purely cooldown-based and does not indicate usability — the spell may still be unusable due to resources or other conditions.\n\nNote: This also triggers when the GCD finishes, matching WoW's default action bar behavior.",
+										desc = "Plays WoW's native sparkle animation when a cooldown finishes. Also triggers after the GCD, matching default action bar behavior. This is purely cooldown-based — it does not check resources or other usability conditions.",
 										values = rowSettingAll,
 										arg = "icons.cooldownBlingRows",
 										order = 2,
 									},
 									cooldownSpiralAlpha = {
 										type = "range",
-										name = "Cooldown Spiral Darkness",
+										name = "Cooldown Spiral Opacity",
 										desc = "How dark the spiral overlay appears during ability cooldowns. Lower values make it more subtle and transparent.\n\nNote: Even at 100%, the spiral won't completely obscure the icon — WoW's cooldown texture has built-in transparency.",
 										min = 0, max = 1.0, step = 0.05,
 										isPercent = true,
@@ -971,18 +1001,24 @@ function Options:BuildOptionsTable()
 					resources = {
 						type = "group",
 						name = "Resources",
-						order = 4,
+						order = 3,
 						args = {
-							mode = {
+							introDesc = {
+								type = "description",
+								name = Dim("How resource costs (mana, rage, energy) are shown on ability icons.") .. "\n",
+								fontSize = "medium",
+								order = 0,
+							},
+							display = {
 								type = "group",
-								name = "Mode",
+								name = "Display",
 								inline = true,
 								order = 1,
 								args = {
 									resourceDisplayMode = {
 										type = "select",
 										name = "Display Mode",
-										desc = "How ability icons show whether you can afford to cast them:\n\n'Prediction' — Extends the cooldown sweep to include resource regeneration time. Instead of just showing cooldown, the icon shows how long until you can actually cast — accounting for both cooldown AND resource cost. If an ability is off cooldown but you can't afford it, you'll see the sweep counting down to when you'll have enough. Energy and Mana predictions are very accurate (tick-aware). Rage falls back to Fill since rage income is unpredictable.\n\n'Fill' — Darkens the icon from top to bottom proportional to missing resources. Simple and easy to read.\n\n'Bar' — Shows a small colored bar at the bottom of each icon that fills up as you gain resources.",
+										desc = "How ability icons show whether you can afford to cast them:\n\n|cffffffffPrediction|r — Extends the cooldown sweep to include resource regeneration time. The icon shows how long until you can actually cast, accounting for both cooldown and resource cost. Energy and Mana predictions are tick-aware and very accurate. Rage falls back to Fill since rage income is unpredictable.\n\n|cffffffffFill|r — Darkens the icon from top to bottom proportional to missing resources. Simple and easy to read.\n\n|cffffffffBar|r — Shows a small colored bar at the bottom of each icon that fills up as you gain resources.",
 										values = resourceDisplayModeValues,
 										sorting = {"prediction", "fill", "bar"},
 										arg = "icons.resourceDisplayMode",
@@ -990,7 +1026,7 @@ function Options:BuildOptionsTable()
 									},
 									resourceDisplayRows = {
 										type = "select",
-										name = "Rows",
+										name = "Show On Rows",
 										desc = "Choose which rows show resource cost information on their icons. When enabled, you can see at a glance whether you have enough mana, rage, or energy to cast each ability.",
 										values = rowSettingAll,
 										arg = "icons.resourceDisplayRows",
@@ -998,9 +1034,9 @@ function Options:BuildOptionsTable()
 									},
 								},
 							},
-							appearance = {
+							style = {
 								type = "group",
-								name = "Appearance",
+								name = "Style",
 								inline = true,
 								order = 2,
 								disabled = function() return addon.db and addon.db.profile and addon.db.profile.icons.resourceDisplayRows == C.ROW_SETTING.NONE end,
@@ -1023,7 +1059,7 @@ function Options:BuildOptionsTable()
 									resourceBarHeight = {
 										type = "range",
 										name = "Bar Height",
-										desc = "Height of the small resource bar shown at the bottom of each icon. Only visible when Resource Display Mode is set to 'Bar'.",
+										desc = "Height of the small resource bar shown at the bottom of each icon. Only visible when Display Mode is set to |cffffffffBar|r.",
 										min = 1, max = 16, step = 1,
 										arg = "icons.resourceBarHeight",
 										order = 2,
@@ -1038,8 +1074,14 @@ function Options:BuildOptionsTable()
 					effects = {
 						type = "group",
 						name = "Effects",
-						order = 5,
+						order = 4,
 						args = {
+							introDesc = {
+								type = "description",
+								name = Dim("Visual effects on ability icons for active buffs, debuffs, and procs.") .. "\n",
+								fontSize = "medium",
+								order = 0,
+							},
 							auraTracking = {
 								type = "group",
 								name = "Aura Tracking",
@@ -1049,7 +1091,7 @@ function Options:BuildOptionsTable()
 									showAuraTracking = {
 										type = "toggle",
 										name = "Enabled",
-										desc = "When enabled, abilities that apply buffs or debuffs (like Intimidating Shout, Rend, Renew) will show the active duration with a glow while the effect is on a target. After it expires, the cooldown is shown. Disable this if you only want to see cooldowns.",
+										desc = "Abilities that apply buffs or debuffs (like Intimidating Shout, Rend, Renew) show the active duration with a glow while the effect is on a target. After it expires, the cooldown is shown. Disable if you only want to see cooldowns.",
 										arg = "icons.showAuraTracking",
 										order = 1,
 									},
@@ -1065,7 +1107,7 @@ function Options:BuildOptionsTable()
 									},
 									auraSpiralAlpha = {
 										type = "range",
-										name = "Aura Spiral Darkness",
+										name = "Aura Spiral Opacity",
 										desc = "How dark the spiral overlay appears when tracking active buff or aura durations on icons. Lower values make it more subtle and transparent.\n\nNote: Even at 100%, the spiral won't completely obscure the icon — WoW's cooldown texture has built-in transparency.",
 										min = 0, max = 1.0, step = 0.05,
 										isPercent = true,
@@ -1079,13 +1121,13 @@ function Options:BuildOptionsTable()
 							},
 							castFeedback = {
 								type = "group",
-								name = "Cast Pop",
+								name = "Cast Feedback",
 								inline = true,
 								order = 2,
 								args = {
 									castFeedbackRows = {
 										type = "select",
-										name = "Rows",
+										name = "Show On Rows",
 										desc = "Plays a brief 'pop' animation (the icon scales up slightly then back down) whenever you successfully cast an ability. Gives satisfying visual feedback that your spell went off. Select which rows show this animation.",
 										values = rowSettingAll,
 										arg = "icons.castFeedbackRows",
@@ -1093,7 +1135,7 @@ function Options:BuildOptionsTable()
 									},
 									castFeedbackScale = {
 										type = "range",
-										name = "Scale",
+										name = "Pop Scale",
 										desc = "How much the icon briefly grows when you cast a spell. Higher values = bigger pop.",
 										min = 1.05, max = 2.0, step = 0.05,
 										isPercent = true,
@@ -1113,7 +1155,7 @@ function Options:BuildOptionsTable()
 								args = {
 									readyGlowRows = {
 										type = "select",
-										name = "Rows",
+										name = "Show On Rows",
 										desc = "Shows a glowing border around ability icons when they come off cooldown and are ready to use. Only triggers while in combat. Select which rows display this effect.",
 										values = rowSettingAll,
 										arg = "icons.readyGlowRows",
@@ -1121,7 +1163,7 @@ function Options:BuildOptionsTable()
 									},
 									readyGlowAlwaysRows = {
 										type = "select",
-										name = "Repeat Glow",
+										name = "Re-trigger Glow",
 										desc = "Which rows re-trigger the glow whenever an ability becomes usable again (not just the first time).\n\nOn these rows, the glow plays again every time usability changes (e.g., gaining enough resources, target entering Execute range). Rows not selected here play the glow only once per cooldown cycle.\n\nNote: Reactive abilities (like Execute or Overpower) always re-trigger regardless of this setting.",
 										values = rowSettingAll,
 										arg = "icons.readyGlowAlwaysRows",
@@ -1133,7 +1175,7 @@ function Options:BuildOptionsTable()
 									readyGlowDuration = {
 										type = "range",
 										name = "Duration",
-										desc = "How long each ready glow animation lasts (in seconds). After this time, the glow fades out. On rows with Persistent Glow enabled, the glow will re-trigger at this duration each time usability changes.",
+										desc = "How long each ready glow animation lasts (in seconds). After this time, the glow fades out. On rows with Persistent Glow, the glow will re-trigger at this interval each time usability changes.",
 										min = 0.1, max = 5.0, step = 0.05,
 										arg = "icons.readyGlowDuration",
 										order = 3,
@@ -1143,8 +1185,8 @@ function Options:BuildOptionsTable()
 									},
 									readyGlowThreshold = {
 										type = "range",
-										name = "Early Trigger",
-										desc = "Start the glow this many seconds before the cooldown finishes, so you can react sooner. At 0, the glow only appears once the cooldown is fully complete.",
+										name = "Pre-trigger Time",
+										desc = "Begin the glow this many seconds before the cooldown completes, so you can prepare your next action. At 0, the glow only appears once the cooldown is fully complete.",
 										min = 0, max = 2.0, step = 0.05,
 										arg = "icons.readyGlowThreshold",
 										order = 4,
@@ -1173,9 +1215,15 @@ function Options:BuildOptionsTable()
 					},
 					other = {
 						type = "group",
-						name = "Other",
-						order = 6,
+						name = "Indicators",
+						order = 5,
 						args = {
+							introDesc = {
+								type = "description",
+								name = Dim("Range checking, sorting, and keybind display on ability icons.") .. "\n",
+								fontSize = "medium",
+								order = 0,
+							},
 							rangeSorting = {
 								type = "group",
 								name = "Range & Sorting",
@@ -1218,7 +1266,7 @@ function Options:BuildOptionsTable()
 								args = {
 									showKeybindText = {
 										type = "select",
-										name = "Rows",
+										name = "Show On Rows",
 										desc = "Displays the keyboard shortcut for each ability in the bottom-right corner. VeevHUD scans your action bars to find where each spell is placed. Modifiers are abbreviated: Shift=S, Ctrl=C, Alt=A (e.g., Shift+X becomes 'SX').\n\nSupports Bartender4, ElvUI, Dominos. If you move spells or change keybinds, the display updates automatically.",
 										values = rowSettingAll,
 										arg = "icons.showKeybindText",
@@ -1244,7 +1292,7 @@ function Options:BuildOptionsTable()
 
 			bars = {
 				type = "group",
-				name = "Bars",
+				name = "Status Bars",
 				childGroups = "tab",
 				order = 4,
 				args = {
@@ -1253,6 +1301,12 @@ function Options:BuildOptionsTable()
 						name = "Resource Bar",
 						order = 3,
 						args = {
+							introDesc = {
+								type = "description",
+								name = Dim("Your character's resource bar (mana, rage, or energy).") .. "\n",
+								fontSize = "medium",
+								order = 0,
+							},
 							enabled = { type = "toggle", name = "Enabled", desc = "Shows a bar displaying your current mana, rage, or energy (depending on your class). Appears between the health bar and the ability icon rows.", arg = "resourceBar.enabled", order = 1 },
 							sizeSettings = {
 								type = "group",
@@ -1272,7 +1326,7 @@ function Options:BuildOptionsTable()
 								order = 3,
 								disabled = function() return addon.db and addon.db.profile and not addon.db.profile.resourceBar.enabled end,
 								args = {
-									textFormat = { type = "select", name = "Text Format", desc = "Controls what text is shown on the resource bar.\n\n'Current Value' shows your actual resource (e.g., '4523' for mana, '67' for energy).\n'Percent' shows your resource percentage (e.g., '85%').\n'Both' shows both (e.g., '4523 (85%)').\n'None' hides the text entirely.", values = textFormatValues, arg = "resourceBar.textFormat", order = 1 },
+									textFormat = { type = "select", name = "Text Format", desc = "Controls what text is shown on the resource bar.\n\n|cffffffffCurrent Value|r — Shows your actual resource (e.g., 4523 for mana, 67 for energy).\n|cffffffffPercent|r — Shows your resource percentage (e.g., 85%).\n|cffffffffBoth|r — Shows both (e.g., 4523 (85%)).\n|cffffffffNone|r — Hides the text entirely.", values = textFormatValues, arg = "resourceBar.textFormat", order = 1 },
 									textSize = { type = "range", name = "Text Size", desc = "Font size for the resource text. Larger sizes are easier to read but may overflow small bars.", min = 6, max = 24, step = 1, arg = "resourceBar.textSize", order = 2, disabled = function() return addon.db and addon.db.profile and addon.db.profile.resourceBar.textFormat == C.TEXT_FORMAT.NONE end },
 								},
 							},
@@ -1283,8 +1337,8 @@ function Options:BuildOptionsTable()
 								order = 4,
 								disabled = function() return addon.db and addon.db.profile and not addon.db.profile.resourceBar.enabled end,
 								args = {
-									powerColor = { type = "toggle", name = "Power Color", desc = "Colors the bar based on your resource type — blue for mana, red for rage, yellow for energy. Uncheck to use a custom color instead.", arg = "resourceBar.powerColor", order = 1 },
-									color = { type = "color", name = "Bar Color", desc = "The custom color for the resource bar. Only used when Power Color is unchecked.", hasAlpha = false, get = colorGet, set = colorSet, arg = "resourceBar.color", order = 2, disabled = function() local db = addon.db and addon.db.profile and addon.db.profile.resourceBar; return db and db.powerColor end },
+									powerColor = { type = "toggle", name = "Use Resource Color", desc = "Colors the bar based on your resource type — blue for mana, red for rage, yellow for energy. Uncheck to use a custom color instead.", arg = "resourceBar.powerColor", order = 1 },
+									color = { type = "color", name = "Bar Color", desc = "The custom color for the resource bar. Only used when Use Resource Color is unchecked.", hasAlpha = false, get = colorGet, set = colorSet, arg = "resourceBar.color", order = 2, disabled = function() local db = addon.db and addon.db.profile and addon.db.profile.resourceBar; return db and db.powerColor end },
 								},
 							},
 							innervateHighlight = {
@@ -1292,6 +1346,7 @@ function Options:BuildOptionsTable()
 								name = "Innervate Highlight",
 								inline = true,
 								order = 5,
+								hidden = function() return addon.playerClass == C.CLASS.ROGUE or addon.playerClass == C.CLASS.WARRIOR end,
 								disabled = function() return addon.db and addon.db.profile and not addon.db.profile.resourceBar.enabled end,
 								args = {
 									enabled = { type = "toggle", name = "Enabled", desc = "Changes the mana bar color when the Innervate buff is active, giving you immediate visual feedback that your mana regeneration is boosted.", arg = "resourceBar.innervateHighlight.enabled", order = 1 },
@@ -1330,7 +1385,7 @@ function Options:BuildOptionsTable()
 					hidden = function() return addon.playerClass ~= C.CLASS.ROGUE and addon.playerClass ~= C.CLASS.DRUID end,
 						args = {
 							enabled = { type = "toggle", name = "Enabled", desc = "Shows progress toward the next energy tick (energy regenerates every 2 seconds). Helps you time abilities to maximize energy efficiency.", arg = "resourceBar.energyTicker.enabled", order = 1, disabled = function() return addon.db and addon.db.profile and not addon.db.profile.resourceBar.enabled end },
-							style = { type = "select", name = "Style", desc = "'Ticker Bar' shows a separate thin bar below the resource bar that fills as the next tick approaches.\n\n'Spark' shows a moving spark overlay on the resource bar itself, which is more subtle.", values = tickerStyleValues, arg = "resourceBar.energyTicker.style", order = 2, disabled = function() return addon.db and addon.db.profile and not addon.db.profile.resourceBar.energyTicker.enabled end },
+							style = { type = "select", name = "Style", desc = "|cffffffffTicker Bar|r — Shows a separate thin bar below the resource bar that fills as the next tick approaches.\n\n|cffffffffSpark|r — Shows a moving spark overlay on the resource bar itself, which is more subtle.", values = tickerStyleValues, arg = "resourceBar.energyTicker.style", order = 2, disabled = function() return addon.db and addon.db.profile and not addon.db.profile.resourceBar.energyTicker.enabled end },
 							showAtFullEnergy = { type = "toggle", name = "Show at Full Energy", desc = "Keep the tick indicator running even when at full energy. Useful for timing openers — you can see exactly when the next tick will occur and use energy right before it arrives.", arg = "resourceBar.energyTicker.showAtFullEnergy", order = 3, disabled = function() return addon.db and addon.db.profile and not addon.db.profile.resourceBar.energyTicker.enabled end },
 							barSettings = {
 								type = "group",
@@ -1376,7 +1431,7 @@ function Options:BuildOptionsTable()
 							style = {
 								type = "select",
 								name = "Style",
-								desc = "'Outside 5 Second Rule' — Only shows the tick timer when you haven't cast a spell in the last 5 seconds (when you're getting full spirit-based mana regeneration).\n\n'Next Full Tick' (Recommended) — Always active. After you cast a spell, it predicts exactly when your first full-rate mana tick will arrive and counts down to it. Cast right after the tick completes to get the most mana before your next spell.",
+								desc = "|cffffffffOutside 5 Second Rule|r — Only shows the tick timer when you haven't cast a spell in the last 5 seconds (when you're getting full spirit-based mana regeneration).\n\n|cffffffffNext Full Tick|r (Recommended) — Always active. After you cast a spell, it predicts exactly when your first full-rate mana tick will arrive and counts down to it. Cast right after the tick completes to get the most mana before your next spell.",
 								values = {
 									outside5sr = "Outside 5-second rule",
 									nextfulltick = "Next full tick",
@@ -1397,7 +1452,7 @@ function Options:BuildOptionsTable()
 					args = {
 						desc = {
 							type = "description",
-							name = "Shows a secondary mana bar below the resource bar while in Cat Form or Bear Form, so you can monitor mana for shifting and casting.",
+							name = Dim("Shows a secondary mana bar below the resource bar while in Cat Form or Bear Form, so you can monitor mana for shifting and casting."),
 							order = 0,
 						},
 						enabled = { type = "toggle", name = "Enabled", desc = "Show a secondary mana bar below the resource bar while shapeshifted.", arg = "resourceBar.druidManaBar.enabled", order = 1, disabled = function() return addon.db and addon.db.profile and not addon.db.profile.resourceBar.enabled end },
@@ -1413,7 +1468,7 @@ function Options:BuildOptionsTable()
 							order = 7,
 							disabled = function() return addon.db and addon.db.profile and not addon.db.profile.resourceBar.druidManaBar.enabled end,
 							args = {
-								textFormat = { type = "select", name = "Text Format", desc = "What text to display on the mana bar.", values = textFormatValues, arg = "resourceBar.druidManaBar.textFormat", order = 1 },
+								textFormat = { type = "select", name = "Text Format", desc = "Controls what text is shown on the Druid mana bar.\n\n|cffffffffCurrent Value|r — Shows your actual mana.\n|cffffffffPercent|r — Shows your mana percentage.\n|cffffffffBoth|r — Shows both.\n|cffffffffNone|r — Hides the text.", values = textFormatValues, arg = "resourceBar.druidManaBar.textFormat", order = 1 },
 								textSize = { type = "range", name = "Text Size", desc = "Font size for the mana bar text.", min = 6, max = 18, step = 1, arg = "resourceBar.druidManaBar.textSize", order = 2 },
 							},
 						},
@@ -1424,6 +1479,12 @@ function Options:BuildOptionsTable()
 						name = "Health Bar",
 						order = 2,
 						args = {
+							introDesc = {
+								type = "description",
+								name = Dim("Your character's health bar with heal prediction.") .. "\n",
+								fontSize = "medium",
+								order = 0,
+							},
 							enabled = { type = "toggle", name = "Enabled", desc = "Shows a bar displaying your current health above the resource bar. Gives you a quick glance at your survivability without looking at your unit frame.", arg = "healthBar.enabled", order = 1 },
 							sizeSettings = {
 								type = "group",
@@ -1443,7 +1504,7 @@ function Options:BuildOptionsTable()
 								order = 3,
 								disabled = function() return addon.db and addon.db.profile and not addon.db.profile.healthBar.enabled end,
 								args = {
-									textFormat = { type = "select", name = "Text Format", desc = "Controls what text is shown on the health bar.\n\n'Current Value' shows your actual health (e.g., '3256').\n'Percent' shows your health percentage (e.g., '71%').\n'Both' shows both (e.g., '3256 (71%)').\n'None' hides the text entirely.", values = textFormatValues, arg = "healthBar.textFormat", order = 1 },
+									textFormat = { type = "select", name = "Text Format", desc = "Controls what text is shown on the health bar.\n\n|cffffffffCurrent Value|r — Shows your actual health (e.g., 3256).\n|cffffffffPercent|r — Shows your health percentage (e.g., 71%).\n|cffffffffBoth|r — Shows both (e.g., 3256 (71%)).\n|cffffffffNone|r — Hides the text entirely.", values = textFormatValues, arg = "healthBar.textFormat", order = 1 },
 									textSize = { type = "range", name = "Text Size", desc = "Font size for the health text. Larger sizes are easier to read but may overflow small bars.", min = 6, max = 24, step = 1, arg = "healthBar.textSize", order = 2, disabled = function() return addon.db and addon.db.profile and addon.db.profile.healthBar.textFormat == C.TEXT_FORMAT.NONE end },
 								},
 							},
@@ -1454,8 +1515,8 @@ function Options:BuildOptionsTable()
 								order = 4,
 								disabled = function() return addon.db and addon.db.profile and not addon.db.profile.healthBar.enabled end,
 								args = {
-									classColored = { type = "toggle", name = "Class Colored", desc = "Colors the health bar using your class color (e.g., brown for Warriors, purple for Warlocks) instead of the standard green.", arg = "healthBar.classColored", order = 1 },
-									color = { type = "color", name = "Bar Color", desc = "The custom color for the health bar. Only used when Class Colored is unchecked.", hasAlpha = false, get = colorGet, set = colorSet, arg = "healthBar.color", order = 2, disabled = function() local db = addon.db and addon.db.profile and addon.db.profile.healthBar; return db and db.classColored end },
+									classColored = { type = "toggle", name = "Use Class Color", desc = "Colors the health bar using your class color (e.g., brown for Warriors, purple for Warlocks) instead of the standard green.", arg = "healthBar.classColored", order = 1 },
+									color = { type = "color", name = "Bar Color", desc = "The custom color for the health bar. Only used when Use Class Color is unchecked.", hasAlpha = false, get = colorGet, set = colorSet, arg = "healthBar.color", order = 2, disabled = function() local db = addon.db and addon.db.profile and addon.db.profile.healthBar; return db and db.classColored end },
 								},
 							},
 							overlaySettings = {
@@ -1475,6 +1536,12 @@ function Options:BuildOptionsTable()
 						name = "Pet Health Bar",
 						order = 2.5,
 						args = {
+							introDesc = {
+								type = "description",
+								name = Dim("Your pet's health bar. Automatically hides when no pet is active.") .. "\n",
+								fontSize = "medium",
+								order = 0,
+							},
 							enabled = { type = "toggle", name = "Enabled", desc = "Shows a bar displaying your pet's current health. Automatically hides when you have no active pet.", arg = "petHealthBar.enabled", order = 1 },
 							sizeSettings = {
 								type = "group",
@@ -1494,7 +1561,7 @@ function Options:BuildOptionsTable()
 								order = 3,
 								disabled = function() return not addon.db.profile.petHealthBar.enabled end,
 								args = {
-									textFormat = { type = "select", name = "Text Format", desc = "Controls what text is shown on the pet health bar.\n\n'Current Value' shows actual health.\n'Percent' shows health percentage.\n'Both' shows both.\n'None' hides the text.", values = textFormatValues, arg = "petHealthBar.textFormat", order = 1 },
+									textFormat = { type = "select", name = "Text Format", desc = "Controls what text is shown on the pet health bar.\n\n|cffffffffCurrent Value|r — Shows actual health.\n|cffffffffPercent|r — Shows health percentage.\n|cffffffffBoth|r — Shows both.\n|cffffffffNone|r — Hides the text.", values = textFormatValues, arg = "petHealthBar.textFormat", order = 1 },
 									textSize = { type = "range", name = "Text Size", desc = "Font size for the pet health text.", min = 6, max = 24, step = 1, arg = "petHealthBar.textSize", order = 2, disabled = function() return addon.db.profile.petHealthBar.textFormat == C.TEXT_FORMAT.NONE end },
 								},
 							},
@@ -1526,6 +1593,12 @@ function Options:BuildOptionsTable()
 					order = 6,
 					hidden = function() return addon.playerClass ~= C.CLASS.ROGUE and addon.playerClass ~= C.CLASS.DRUID end,
 						args = {
+							introDesc = {
+								type = "description",
+								name = Dim("Horizontal combo point display below the resource bar.") .. "\n",
+								fontSize = "medium",
+								order = 0,
+							},
 							enabled = { type = "toggle", name = "Enabled", desc = "Shows combo point bars below the resource bar. For Druids, this only appears while in Cat Form.", arg = "comboPoints.enabled", order = 1 },
 							sizeLayout = {
 								type = "group",
@@ -1558,7 +1631,7 @@ function Options:BuildOptionsTable()
 						args = {
 							description = {
 								type = "description",
-								name = "The Aura Tracker shows small icons for important temporary buffs — class procs (Enrage, Flurry, Clearcasting), external buffs (Bloodlust, Power Infusion, Innervate), and any custom auras you add.\n\nUse the tabs above to configure which auras to show.\n",
+								name = Dim("The Aura Tracker shows small icons for important temporary buffs — class procs (Enrage, Flurry, Clearcasting), external buffs (Bloodlust, Power Infusion, Innervate), and any custom auras you add.\n\nUse the tabs above to configure which auras to show.") .. "\n",
 								fontSize = "medium",
 								order = 0,
 							},
@@ -1631,33 +1704,33 @@ function Options:BuildOptionsTable()
 									local class = addon.playerClass
 									local spec = addon.playerSpec
 									if class == C.CLASS.HUNTER then
-										return "|cff888888Your character automatically fires auto-shots on a timer. If you cast an ability too late in the timer, it 'clips' (delays) your next auto-shot, costing you DPS. The bar turns green when it's safe to cast and red when casting would clip. Once you learn Steady Shot, a yellow zone appears for the window where Steady Shot would clip but instants and movement are still safe.|r\n"
+										return Dim("Your character automatically fires auto-shots on a timer. If you cast an ability too late in the timer, it 'clips' (delays) your next auto-shot, costing you DPS. The bar turns green when it's safe to cast and red when casting would clip. Once you learn Steady Shot, a yellow zone appears for the window where Steady Shot would clip but instants and movement are still safe.") .. "\n"
 									elseif class == C.CLASS.PALADIN then
 										if spec == "RETRIBUTION" then
-											return "|cff888888Seal twisting lets you get two seal procs on a single melee swing by swapping seals right before the hit lands. The bar turns green during the twist window — the last ~0.4 seconds before impact — telling you when to swap to your second seal.|r\n"
+											return Dim("Seal twisting lets you get two seal procs on a single melee swing by swapping seals right before the hit lands. The bar turns green during the twist window — the last ~0.4 seconds before impact — telling you when to swap to your second seal.") .. "\n"
 										else
-											return "|cff888888Tracks your melee swing timer — a bar that fills up as your next auto-attack approaches. Auto-hides between pulls.|r\n"
+											return Dim("Tracks your melee swing timer — a bar that fills up as your next auto-attack approaches. Auto-hides between pulls.") .. "\n"
 										end
 									elseif class == C.CLASS.SHAMAN then
 										if spec == "ENHANCEMENT" then
-											return "|cff888888Two bars track your main-hand and off-hand swing timers. When both weapons swing at the same time (synced), your Flurry haste charges aren't wasted on isolated off-hand hits, and Windfury extra attacks land alongside your normal swings. Bars turn green when synced and red when desynced — meaning one weapon has drifted ahead of the other.|r\n"
+											return Dim("Two bars track your main-hand and off-hand swing timers. When both weapons swing at the same time (synced), your Flurry haste charges aren't wasted on isolated off-hand hits, and Windfury extra attacks land alongside your normal swings. Bars turn green when synced and red when desynced — meaning one weapon has drifted ahead of the other.") .. "\n"
 										else
-											return "|cff888888Tracks your melee swing timer — a bar that fills up as your next auto-attack approaches. Auto-hides between pulls.|r\n"
+											return Dim("Tracks your melee swing timer — a bar that fills up as your next auto-attack approaches. Auto-hides between pulls.") .. "\n"
 										end
 									elseif class == C.CLASS.WARRIOR then
 										if spec == "FURY" then
-											return "|cff888888Two bars track your main-hand and off-hand swing timers. You want your weapons desynced — when Heroic Strike is queued, your off-hand's dual-wield miss penalty is removed, but only if the off-hand swings while HS is still queued (not at the same instant the main-hand consumes it). Bars turn green when desynced and red when synced. Use a desync macro if they drift together.|r\n"
+											return Dim("Two bars track your main-hand and off-hand swing timers. You want your weapons desynced — when Heroic Strike is queued, your off-hand's dual-wield miss penalty is removed, but only if the off-hand swings while HS is still queued (not at the same instant the main-hand consumes it). Bars turn green when desynced and red when synced. Use a desync macro if they drift together.") .. "\n"
 										elseif spec == "ARMS" then
-											return "|cff888888Tracks your melee swing timer. Slam resets this timer, so for maximum DPS you want to Slam right after a swing lands (when the bar reaches the end and resets). This avoids losing auto-attack time to the Slam cast.|r\n"
+											return Dim("Tracks your melee swing timer. Slam resets this timer, so for maximum DPS you want to Slam right after a swing lands (when the bar reaches the end and resets). This avoids losing auto-attack time to the Slam cast.") .. "\n"
 										else
-											return "|cff888888Tracks your melee swing timer — a bar that fills up as your next auto-attack approaches. Auto-hides between pulls.|r\n"
+											return Dim("Tracks your melee swing timer — a bar that fills up as your next auto-attack approaches. Auto-hides between pulls.") .. "\n"
 										end
 									elseif class == C.CLASS.MAGE or class == C.CLASS.PRIEST or class == C.CLASS.WARLOCK then
-										return "|cff888888Tracks your auto-attack timer for wanding or melee. Only appears while actively attacking and auto-hides when you stop.|r\n"
+										return Dim("Tracks your auto-attack timer for wanding or melee. Only appears while actively attacking and auto-hides when you stop.") .. "\n"
 									elseif class == C.CLASS.ROGUE then
-										return "|cff888888Tracks your melee swing timer. Shows separate main-hand and off-hand bars when dual-wielding.|r\n"
+										return Dim("Tracks your melee swing timer. Shows separate main-hand and off-hand bars when dual-wielding.") .. "\n"
 									elseif class == C.CLASS.DRUID then
-										return "|cff888888Tracks your melee swing timer in Cat or Bear Form. Bear Form's 2.5s swing is useful for timing Maul. Auto-hides when not actively swinging.|r\n"
+										return Dim("Tracks your melee swing timer in Cat or Bear Form. Bear Form's 2.5s swing is useful for timing Maul. Auto-hides when not actively swinging.") .. "\n"
 									end
 									return ""
 								end,
@@ -1692,9 +1765,9 @@ function Options:BuildOptionsTable()
 											end
 										end,
 									},
-									wandHeight = { type = "range", name = "Wand Height", desc = "Height of the swing bar in pixels for wand users (Mage, Priest, Warlock).", min = 1, max = 20, step = 1, arg = "swingBar.wandHeight", order = 3 },
-									dualWieldHeight = { type = "range", name = "Dual-Wield Height", desc = "Height of each bar when dual-wielding (MH and OH bars shown separately).", min = 1, max = 20, step = 1, arg = "swingBar.dualWieldHeight", order = 4 },
-									dualWieldSpacing = { type = "range", name = "Dual-Wield Spacing", desc = "Gap in pixels between the main-hand and off-hand bars.", min = 0, max = 10, step = 1, arg = "swingBar.dualWieldSpacing", order = 5 },
+									wandHeight = { type = "range", name = "Wand Height", desc = "Height of the swing bar in pixels for wand users (Mage, Priest, Warlock).", min = 1, max = 20, step = 1, arg = "swingBar.wandHeight", order = 3, hidden = function() local c = addon.playerClass; return c ~= C.CLASS.MAGE and c ~= C.CLASS.PRIEST and c ~= C.CLASS.WARLOCK end },
+									dualWieldHeight = { type = "range", name = "Dual-Wield Height", desc = "Height of each bar when dual-wielding (MH and OH bars shown separately).", min = 1, max = 20, step = 1, arg = "swingBar.dualWieldHeight", order = 4, hidden = function() local c = addon.playerClass; return c == C.CLASS.MAGE or c == C.CLASS.PRIEST or c == C.CLASS.WARLOCK or c == C.CLASS.DRUID or c == C.CLASS.PALADIN end },
+									dualWieldSpacing = { type = "range", name = "Dual-Wield Spacing", desc = "Gap in pixels between the main-hand and off-hand bars.", min = 0, max = 10, step = 1, arg = "swingBar.dualWieldSpacing", order = 5, hidden = function() local c = addon.playerClass; return c == C.CLASS.MAGE or c == C.CLASS.PRIEST or c == C.CLASS.WARLOCK or c == C.CLASS.DRUID or c == C.CLASS.PALADIN end },
 								},
 							},
 							display = {
@@ -1751,7 +1824,7 @@ function Options:BuildOptionsTable()
 								end,
 								args = {
 									-- Hunter: shot zones
-									enableClipZones = { type = "toggle", name = "Enable Shot Zones", desc = "Color the bar by auto-shot timing:\n\nGreen = safe to cast anything and move freely.\nYellow = Steady Shot would clip, but instants and movement are safe.\nRed = don't move or cast Multi-Shot (auto-shot animation playing).", arg = "swingBar.enableClipZones", order = 1, width = "full", hidden = function() return addon.playerClass ~= C.CLASS.HUNTER end },
+									enableClipZones = { type = "toggle", name = "Enable Shot Zones", desc = "Color the bar by auto-shot timing:\n\n|cffffffffGreen|r — Safe to cast anything and move freely.\n|cffffffffYellow|r — Steady Shot would clip, but instants and movement are safe.\n|cffffffffRed|r — Don't move or cast Multi-Shot (auto-shot animation playing).", arg = "swingBar.enableClipZones", order = 1, width = "full", hidden = function() return addon.playerClass ~= C.CLASS.HUNTER end },
 									hunterSafeColor = { type = "color", name = "Safe Zone (Green)", desc = "Bar color when it's safe to cast and move.", hasAlpha = false, get = colorGet, set = colorSet, arg = "swingBar.safeColor", order = 2, hidden = function() return addon.playerClass ~= C.CLASS.HUNTER end, disabled = function() return not addon.db.profile.swingBar.enableClipZones end },
 									hunterCautionColor = { type = "color", name = "Steady Zone (Yellow)", desc = "Bar color when Steady Shot would clip, but instant shots and movement are still safe.", hasAlpha = false, get = colorGet, set = colorSet, arg = "swingBar.cautionColor", order = 3, hidden = function() return addon.playerClass ~= C.CLASS.HUNTER end, disabled = function() return not addon.db.profile.swingBar.enableClipZones end },
 									hunterDangerColor = { type = "color", name = "Stop Zone (Red)", desc = "Bar color when moving would cancel your auto-shot and Multi-Shot would clip.", hasAlpha = false, get = colorGet, set = colorSet, arg = "swingBar.dangerColor", order = 4, hidden = function() return addon.playerClass ~= C.CLASS.HUNTER end, disabled = function() return not addon.db.profile.swingBar.enableClipZones end },
@@ -1785,9 +1858,9 @@ function Options:BuildOptionsTable()
 										type = "toggle", name = "Enable Sync Colors",
 										desc = function()
 											if addon.playerClass == C.CLASS.WARRIOR then
-												return "Color both bars by how well your weapons are desynced. Green when desynced (ideal for Heroic Strike queue), red when synced (off-hand misses the HS hit bonus)."
+												return "Color both bars by how well your weapons are desynced. |cffffffffGreen|r when desynced (ideal for Heroic Strike queue), |cffffffffRed|r when synced (off-hand misses the HS hit bonus)."
 											end
-											return "Color both bars by how well your main-hand and off-hand swings are synced. Green when synced, red when drifted apart."
+											return "Color both bars by how well your main-hand and off-hand swings are synced. |cffffffffGreen|r when synced, |cffffffffRed|r when drifted apart."
 										end,
 										arg = "swingBar.enableSyncColors", order = 20, width = "full",
 										hidden = function() return not ((addon.playerClass == C.CLASS.SHAMAN and addon.playerSpec == "ENHANCEMENT") or (addon.playerClass == C.CLASS.WARRIOR and addon.playerSpec == "FURY")) end,
@@ -1843,7 +1916,7 @@ function Options:BuildOptionsTable()
 				args = {
 					_desc = {
 						type = "description",
-						name = "Spell configuration uses a standalone window with drag-and-drop reordering.\nCustomize which spells appear on your HUD, their order, and which row they belong to.",
+						name = Dim("Spell configuration uses a standalone window with drag-and-drop reordering.\nCustomize which spells appear on your HUD, their order, and which row they belong to."),
 						order = 1,
 						fontSize = "medium",
 					},
@@ -1900,8 +1973,8 @@ function Options:BuildOptionsTable()
 	}
 
 	-- Inject per-row settings as sub-tabs of Ability Rows
-	-- Display order matches default HUD layout: Aux above Primary
-	local rowTabOrder = { 8, 9, 10, 7 }  -- row1=8, row2=9, row3=10, row4=7 (Aux first)
+	-- Display order: Primary, Secondary, Utility, Auxiliary (by importance)
+	local rowTabOrder = { 7, 8, 9, 10 }  -- row1=7, row2=8, row3=9, row4=10
 	for key, rowDef in pairs(rowArgs) do
 		local rowIndex = tonumber(key:match("(%d+)$"))
 		rowDef.order = rowTabOrder[rowIndex] or (rowIndex + 6)
@@ -2009,15 +2082,23 @@ function Options:BuildAuraTrackerOptions(settingsGroup)
 			return (a.name or "") < (b.name or "")
 		end)
 
+		-- Intro description
+		args["introDesc"] = {
+			type = "description",
+			name = Dim("Toggle which class procs are tracked. Enabled procs appear as icons in the Aura Tracker when active.") .. "\n",
+			fontSize = "medium",
+			order = 0,
+		}
+
 		-- Spec indicator at top
 		args["specIndicator"] = {
 			type = "description",
 			name = function()
 				local sk = addon.Database:GetSpecKey()
 				if sk then
-					return "|cff888888Current spec: " .. addon:FormatSpecKey(sk) .. "|r"
+					return Dim("Current spec: " .. addon:FormatSpecKey(sk))
 				end
-				return "|cff888888Spec not yet detected|r"
+				return Dim("Spec not yet detected")
 			end,
 			fontSize = "medium",
 			order = 1,
@@ -2065,11 +2146,28 @@ function Options:BuildAuraTrackerOptions(settingsGroup)
 						order = 1,
 						width = 0.5,
 					},
+					glow = {
+						type = "toggle",
+						name = "Glow",
+						desc = "Show the glowing border and backdrop halo when this aura is active. Disable for auras you want to track quietly without the glow drawing your eye.",
+						get = function()
+							return addon:IsAuraGlowEnabled(spellID)
+						end,
+						set = function(_, value)
+							addon:SetAuraGlowEnabled(spellID, value)
+							Options:ApplySettingChange("auraTracker.auraGlowConfig")
+						end,
+						order = 1.5,
+						width = 0.4,
+						disabled = function()
+							return not addon:IsAuraEnabled(spellID)
+						end,
+					},
 					description = {
 						type = "description",
-						name = "|cff888888" .. procDesc .. "|r",
+						name = Dim(procDesc),
 						order = 2,
-						width = 2.0,
+						width = 1.6,
 					},
 				},
 			}
@@ -2149,7 +2247,7 @@ function Options:BuildExternalBuffsArgs()
 
 	args["description"] = {
 		type = "description",
-		name = "Toggle which external buffs from other players are tracked. These appear as icons in the Aura Tracker when active on you.\n",
+		name = Dim("Toggle which external buffs from other players are tracked. These appear as icons in the Aura Tracker when active on you.") .. "\n",
 		fontSize = "medium",
 		order = 0,
 	}
@@ -2199,8 +2297,7 @@ function Options:BuildExternalBuffsArgs()
 			groupArgs[spellKey .. "_toggle"] = {
 				type = "toggle",
 				name = iconString .. spellName,
-				desc = "Track " .. spellName .. " (ID: " .. spellID .. ")"
-					.. "\n\nSource filter: Any = show regardless | Own Only = only if you cast it | Not Own = only if someone else cast it",
+				desc = "Track " .. spellName .. " (ID: " .. spellID .. ")",
 				get = function()
 					return addon:IsAuraEnabled(spellID)
 				end,
@@ -2209,7 +2306,24 @@ function Options:BuildExternalBuffsArgs()
 					Options:ApplySettingChange("auraTracker.auraConfig")
 				end,
 				order = spellOrder,
-				width = 1.2,
+				width = 1.0,
+			}
+			groupArgs[spellKey .. "_glow"] = {
+				type = "toggle",
+				name = "Glow",
+				desc = "Show the glowing border and backdrop halo when this aura is active. Disable for auras you want to track quietly.",
+				get = function()
+					return addon:IsAuraGlowEnabled(spellID)
+				end,
+				set = function(_, value)
+					addon:SetAuraGlowEnabled(spellID, value)
+					Options:ApplySettingChange("auraTracker.auraGlowConfig")
+				end,
+				order = spellOrder + 0.05,
+				width = 0.4,
+				disabled = function()
+					return not addon:IsAuraEnabled(spellID)
+				end,
 			}
 			groupArgs[spellKey .. "_source"] = {
 				type = "select",
@@ -2224,6 +2338,9 @@ function Options:BuildExternalBuffsArgs()
 				end,
 				order = spellOrder + 0.1,
 				width = 0.6,
+				disabled = function()
+					return not addon:IsAuraEnabled(spellID)
+				end,
 			}
 			spellOrder = spellOrder + 1
 		end
@@ -2253,7 +2370,7 @@ function Options:BuildCustomAurasArgs()
 
 	args["description"] = {
 		type = "description",
-		name = "Add custom auras to track by spell ID or spell name. These work like procs — the icon appears when the buff is active on you.\n",
+		name = Dim("Add custom auras to track by spell ID or spell name. These work like procs — the icon appears when the buff is active on you.") .. "\n",
 		fontSize = "medium",
 		order = 0,
 	}
@@ -2261,7 +2378,7 @@ function Options:BuildCustomAurasArgs()
 	args["inputField"] = {
 		type = "input",
 		name = "Spell ID or Name",
-		desc = "Enter a spell ID or exact spell name and press Enter to add.",
+		desc = "Enter a numeric spell ID or exact spell name and press Enter to add.\n\nYou can find spell IDs on Wowhead (the number at the end of the spell URL), or install the idTip addon to see spell IDs directly in tooltips.",
 		get = function() return self._customAuraInput or "" end,
 		set = function(_, value)
 			if not value or value == "" then
@@ -2400,7 +2517,7 @@ function Options:RebuildCustomAuraEntries()
 	if not customAuras or #customAuras == 0 then
 		entriesArgs["empty"] = {
 			type = "description",
-			name = "|cff888888No custom auras added yet.|r",
+			name = Dim("No custom auras added yet."),
 			order = 1,
 		}
 		return
@@ -2427,12 +2544,30 @@ function Options:RebuildCustomAuraEntries()
 		end
 
 		local entryKey = "custom_" .. i
+		local base = i * 5
 		entriesArgs[entryKey .. "_label"] = {
 			type = "description",
 			name = iconString .. resolvedName .. idStr,
 			fontSize = "medium",
-			order = i * 3 - 2,
-			width = 1.4,
+			order = base,
+			width = 1.1,
+		}
+		entriesArgs[entryKey .. "_glow"] = {
+			type = "toggle",
+			name = "Glow",
+			desc = "Show the glowing border and backdrop halo when this aura is active. Disable for auras you want to track quietly.",
+			get = function()
+				if not filterSpellID then return true end
+				return addon:IsAuraGlowEnabled(filterSpellID)
+			end,
+			set = function(_, value)
+				if filterSpellID then
+					addon:SetAuraGlowEnabled(filterSpellID, value)
+					Options:ApplySettingChange("auraTracker.auraGlowConfig")
+				end
+			end,
+			order = base + 1,
+			width = 0.4,
 		}
 		entriesArgs[entryKey .. "_source"] = {
 			type = "select",
@@ -2445,15 +2580,20 @@ function Options:RebuildCustomAuraEntries()
 				addon:SetAuraSourceFilter(filterSpellID, value, "custom")
 				Options:ApplySettingChange("auraTracker.auraSourceFilter")
 			end,
-			order = i * 3 - 1,
+			order = base + 2,
 			width = 0.6,
 		}
 		entriesArgs[entryKey .. "_remove"] = {
 			type = "execute",
 			name = "Remove",
-			order = i * 3,
+			order = base + 3,
 			width = 0.5,
 			func = function()
+				-- Clean up per-aura config before removing
+				if filterSpellID then
+					addon:SetAuraGlowEnabled(filterSpellID, true)
+					addon:SetAuraSourceFilter(filterSpellID, "any", "custom")
+				end
 				table.remove(customAuras, i)
 				self:RebuildCustomAuraEntries()
 				self:RebuildRecentBuffEntries()
@@ -2481,7 +2621,7 @@ function Options:RebuildRecentBuffEntries()
 	if not recentBuffs or not next(recentBuffs) then
 		recentArgs["empty"] = {
 			type = "description",
-			name = "|cff888888No recent buffs recorded yet. Play for a bit and reopen this tab.|r",
+			name = Dim("No recent buffs recorded yet. Play for a bit and reopen this tab."),
 			order = 1,
 		}
 		return
@@ -2541,7 +2681,7 @@ function Options:RebuildRecentBuffEntries()
 	if #filtered == 0 then
 		recentArgs["empty"] = {
 			type = "description",
-			name = "|cff888888All recent buffs are already tracked.|r",
+			name = Dim("All recent buffs are already tracked."),
 			order = 1,
 		}
 		return
@@ -2999,15 +3139,23 @@ function Options:BuildBuffRemindersOptions()
 			end
 		end
 
+		-- Intro description
+		args["introDesc"] = {
+			type = "description",
+			name = Dim("Configure which buff reminders are active. Settings on this tab are per-spec — switching specs loads that spec's configuration.") .. "\n",
+			fontSize = "medium",
+			order = 0,
+		}
+
 		-- Spec indicator at top of spell list
 		args["specIndicator"] = {
 			type = "description",
 			name = function()
 				local sk = addon.Database:GetSpecKey()
 				if sk then
-					return "|cff888888Current spec: " .. addon:FormatSpecKey(sk) .. "|r"
+					return Dim("Current spec: " .. addon:FormatSpecKey(sk))
 				end
-				return "|cff888888Spec not yet detected|r"
+				return Dim("Spec not yet detected")
 			end,
 			fontSize = "medium",
 			order = 1,
@@ -3018,7 +3166,7 @@ function Options:BuildBuffRemindersOptions()
 		args["showOnlyKnown"] = {
 			type = "toggle",
 			name = "Show Only Known Spells",
-			desc = "When enabled, only spells you currently know are shown in this list. Disable to see all class buff spells, including ones you haven't learned yet.",
+			desc = "Only shows spells you currently know. Disable to see all class buff spells, including ones you haven't learned yet.",
 			get = function()
 				return addon.db.profile.buffReminders.showOnlyKnown
 			end,
@@ -3053,7 +3201,7 @@ function Options:BuildBuffRemindersOptions()
 				args = {
 					description = {
 						type = "description",
-						name = "Buff Reminders show a large, semi-transparent icon when a long-duration buff you should maintain is missing or about to expire. They are separate from the main HUD icons and only appear when action is needed.\n\nReminders automatically check that you know the spell and have the resources to cast it. Use the Spells tab to configure individual reminders.\n",
+						name = Dim("Buff Reminders show a large, semi-transparent icon when a long-duration buff you should maintain is missing or about to expire. They are separate from the main HUD icons and only appear when action is needed.\n\nReminders automatically check that you know the spell and have the resources to cast it. Use the Spells tab to configure individual reminders.") .. "\n",
 						fontSize = "medium",
 						order = 0,
 					},
@@ -3115,7 +3263,7 @@ function Options:BuildBuffRemindersOptions()
 							pulseEnabled = {
 								type = "toggle",
 								name = "Pulse Animation",
-								desc = "When enabled, reminder icons gently pulse to draw attention.",
+								desc = "Reminder icons gently pulse to draw attention.",
 								arg = "buffReminders.pulseEnabled",
 								order = 1,
 							},
@@ -3323,7 +3471,7 @@ function Options:RegisterSettingsPanel()
 
 	local desc = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 	desc:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -8)
-	desc:SetText("Cooldown, buff/debuff, and resource HUD.")
+	desc:SetText("Type |cff00ccff/vh|r to open settings.")
 
 	local openBtn = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
 	openBtn:SetText("Open VeevHUD Settings")
