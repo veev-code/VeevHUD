@@ -1,5 +1,10 @@
 # VeevHUD Changelog
 
+## [1.0.157] - 2026-03-11
+
+### Fixed
+- **Debuff Tracking Regression** — Fixed all enemy debuff tracking (Curse of Weakness, Curse of Agony, Corruption, Siphon Life, etc.) not showing active aura timers on icons. This was a regression from v1.0.154's Arcane Blast self-debuff support, which incorrectly treated all debuffs as self-targeted. Self-debuffs like Arcane Blast stacks continue to work correctly. *(Thanks Deadlyy Dan for reporting)*
+
 ## [1.0.156] - 2026-03-10
 
 ### Changed
