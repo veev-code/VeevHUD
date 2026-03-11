@@ -11,7 +11,6 @@ addon.SwingBarStrategies = addon.SwingBarStrategies or {}
 local GetTime = GetTime
 local GetSpellCooldown = GetSpellCooldown
 local GetSpellInfo = GetSpellInfo
-local UnitBuff = UnitBuff
 local math_max = math.max
 
 -------------------------------------------------------------------------------
@@ -126,7 +125,7 @@ function Paladin:OnPostTimerUpdate(sb)
 
     -- Seal of Command active check
     if sb.commandSealName then
-        sb.hasCommandSeal = UnitBuff("player", sb.commandSealName) ~= nil
+        sb.hasCommandSeal = addon.Utils:GetCachedBuff("player", SEAL_OF_COMMAND_ID, sb.commandSealName) ~= nil
     end
 end
 

@@ -1,5 +1,19 @@
 # VeevHUD Changelog
 
+## [1.0.159] - 2026-03-11
+
+### Changed
+- **AuraState Simplification** — Aura type detection now delegates to LibSpellDB's `GetAuraType()` and `IsHelpfulSpell()` APIs instead of iterating spell tags internally. Cleaner code with identical behavior.
+
+### Fixed
+- **Seal of Command Detection** — Fixed Ret Paladin swing bar Seal of Command check to use name-based buff lookup instead of spell ID, matching Anniversary Edition buff IDs correctly.
+
+### LibSpellDB Updates
+- **Explicit-only `GetAuraTarget()`** — No longer infers aura target from tags or conventions. All spells now declare their `auraTarget` explicitly, eliminating an entire class of silent misclassification bugs.
+- **New APIs: `GetAuraType()`, `IsHelpfulSpell()`** — Derived from the explicit `auraTarget` field. Consumers no longer need to iterate tags to determine buff vs debuff.
+- **32-rule CI validation** — Spell data integrity validated on every push with Python-based CI, catching issues like missing `auraTarget`, rank/appliesBuff mismatches, and tag inconsistencies before they ship.
+- **5 spell data fixes** — Pounce, Misdirection, Stormstrike, Bloodrage, and Rampage now have correct `auraTarget` values.
+
 ## [1.0.158] - 2026-03-11
 
 ### Changed
