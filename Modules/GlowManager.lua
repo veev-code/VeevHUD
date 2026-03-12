@@ -315,6 +315,18 @@ function GlowManager:UpdateCooldownPulse(frame, spellID, remaining, duration)
 
 end
 
+-- Sync state and suppress ready glow when aura is active.
+-- Called when UpdateReadyGlow is skipped (aura active branch) so that
+-- UpdateCooldownPulse sees correct transitions next tick.
+function GlowManager:SuppressReadyGlow(frame, remaining, duration, isUsable)
+    frame.wasOnRealCooldown = self.Utils:IsOnRealCooldown(remaining, duration)
+    frame.wasUsable = isUsable
+    if frame.readyGlowActive then
+        self:HideReadyGlow(frame)
+        frame.readyGlowActive = false
+    end
+end
+
 -- Update the "ready glow" - shows when ability becomes ready
 -- See CooldownIcons.lua header for full requirements spec (R1-R11).
 function GlowManager:UpdateReadyGlow(frame, spellID, remaining, duration, isUsable, isReactive, db, lockoutIsLimitingFactor, canAfford, predictionIsLimitingFactor, predictionRemaining, dodgeGlowOverride)

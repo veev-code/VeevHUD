@@ -1,5 +1,10 @@
 # VeevHUD Changelog
 
+## [1.0.162] - 2026-03-11
+
+### Added
+- **Cooldown Pulse: Trinket Support** — On-use trinkets now flash a cooldown pulse when they come off cooldown, just like regular abilities.
+
 ## [1.0.161] - 2026-03-11
 
 ### Changed

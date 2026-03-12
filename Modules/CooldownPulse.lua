@@ -201,7 +201,9 @@ function CooldownPulse:OnCooldownReady(event, spellID, texture, spellName, rowIn
     -- Shared-cooldown dedup: only pulse the spell that was actually cast.
     -- spellID is the canonical base ID from GlowManager; recentCasts stores
     -- canonical IDs via GetCanonicalSpellID().
-    if self.recentCastsCount == 0 or self.recentCasts[spellID] then
+    -- Sentinel IDs (trinkets, totems, stance) bypass dedup — they're synthetic
+    -- and never share cooldowns with other spells.
+    if spellID >= addon.Constants.SENTINEL_ID_MIN or self.recentCastsCount == 0 or self.recentCasts[spellID] then
         self:StartPulse(texture, db)
     end
     -- If we have cast history but no record for THIS spell, it came off CD

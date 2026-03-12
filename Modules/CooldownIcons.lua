@@ -1519,14 +1519,7 @@ function CooldownIcons:UpdateIconState(frame, db)
     if not s.showAuraActive then
         self.glowManager:UpdateReadyGlow(frame, s.spellID, s.remaining, s.duration, s.isUsable, s.isReactive, db, s.lockoutIsLimitingFactor, s.canAfford, s.predictionIsLimitingFactor, s.predictionRemaining, s.dodgeGlowOverride)
     else
-        -- UpdateReadyGlow writes wasOnRealCooldown/wasUsable — mirror that here
-        -- so UpdateCooldownPulse sees correct transitions next tick
-        frame.wasOnRealCooldown = self.Utils:IsOnRealCooldown(s.remaining, s.duration)
-        frame.wasUsable = s.isUsable
-        if frame.readyGlowActive then
-            self.glowManager:HideReadyGlow(frame)
-            frame.readyGlowActive = false
-        end
+        self.glowManager:SuppressReadyGlow(frame, s.remaining, s.duration, s.isUsable)
     end
 
     -- 5. Range indicator

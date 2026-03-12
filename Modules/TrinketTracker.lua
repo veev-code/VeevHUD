@@ -508,8 +508,8 @@ function TrinketTracker:UpdateTrinketIconState(frame, db)
     if glowManager then
         glowManager:UpdateIconGlow(frame, showGlow, showAuraActive, false)
 
-        -- Ready glow for on-use trinkets only (not ICD)
-        if slotData.hasOnUse and not showAuraActive then
+        -- Cooldown pulse + ready glow for on-use trinkets only (not ICD)
+        if slotData.hasOnUse then
             local onUseRemaining, onUseDuration = 0, 0
             local start, dur = GetInventoryItemCooldown("player", slotID)
             if start and start > 0 and dur > C.GCD_THRESHOLD then
@@ -517,7 +517,12 @@ function TrinketTracker:UpdateTrinketIconState(frame, db)
                 onUseDuration = dur
                 if onUseRemaining <= 0 then onUseRemaining, onUseDuration = 0, 0 end
             end
-            glowManager:UpdateReadyGlow(frame, frame.spellID, onUseRemaining, onUseDuration, true, false, db, false, true, false, 0, false)
+            glowManager:UpdateCooldownPulse(frame, frame.spellID, onUseRemaining, onUseDuration)
+            if not showAuraActive then
+                glowManager:UpdateReadyGlow(frame, frame.spellID, onUseRemaining, onUseDuration, true, false, db, false, true, false, 0, false)
+            else
+                glowManager:SuppressReadyGlow(frame, onUseRemaining, onUseDuration, true)
+            end
         else
             if frame.readyGlowActive then
                 glowManager:HideReadyGlow(frame)

@@ -224,6 +224,9 @@ C.READY_GLOW_THRESHOLD = 0.5
 -- Mana spike threshold - gains above this % of max mana are filtered (potions, life tap)
 C.MANA_SPIKE_THRESHOLD = 0.10
 
+-- Sentinel ID range: synthetic spell IDs for non-spell trackables (trinkets, totems, stance)
+C.SENTINEL_ID_MIN = 9999900
+
 -- Trinket slot sentinel IDs (used as spellID keys for trinket tracking)
 -- These are far above any real WoW spell ID and serve as unique identifiers for equipment slots
 C.TRINKET_SLOT_13 = 9999913  -- Trinket 1
