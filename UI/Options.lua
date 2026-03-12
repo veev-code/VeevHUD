@@ -1292,6 +1292,21 @@ function Options:BuildOptionsTable()
 									},
 								},
 							},
+							reagentCount = {
+								type = "group",
+								name = "Reagent Count",
+								inline = true,
+								order = 3,
+								args = {
+									showReagentCount = {
+										type = "toggle",
+										name = "Enabled",
+										desc = "Shows the number of reagents you have in the top-right corner of spell icons that consume reagents on cast. Examples: Soul Shards on warlock abilities, seeds on Rebirth, Flash Powder on Vanish, Ankhs on Reincarnation.",
+										arg = "icons.showReagentCount",
+										order = 1,
+									},
+								},
+							},
 						},
 					},
 				},

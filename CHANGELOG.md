@@ -1,5 +1,14 @@
 # VeevHUD Changelog
 
+## [1.0.167] - 2026-03-12
+
+### Changed
+- **Reagent Count on Icons** — Now supports spells where different ranks require different reagents (e.g., Druid Rebirth uses Maple Seeds at low ranks and Hornbeam Seeds at max rank). The stack count sums all reagent types you carry, and the spell remains usable as long as you have reagents for any rank. Reagent counts can now be toggled off in Ability Rows > Indicators > Reagent Count (enabled by default).
+
+### LibSpellDB Updates
+- New `rankReagents` field and `GetAllReagentItemIDs()` API for spells with per-rank reagent differences.
+- Reagent data added for 6 classes: Druid (Rebirth, Gift of the Wild), Mage (Slow Fall, Arcane Brilliance), Priest (Levitate, Prayer of Fortitude, Prayer of Shadow Protection, Prayer of Spirit), Paladin (Divine Intervention, Greater Blessings), Rogue (Blind, Vanish), Shaman (Reincarnation, Water Walking, Water Breathing).
+
 ## [1.0.166] - 2026-03-12
 
 ### Fixed

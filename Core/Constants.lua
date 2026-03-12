@@ -566,6 +566,10 @@ C.DEFAULTS = {
             -- Uses throttled updates (0.1s) to minimize performance impact
             showRangeIndicator = "all",
             
+            -- Reagent count: show stack count for abilities that consume reagents
+            -- (e.g., Soul Shards on warlock spells, seeds on Rebirth, Flash Powder on Vanish)
+            showReagentCount = true,
+
             -- Queued highlight: shows a glow on icons for "next melee" abilities
             -- (Heroic Strike, Cleave, Maul, etc.) that are queued via IsCurrentSpell
             showQueuedHighlight = true,
