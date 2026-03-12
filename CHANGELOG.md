@@ -1,5 +1,10 @@
 # VeevHUD Changelog
 
+## [1.0.165] - 2026-03-12
+
+### Fixed
+- **Reagent-based usability** — Spells that require a reagent (e.g., Soul Shards for warlock abilities) now correctly appear desaturated/unusable when the player has none of that reagent. WoW's built-in `IsUsableSpell` does not check reagent availability in Classic, so VeevHUD now checks separately using LibSpellDB's reagent data.
+
 ## [1.0.164] - 2026-03-12
 
 ### Changed

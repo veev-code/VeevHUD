@@ -678,8 +678,11 @@ function IconStateEngine:_ComputeCooldownState(frame, db, s)
     local readyGlowThreshold = db.readyGlowThreshold
     s.almostReady = remaining > 0 and remaining <= readyGlowThreshold and s.isOnActualCooldown
 
-    -- Usability
+    -- Usability (IsUsableSpell doesn't check reagents in Classic, so check separately)
     s.isUsable = self:IsSpellUsable(actualSpellID)
+    if s.isUsable and frame.reagentItemID then
+        s.isUsable = GetItemCount(frame.reagentItemID) > 0
+    end
 
     -- Update actionableTime for conditional spells
     if not s.isPermanentBuffActive and frame.actionableTime == 0 and not s.isUsable then

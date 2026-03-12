@@ -1209,6 +1209,9 @@ function CooldownIcons:SetupIcon(frame, spellID, actualSpellID, spellData, rowCo
         frame.timedEffectDuration = spellData.duration
     end
 
+    -- Cache reagent item ID for usability checks (IsUsableSpell doesn't check reagents in Classic)
+    frame.reagentItemID = addon.LibSpellDB and addon.LibSpellDB:GetReagentItemID(spellID) or nil
+
     -- Check if this spell has dodge-reactive glow (e.g., Overpower)
     -- When set, CLEU dodge detection stores per-target windows in stateEngine.dodgeWindows for stance-independent glow
     frame.dodgeReactive = nil
