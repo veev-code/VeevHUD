@@ -593,7 +593,7 @@ C.DEFAULTS = {
                 point = "BOTTOM",
                 relativePoint = "TOP",
                 x = 0,
-                y = 24,  -- Positioned above main HUD
+                y = 30,  -- Positioned above main HUD
             },
             -- Per-spell overrides stored sparsely per spec:
             -- spellConfig[specKey][spellID] = { enabled, timeRemaining, minStacks, combatState, trackTarget, priority }

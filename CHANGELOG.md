@@ -1,5 +1,13 @@
 # VeevHUD Changelog
 
+## [1.0.161] - 2026-03-11
+
+### Changed
+- **Buff Reminders: Default Position** — Increased default Y offset from 24 to 30 pixels for better spacing above the HUD.
+
+### Fixed
+- **Ability Rows: Appearance Tab** — Fixed intro description appearing at the bottom of the tab instead of the top. Corrected description text that incorrectly mentioned overriding "size" (only shape can be overridden from this tab).
+
 ## [1.0.160] - 2026-03-11
 
 ### Added

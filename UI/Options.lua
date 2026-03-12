@@ -821,14 +821,14 @@ function Options:BuildOptionsTable()
 						args = {
 							introDesc = {
 								type = "description",
-								name = Dim("Default visual settings for all ability rows. Individual rows can override size and shape in their own tabs.") .. "\n",
+								name = Dim("Default visual settings for all ability rows. Individual rows can override icon shape in their own tabs.") .. "\n",
 								fontSize = "medium",
-								order = -1,
+								order = 0.1,
 							},
 							masqueTip = {
 								type = "description",
 								name = Dim("Tip: Install the Masque addon to reskin ability icons with custom button styles."),
-								order = 0,
+								order = 0.2,
 								hidden = function()
 									return IsAddOnLoaded and IsAddOnLoaded("Masque")
 								end,
