@@ -409,7 +409,7 @@ function Utils:GetFriendlyBuffUnit()
     if targetExists then
         if UnitIsFriend("player", "target") then
             return "target"
-        elseif UnitIsEnemy("player", "target") then
+        elseif UnitCanAttack("player", "target") then
             local useTargettarget = addon.db.profile.icons.auraTargettargetSupport
             if useTargettarget and UnitExists("targettarget") and UnitIsFriend("player", "targettarget") then
                 return "targettarget"

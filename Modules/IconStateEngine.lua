@@ -17,7 +17,7 @@ local C = addon.Constants
 local GetTime = GetTime
 local GetSpellInfo = GetSpellInfo
 local UnitExists = UnitExists
-local UnitIsEnemy = UnitIsEnemy
+local UnitCanAttack = UnitCanAttack
 local UnitIsFriend = UnitIsFriend
 local UnitAffectingCombat = UnitAffectingCombat
 local IsResting = IsResting
@@ -188,14 +188,14 @@ function IconStateEngine:GetRelevantBuff(spellID, checkSelfOnly, spellData)
         local useTargettarget = db.auraTargettargetSupport
 
         local targetExists = UnitExists("target")
-        local targetIsEnemy = targetExists and UnitIsEnemy("player", "target")
+        local targetIsEnemy = targetExists and UnitCanAttack("player", "target")
         local targetIsFriend = targetExists and UnitIsFriend("player", "target")
 
         if targetIsFriend then
             -- Targeting an ally - check them for the buff
             unit = "target"
         elseif targetIsEnemy then
-            -- Targeting an enemy - check targettarget if friendly (and enabled), else self
+            -- Targeting an enemy (including neutral mobs) - check targettarget if friendly (and enabled), else self
             if useTargettarget and UnitExists("targettarget") and UnitIsFriend("player", "targettarget") then
                 unit = "targettarget"
             end
@@ -262,7 +262,7 @@ function IconStateEngine:GetTargetLockoutDebuff(debuffSpellID, isSelfOnly)
         local useTargettarget = db.auraTargettargetSupport
 
         local targetExists = UnitExists("target")
-        local targetIsEnemy = targetExists and UnitIsEnemy("player", "target")
+        local targetIsEnemy = targetExists and UnitCanAttack("player", "target")
         local targetIsFriend = targetExists and UnitIsFriend("player", "target")
 
         if targetIsFriend then

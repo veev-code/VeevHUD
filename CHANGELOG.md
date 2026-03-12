@@ -1,5 +1,10 @@
 # VeevHUD Changelog
 
+## [1.0.163] - 2026-03-12
+
+### Fixed
+- **Debuff tracking on neutral mobs** — Curses, DoTs, and other debuffs were not tracked on neutral (yellow) mobs like wildlife. The icon would not show the active debuff duration even though the spell was successfully applied. Now works correctly on all attackable targets. *(Thanks Deadlyy Dan for reporting)*
+
 ## [1.0.162] - 2026-03-11
 
 ### Added
