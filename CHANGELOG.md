@@ -1,5 +1,18 @@
 # VeevHUD Changelog
 
+## [1.0.164] - 2026-03-12
+
+### Changed
+- **Warlock: Cleaner Default HUD** — Reduced icon clutter for warlocks out of the box. Soul Fire now only shows for Destruction spec. Filler spells (Drain Soul, Drain Life, Drain Mana, Rain of Fire, Hellfire) are hidden by default. Pet summon icons (Imp, Voidwalker, Succubus, Felhunter, Felguard) are hidden. Inferno (1hr CD) is hidden. All can still be manually enabled via the Spells config. Fel Domination remains visible for Demonology.
+- **Stack Count Threshold** — Aura stack counts (Sweeping Strikes, Rampage, Sunder Armor, etc.) now display at 1 stack instead of only at 2+. This makes it easier to see remaining charges on abilities like Sweeping Strikes.
+
+### Added
+- **Reagent Count on Icons** — Spells that consume a reagent (e.g., Soul Shards for warlock abilities) now show the current reagent count as a stack number in the top-right corner of the icon. Applies to Shadowburn, Soulshatter, Create Soulstone, Create Healthstone, and Soul Fire (Destruction).
+
+### LibSpellDB Updates
+- New `reagentItemID` field and `GetReagentItemID()` API for spells that consume items on cast.
+- Warlock spell data updated: Soul Fire restricted to Destruction, filler tags added to 5 spells, pet summons tagged OUT_OF_COMBAT, Inferno set to manual-enable, reagent data added to 13 spells.
+
 ## [1.0.163] - 2026-03-12
 
 ### Fixed

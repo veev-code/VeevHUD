@@ -464,6 +464,14 @@ function IconStateEngine:_ComputeAuraState(frame, db, s)
         end
     end
 
+    -- Reagent count (e.g., Soul Shards) — show as stack count when no aura stacks active
+    if s.auraStacks == 0 and addon.LibSpellDB then
+        local reagentItemID = addon.LibSpellDB:GetReagentItemID(spellID)
+        if reagentItemID then
+            s.auraStacks = GetItemCount(reagentItemID)
+        end
+    end
+
     -- Suppress aura display for element-tagged TOTEM spells when totem element slots are active
     if frame.isTotem then
         local totemBarMod = self.totemBar
@@ -712,6 +720,7 @@ function IconStateEngine:_ComputeCooldownState(frame, db, s)
     s.charges = charges
     s.hasCharges = maxCharges and maxCharges > 1
     s.noChargesLeft = s.hasCharges and charges == 0
+
 end
 
 -------------------------------------------------------------------------------

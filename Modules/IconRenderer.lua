@@ -275,7 +275,7 @@ function IconRenderer:ApplyIconVisuals(frame, state, db)
     -- Stacks
     -------------------------------------------------------------------
     if frame.stacks then
-        if auraStacks > 1 then
+        if auraStacks >= 1 then
             frame.stacks:SetText(auraStacks)
         else
             frame.stacks:SetText("")
