@@ -1,5 +1,19 @@
 # VeevHUD Changelog
 
+## [1.0.160] - 2026-03-11
+
+### Added
+- **Cooldown Pulse** — A new feature — inspired by addons like Doom_CooldownPulse — that flashes a large ability icon in the center of your screen when it comes off cooldown. Configurable icon size, opacity, position, animation style (grow/shrink/none for fade-in and fade-out), and timing. Includes per-row filtering, combat-only mode, minimum cooldown threshold, and early trigger. Shared-cooldown dedup ensures only the spell you actually cast pulses (e.g., shaman shocks). Masque-compatible. Configure in the new **Cooldown Pulse** tab.
+- **Per-Aura Glow Toggle** — Individual auras in the Aura Tracker can now have their glow effect enabled or disabled independently.
+
+### Changed
+- **Options UI Polish** — Improved labels, tooltips, and organization across 11 tabs. Renamed settings for clarity (e.g., "Cast Pop" → "Cast Feedback", "Persistent Glow" → "Re-trigger Glow"). Added intro descriptions to tabs. Merged Opacity into Appearance (one fewer tab in Ability Rows).
+- **Cooldown Pulse: Lockout Spell Support** — Spells gated by lockout debuffs (like Power Word: Shield / Weakened Soul) now correctly pulse when the lockout expires, even if the spell's buff effect is still active on the target.
+- **Cooldown Pulse: Cross-Session Support** — Long cooldowns (10-30 min) that were cast before logging in or reloading now correctly pulse when they expire.
+
+### Fixed
+- **Cooldown Pulse: Masque Icon Size** — Fixed Masque intercepting icon size changes, causing pulse icons to ignore the size slider. Now uses scale-based sizing that Masque can't override.
+
 ## [1.0.159] - 2026-03-11
 
 ### Changed

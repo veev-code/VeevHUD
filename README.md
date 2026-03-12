@@ -47,7 +47,7 @@ Every visual element is designed to give you instant feedback:
 *   **Range indicator** — Icons show a red overlay when your target is out of range, even during cooldown
 *   **Cast pop** — A satisfying "pop" animation when you successfully cast (configurable scale)
 *   **GCD display** — Global cooldown shown on configurable rows
-*   **Cooldown sparkle** — WoW's native sparkle effect when cooldowns finish (per-row configurable)
+*   **Cooldown Pulse** — A large icon flashes in the center of your screen when a tracked ability comes off cooldown. Configurable animation style, filtering by row and cooldown duration, early trigger, combat-only mode, and shared-cooldown dedup (e.g. shaman shocks only pulse the spell you cast)
 *   **Dim on cooldown** — Icons fade to a configurable alpha when on cooldown (per-row)
 *   **Keybind text** — Optional keyboard shortcut display on icons (scans your action bars, supports Bartender4, ElvUI, Dominos)
 *   **Summon stack count** — Spells that summon multiple pets (like Force of Nature) show how many remain alive
@@ -124,6 +124,7 @@ VeevHUD is designed to work great out of the box, but nearly everything is confi
 *   **Bars** — Health bar, resource bar (with energy ticker, mana ticker, and druid mana bar inline), combo points, and swing timer — each with size, text format, gradient, spark, and class coloring options
 *   **Aura Tracker** — Aura icon appearance, glow, backdrop, slide animation, sizing, class proc toggles, external buff toggles, and custom aura management
 *   **Totem Bar** — Shaman totem bar appearance and behavior settings
+*   **Cooldown Pulse** — Pulse appearance (icon size, opacity, position), filtering (ability rows, combat-only, minimum cooldown, early trigger), and animation (fade in/out effects and timing)
 *   **Buff Reminders** — Buff reminder appearance, per-spec spell overrides, threshold settings, and combat state filtering
 *   **Spells** — Per-spell control: enable/disable, move between rows, adjust priority order via drag-and-drop
 *   **Layout** — Element ordering and per-element gap controls for the vertical HUD stack

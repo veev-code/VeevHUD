@@ -38,6 +38,10 @@ function GlowManager:Initialize()
     -- Track active spell overlays (procs)
     self.activeOverlays = {}
 
+    -- Track cooldown pulse fired state per spell ID (not per frame,
+    -- since row rebuilds can create multiple frames for the same spell)
+    self.cooldownPulseFired = {}
+
     -- Whether Masque is active (set by CooldownIcons after Masque init)
     self.masqueEnabled = false
 
@@ -280,6 +284,36 @@ end
 -------------------------------------------------------------------------------
 -- Ready Glow
 -------------------------------------------------------------------------------
+
+-- Track cooldown transitions and fire COOLDOWN_READY for CooldownPulse.
+-- Called unconditionally (even when aura is active) so lockout spells like
+-- PW:S still pulse when Weakened Soul expires while the shield buff remains.
+function GlowManager:UpdateCooldownPulse(frame, spellID, remaining, duration)
+    local isOnRealCooldown = self.Utils:IsOnRealCooldown(remaining, duration)
+    local wasOnRealCooldown = frame.wasOnRealCooldown or false
+
+    -- Reset pulse tracking when ability goes on cooldown
+    if isOnRealCooldown and not wasOnRealCooldown then
+        self.cooldownPulseFired[spellID] = false
+    end
+
+    if not self.cooldownPulseFired[spellID] then
+        local preTrigger = addon.db.profile.cooldownPulse.preTriggerTime
+        local shouldFire = false
+        if wasOnRealCooldown and not isOnRealCooldown then
+            shouldFire = true
+        elseif preTrigger > 0 and isOnRealCooldown and remaining <= preTrigger then
+            shouldFire = true
+        end
+        if shouldFire then
+            self.cooldownPulseFired[spellID] = true
+            local texture = frame.icon and frame.icon:GetTexture()
+            local spellName = frame.actualSpellID and C_Spell.GetSpellName(frame.actualSpellID)
+            addon.Events:FireAddonEvent("COOLDOWN_READY", spellID, texture, spellName, frame.rowIndex or 1, duration)
+        end
+    end
+
+end
 
 -- Update the "ready glow" - shows when ability becomes ready
 -- See CooldownIcons.lua header for full requirements spec (R1-R11).

@@ -194,6 +194,13 @@ function Options:ApplySettingChange(path)
 		return
 	end
 
+	-- Cooldown Pulse settings
+	if path:match("^cooldownPulse%.") then
+		local m = addon:GetModule("CooldownPulse")
+		SafeCall(m and m.Refresh, m)
+		return
+	end
+
 	-- Buff Reminders settings
 	if path:match("^buffReminders%.") then
 		local m = addon:GetModule("BuffReminders")
@@ -2018,6 +2025,215 @@ function Options:BuildOptionsTable()
 
 	-- Remove deprecated Totem Bar section (totems now live in icon rows)
 	barsArgs.totembar = nil
+
+	-- Cooldown Pulse tab
+	optionsTable.args.cooldownPulse = {
+		type = "group",
+		name = "Cooldown Pulse",
+		order = 6,
+		args = {
+			introDesc = {
+				type = "description",
+				name = Dim("Flashes a large icon in the center of the screen when a tracked ability comes off cooldown. A prominent visual cue that complements the ready glow on ability icons.") .. "\n",
+				fontSize = "medium",
+				order = 0,
+			},
+			enabled = {
+				type = "toggle",
+				name = "Enable Cooldown Pulse",
+				desc = "Master toggle for the cooldown pulse effect. When enabled, a large icon briefly flashes on screen each time a tracked ability finishes its cooldown.",
+				arg = "cooldownPulse.enabled",
+				order = 1,
+				width = "full",
+			},
+			appearance = {
+				type = "group",
+				name = "Appearance",
+				inline = true,
+				order = 2,
+				disabled = function() return not addon.db.profile.cooldownPulse.enabled end,
+				args = {
+					iconSize = {
+						type = "range",
+						name = "Icon Size",
+						desc = "How large the flashing icon appears on screen, in pixels.",
+						min = 16, max = 120, step = 1,
+						arg = "cooldownPulse.iconSize",
+						order = 1,
+					},
+					maxAlpha = {
+						type = "range",
+						name = "Opacity",
+						desc = "Peak opacity of the icon during the flash. Lower values create a more subtle, ghostly effect.",
+						min = 0.1, max = 1.0, step = 0.05,
+						isPercent = true,
+						arg = "cooldownPulse.maxAlpha",
+						order = 2,
+					},
+					positionSpacer = {
+						type = "description",
+						name = "",
+						width = "full",
+						order = 2.5,
+					},
+					xOffset = {
+						type = "range",
+						name = "X Offset",
+						desc = "Horizontal offset from the center of your screen. Negative values move left, positive values move right.",
+						min = -screenW, max = screenW, step = 1,
+						arg = "cooldownPulse.anchor.x",
+						order = 3,
+					},
+					yOffset = {
+						type = "range",
+						name = "Y Offset",
+						desc = "Vertical offset from the center of your screen. Negative values move down, positive values move up.",
+						min = -screenH, max = screenH, step = 1,
+						arg = "cooldownPulse.anchor.y",
+						order = 4,
+					},
+				},
+			},
+			filtering = {
+				type = "group",
+				name = "Filtering",
+				inline = true,
+				order = 3,
+				disabled = function() return not addon.db.profile.cooldownPulse.enabled end,
+				args = {
+					pulseRows = {
+						type = "select",
+						name = "Ability Rows",
+						desc = "Which ability rows trigger the cooldown pulse. Primary Row is your core rotation — the most impactful notifications. Add Secondary to include throughput cooldowns too.",
+						values = rowSettingAll,
+						arg = "cooldownPulse.pulseRows",
+						width = "normal",
+						order = 1,
+					},
+					onlyInCombat = {
+						type = "toggle",
+						name = "Only In Combat",
+						desc = "Only show cooldown pulses while you are in combat.",
+						arg = "cooldownPulse.onlyInCombat",
+						width = "normal",
+						order = 2,
+					},
+					filteringSpacer = {
+						type = "description",
+						name = "",
+						width = "full",
+						order = 2.5,
+					},
+					minCooldown = {
+						type = "range",
+						name = "Ignore Cooldowns Below",
+						desc = "Skip pulses for abilities with cooldowns shorter than this. Useful for filtering out short-cooldown rotational spells. Set to 0 to include everything.",
+						min = 0, max = 300, step = 1, bigStep = 5,
+						arg = "cooldownPulse.minCooldown",
+						width = "normal",
+						order = 3,
+					},
+				},
+			},
+			animation = {
+				type = "group",
+				name = "Animation",
+				inline = true,
+				order = 4,
+				disabled = function() return not addon.db.profile.cooldownPulse.enabled end,
+				args = {
+					animationIn = {
+						type = "select",
+						name = "Fade In Effect",
+						desc = "Size effect while the icon fades in. Grow: starts small, grows to normal. Shrink: starts big, shrinks to normal. None: no size change.",
+						values = {
+							[C.PULSE_EFFECT.GROW] = "Grow",
+							[C.PULSE_EFFECT.SHRINK] = "Shrink",
+							[C.PULSE_EFFECT.NONE] = "None",
+						},
+						arg = "cooldownPulse.animationIn",
+						width = "normal",
+						order = 1,
+					},
+					animationOut = {
+						type = "select",
+						name = "Fade Out Effect",
+						desc = "Size effect while the icon fades out. Grow: grows from normal to big. Shrink: shrinks from normal to small. None: no size change.",
+						values = {
+							[C.PULSE_EFFECT.GROW] = "Grow",
+							[C.PULSE_EFFECT.SHRINK] = "Shrink",
+							[C.PULSE_EFFECT.NONE] = "None",
+						},
+						arg = "cooldownPulse.animationOut",
+						width = "normal",
+						order = 2,
+					},
+					animationSpacer = {
+						type = "description",
+						name = "",
+						width = "full",
+						order = 2.1,
+					},
+					fadeInTime = {
+						type = "range",
+						name = "Fade In",
+						desc = "How long the icon takes to fade in, in seconds.",
+						min = 0.05, max = 1.0, step = 0.05,
+						arg = "cooldownPulse.fadeInTime",
+						width = "normal",
+						order = 3,
+					},
+					holdTime = {
+						type = "range",
+						name = "Hold Time",
+						desc = "How long the icon stays at peak opacity before fading out. Set to 0 for a quick flash, or increase for a longer notification.",
+						min = 0, max = 1.5, step = 0.05,
+						arg = "cooldownPulse.holdTime",
+						width = "normal",
+						order = 4,
+					},
+					timingSpacer = {
+						type = "description",
+						name = "",
+						width = "full",
+						order = 4.5,
+					},
+					fadeOutTime = {
+						type = "range",
+						name = "Fade Out",
+						desc = "How long the icon takes to fade out, in seconds.",
+						min = 0.05, max = 1.5, step = 0.05,
+						arg = "cooldownPulse.fadeOutTime",
+						width = "normal",
+						order = 5,
+					},
+					preTriggerTime = {
+						type = "range",
+						name = "Early Trigger",
+						desc = "Fire the pulse this many seconds before the cooldown finishes. Gives you a head start on reacting. Set to 0 to pulse at the exact moment the ability becomes ready.",
+						min = 0, max = 3, step = 0.1,
+						arg = "cooldownPulse.preTriggerTime",
+						width = "normal",
+						order = 6,
+					},
+				},
+			},
+			testButton = {
+				type = "execute",
+				name = "Test Pulse",
+				desc = "Plays a test pulse so you can preview your current settings.",
+				func = function()
+					local pulse = addon:GetModule("CooldownPulse")
+					if pulse then
+						local db = addon.db.profile.cooldownPulse
+						pulse:StartPulse("Interface\\Icons\\Spell_Nature_Earthbind", db)
+					end
+				end,
+				disabled = function() return not addon.db.profile.cooldownPulse.enabled end,
+				order = 10,
+			},
+		},
+	}
 
 	local buffRemindersOpts = self:BuildBuffRemindersOptions()
 	if buffRemindersOpts then

@@ -1511,10 +1511,17 @@ function CooldownIcons:UpdateIconState(frame, db)
     -- 3. Glow (aura active / permanent buff / normal)
     self.glowManager:UpdateIconGlow(frame, s.showGlow, s.showAuraActive, s.isPermanentBuffActive)
 
-    -- 4. Ready glow (proc-style glow when ability becomes usable)
+    -- 4. Cooldown pulse (runs unconditionally — lockout spells like PW:S need
+    --    pulse even when aura is active, e.g. Weakened Soul expires while shield remains)
+    self.glowManager:UpdateCooldownPulse(frame, s.spellID, s.remaining, s.duration)
+
+    -- 5. Ready glow (proc-style glow when ability becomes usable)
     if not s.showAuraActive then
         self.glowManager:UpdateReadyGlow(frame, s.spellID, s.remaining, s.duration, s.isUsable, s.isReactive, db, s.lockoutIsLimitingFactor, s.canAfford, s.predictionIsLimitingFactor, s.predictionRemaining, s.dodgeGlowOverride)
     else
+        -- UpdateReadyGlow writes wasOnRealCooldown/wasUsable — mirror that here
+        -- so UpdateCooldownPulse sees correct transitions next tick
+        frame.wasOnRealCooldown = self.Utils:IsOnRealCooldown(s.remaining, s.duration)
         frame.wasUsable = s.isUsable
         if frame.readyGlowActive then
             self.glowManager:HideReadyGlow(frame)

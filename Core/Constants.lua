@@ -96,6 +96,13 @@ C.TEXT_FORMAT = {
     NONE = "none",       -- Hide text
 }
 
+-- Valid values for cooldownPulse.animationIn / animationOut
+C.PULSE_EFFECT = {
+    GROW = "grow",     -- Size increases during this phase
+    SHRINK = "shrink", -- Size decreases during this phase
+    NONE = "none",     -- No size change (pure alpha)
+}
+
 -- Druid form detection via spell ID (position-independent)
 -- GetShapeshiftForm() returns the stance bar index, which shifts when forms
 -- aren't trained (e.g., missing Aquatic Form moves Cat from slot 3 to slot 2).
@@ -592,6 +599,26 @@ C.DEFAULTS = {
             -- spellConfig[specKey][spellID] = { enabled, timeRemaining, minStacks, combatState, trackTarget, priority }
             -- specKey = "CLASS_SPEC" (e.g., "WARLOCK_DESTRUCTION"); absence = use computed defaults
             spellConfig = {},
+        },
+
+        -- Cooldown Pulse (flash icon on screen when ability comes off cooldown)
+        cooldownPulse = {
+            enabled = true,
+            iconSize = 60,        -- Pulse icon size in pixels
+            maxAlpha = 0.7,       -- Peak opacity during animation
+            fadeInTime = 0.3,     -- Seconds to fade in
+            holdTime = 0,         -- Seconds to hold at peak before fading out
+            fadeOutTime = 0.7,    -- Seconds to fade out
+            animationIn = C.PULSE_EFFECT.GROW,   -- Size effect during fade-in
+            animationOut = C.PULSE_EFFECT.GROW,  -- Size effect during fade-out
+            preTriggerTime = 0,      -- Seconds before cooldown ends to fire pulse (0 = exact ready)
+            onlyInCombat = false,    -- Only show pulses while in combat
+            minCooldown = 0,         -- Minimum cooldown duration (seconds) to trigger a pulse (0 = all)
+            pulseRows = "all", -- Which rows trigger pulses
+            anchor = {
+                x = 0,
+                y = 0,
+            },
         },
 
         -- Per-spec spell configuration (sparse storage)

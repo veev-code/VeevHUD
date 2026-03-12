@@ -150,28 +150,52 @@ end
 -- effective scale, which the renderer handles correctly.
 -------------------------------------------------------------------------------
 
+-------------------------------------------------------------------------------
+-- Scale with Offset Compensation
+-------------------------------------------------------------------------------
 -- SetScale() multiplies anchor offsets by the scale factor, which causes frames
--- to drift away from (or toward) their anchor origin during scaling. These
--- helpers adjust offsets to keep the effective visual position fixed.
---
--- Uses saved base offsets (captured at punch start) so that external
--- repositioning during a punch (e.g., layout refresh, icon reordering)
--- cannot corrupt the final position.
-
--- Apply scale while keeping the frame's effective visual position fixed.
+-- to drift away from (or toward) their anchor origin during scaling. This
+-- utility adjusts offsets to keep the effective visual position fixed.
 -- Math: to achieve effective position P at scale S, set offset = P / S.
+--
+-- Usage:
+--   Animations:SetScaleAnchored(frame, scale, point, relativeTo, relativePoint, xOfs, yOfs)
+--   Animations:SetScaleAnchored(frame, scale)  -- uses frame's current anchor
+-------------------------------------------------------------------------------
+
+function Animations:SetScaleAnchored(frame, newScale, point, relativeTo, relativePoint, xOfs, yOfs)
+    if not point then
+        -- Read current anchor if not provided
+        point, relativeTo, relativePoint, xOfs, yOfs = frame:GetPoint(1)
+        if not point then
+            frame:SetScale(newScale)
+            return
+        end
+        -- Current offsets are already scale-adjusted if scale ~= 1;
+        -- recover the base offsets by multiplying by the current scale
+        local currentScale = frame:GetScale()
+        if currentScale ~= 1 then
+            xOfs = (xOfs or 0) * currentScale
+            yOfs = (yOfs or 0) * currentScale
+        end
+    end
+    frame:SetScale(newScale)
+    frame:ClearAllPoints()
+    frame:SetPoint(point, relativeTo, relativePoint,
+        (xOfs or 0) / newScale, (yOfs or 0) / newScale)
+end
+
+-- Internal helpers for punch driver (use saved base offsets from state table)
 local function ApplyPunchScale(frame, newScale, state)
     if not state or not state.basePoint then
         frame:SetScale(newScale)
         return
     end
-    frame:SetScale(newScale)
-    frame:ClearAllPoints()
-    frame:SetPoint(state.basePoint, state.baseRelativeTo, state.baseRelativePoint,
-        state.baseXOfs / newScale, state.baseYOfs / newScale)
+    Animations:SetScaleAnchored(frame, newScale,
+        state.basePoint, state.baseRelativeTo, state.baseRelativePoint,
+        state.baseXOfs, state.baseYOfs)
 end
 
--- Reset frame to scale 1 and restore the saved base offset.
 local function ResetPunchScale(frame, state)
     frame:SetScale(1)
     if state and state.basePoint then

@@ -54,7 +54,7 @@ local Migrations = addon.Migrations
 -- Bump this when adding new migrations.
 -- Versions 1-4 are legacy (pre-dataVersion system). All users start at
 -- CURRENT_VERSION on first encounter, so legacy versions never run.
-local CURRENT_VERSION = 5
+local CURRENT_VERSION = 6
 
 -- Migration definitions, keyed by version number.
 -- Versions 1-4 (legacy) are intentionally omitted — they corresponded to:
@@ -137,6 +137,28 @@ local migrations = {
             title = "New: Auxiliary Row",
             message = "A new 4th icon row — the Auxiliary Row — is now available. Use it to separate spells you want visually distinct from your main rows, like tracking totems, trinkets, or niche abilities in their own group.\n\nDrag spells into it via Spell Configuration (/vh spells). By default it sits above the Health Bar, but you can reposition it in the Layout tab. It has its own icon size and aspect ratio settings under Ability Rows.\n\nFor Shamans, totem element slots now live here instead of the old standalone Totem Bar. Warriors, Druids, and Paladins get a stance/form/aura indicator showing your current active state.\n\nThe row collapses automatically when empty.",
             buttons = {
+                { text = "Got It" },
+            },
+        },
+    },
+
+    -- v6: Cooldown Pulse feature announcement
+    [6] = {
+        popup = {
+            title = "New: Cooldown Pulse",
+            message = "Cooldown Pulse is a new feature — inspired by addons like Doom_CooldownPulse — that flashes a large ability icon in the center of your screen when it comes off cooldown.\n\nYou can choose which rows trigger pulses (default: all rows), adjust the icon size, opacity, and animation style — or disable it entirely.\n\nConfigure it in the new Cooldown Pulse tab.",
+            buttons = {
+                { text = "Open Settings", action = function()
+                    C_Timer.After(0.1, function()
+                        if addon.Options then
+                            addon.Options:Open()
+                            local AceConfigDialog = LibStub and LibStub("AceConfigDialog-3.0", true)
+                            if AceConfigDialog then
+                                AceConfigDialog:SelectGroup(ADDON_NAME, "cooldownPulse")
+                            end
+                        end
+                    end)
+                end },
                 { text = "Got It" },
             },
         },
