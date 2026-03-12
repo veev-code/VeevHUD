@@ -114,9 +114,10 @@ function StanceTracker:UpdateCurrentStance()
     self.currentFormIndex = newIndex
 
     if newIndex > 0 and newIndex <= (GetNumShapeshiftForms() or 0) then
-        local icon, name, isActive, isCastable = GetShapeshiftFormInfo(newIndex)
-        self.currentIcon = icon
-        self.currentName = name
+        local icon, _, _, spellID = GetShapeshiftFormInfo(newIndex)
+        -- Use spell-specific icon when available (druid stance bar returns generic textures)
+        self.currentIcon = (spellID and GetSpellTexture(spellID)) or icon
+        self.currentName = spellID and GetSpellInfo(spellID) or nil
     else
         self.currentIcon = nil
         self.currentName = nil
@@ -264,9 +265,11 @@ function StanceTracker:UpdateStanceIconState(frame, db)
 
     if formIndex > 0 and formIndex <= (GetNumShapeshiftForms() or 0) then
         -- ACTIVE STATE: full-color icon of current stance
-        local icon, name = GetShapeshiftFormInfo(formIndex)
+        local icon, _, _, spellID = GetShapeshiftFormInfo(formIndex)
+        -- Use spell-specific icon when available (druid stance bar returns generic textures)
+        local resolvedIcon = (spellID and GetSpellTexture(spellID)) or icon
 
-        frame.icon:SetTexture(icon or self.defaultIcon)
+        frame.icon:SetTexture(resolvedIcon or self.defaultIcon)
         frame.actionableTime = 0  -- No sorting relevance
 
         if renderer then

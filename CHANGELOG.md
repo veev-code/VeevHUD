@@ -1,5 +1,10 @@
 # VeevHUD Changelog
 
+## [1.0.166] - 2026-03-12
+
+### Fixed
+- **Druid Form Icon** — The stance/form indicator in the Auxiliary Row now shows the correct spell-specific icon for each druid form (e.g., Dire Bear Form, Cat Form) instead of the generic shapeshift bar texture. Warriors and Paladins are unaffected.
+
 ## [1.0.165] - 2026-03-12
 
 ### Fixed
