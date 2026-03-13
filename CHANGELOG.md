@@ -1,5 +1,14 @@
 # VeevHUD Changelog
 
+## [1.0.168] - 2026-03-12
+
+### Changed
+- **Cleaner Default Icons** — Default icon setups have been streamlined across all classes to reduce clutter out of the box. Situational and niche abilities (melee attacks for hunters, creature-type-specific spells, threat drops, etc.) are now hidden by default. Spammable filler abilities with no meaningful cooldown (Heroic Strike, Cleave, Hamstring, Wing Clip, Shiv, etc.) are also excluded. Challenging Shout now only shows for Protection warriors. All hidden spells can be re-enabled at any time via Spell Configuration.
+- Existing users will see a one-time popup explaining the changes with a direct link to Spell Configuration.
+
+### LibSpellDB Updates
+- Default visibility reduced across 6 classes: Druid, Hunter, Mage, Paladin, Rogue, Warrior. Niche spells hidden by default, fillers tagged for exclusion.
+
 ## [1.0.167] - 2026-03-12
 
 ### Changed

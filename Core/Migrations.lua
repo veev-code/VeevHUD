@@ -54,7 +54,7 @@ local Migrations = addon.Migrations
 -- Bump this when adding new migrations.
 -- Versions 1-4 are legacy (pre-dataVersion system). All users start at
 -- CURRENT_VERSION on first encounter, so legacy versions never run.
-local CURRENT_VERSION = 6
+local CURRENT_VERSION = 7
 
 -- Migration definitions, keyed by version number.
 -- Versions 1-4 (legacy) are intentionally omitted — they corresponded to:
@@ -156,6 +156,24 @@ local migrations = {
                             if AceConfigDialog then
                                 AceConfigDialog:SelectGroup(ADDON_NAME, "cooldownPulse")
                             end
+                        end
+                    end)
+                end },
+                { text = "Got It" },
+            },
+        },
+    },
+
+    -- v7: Default icon clutter reduction across all classes
+    [7] = {
+        popup = {
+            title = "Cleaner Default Icons",
+            message = "Default icon setups have been streamlined across all classes to reduce clutter out of the box.\n\nSituational and niche abilities (melee attacks for hunters, creature-type-specific spells, threat drops, etc.) are now hidden by default. Spammable filler abilities with no meaningful cooldown are also excluded.\n\nAll hidden spells can be re-enabled at any time via Spell Configuration — just drag them into the row you want.",
+            buttons = {
+                { text = "Spell Configuration", action = function()
+                    C_Timer.After(0.1, function()
+                        if addon.SpellsOptions then
+                            addon.SpellsOptions:Open()
                         end
                     end)
                 end },
