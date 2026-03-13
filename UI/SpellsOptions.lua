@@ -801,7 +801,10 @@ function SpellsOptions:GetEffectiveSpellList()
         table.sort(spells, function(a, b)
             local orderA = a.order or a.defaultOrder
             local orderB = b.order or b.defaultOrder
-            return orderA < orderB
+            if orderA ~= orderB then
+                return orderA < orderB
+            end
+            return a.spellID < b.spellID
         end)
     end
 
@@ -885,7 +888,10 @@ function SpellsOptions:GetEffectiveSpellList()
                 table.sort(rows[rep.rowIndex], function(a, b)
                     local orderA = a.order or a.defaultOrder or 999
                     local orderB = b.order or b.defaultOrder or 999
-                    return orderA < orderB
+                    if orderA ~= orderB then
+                        return orderA < orderB
+                    end
+                    return a.spellID < b.spellID
                 end)
             end
         end

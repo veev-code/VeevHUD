@@ -302,7 +302,10 @@ function SpellAssignment:_SortRowSpells(iconsByRow)
         table.sort(spells, function(a, b)
             local orderA = a.customOrder or a.defaultOrder
             local orderB = b.customOrder or b.defaultOrder
-            return orderA < orderB
+            if orderA ~= orderB then
+                return orderA < orderB
+            end
+            return a.spellID < b.spellID
         end)
     end
 end

@@ -1,5 +1,11 @@
 # VeevHUD Changelog
 
+## [1.0.169] - 2026-03-12
+
+### Fixed
+- **Options window jumping after Spell Config** — The options window could snap back to a previous position when changing settings (e.g., Aspect Ratio dropdown) after opening and closing Spell Configuration. The window now stays where you put it.
+- **Spell order mismatch between Spell Config and HUD** — In rare cases, the order of spells on the HUD could differ from what Spell Configuration showed, particularly after dragging spells in a previous session. Both views now use consistent tiebreaking to guarantee identical ordering.
+
 ## [1.0.168] - 2026-03-12
 
 ### Changed

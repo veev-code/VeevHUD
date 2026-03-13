@@ -3745,6 +3745,13 @@ function Options:Open(centerX, centerY)
 			if frame then
 				frame:ClearAllPoints()
 				frame:SetPoint("CENTER", UIParent, "BOTTOMLEFT", centerX, centerY)
+				-- Sync AceConfigDialog's status table so future Open() calls
+				-- (triggered by control interactions) don't revert the position.
+				local status = widget.status or widget.localstatus
+				if status then
+					status.top = frame:GetTop()
+					status.left = frame:GetLeft()
+				end
 			end
 		end)
 	end
