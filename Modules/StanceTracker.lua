@@ -190,8 +190,9 @@ function StanceTracker:InjectRowEntries(iconsByRow, rowConfigs, spellCfg, spellA
     local sentinelID = self.C.STANCE_INDICATOR
     local cfg = spellCfg[sentinelID] or {}
 
-    -- Skip if explicitly disabled
-    if cfg.enabled == false then
+    -- Hidden by default: only show if user explicitly enabled it in Spell Config.
+    -- (nil = default = hidden, true = explicitly enabled, false = explicitly disabled)
+    if not cfg.enabled then
         spellAssignments[sentinelID] = cfg.rowIndex or 4
         return
     end

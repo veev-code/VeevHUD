@@ -1,5 +1,10 @@
 # VeevHUD Changelog
 
+## [1.0.170] - 2026-03-13
+
+### Changed
+- **Stance/Form/Aura Indicator Hidden by Default** — The stance indicator icon (Warrior stances, Druid forms, Paladin auras) in the Auxiliary Row is now hidden by default to reduce clutter. It can be re-enabled at any time via Spell Configuration. Totem element slots are unaffected.
+
 ## [1.0.169] - 2026-03-12
 
 ### Fixed

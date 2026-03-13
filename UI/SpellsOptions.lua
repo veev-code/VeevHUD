@@ -377,7 +377,7 @@ function SpellsOptions:GetDefaultValue(spellID, field)
     local stanceTracker = addon:GetModule("StanceTracker")
     if stanceTracker and stanceTracker:IsStanceSentinel(spellID) then
         if field == "enabled" then
-            return true  -- Stance indicator enabled by default
+            return false  -- Stance indicator hidden by default
         elseif field == "rowIndex" then
             return 4  -- Default to Auxiliary row
         end
@@ -697,7 +697,7 @@ function SpellsOptions:GetEffectiveSpellList()
             table.insert(rows[effectiveRow], {
                 spellID = sentinelID,
                 spellData = { tags = {}, icon = icon, name = label, priority = 3000 },
-                enabled = cfg.enabled ~= false,
+                enabled = cfg.enabled == true,  -- Hidden by default; must be explicitly enabled
                 rowIndex = effectiveRow,
                 defaultRow = 4,
                 order = cfg.order,
