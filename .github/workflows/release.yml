@@ -57,6 +57,7 @@ jobs:
 
       - name: Discord Notification
         if: success()
+        continue-on-error: true
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
         run: |
@@ -87,8 +88,9 @@ jobs:
             CHANGELOG_ESCAPED="${CHANGELOG_ESCAPED:0:3500}..."
           fi
 
-          # Post to Discord
-          curl -H "Content-Type: application/json" \
+          # Post to Discord (--show-error prints response on failure for debugging)
+          curl --silent --show-error --fail-with-body \
+            -H "Content-Type: application/json" \
             -d "{
               \"embeds\": [{
                 \"title\": \"VeevHUD ${VERSION} Released!\",
