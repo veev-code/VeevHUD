@@ -2,7 +2,7 @@
 
 **A WeakAuras-inspired heads-up display for tracking cooldowns, buffs, debuffs, and resources.**
 
-**Works out of the box** with intelligent defaults for every class and spec — no configuration required.
+**Works out of the box** with intelligent defaults for every class and spec — no configuration required, but deeply configurable if you want it.
 
 ## Why VeevHUD?
 
@@ -10,7 +10,7 @@
 *   **Rotation-based layouts** — Spells organized by actual rotations, not arbitrary groupings
 *   **Zero setup required** — Install and play; tweak later if you want
 *   **Auto-updates** — Updates through your addon manager, no re-importing WeakAura strings
-*   **Minimal, aesthetic design** — Every feature is designed to convey maximum information with minimum clutter
+*   **Minimal, aesthetic design** — Maximum information with minimum clutter
 
 ---
 
@@ -28,109 +28,58 @@ Above the ability rows, you'll find **Health & Resource Bars** and an **Aura Tra
 
 ## Key Features
 
-### Smart Aura Display
+### Smart Icon Display
 
-Icons don't just show cooldowns — they show your **applied effects**. Cast a stun? The icon displays the stun duration on your target, then transitions to the cooldown after it expires.
+Icons don't just show cooldowns — they show your **applied effects**. Cast a stun? The icon displays the stun duration on your target, then transitions to the cooldown after it expires. DoTs track your enemy, heals track your friendly target, and single-target effects like Polymorph and Earth Shield are tracked regardless of your current target.
 
-*   **Rotational abilities** follow your current target — DoTs track your enemy, heals track your friendly target (or yourself by default)
-*   **Cooldowns, CC, and single-target effects** always show when active, regardless of your current target — if a spell can only be on one target at a time (Polymorph, Prayer of Mending, Earth Shield, etc.), VeevHUD tracks it
-*   **Lockout awareness** — Lockouts from abilities like Power Word: Shield (Weakened Soul) and Paladin immunities (Forbearance) show whichever restriction is longer, so you always know when you can cast again
-*   **Target-of-target support** — Healers can target the boss while tracking HoTs on the tank
+**Lockout awareness** — Abilities with restrictions (like Weakened Soul after Power Word: Shield, or Forbearance after a Paladin immunity) show whichever lockout is longer, so you always know when you can cast again.
 
-### At-a-Glance Readability
+**Trinket tracking** — Equipped trinkets automatically appear in your ability rows with on-use cooldowns, proc buff durations, internal cooldown tracking, and stack counts — identified via a curated database of 35+ TBC trinkets.
 
-Every visual element is designed to give you instant feedback:
-
-*   **Resource cost display** — Icons show whether you can afford to cast via a fill overlay, bar, or resource prediction (see below)
-*   **Usable glow** — A proc-style glow when abilities become usable (off cooldown + enough resources), with configurable persistent or one-shot modes
-*   **Grey out** — Abilities turn grey when you don't have enough resources
-*   **Range indicator** — Icons show a red overlay when your target is out of range, even during cooldown
-*   **Cast pop** — A satisfying "pop" animation when you successfully cast (configurable scale)
-*   **GCD display** — Global cooldown shown on configurable rows
-*   **Cooldown Pulse** — A large icon flashes in the center of your screen when a tracked ability comes off cooldown. Configurable animation style, filtering by row and cooldown duration, early trigger, combat-only mode, and shared-cooldown dedup (e.g. shaman shocks only pulse the spell you cast)
-*   **Dim on cooldown** — Icons fade to a configurable alpha when on cooldown (per-row)
-*   **Keybind text** — Optional keyboard shortcut display on icons (scans your action bars, supports Bartender4, ElvUI, Dominos)
-*   **Summon stack count** — Spells that summon multiple pets (like Force of Nature) show how many remain alive
+Every visual detail is designed for instant feedback: icons glow when usable, grey out when you can't afford them, show a red overlay when out of range, and fade when on cooldown. A **Cooldown Pulse** flashes a large icon on-screen when tracked abilities come off cooldown.
 
 ### Resource Prediction
 
 A unique feature that **extends the cooldown spiral to show when you'll actually be able to cast** — factoring in both the cooldown AND resource regeneration.
 
-Instead of seeing an ability go "ready" when you can't afford it, the icon shows a unified countdown to when you'll have enough resources. This transforms resource management from mental math into visual intuition.
-
-Three resource display modes are available:
-
-*   **Prediction** (Recommended) — Extends the cooldown sweep to include resource regeneration time. Energy and Mana predictions are highly accurate (tick-aware). Rage falls back to Fill since rage income is unpredictable.
-*   **Fill** — Darkens the icon from top to bottom proportional to missing resources. Simple and easy to read.
-*   **Bar** — Shows a small colored bar at the bottom of each icon that fills up as you gain resources.
+Instead of seeing an ability go "ready" when you can't afford it, the icon shows a unified countdown to when you'll have enough resources. This transforms resource management from mental math into visual intuition. Alternative fill and bar display modes are also available.
 
 ### Dynamic Sort
 
 Enable dynamic sorting to have icons **reorder by time remaining** — the ability needing attention soonest is always on the left.
 
-*   **DOT classes** — See which debuff is closest to expiring
+*   **DoT classes** — See which debuff is closest to expiring
 *   **Cooldown-heavy rotations** — See which ability comes off cooldown next
 
 Arrange your row as a priority order and the leftmost icon is always the next best spell to cast. Includes optional smooth slide animation.
 
-Dynamic Sort is disabled by default.
-
-### Trinket Tracking
-
-Equipped trinkets automatically appear in your ability rows, showing:
-
-*   **On-use cooldowns** — Cooldown spiral and timer after activation
-*   **Proc buffs** — Glow and duration when passive procs are active (Dragonspine Trophy haste, Sextant of Unstable Currents spell damage, etc.)
-*   **Internal cooldowns** — Synthetic cooldown display showing when a proc can trigger again
-*   **Stack counts** — Stacking buffs like Darkmoon Card: Crusade or Pendant of the Violet Eye show their current stack count
-*   **Ready glow** — On-use trinkets glow when they come off cooldown
-
-On-use trinkets are auto-detected. Passive proc trinkets are identified via a curated database of 35+ TBC trinkets. Stat-stick trinkets with no trackable effect are automatically hidden. Trinkets can be moved between rows or disabled in the Spells configuration panel.
-
 ### Aura Tracker
 
-Small icons above the health bar for important buffs — class procs (Enrage, Flurry, Clearcasting), external buffs from other players (Bloodlust, Power Infusion, Innervate, Drums), and any custom auras you add by spell ID or name. They appear only when active, with configurable glows, backdrop halo, slide animations, and duration text.
+Small icons above the health bar for important buffs — class procs (Enrage, Flurry, Clearcasting), external buffs from other players (Bloodlust, Power Infusion, Innervate, Drums), and any custom auras you add. They appear only when active, with glows, animations, and duration text.
 
 ### Buff Reminders
 
-Large, semi-transparent icons that nudge you to rebuff when missing important long-duration buffs. Pre-configured per class, with awareness of buff equivalents (Fortitude / Prayer of Fortitude), exclusive buffs, and weapon enchants. Only triggers when the spell is known and usable. Per-spell config for thresholds, combat state, and group scope.
+Large, semi-transparent icons that nudge you to rebuff when missing important long-duration buffs. Pre-configured per class, with awareness of buff equivalents (Fortitude / Prayer of Fortitude) and weapon enchants.
 
 ### Swing Timer
 
-A swing timer bar that adapts to your class and spec. Beyond showing basic auto-attack progress, it surfaces spec-specific mechanics:
+A swing timer bar that adapts to your class and spec:
 
 *   **Hunter** — Color-coded clip zones show when it's safe to weave shots versus when you'd clip your next Auto Shot
 *   **Enhancement Shaman / Fury Warrior** — Dual-wield bars colored by swing synchronization for Flurry and Windfury optimization
 *   **Retribution Paladin** — Highlights the twist window at the end of each swing for seal twisting
 
-Each class feature is independently toggleable with configurable colors.
-
 ### Health & Resource Bars
 
-Compact bars positioned with your HUD show health and mana/rage/energy at a glance.
-
-*   **Combo Points** — Rogues and Feral Druids see combo point bars below the resource bar
-*   **Energy Tick Indicator** — Shows progress toward the next energy tick via a spark overlay or ticker bar. Supports powershifting and full-energy display.
-*   **Mana Tick Indicator** — Shows when your next full spirit regen tick will arrive. Two modes: "Outside 5-Second Rule" (only during full regen) or "Next Full Tick" (recommended — always active, predicts first full tick after casting)
+Compact bars show health and mana/rage/energy at a glance, with combo point tracking for Rogues and Feral Druids, energy tick indicators for powershifting, and mana tick indicators for spirit regen timing.
 
 ---
 
 ## Configuration
 
-VeevHUD is designed to work great out of the box, but nearly everything is configurable. Settings are organized into tabs:
+VeevHUD is designed to work great out of the box, but nearly everything is configurable — icon appearance, bar styles, per-spell overrides, element ordering, and more. Profiles with automatic per-spec switching are supported for dual spec users.
 
-*   **General** — Position (horizontal + vertical offset), global scale, icon zoom, font, visibility (out-of-combat fade, hide on flight path), smooth bar/dim animations
-*   **Ability Rows** — Appearance (aspect ratio, spacing, gaps), opacity (ready/cooldown), cooldown display (text, spiral, sparkle, GCD, dim-on-cooldown), resource display (prediction/fill/bar), effects (aura tracking, cast pop, ready glow, queued highlight), other (range indicator, dynamic sort, keybind text), and per-row settings for Primary, Secondary, and Utility (icon size, max icons, flow layout)
-*   **Bars** — Health bar, resource bar (with energy ticker, mana ticker, and druid mana bar inline), combo points, and swing timer — each with size, text format, gradient, spark, and class coloring options
-*   **Aura Tracker** — Aura icon appearance, glow, backdrop, slide animation, sizing, class proc toggles, external buff toggles, and custom aura management
-*   **Totem Bar** — Shaman totem bar appearance and behavior settings
-*   **Cooldown Pulse** — Pulse appearance (icon size, opacity, position), filtering (ability rows, combat-only, minimum cooldown, early trigger), and animation (fade in/out effects and timing)
-*   **Buff Reminders** — Buff reminder appearance, per-spec spell overrides, threshold settings, and combat state filtering
-*   **Spells** — Per-spell control: enable/disable, move between rows, adjust priority order via drag-and-drop
-*   **Layout** — Element ordering and per-element gap controls for the vertical HUD stack
-*   **Profiles** — Save and switch between configuration profiles. Automatic per-spec profile switching via LibDualSpec (dual spec users get separate profiles for each spec).
-
-Access settings via **/vh** in chat, or **ESC → Options → AddOns → VeevHUD**. Every setting shows its default value in the tooltip.
+Access settings via **/vh** in chat, or **ESC → Options → AddOns → VeevHUD**.
 
 ---
 
