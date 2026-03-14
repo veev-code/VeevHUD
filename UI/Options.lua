@@ -1231,9 +1231,9 @@ function Options:BuildOptionsTable()
 								fontSize = "medium",
 								order = 0,
 							},
-							rangeSorting = {
+							rangeIndicator = {
 								type = "group",
-								name = "Range & Sorting",
+								name = "Range Indicator",
 								inline = true,
 								order = 1,
 								args = {
@@ -1245,20 +1245,28 @@ function Options:BuildOptionsTable()
 										arg = "icons.showRangeIndicator",
 										order = 1,
 									},
+								},
+							},
+							dynamicSorting = {
+								type = "group",
+								name = "Dynamic Sorting",
+								inline = true,
+								order = 2,
+								args = {
 									dynamicSortRows = {
 										type = "select",
 										name = "Dynamic Sorting",
 										desc = "Automatically reorders icons left-to-right by remaining cooldown, so abilities that are almost ready appear first.\n\nUseful for DOT classes (see which debuff is closest to expiring) and cooldown-heavy classes (see which ability is ready next).\n\nTie-breaker: When multiple abilities are ready, they sort by their original row position — so your row order acts as a priority list and the leftmost icon is always the next best spell to cast.",
 										values = rowSettingDynamicSort,
 										arg = "icons.dynamicSortRows",
-										order = 2,
+										order = 1,
 									},
 									dynamicSortAnimation = {
 										type = "toggle",
 										name = "Smooth Sorting",
 										desc = "Icons slide smoothly into their new position when the sort order changes. Disable for instant repositioning.",
 										arg = "icons.dynamicSortAnimation",
-										order = 3,
+										order = 2,
 										disabled = function()
 											return addon.db and addon.db.profile and addon.db.profile.icons and addon.db.profile.icons.dynamicSortRows == C.ROW_SETTING.NONE
 										end,
@@ -1269,7 +1277,7 @@ function Options:BuildOptionsTable()
 								type = "group",
 								name = "Keybinds",
 								inline = true,
-								order = 2,
+								order = 3,
 								args = {
 									showKeybindText = {
 										type = "select",
