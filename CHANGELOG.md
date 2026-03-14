@@ -1,5 +1,13 @@
 # VeevHUD Changelog
 
+## [1.0.171] - 2026-03-13
+
+### Changed
+- **Options: Split Range & Sorting** — Range Indicator and Dynamic Sorting are now separate groups in the Indicators tab instead of being bundled together.
+
+### LibSpellDB Updates
+- Added Cheating Death proc tracking for Subtlety Rogues — the 90% damage reduction buff now appears in Aura Tracker when the Cheat Death talent triggers.
+
 ## [1.0.170] - 2026-03-13
 
 ### Changed
