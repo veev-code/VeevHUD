@@ -1,5 +1,10 @@
 # VeevHUD Changelog
 
+## [1.0.174] - 2026-03-14
+
+### Added
+- **Resource During Cooldowns Toggle** — New "Show During Cooldowns" option in Resources settings. Controls whether the resource cost overlay (fill/bar) is visible while abilities are on cooldown. Enabled by default (preserving v1.0.173 behavior). Disable it to only see resource state when the ability is off cooldown.
+
 ## [1.0.173] - 2026-03-14
 
 ### Added

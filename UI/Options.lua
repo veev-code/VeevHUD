@@ -1039,6 +1039,13 @@ function Options:BuildOptionsTable()
 										arg = "icons.resourceDisplayRows",
 										order = 2,
 									},
+									resourceShowDuringCooldown = {
+										type = "toggle",
+										name = "Show During Cooldowns",
+										desc = "Shows the resource cost overlay on icons while they are on cooldown, so you can see your resource state through the cooldown spiral. When disabled, the resource overlay only appears when the ability is off cooldown.",
+										arg = "icons.resourceShowDuringCooldown",
+										order = 3,
+									},
 								},
 							},
 							fillStyle = {

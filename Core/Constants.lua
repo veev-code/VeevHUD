@@ -532,6 +532,7 @@ C.DEFAULTS = {
             resourceFillColor = { r = 0, g = 0, b = 0 },  -- Fill color (default black)
             resourceFillUsePowerColor = false, -- Use power type color instead of fillColor
             resourceFillInvert = false,  -- Invert fill: show filled portion from bottom instead of missing from top
+            resourceShowDuringCooldown = true,  -- Show resource cost overlay while ability is on cooldown
 
             -- Cast feedback: scale punch when ability is used
             -- Rows: "none" = disabled, "primary"/"primary_secondary"/"all" = which rows show it

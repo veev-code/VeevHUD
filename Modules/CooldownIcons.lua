@@ -1508,7 +1508,7 @@ function CooldownIcons:UpdateIconState(frame, db)
     self.renderer:ApplyIconVisuals(frame, visualState, db)
 
     -- 2. Resource display
-    self.renderer:UpdateResourceDisplay(frame, s.spellID, s.remaining, s.hasResourceCost, s.resourcePercent, s.powerColor, db, s.showPredictionSpiral, s.inPredictionFallback)
+    self.renderer:UpdateResourceDisplay(frame, s.spellID, s.remaining, s.hasResourceCost, s.resourcePercent, s.powerColor, db, s.showPredictionSpiral, s.inPredictionFallback, s.isOnActualCooldown)
 
     -- 3. Glow (aura active / permanent buff / normal)
     self.glowManager:UpdateIconGlow(frame, s.showGlow, s.showAuraActive, s.isPermanentBuffActive)

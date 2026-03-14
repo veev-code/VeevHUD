@@ -348,7 +348,7 @@ end
 -- In prediction mode:
 --   - While prediction spiral is active: hide resource display (spiral is the indicator)
 --   - When prediction failed (fallback): show vertical fill as deterministic feedback
-function IconRenderer:UpdateResourceDisplay(frame, _, _, hasResourceCost, resourcePercent, powerColor, db, showPredictionSpiral, inPredictionFallback)
+function IconRenderer:UpdateResourceDisplay(frame, _, _, hasResourceCost, resourcePercent, powerColor, db, showPredictionSpiral, inPredictionFallback, isOnActualCooldown)
     local displayMode = db.resourceDisplayMode
     local displayRows = db.resourceDisplayRows
     local rowIndex = frame.rowIndex or 1
@@ -370,13 +370,15 @@ function IconRenderer:UpdateResourceDisplay(frame, _, _, hasResourceCost, resour
     -- 2. The spell has a resource cost
     -- 3. We don't have enough resources (resourcePercent < 1)
     -- 4. Resource display is enabled for this row
-    -- Note: resource display is shown during cooldowns too, so the player can see
-    -- resource state through the swept area of the spiral (no surprise when CD ends)
+    -- 5. If on cooldown, only show if resourceShowDuringCooldown is enabled
     local inCombat = UnitAffectingCombat("player")
     local isResting = IsResting()
     local showUsability = inCombat or not isResting
 
     local showResource = showUsability and hasResourceCost and resourcePercent < 1 and enabledForRow
+    if showResource and isOnActualCooldown and not db.resourceShowDuringCooldown then
+        showResource = false
+    end
 
     if not showResource then
         -- Hide and reset
