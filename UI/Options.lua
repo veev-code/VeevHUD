@@ -999,7 +999,7 @@ function Options:BuildOptionsTable()
 										min = 0, max = 1.0, step = 0.05,
 										isPercent = true,
 										arg = "icons.cooldownSpiralAlpha",
-										order = 3,
+										order = 4,
 									},
 								},
 							},
@@ -1041,26 +1041,89 @@ function Options:BuildOptionsTable()
 									},
 								},
 							},
-							style = {
+							fillStyle = {
 								type = "group",
-								name = "Style",
+								name = "Fill Style",
 								inline = true,
 								order = 2,
-								disabled = function() return addon.db and addon.db.profile and addon.db.profile.icons.resourceDisplayRows == C.ROW_SETTING.NONE end,
+								disabled = function()
+									local icons = addon.db and addon.db.profile and addon.db.profile.icons
+									if not icons then return true end
+									local mode = icons.resourceDisplayMode
+									return mode ~= C.RESOURCE_DISPLAY_MODE.FILL and mode ~= C.RESOURCE_DISPLAY_MODE.PREDICTION
+								end,
 								args = {
-									resourceFillAlpha = {
-										type = "range",
-										name = "Fill Opacity",
-										desc = "How dark the resource cost overlay appears on icons. Higher values make it more obvious when you can't afford an ability. Applies to Fill mode and Prediction mode's fill fallback (used for rage and when predictions are unavailable).",
-										min = 0.05, max = 1.0, step = 0.05,
-										isPercent = true,
-										arg = "icons.resourceFillAlpha",
+									resourceFillUsePowerColor = {
+										type = "toggle",
+										name = "Use Resource Color",
+										desc = "Uses your resource type color for the fill overlay — red for rage, blue for mana, yellow for energy — instead of the custom Fill Color.",
+										arg = "icons.resourceFillUsePowerColor",
 										order = 1,
+									},
+									resourceFillColor = {
+										type = "color",
+										name = "Fill Color",
+										desc = "The color of the resource cost fill overlay on icons. Default is black (a dark overlay showing missing resources). Only used when Use Resource Color is unchecked.",
+										hasAlpha = false,
+										get = colorGet,
+										set = colorSet,
+										arg = "icons.resourceFillColor",
+										order = 2,
 										disabled = function()
 											local icons = addon.db and addon.db.profile and addon.db.profile.icons
 											if not icons then return true end
 											local mode = icons.resourceDisplayMode
-											return mode ~= C.RESOURCE_DISPLAY_MODE.FILL and mode ~= C.RESOURCE_DISPLAY_MODE.PREDICTION
+											local isFillMode = mode == C.RESOURCE_DISPLAY_MODE.FILL or mode == C.RESOURCE_DISPLAY_MODE.PREDICTION
+											return not isFillMode or icons.resourceFillUsePowerColor
+										end,
+									},
+									resourceFillAlpha = {
+										type = "range",
+										name = "Fill Opacity",
+										desc = "How opaque the resource cost overlay appears on icons. Higher values make it more obvious when you can't afford an ability. Applies to Fill mode and Prediction mode's fill fallback (used for rage and when predictions are unavailable).",
+										min = 0.05, max = 1.0, step = 0.05,
+										isPercent = true,
+										arg = "icons.resourceFillAlpha",
+										order = 3,
+									},
+									resourceFillInvert = {
+										type = "toggle",
+										name = "Invert Fill",
+										desc = "Inverts the fill direction. Normal: overlay covers from top down showing missing resources. Inverted: overlay fills from bottom up showing current resources.",
+										arg = "icons.resourceFillInvert",
+										order = 4,
+									},
+								},
+							},
+							barStyle = {
+								type = "group",
+								name = "Bar Style",
+								inline = true,
+								order = 3,
+								disabled = function()
+									return addon.db and addon.db.profile and addon.db.profile.icons and addon.db.profile.icons.resourceDisplayMode ~= C.RESOURCE_DISPLAY_MODE.BAR
+								end,
+								args = {
+									resourceBarUsePowerColor = {
+										type = "toggle",
+										name = "Use Resource Color",
+										desc = "Uses your resource type color for the bar — red for rage, blue for mana, yellow for energy — instead of the custom Bar Color.",
+										arg = "icons.resourceBarUsePowerColor",
+										order = 1,
+									},
+									resourceBarColor = {
+										type = "color",
+										name = "Bar Color",
+										desc = "The color of the resource bar at the bottom of icons. Only used when Use Resource Color is unchecked.",
+										hasAlpha = false,
+										get = colorGet,
+										set = colorSet,
+										arg = "icons.resourceBarColor",
+										order = 2,
+										disabled = function()
+											local icons = addon.db and addon.db.profile and addon.db.profile.icons
+											if not icons then return true end
+											return icons.resourceDisplayMode ~= C.RESOURCE_DISPLAY_MODE.BAR or icons.resourceBarUsePowerColor
 										end,
 									},
 									resourceBarHeight = {
@@ -1069,10 +1132,7 @@ function Options:BuildOptionsTable()
 										desc = "Height of the small resource bar shown at the bottom of each icon. Only visible when Display Mode is set to |cffffffffBar|r.",
 										min = 1, max = 16, step = 1,
 										arg = "icons.resourceBarHeight",
-										order = 2,
-										disabled = function()
-											return addon.db and addon.db.profile and addon.db.profile.icons and addon.db.profile.icons.resourceDisplayMode ~= C.RESOURCE_DISPLAY_MODE.BAR
-										end,
+										order = 3,
 									},
 								},
 							},

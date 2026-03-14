@@ -1,5 +1,20 @@
 # VeevHUD Changelog
 
+## [1.0.173] - 2026-03-14
+
+### Added
+- **Resource Display During Cooldowns** — Resource cost indicators (fill overlay and bar) now remain visible while abilities are on cooldown. This lets you see your resource state through the cooldown spiral's swept area, so there's no surprise when a cooldown finishes but you can't afford the ability.
+- **Resource Fill Color Options** — The fill overlay color is now fully configurable with a color picker (default: black). A "Use Resource Color" toggle shows your power type color (red for rage, blue for mana, yellow for energy) instead. Fill opacity and an "Invert Fill" toggle (fill from bottom-up to show current resources) are also available.
+- **Resource Bar Color Options** — The bottom bar color is now configurable with a color picker. "Use Resource Color" (default: on) uses your power type color; disable it to pick a custom color.
+- **60fps Resource Animation** — Resource fill/bar changes now animate at 60fps with smooth interpolation, matching the quality of other VeevHUD animations.
+
+### Changed
+- **Options: Resource Display Layout** — Resource Display options are now split into separate "Fill Style" and "Bar Style" groups, each with their own color and style controls.
+
+### Fixed
+- **Resource-gated cooldown transition** — When an ability came off cooldown but the player lacked resources to cast it, the icon would briefly look ready then snap to the "not usable" state. Resource state is now always visible through the cooldown spiral, eliminating the surprise.
+- **Aura Tracker reactive proc filtering** — Reactive window procs (e.g., Victory Rush) no longer appear in the Aura Tracker for characters who haven't learned the ability.
+
 ## [1.0.172] - 2026-03-13
 
 ### Fixed

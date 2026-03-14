@@ -100,6 +100,19 @@ function AuraTracker:GetProcsForClass(class)
                 end
             end
 
+            -- Skip reactive-window procs (castable abilities like Victory Rush) if not yet learned
+            if include and spellData.reactiveWindow then
+                local known = false
+                if IsSpellKnown and IsSpellKnown(spellData.spellID) then
+                    known = true
+                elseif IsPlayerSpell and IsPlayerSpell(spellData.spellID) then
+                    known = true
+                end
+                if not known then
+                    include = false
+                end
+            end
+
             if include then
                 local allRankIDs = self.LibSpellDB:GetAllRankIDs(spellData.spellID)
                 table.insert(procs, {

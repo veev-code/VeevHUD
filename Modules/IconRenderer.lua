@@ -20,6 +20,63 @@ local IconRenderer = {}
 addon:RegisterModule("IconRenderer", IconRenderer)
 
 -------------------------------------------------------------------------------
+-- 60fps Resource Animation Driver
+-- A single invisible Frame whose OnUpdate smoothly interpolates resource fill
+-- heights across all registered icon frames. Starts hidden; shown when frames
+-- are registered, hidden when all converge or are removed. Same pattern as
+-- Animations.lua punchDriver/slideDriver.
+-------------------------------------------------------------------------------
+local animatedFrames = {}
+local animDriverFrame = CreateFrame("Frame")
+animDriverFrame:Hide()  -- Start hidden; shown when frames are registered
+animDriverFrame:SetScript("OnUpdate", function()
+    local smooth = addon.db.profile.animations.smoothBars
+    local hasActive = false
+    for frame in pairs(animatedFrames) do
+        local target = frame.resourceTarget
+        if not target then
+            animatedFrames[frame] = nil
+        else
+            local converged
+            if smooth then
+                -- 0.02/frame at 60fps gives a slow, visible fill (~2s to converge)
+                frame.resourceCurrent, converged = addon.Utils:SmoothBarValue(frame.resourceCurrent, target, 0.02)
+            else
+                frame.resourceCurrent = target
+                converged = true
+            end
+
+            local current = frame.resourceCurrent
+            local mode = frame.resourceDisplayMode
+            if mode == C.RESOURCE_DISPLAY_MODE.BAR and frame.resourceBar and frame.resourceBar:IsShown() then
+                frame.resourceBar.fill:SetWidth(math.max(1, frame.resourceIconWidth * current))
+            elseif mode == C.RESOURCE_DISPLAY_MODE.FILL and frame.resourceFill and frame.resourceFill:IsShown() then
+                local h = frame.resourceIconHeight
+                if frame.resourceFillInvert then
+                    frame.resourceFill:SetHeight(math.max(0, h * current))
+                else
+                    frame.resourceFill:SetHeight(math.max(0, h * (1 - current)))
+                end
+            end
+
+            if not converged then
+                hasActive = true
+            end
+        end
+    end
+    if not hasActive then
+        animDriverFrame:Hide()
+    end
+end)
+
+function IconRenderer:RegisterAnimatedFrame(frame)
+    if not animatedFrames[frame] then
+        animatedFrames[frame] = true
+    end
+    animDriverFrame:Show()
+end
+
+-------------------------------------------------------------------------------
 -- Initialization
 -------------------------------------------------------------------------------
 
@@ -291,7 +348,7 @@ end
 -- In prediction mode:
 --   - While prediction spiral is active: hide resource display (spiral is the indicator)
 --   - When prediction failed (fallback): show vertical fill as deterministic feedback
-function IconRenderer:UpdateResourceDisplay(frame, spellID, cooldownRemaining, hasResourceCost, resourcePercent, powerColor, db, showPredictionSpiral, inPredictionFallback)
+function IconRenderer:UpdateResourceDisplay(frame, _, _, hasResourceCost, resourcePercent, powerColor, db, showPredictionSpiral, inPredictionFallback)
     local displayMode = db.resourceDisplayMode
     local displayRows = db.resourceDisplayRows
     local rowIndex = frame.rowIndex or 1
@@ -312,15 +369,14 @@ function IconRenderer:UpdateResourceDisplay(frame, spellID, cooldownRemaining, h
     -- 1. Not resting and out of combat (show in PvP/world even if combat drops)
     -- 2. The spell has a resource cost
     -- 3. We don't have enough resources (resourcePercent < 1)
-    -- 4. The ability is off cooldown (cooldown takes visual priority) - unless in prediction fallback
-    -- 5. Resource display is enabled for this row
+    -- 4. Resource display is enabled for this row
+    -- Note: resource display is shown during cooldowns too, so the player can see
+    -- resource state through the swept area of the spiral (no surprise when CD ends)
     local inCombat = UnitAffectingCombat("player")
     local isResting = IsResting()
     local showUsability = inCombat or not isResting
 
-    -- In prediction fallback, show resource display regardless of cooldown
-    local cooldownCheck = inPredictionFallback or cooldownRemaining <= 0
-    local showResource = showUsability and hasResourceCost and resourcePercent < 1 and cooldownCheck and enabledForRow
+    local showResource = showUsability and hasResourceCost and resourcePercent < 1 and enabledForRow
 
     if not showResource then
         -- Hide and reset
@@ -334,85 +390,61 @@ function IconRenderer:UpdateResourceDisplay(frame, spellID, cooldownRemaining, h
     local iconWidth = frame.iconWidth or iconSize
     local iconHeight = frame.iconHeight or iconSize
 
-    -- Initialize smooth animation state
+    -- Set animation target (60fps driver frame handles smooth interpolation)
     if not frame.resourceCurrent then
         frame.resourceCurrent = resourcePercent
     end
     frame.resourceTarget = resourcePercent
-    frame.resourcePowerColor = powerColor
-    frame.resourceIconSize = iconSize
     frame.resourceIconWidth = iconWidth
     frame.resourceIconHeight = iconHeight
+    frame.resourceFillInvert = db.resourceFillInvert
 
     -- In prediction fallback, always use vertical fill regardless of configured mode
     local effectiveMode = inPredictionFallback and C.RESOURCE_DISPLAY_MODE.FILL or displayMode
     frame.resourceDisplayMode = effectiveMode
 
-    -- Set up OnUpdate for smooth animation if not already
-    if not frame.resourceOnUpdate then
-        frame.resourceOnUpdate = true
-        frame:HookScript("OnUpdate", function(f, elapsed)
-            self:AnimateResourceDisplay(f, elapsed, self._iconsDb)
-        end)
+    -- Resolve fill color (normalize to r,g,b regardless of source format)
+    local fcR, fcG, fcB
+    if db.resourceFillUsePowerColor and powerColor then
+        fcR, fcG, fcB = powerColor[1], powerColor[2], powerColor[3]
+    else
+        local fc = db.resourceFillColor
+        fcR, fcG, fcB = fc.r, fc.g, fc.b
     end
 
     if effectiveMode == C.RESOURCE_DISPLAY_MODE.BAR and frame.resourceBar then
+        local brR, brG, brB
+        if db.resourceBarUsePowerColor and powerColor then
+            brR, brG, brB = powerColor[1], powerColor[2], powerColor[3]
+        else
+            local bc = db.resourceBarColor
+            brR, brG, brB = bc.r, bc.g, bc.b
+        end
+        frame.resourceBar.fill:SetVertexColor(brR, brG, brB, 1)
         frame.resourceBar:SetHeight(db.resourceBarHeight)
         frame.resourceBar:Show()
         if frame.resourceFill then frame.resourceFill:Hide() end
     elseif effectiveMode == C.RESOURCE_DISPLAY_MODE.FILL and frame.resourceFill then
-        -- Frame alpha handles visibility; vertex color just controls fill darkness
-        frame.resourceFill:SetVertexColor(0, 0, 0, db.resourceFillAlpha)
+        frame.resourceFill:SetVertexColor(fcR, fcG, fcB, db.resourceFillAlpha)
+        -- Update anchor if invert setting changed
+        if frame._fillInverted ~= db.resourceFillInvert then
+            frame._fillInverted = db.resourceFillInvert
+            frame.resourceFill:ClearAllPoints()
+            if db.resourceFillInvert then
+                frame.resourceFill:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 0, 0)
+                frame.resourceFill:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 0, 0)
+            else
+                frame.resourceFill:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, 0)
+                frame.resourceFill:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 0, 0)
+            end
+        end
         frame.resourceFill:Show()
         if frame.resourceBar then frame.resourceBar:Hide() end
     end
+
+    -- Register this frame for 60fps animation
+    self:RegisterAnimatedFrame(frame)
+
 end
 
--- Animate resource display smoothly (or instantly if smoothing disabled)
-function IconRenderer:AnimateResourceDisplay(frame, elapsed, db)
-    if not frame.resourceTarget then return end
 
-    local displayMode = frame.resourceDisplayMode or db.resourceDisplayMode
-    local current = frame.resourceCurrent or 0
-    local target = frame.resourceTarget
-
-    -- Check global animation setting
-    local animDb = addon.db.profile.animations
-    if animDb.smoothBars then
-        -- Smooth interpolation (lerp)
-        local speed = 8  -- Higher = faster animation
-        local diff = target - current
-
-        if math.abs(diff) < 0.01 then
-            current = target
-        else
-            current = current + diff * math.min(1, elapsed * speed)
-        end
-    else
-        -- Instant update
-        current = target
-    end
-
-    frame.resourceCurrent = current
-
-    local iconWidth = frame.resourceIconWidth or frame.resourceIconSize or db.iconSize
-    local iconHeight = frame.resourceIconHeight or frame.resourceIconSize or db.iconSize
-
-    if displayMode == C.RESOURCE_DISPLAY_MODE.BAR and frame.resourceBar and frame.resourceBar:IsShown() then
-        -- Horizontal bar fill - use width
-        local fillWidth = iconWidth * current
-        frame.resourceBar.fill:SetWidth(math.max(1, fillWidth))
-
-        if frame.resourcePowerColor then
-            local c = frame.resourcePowerColor
-            frame.resourceBar.fill:SetVertexColor(c[1], c[2], c[3], 1)
-        end
-
-    elseif displayMode == C.RESOURCE_DISPLAY_MODE.FILL and frame.resourceFill and frame.resourceFill:IsShown() then
-        -- Vertical fill (dark overlay showing missing portion) - use height
-        -- Frame alpha handles visibility; vertex color just controls fill darkness
-        local missingPercent = 1 - current
-        local fillHeight = iconHeight * missingPercent
-        frame.resourceFill:SetHeight(math.max(0, fillHeight))
-    end
-end

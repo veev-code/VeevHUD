@@ -14,7 +14,7 @@ Reported missing or broken spell support (not confirmed fixed):
 
 ## Bugs
 
-- **Resource-gated cooldown transition** — When an ability comes off cooldown but the player lacks the resource (e.g., rage) to cast it, the icon transition is jarring — it briefly looks ready, then snaps to the "not usable" state instead of filling smoothly. Investigate a more seamless visual path for this case.
+*(None currently)*
 
 ---
 
@@ -125,3 +125,4 @@ Items from feedback that have been completed, with the version they shipped in.
 | Trinket Tracking                                                  | 1.0.127 | On-use cooldowns, proc buffs, ICD display, stacks, pop animation |
 | Track Shared Debuffs from Any Caster                              | 1.0.143 | Same-class shared debuffs (17 spells); cross-class equivalence intentionally not in scope |
 | Totem element reordering + Auxiliary Row                          | 1.0.148 | Standalone Totem Bar → draggable element slots in new 4th row    |
+| Resource-gated cooldown transition                                | 1.0.173 | Resource fill/bar visible during cooldowns; no more jarring snap |

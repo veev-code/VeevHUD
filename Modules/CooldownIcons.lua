@@ -1261,8 +1261,6 @@ function CooldownIcons:UpdateAllIcons()
 
     self.stateEngine:SetTime(GetTime())
     local db = addon.db.profile.icons
-    self._iconsDb = db  -- Cache for per-frame resource animation hooks
-    self.renderer._iconsDb = db  -- Share with IconRenderer for AnimateResourceDisplay
 
     -- Cache target context once for all aura checks this cycle
     local auraTracker = addon:GetModule("AuraState")
@@ -1543,9 +1541,10 @@ function CooldownIcons:UpdateIconState(frame, db)
     end
 
     -- Return true if this icon has time-based state needing periodic refresh
-    -- (cooldown spiral, prediction spiral, or timed aura counting down)
+    -- (cooldown spiral, prediction spiral, timed aura counting down, or resource fill active)
     return s.showSpinner or s.showPredictionSpiral
         or (s.showAuraActive and s.auraDisplayRemaining and s.auraDisplayRemaining > 0)
+        or (s.hasResourceCost and not s.canAfford)
 end
 
 -- State computation (ComputeAuraState, ComputeCooldownState, ComputePredictionState,
@@ -1715,16 +1714,12 @@ function CooldownIcons:Refresh()
     self:ApplyIconTexCoords()
     
     -- Update cooldown bling setting on all icons (per-row)
-    -- Also clear cached cooldown state so SetSwipeColor changes take effect
-    -- (WoW requires SetCooldown to be called after SetSwipeColor for visual update)
     for rowIndex, rowFrame in ipairs(self.rows or {}) do
         local blingEnabled = addon.Database:IsRowSettingEnabled(iconDb.cooldownBlingRows, rowIndex)
         for _, iconFrame in ipairs(rowFrame.icons or {}) do
             if iconFrame.cooldown then
                 iconFrame.cooldown:SetDrawBling(blingEnabled)
             end
-            iconFrame.lastCdStart = nil
-            iconFrame.lastCdDuration = nil
         end
     end
     

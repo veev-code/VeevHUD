@@ -526,8 +526,13 @@ C.DEFAULTS = {
             resourceDisplayMode = "prediction",
             resourceDisplayRows = "all", -- Which rows show resource cost display
             resourceBarHeight = 4,       -- Height of horizontal bar (Option A)
-            resourceFillAlpha = 0.6,     -- Alpha of fill overlay (Option B)
-            
+            resourceBarUsePowerColor = true,   -- Use power type color for bar
+            resourceBarColor = { r = 1, g = 1, b = 1 },  -- Custom bar color (default white)
+            resourceFillAlpha = 0.75,    -- Alpha of fill overlay (Option B)
+            resourceFillColor = { r = 0, g = 0, b = 0 },  -- Fill color (default black)
+            resourceFillUsePowerColor = false, -- Use power type color instead of fillColor
+            resourceFillInvert = false,  -- Invert fill: show filled portion from bottom instead of missing from top
+
             -- Cast feedback: scale punch when ability is used
             -- Rows: "none" = disabled, "primary"/"primary_secondary"/"all" = which rows show it
             castFeedbackRows = "all",     -- Which rows show cast feedback animation
