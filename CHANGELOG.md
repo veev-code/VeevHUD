@@ -1,5 +1,10 @@
 # VeevHUD Changelog
 
+## [1.0.172] - 2026-03-13
+
+### Fixed
+- **Release workflow** — Fixed GitHub release creation failing when changelog exceeded 125KB body limit. CI now trims to the 50 most recent versions before packaging (full history remains in git). Discord release notifications are now more resilient.
+
 ## [1.0.171] - 2026-03-13
 
 ### Changed
