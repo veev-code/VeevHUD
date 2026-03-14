@@ -47,6 +47,17 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Trim changelog for release
+        run: |
+          # Keep only the 50 most recent versions to stay under GitHub's 125KB release body limit
+          awk '
+            /^## \[/ { count++ }
+            count <= 50 { print }
+            count > 50 { exit }
+          ' CHANGELOG.md > CHANGELOG_TRIMMED.md
+          mv CHANGELOG_TRIMMED.md CHANGELOG.md
+          echo "Trimmed changelog to $(grep -c '^## \[' CHANGELOG.md) versions ($(wc -c < CHANGELOG.md) bytes)"
+
       - name: Package and Release
         uses: BigWigsMods/packager@v2
         with:
@@ -56,7 +67,7 @@ jobs:
           GITHUB_OAUTH: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Discord Notification
-        if: success()
+        if: always() && !cancelled()
         continue-on-error: true
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
