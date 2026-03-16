@@ -266,7 +266,7 @@ function PetHealthBar:UpdateBar()
     end
 
     if self.text and db.textFormat and db.textFormat ~= self.C.TEXT_FORMAT.NONE then
-        self.text:SetText(self.Utils:FormatBarText(health, maxHealth, percent, db.textFormat))
+        self.text:SetText(self.Utils:FormatBarText(health, maxHealth, percent, db.textFormat, db.numberFormat))
     end
 
     -- Update heal prediction overlay
@@ -342,13 +342,16 @@ function PetHealthBar:Refresh()
         self:UpdateHealPredictionColor()
 
         -- Toggle text and update font
-        if self.text then
-            self.text:SetFont(addon:GetFont(), db.textSize, "OUTLINE")
-            if db.textFormat and db.textFormat ~= self.C.TEXT_FORMAT.NONE then
-                self.text:Show()
-            else
-                self.text:Hide()
+        if db.textFormat and db.textFormat ~= self.C.TEXT_FORMAT.NONE then
+            if not self.text then
+                local text = self.bar:CreateFontString(nil, "OVERLAY")
+                text:SetPoint("CENTER")
+                self.text = text
             end
+            self.text:SetFont(addon:GetFont(), db.textSize, "OUTLINE")
+            self.text:Show()
+        elseif self.text then
+            self.text:Hide()
         end
     end
 

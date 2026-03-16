@@ -257,7 +257,7 @@ function HealthBar:UpdatePlayerBar()
     end
 
     if self.playerText and db.textFormat and db.textFormat ~= self.C.TEXT_FORMAT.NONE then
-        self:UpdateText(self.playerText, health, maxHealth, percent, db.textFormat)
+        self.playerText:SetText(self.Utils:FormatBarText(health, maxHealth, percent, db.textFormat, db.numberFormat))
     end
 
     -- Update heal prediction overlay (position depends on health %)
@@ -273,14 +273,6 @@ function HealthBar:SmoothUpdatePlayer()
 
     self.playerCurrentValue = self.Utils:SmoothBarValue(self.playerCurrentValue, self.playerTargetValue)
     self.playerBar:SetValue(self.playerCurrentValue)
-end
-
--------------------------------------------------------------------------------
--- Shared
--------------------------------------------------------------------------------
-
-function HealthBar:UpdateText(fontString, health, maxHealth, percent, format)
-    fontString:SetText(self.Utils:FormatBarText(health, maxHealth, percent, format))
 end
 
 -------------------------------------------------------------------------------
@@ -343,13 +335,16 @@ function HealthBar:Refresh()
         end
         
         -- Toggle text visibility and update font size
-        if self.playerText then
-            self.playerText:SetFont(addon:GetFont(), db.textSize, "OUTLINE")
-            if db.textFormat and db.textFormat ~= self.C.TEXT_FORMAT.NONE then
-                self.playerText:Show()
-            else
-                self.playerText:Hide()
+        if db.textFormat and db.textFormat ~= self.C.TEXT_FORMAT.NONE then
+            if not self.playerText then
+                local text = self.playerBar:CreateFontString(nil, "OVERLAY")
+                text:SetPoint("CENTER")
+                self.playerText = text
             end
+            self.playerText:SetFont(addon:GetFont(), db.textSize, "OUTLINE")
+            self.playerText:Show()
+        elseif self.playerText then
+            self.playerText:Hide()
         end
 
         -- Update overlay textures to match bar texture

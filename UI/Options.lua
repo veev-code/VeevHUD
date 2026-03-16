@@ -270,9 +270,32 @@ function Options:BuildOptionsTable()
 
 	local textFormatValues = {
 		[C.TEXT_FORMAT.CURRENT] = "Current",
-		[C.TEXT_FORMAT.PERCENT] = "Percent",
-		[C.TEXT_FORMAT.BOTH] = "Both",
+		[C.TEXT_FORMAT.PERCENT] = "%",
+		[C.TEXT_FORMAT.BOTH] = "Current (%)",
+		[C.TEXT_FORMAT.CURRENT_MAX] = "Current / Max",
+		[C.TEXT_FORMAT.CURRENT_MAX_PERCENT] = "Current / Max (%)",
+		[C.TEXT_FORMAT.DEFICIT] = "Deficit",
 		[C.TEXT_FORMAT.NONE] = "None",
+	}
+	local textFormatSorting = {
+		C.TEXT_FORMAT.CURRENT,
+		C.TEXT_FORMAT.PERCENT,
+		C.TEXT_FORMAT.BOTH,
+		C.TEXT_FORMAT.CURRENT_MAX,
+		C.TEXT_FORMAT.CURRENT_MAX_PERCENT,
+		C.TEXT_FORMAT.DEFICIT,
+		C.TEXT_FORMAT.NONE,
+	}
+
+	local numberFormatValues = {
+		[C.NUMBER_FORMAT.ABBREVIATED] = "Abbreviated (4.5k)",
+		[C.NUMBER_FORMAT.FULL] = "Full (4523)",
+		[C.NUMBER_FORMAT.COMMA] = "Comma (4,523)",
+	}
+	local numberFormatSorting = {
+		C.NUMBER_FORMAT.ABBREVIATED,
+		C.NUMBER_FORMAT.FULL,
+		C.NUMBER_FORMAT.COMMA,
 	}
 
 	local function get(info)
@@ -1423,8 +1446,9 @@ function Options:BuildOptionsTable()
 								order = 3,
 								disabled = function() return addon.db and addon.db.profile and not addon.db.profile.resourceBar.enabled end,
 								args = {
-									textFormat = { type = "select", name = "Text Format", desc = "Controls what text is shown on the resource bar.\n\n|cffffffffCurrent Value|r — Shows your actual resource (e.g., 4523 for mana, 67 for energy).\n|cffffffffPercent|r — Shows your resource percentage (e.g., 85%).\n|cffffffffBoth|r — Shows both (e.g., 4523 (85%)).\n|cffffffffNone|r — Hides the text entirely.", values = textFormatValues, arg = "resourceBar.textFormat", order = 1 },
-									textSize = { type = "range", name = "Text Size", desc = "Font size for the resource text. Larger sizes are easier to read but may overflow small bars.", min = 6, max = 24, step = 1, arg = "resourceBar.textSize", order = 2, disabled = function() return addon.db and addon.db.profile and addon.db.profile.resourceBar.textFormat == C.TEXT_FORMAT.NONE end },
+									textFormat = { type = "select", name = "Text Format", desc = "Controls what text is shown on the resource bar.\n\n|cffffffffCurrent|r — Shows your actual resource (e.g., 4523).\n|cffffffffPercent|r — Shows your resource percentage (e.g., 85%).\n|cffffffffBoth|r — Shows both (e.g., 4523 (85%)).\n|cffffffffCurrent / Max|r — Shows current and maximum (e.g., 4523 / 5320).\n|cffffffffCurrent / Max (%)|r — Shows current, maximum, and percentage (e.g., 4523 / 5320 (85%)).\n|cffffffffDeficit|r — Shows how much is missing (e.g., -797). Hidden at full.\n|cffffffffNone|r — Hides the text entirely.", values = textFormatValues, sorting = textFormatSorting, arg = "resourceBar.textFormat", order = 1 },
+									numberFormat = { type = "select", name = "Number Format", desc = "Controls how numbers are displayed.\n\n|cffffffffAbbreviated|r — Large numbers shortened (e.g., 4.5k, 1.2m).\n|cffffffffFull|r — Whole numbers (e.g., 4523).\n|cffffffffComma|r — Comma-separated (e.g., 4,523).", values = numberFormatValues, sorting = numberFormatSorting, arg = "resourceBar.numberFormat", order = 2, disabled = function() local fmt = addon.db.profile.resourceBar.textFormat; return fmt == C.TEXT_FORMAT.NONE or fmt == C.TEXT_FORMAT.PERCENT end },
+									textSize = { type = "range", name = "Text Size", desc = "Font size for the resource text. Larger sizes are easier to read but may overflow small bars.", min = 6, max = 24, step = 1, arg = "resourceBar.textSize", order = 3, disabled = function() return addon.db.profile.resourceBar.textFormat == C.TEXT_FORMAT.NONE end },
 								},
 							},
 							colorSettings = {
@@ -1565,8 +1589,9 @@ function Options:BuildOptionsTable()
 							order = 7,
 							disabled = function() return addon.db and addon.db.profile and not addon.db.profile.resourceBar.druidManaBar.enabled end,
 							args = {
-								textFormat = { type = "select", name = "Text Format", desc = "Controls what text is shown on the Druid mana bar.\n\n|cffffffffCurrent Value|r — Shows your actual mana.\n|cffffffffPercent|r — Shows your mana percentage.\n|cffffffffBoth|r — Shows both.\n|cffffffffNone|r — Hides the text.", values = textFormatValues, arg = "resourceBar.druidManaBar.textFormat", order = 1 },
-								textSize = { type = "range", name = "Text Size", desc = "Font size for the mana bar text.", min = 6, max = 18, step = 1, arg = "resourceBar.druidManaBar.textSize", order = 2 },
+								textFormat = { type = "select", name = "Text Format", desc = "Controls what text is shown on the Druid mana bar.\n\n|cffffffffCurrent|r — Shows your actual mana.\n|cffffffffPercent|r — Shows your mana percentage.\n|cffffffffBoth|r — Shows both.\n|cffffffffCurrent / Max|r — Shows current and maximum.\n|cffffffffCurrent / Max (%)|r — Shows current, maximum, and percentage.\n|cffffffffDeficit|r — Shows how much is missing. Hidden at full.\n|cffffffffNone|r — Hides the text.", values = textFormatValues, sorting = textFormatSorting, arg = "resourceBar.druidManaBar.textFormat", order = 1 },
+								numberFormat = { type = "select", name = "Number Format", desc = "Controls how numbers are displayed.", values = numberFormatValues, sorting = numberFormatSorting, arg = "resourceBar.druidManaBar.numberFormat", order = 2, disabled = function() local fmt = addon.db.profile.resourceBar.druidManaBar.textFormat; return fmt == C.TEXT_FORMAT.NONE or fmt == C.TEXT_FORMAT.PERCENT end },
+								textSize = { type = "range", name = "Text Size", desc = "Font size for the mana bar text.", min = 6, max = 18, step = 1, arg = "resourceBar.druidManaBar.textSize", order = 3 },
 							},
 						},
 					},
@@ -1601,8 +1626,9 @@ function Options:BuildOptionsTable()
 								order = 3,
 								disabled = function() return addon.db and addon.db.profile and not addon.db.profile.healthBar.enabled end,
 								args = {
-									textFormat = { type = "select", name = "Text Format", desc = "Controls what text is shown on the health bar.\n\n|cffffffffCurrent Value|r — Shows your actual health (e.g., 3256).\n|cffffffffPercent|r — Shows your health percentage (e.g., 71%).\n|cffffffffBoth|r — Shows both (e.g., 3256 (71%)).\n|cffffffffNone|r — Hides the text entirely.", values = textFormatValues, arg = "healthBar.textFormat", order = 1 },
-									textSize = { type = "range", name = "Text Size", desc = "Font size for the health text. Larger sizes are easier to read but may overflow small bars.", min = 6, max = 24, step = 1, arg = "healthBar.textSize", order = 2, disabled = function() return addon.db and addon.db.profile and addon.db.profile.healthBar.textFormat == C.TEXT_FORMAT.NONE end },
+									textFormat = { type = "select", name = "Text Format", desc = "Controls what text is shown on the health bar.\n\n|cffffffffCurrent|r — Shows your actual health (e.g., 3256).\n|cffffffffPercent|r — Shows your health percentage (e.g., 71%).\n|cffffffffBoth|r — Shows both (e.g., 3256 (71%)).\n|cffffffffCurrent / Max|r — Shows current and maximum (e.g., 3256 / 4580).\n|cffffffffCurrent / Max (%)|r — Shows current, maximum, and percentage (e.g., 3256 / 4580 (71%)).\n|cffffffffDeficit|r — Shows how much health is missing (e.g., -1324). Hidden at full.\n|cffffffffNone|r — Hides the text entirely.", values = textFormatValues, sorting = textFormatSorting, arg = "healthBar.textFormat", order = 1 },
+									numberFormat = { type = "select", name = "Number Format", desc = "Controls how numbers are displayed.\n\n|cffffffffAbbreviated|r — Large numbers shortened (e.g., 4.5k, 1.2m).\n|cffffffffFull|r — Whole numbers (e.g., 4523).\n|cffffffffComma|r — Comma-separated (e.g., 4,523).", values = numberFormatValues, sorting = numberFormatSorting, arg = "healthBar.numberFormat", order = 2, disabled = function() local fmt = addon.db.profile.healthBar.textFormat; return fmt == C.TEXT_FORMAT.NONE or fmt == C.TEXT_FORMAT.PERCENT end },
+									textSize = { type = "range", name = "Text Size", desc = "Font size for the health text. Larger sizes are easier to read but may overflow small bars.", min = 6, max = 24, step = 1, arg = "healthBar.textSize", order = 3, disabled = function() return addon.db.profile.healthBar.textFormat == C.TEXT_FORMAT.NONE end },
 								},
 							},
 							colorSettings = {
@@ -1658,8 +1684,9 @@ function Options:BuildOptionsTable()
 								order = 3,
 								disabled = function() return not addon.db.profile.petHealthBar.enabled end,
 								args = {
-									textFormat = { type = "select", name = "Text Format", desc = "Controls what text is shown on the pet health bar.\n\n|cffffffffCurrent Value|r — Shows actual health.\n|cffffffffPercent|r — Shows health percentage.\n|cffffffffBoth|r — Shows both.\n|cffffffffNone|r — Hides the text.", values = textFormatValues, arg = "petHealthBar.textFormat", order = 1 },
-									textSize = { type = "range", name = "Text Size", desc = "Font size for the pet health text.", min = 6, max = 24, step = 1, arg = "petHealthBar.textSize", order = 2, disabled = function() return addon.db.profile.petHealthBar.textFormat == C.TEXT_FORMAT.NONE end },
+									textFormat = { type = "select", name = "Text Format", desc = "Controls what text is shown on the pet health bar.\n\n|cffffffffCurrent|r — Shows actual health.\n|cffffffffPercent|r — Shows health percentage.\n|cffffffffBoth|r — Shows both.\n|cffffffffCurrent / Max|r — Shows current and maximum.\n|cffffffffCurrent / Max (%)|r — Shows current, maximum, and percentage.\n|cffffffffDeficit|r — Shows how much health is missing. Hidden at full.\n|cffffffffNone|r — Hides the text.", values = textFormatValues, sorting = textFormatSorting, arg = "petHealthBar.textFormat", order = 1 },
+									numberFormat = { type = "select", name = "Number Format", desc = "Controls how numbers are displayed.", values = numberFormatValues, sorting = numberFormatSorting, arg = "petHealthBar.numberFormat", order = 2, disabled = function() local fmt = addon.db.profile.petHealthBar.textFormat; return fmt == C.TEXT_FORMAT.NONE or fmt == C.TEXT_FORMAT.PERCENT end },
+									textSize = { type = "range", name = "Text Size", desc = "Font size for the pet health text.", min = 6, max = 24, step = 1, arg = "petHealthBar.textSize", order = 3, disabled = function() return addon.db.profile.petHealthBar.textFormat == C.TEXT_FORMAT.NONE end },
 								},
 							},
 							colorSettings = {

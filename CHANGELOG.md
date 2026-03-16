@@ -1,5 +1,11 @@
 # VeevHUD Changelog
 
+## [1.0.175] - 2026-03-16
+
+### Added
+- **Bar Text Formats** — All bars (health, resource, pet health, druid mana) now support 7 text display formats: Current, %, Current (%), Current / Max, Current / Max (%), Deficit, and None. Deficit mode shows how much health or resource is missing and hides at full.
+- **Number Format Option** — New "Number Format" dropdown on each bar lets you choose how numbers are displayed: Abbreviated (4.5k), Full (4523), or Comma (4,523). Uses WoW's locale-aware formatting for comma mode.
+
 ## [1.0.174] - 2026-03-14
 
 ### Added

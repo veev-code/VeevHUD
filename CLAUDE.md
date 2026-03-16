@@ -360,7 +360,7 @@ VeevHUD has built-in persistent debug logging that makes it easy to diagnose tim
 - Config reads: Direct access via `addon.db.profile.X.Y` — no inline fallbacks
 - Icon frames: Created as Buttons for Masque compatibility
 - Bar creation: `addon.Utils:CreateStatusBar(parent, width, height)` — creates bar + background
-- Bar helpers: `CreateBarBorder(bar, skipTop)`, `FormatBarText(value, maxValue, percent, format)`, `SmoothBarValue(current, target, speed)` → newValue, reachedTarget
+- Bar helpers: `CreateBarBorder(bar, skipTop)`, `FormatBarText(value, maxValue, percent, format, numberFormat)`, `SmoothBarValue(current, target, speed)` → newValue, reachedTarget
 - Glow helpers: `ShowButtonGlow(frame, color)` / `HideButtonGlow(frame)`, `ShowPixelGlow(frame, color, key, ...)` / `HidePixelGlow(frame, key)` — via LibCustomGlow
 - Icon wrapper: `CreateWrapperIcon(parent, buttonName, width, height)` — decouples positioning from visual effects
 - Cooldown text: `ConfigureCooldownText(cooldown, hideExternal)` — OmniCC/ElvUI integration

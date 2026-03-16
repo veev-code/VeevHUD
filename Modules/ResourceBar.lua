@@ -547,7 +547,7 @@ function ResourceBar:UpdateDruidManaBar()
 
     local db = addon.db.profile.resourceBar.druidManaBar
     if self.manaBarText and db.textFormat and db.textFormat ~= self.C.TEXT_FORMAT.NONE then
-        self.manaBarText:SetText(self.Utils:FormatBarText(mana, maxMana, percent, db.textFormat))
+        self.manaBarText:SetText(self.Utils:FormatBarText(mana, maxMana, percent, db.textFormat, db.numberFormat))
     elseif self.manaBarText then
         self.manaBarText:SetText("")
     end
@@ -1051,7 +1051,7 @@ function ResourceBar:UpdateBar()
 
     -- Update text
     if self.text and db.textFormat and db.textFormat ~= self.C.TEXT_FORMAT.NONE then
-        self:UpdateText(power, maxPower, percent, db.textFormat)
+        self.text:SetText(self.Utils:FormatBarText(power, maxPower, percent, db.textFormat, db.numberFormat))
     elseif self.text then
         self.text:SetText("")
     end
@@ -1085,10 +1085,6 @@ function ResourceBar:UpdateSpark(percent)
     local barWidth = self.bar:GetWidth()
     local sparkX = barWidth * percent
     self.spark:SetPoint("CENTER", self.bar, "LEFT", sparkX, 0)
-end
-
-function ResourceBar:UpdateText(power, maxPower, percent, format)
-    self.text:SetText(self.Utils:FormatBarText(power, maxPower, percent, format))
 end
 
 -- Combined update function for smooth bars, energy ticker, and mana tracking

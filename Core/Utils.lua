@@ -26,14 +26,22 @@ function Utils:ToKeyType(key)
 end
 
 
--- Format large numbers (1000 -> 1k, 1000000 -> 1m)
-function Utils:FormatNumber(num)
-    if num >= 1000000 then
-        return string.format("%.1fm", num / 1000000)
-    elseif num >= 1000 then
-        return string.format("%.1fk", num / 1000)
-    else
+-- Format large numbers with the given number format style
+-- numberFormat: "abbreviated" (4.5k), "full" (4523), "comma" (4,523)
+function Utils:FormatNumber(num, numberFormat)
+    if numberFormat == C.NUMBER_FORMAT.FULL then
         return tostring(math.floor(num))
+    elseif numberFormat == C.NUMBER_FORMAT.COMMA then
+        return BreakUpLargeNumbers(math.floor(num))
+    else
+        -- abbreviated (default / legacy behavior)
+        if num >= 1000000 then
+            return string.format("%.1fm", num / 1000000)
+        elseif num >= 1000 then
+            return string.format("%.1fk", num / 1000)
+        else
+            return tostring(math.floor(num))
+        end
     end
 end
 
@@ -288,15 +296,24 @@ function Utils:CreateBarGradient(bar)
     return gradient
 end
 
--- Format bar text based on format type
--- Supported formats: "current", "percent", "both"
-function Utils:FormatBarText(value, maxValue, percent, format)
-    if format == "current" then
-        return self:FormatNumber(value)
-    elseif format == "percent" then
+-- Format bar text based on format type and number format
+-- format: "current", "percent", "both", "currentMax", "deficit", "none"
+-- numberFormat: "abbreviated", "full", "comma" (optional, defaults to "abbreviated")
+function Utils:FormatBarText(value, maxValue, percent, format, numberFormat)
+    if format == C.TEXT_FORMAT.CURRENT then
+        return self:FormatNumber(value, numberFormat)
+    elseif format == C.TEXT_FORMAT.PERCENT then
         return string.format("%d%%", percent * 100)
-    elseif format == "both" then
-        return string.format("%s (%d%%)", self:FormatNumber(value), percent * 100)
+    elseif format == C.TEXT_FORMAT.BOTH then
+        return string.format("%s (%d%%)", self:FormatNumber(value, numberFormat), percent * 100)
+    elseif format == C.TEXT_FORMAT.CURRENT_MAX then
+        return string.format("%s / %s", self:FormatNumber(value, numberFormat), self:FormatNumber(maxValue, numberFormat))
+    elseif format == C.TEXT_FORMAT.CURRENT_MAX_PERCENT then
+        return string.format("%s / %s (%d%%)", self:FormatNumber(value, numberFormat), self:FormatNumber(maxValue, numberFormat), percent * 100)
+    elseif format == C.TEXT_FORMAT.DEFICIT then
+        local missing = maxValue - value
+        if missing <= 0 then return "" end
+        return string.format("-%s", self:FormatNumber(missing, numberFormat))
     else
         return ""
     end

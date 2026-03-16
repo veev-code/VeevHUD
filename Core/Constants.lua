@@ -90,10 +90,20 @@ C.GLOW_MODE = {
 
 -- Valid values for healthBar.textFormat and resourceBar.textFormat
 C.TEXT_FORMAT = {
-    CURRENT = "current", -- Show current value (e.g., "3256")
-    PERCENT = "percent", -- Show percentage (e.g., "71%")
-    BOTH = "both",       -- Show both (e.g., "3256 (71%)")
-    NONE = "none",       -- Hide text
+    CURRENT = "current",         -- Show current value (e.g., "3256")
+    PERCENT = "percent",         -- Show percentage (e.g., "71%")
+    BOTH = "both",               -- Show both (e.g., "3256 (71%)")
+    CURRENT_MAX = "currentMax",          -- Show current / max (e.g., "3256 / 4580")
+    CURRENT_MAX_PERCENT = "currentMaxPercent", -- Show current / max (percent) (e.g., "3256 / 4580 (71%)")
+    DEFICIT = "deficit",                 -- Show missing amount (e.g., "-1324", blank at full)
+    NONE = "none",                       -- Hide text
+}
+
+-- Valid values for bar numberFormat settings
+C.NUMBER_FORMAT = {
+    ABBREVIATED = "abbreviated", -- 4.5k, 1.2m (default)
+    FULL = "full",               -- 4523 (whole numbers)
+    COMMA = "comma",             -- 4,523 (comma-separated)
 }
 
 -- Valid values for cooldownPulse.animationIn / animationOut
@@ -344,7 +354,8 @@ C.DEFAULTS = {
             width = 230,  -- Width of 4 core icons (4×56 + 3×2 spacing)
             height = 14,
             offsetY = 0,
-            textFormat = "current",  -- "current", "percent", "both", "none"
+            textFormat = "current",  -- "current", "percent", "both", "currentMax", "deficit", "none"
+            numberFormat = "abbreviated",  -- "abbreviated", "full", "comma"
             textSize = 11,
             powerColor = true,    -- Use power-type color (blue/red/yellow) by default
             color = { r = 0.8, g = 0.8, b = 0.8 },  -- Custom color when powerColor is off (neutral light grey)
@@ -388,6 +399,7 @@ C.DEFAULTS = {
                 enabled = true,
                 height = 4,
                 textFormat = "none",
+                numberFormat = "abbreviated",
                 textSize = 9,
                 showSpark = false,
                 color = { r = 0.00, g = 0.00, b = 1.00 },
@@ -401,7 +413,8 @@ C.DEFAULTS = {
             enabled = true,
             width = 230,  -- Width of 4 core icons (4×56 + 3×2 spacing)
             height = 10,
-            textFormat = "percent",  -- "current", "percent", "both", "none"
+            textFormat = "percent",  -- "current", "percent", "both", "currentMax", "deficit", "none"
+            numberFormat = "abbreviated",  -- "abbreviated", "full", "comma"
             textSize = 10,
             classColored = true,
             color = { r = 0.0, g = 0.8, b = 0.0 },  -- Custom color when classColored is off (green default)
@@ -413,7 +426,8 @@ C.DEFAULTS = {
             enabled = true,
             width = 230,
             height = 4,
-            textFormat = "none",  -- "current", "percent", "both", "none"
+            textFormat = "none",  -- "current", "percent", "both", "currentMax", "deficit", "none"
+            numberFormat = "abbreviated",  -- "abbreviated", "full", "comma"
             textSize = 9,
             color = { r = 0.0, g = 0.8, b = 0.0 },
             showHealPrediction = true,

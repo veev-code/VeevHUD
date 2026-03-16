@@ -29,8 +29,6 @@ These were requested by multiple people or have strong gameplay impact.
 ## Feature Requests — Medium Priority
 
 - **Dual Countdown on Icons (CD + Debuff)** — For abilities where both a cooldown and a debuff matter (e.g., Mangle Cat — no CD but debuff is key), show a secondary timer in an icon corner so both can be tracked on one icon without adding a separate icon. *(Artvil)*
-- **Health Bar Improvements** — Potential enhancements:
-  - Text options: max health, health deficit, whole numbers (not just "k" abbreviation)
 
 ---
 
@@ -126,3 +124,4 @@ Items from feedback that have been completed, with the version they shipped in.
 | Track Shared Debuffs from Any Caster                              | 1.0.143 | Same-class shared debuffs (17 spells); cross-class equivalence intentionally not in scope |
 | Totem element reordering + Auxiliary Row                          | 1.0.148 | Standalone Totem Bar → draggable element slots in new 4th row    |
 | Resource-gated cooldown transition                                | 1.0.173 | Resource fill/bar visible during cooldowns; no more jarring snap |
+| Bar text improvements (max, deficit, number format)               | 1.0.175 | 7 text formats + 3 number formats on all bars                    |
