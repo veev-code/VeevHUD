@@ -2,7 +2,7 @@
     VeevHUD - English Localization (default)
 ]]
 
-local ADDON_NAME, addon = ...
+local _, addon = ...
 
 addon.L = addon.L or {}
 local L = addon.L

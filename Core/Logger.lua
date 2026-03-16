@@ -21,7 +21,7 @@
     ─────────────────────────────────────────────────────────────────────────────
 ]]
 
-local ADDON_NAME, addon = ...
+local _, addon = ...
 
 -- Create Utils table if it doesn't exist (Logger loads early)
 addon.Utils = addon.Utils or {}

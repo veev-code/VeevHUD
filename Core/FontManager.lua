@@ -3,7 +3,7 @@
     Handles font registration with LibSharedMedia and provides font utilities
 ]]
 
-local ADDON_NAME, addon = ...
+local _, addon = ...
 
 local FontManager = {}
 addon.FontManager = FontManager

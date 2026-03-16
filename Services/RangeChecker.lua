@@ -12,7 +12,7 @@
     - Only checks range when we have a valid target
 ]]
 
-local ADDON_NAME, addon = ...
+local _, addon = ...
 
 local RangeChecker = {}
 addon.RangeChecker = RangeChecker

@@ -11,7 +11,7 @@
     - BuffGroup-aware checking (equivalent and exclusive groups)
 ]]
 
-local ADDON_NAME, addon = ...
+local _, addon = ...
 local C = addon.Constants
 
 local BuffReminders = {}

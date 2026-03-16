@@ -3,7 +3,7 @@
     Displays player resource (mana/rage/energy) bar
 ]]
 
-local ADDON_NAME, addon = ...
+local _, addon = ...
 
 -- Localized WoW API functions (hot path)
 local UnitBuff = UnitBuff

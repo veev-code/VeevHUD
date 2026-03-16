@@ -6,7 +6,7 @@
     aura is active on a target (debuff) or self (buff).
 ]]
 
-local ADDON_NAME, addon = ...
+local _, addon = ...
 
 -- Localized WoW API functions (hot path)
 local GetTime = GetTime

@@ -8,7 +8,7 @@
     - AuraCache.lua: Buff/debuff caching system
 ]]
 
-local ADDON_NAME, addon = ...
+local _, addon = ...
 
 -- Utils table may already exist from Logger.lua (which loads first)
 addon.Utils = addon.Utils or {}

@@ -10,7 +10,7 @@
     - ResourceBar uses it to show/hide the mana tick indicator
 ]]
 
-local ADDON_NAME, addon = ...
+local _, addon = ...
 local C = addon.Constants
 
 local FiveSecondRule = {}

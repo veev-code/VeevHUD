@@ -1812,7 +1812,7 @@ function Options:BuildOptionsTable()
 									showDuration = { type = "toggle", name = "Show Duration", desc = "Displays the remaining time on aura buffs as text on the icon. Disable if you prefer a cleaner look or if it overlaps with stack counts.", width = "normal", arg = "auraTracker.showDuration", order = 1 },
 									slideAnimation = { type = "toggle", name = "Slide Animation", desc = "When auras appear or disappear, the remaining icons smoothly slide to re-center instead of snapping instantly. Disable for instant repositioning.", width = "normal", arg = "auraTracker.slideAnimation", order = 2 },
 									punchScale = { type = "range", name = "Activation Pop", desc = "How much the icon briefly grows when an aura activates or refreshes. Set to 100% to disable the pop animation.", min = 1.0, max = 2.0, step = 0.05, isPercent = true, arg = "auraTracker.punchScale", order = 3 },
-									sortOrder = { type = "select", name = "Sort Order", desc = "How active aura icons are arranged.\n\n|cffffffffActivation Order|r — First-activated aura appears on the left, newest on the right.\n\n|cffffffffFixed|r — Icons stay in a consistent order based on spell registration (class procs first, then externals, then custom).\n\n|cffffffffLeast Remaining|r — Aura closest to expiring appears on the left. Icons re-sort as durations tick down.", values = { fifo = "Activation Order", fixed = "Fixed", remaining = "Least Remaining" }, sorting = { "fifo", "fixed", "remaining" }, arg = "auraTracker.sortOrder", order = 4 },
+									sortOrder = { type = "select", name = "Sort Order", desc = "How active aura icons are arranged.\n\n|cffffffffActivation Order|r — First-activated aura appears on the left, newest on the right.\n\n|cffffffffFixed|r — Icons stay in a consistent order based on spell registration (class procs first, then externals, then custom).\n\n|cffffffffLeast Remaining|r — Aura closest to expiring appears on the left. Icons re-sort as durations tick down.", values = { [C.AURA_SORT_ORDER.FIFO] = "Activation Order", [C.AURA_SORT_ORDER.FIXED] = "Fixed", [C.AURA_SORT_ORDER.REMAINING] = "Least Remaining" }, sorting = { C.AURA_SORT_ORDER.FIFO, C.AURA_SORT_ORDER.FIXED, C.AURA_SORT_ORDER.REMAINING }, arg = "auraTracker.sortOrder", order = 4 },
 								},
 							},
 						},
@@ -2376,6 +2376,13 @@ end
 -- Aura Tracker Options Tab
 -------------------------------------------------------------------------------
 
+-- Shared dropdown values for aura source filter (used by external + custom aura config)
+local auraSourceFilterValues = {
+	[C.AURA_SOURCE_ANY] = "Any",
+	[C.AURA_SOURCE_OWN] = "Own Only",
+	[C.AURA_SOURCE_NOT_OWN] = "Not Own",
+}
+
 function Options:BuildAuraTrackerOptions(settingsGroup)
 	local LibSpellDB = addon.LibSpellDB
 
@@ -2661,7 +2668,7 @@ function Options:BuildExternalBuffsArgs()
 			groupArgs[spellKey .. "_source"] = {
 				type = "select",
 				name = "",
-				values = { any = "Any", own = "Own Only", notOwn = "Not Own" },
+				values = auraSourceFilterValues,
 				get = function()
 					return addon:GetAuraSourceFilter(spellID, "external")
 				end,
@@ -2905,7 +2912,7 @@ function Options:RebuildCustomAuraEntries()
 		entriesArgs[entryKey .. "_source"] = {
 			type = "select",
 			name = "",
-			values = { any = "Any", own = "Own Only", notOwn = "Not Own" },
+			values = auraSourceFilterValues,
 			get = function()
 				return addon:GetAuraSourceFilter(filterSpellID, "custom")
 			end,
@@ -2925,7 +2932,7 @@ function Options:RebuildCustomAuraEntries()
 				-- Clean up per-aura config before removing
 				if filterSpellID then
 					addon:SetAuraGlowEnabled(filterSpellID, true)
-					addon:SetAuraSourceFilter(filterSpellID, "any", "custom")
+					addon:SetAuraSourceFilter(filterSpellID, C.AURA_SOURCE_ANY, "custom")
 				end
 				table.remove(customAuras, i)
 				self:RebuildCustomAuraEntries()

@@ -24,7 +24,7 @@
     =====================================================================
 ]]
 
-local ADDON_NAME, addon = ...
+local _, addon = ...
 
 local StanceTracker = {}
 addon:RegisterModule("StanceTracker", StanceTracker)

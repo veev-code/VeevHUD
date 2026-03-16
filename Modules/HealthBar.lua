@@ -3,7 +3,7 @@
     Displays player health bar with heal prediction
 ]]
 
-local ADDON_NAME, addon = ...
+local _, addon = ...
 
 local HealthBar = {}
 addon:RegisterModule("HealthBar", HealthBar)

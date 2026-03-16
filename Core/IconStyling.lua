@@ -4,7 +4,7 @@
     Uses the same textures as Masque's "Classic Enhanced" skin
 ]]
 
-local ADDON_NAME, addon = ...
+local _, addon = ...
 
 addon.IconStyling = {}
 local IconStyling = addon.IconStyling

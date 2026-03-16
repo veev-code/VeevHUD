@@ -13,7 +13,8 @@
     3. Custom user-added auras (profile)
 ]]
 
-local ADDON_NAME, addon = ...
+local _, addon = ...
+local C = addon.Constants
 
 local AuraTracker = {}
 addon:RegisterModule("AuraTracker", AuraTracker)
@@ -602,9 +603,9 @@ function AuraTracker:UpdateProcIcon(frame, db)
     -- Apply source filter (own/notOwn/any)
     if name and source then
         local filter = addon:GetAuraSourceFilter(spellID, procData.source)
-        if filter == "own" and source ~= "player" then
+        if filter == C.AURA_SOURCE_OWN and source ~= "player" then
             name = nil
-        elseif filter == "notOwn" and source == "player" then
+        elseif filter == C.AURA_SOURCE_NOT_OWN and source == "player" then
             name = nil
         end
     end
@@ -754,20 +755,20 @@ function AuraTracker:RepositionIcons()
 
     -- Sort visible icons based on configured sort order
     local sortOrder = db.sortOrder
-    if sortOrder == "fifo" then
+    if sortOrder == C.AURA_SORT_ORDER.FIFO then
         table.sort(visibleIcons, function(a, b)
             local aTime = a._activationTime or 0
             local bTime = b._activationTime or 0
             return aTime < bTime
         end)
-    elseif sortOrder == "remaining" then
+    elseif sortOrder == C.AURA_SORT_ORDER.REMAINING then
         table.sort(visibleIcons, function(a, b)
             local aExp = a.lastExpirationTime or math.huge
             local bExp = b.lastExpirationTime or math.huge
             return aExp < bExp
         end)
     end
-    -- "fixed" = no sort, preserve self.icons registration order
+    -- FIXED = no sort, preserve self.icons registration order
 
     self.slideAnimator:LayoutFrames(visibleIcons, iconWidth, spacing, db.slideAnimation)
 end
@@ -872,7 +873,7 @@ function AuraTracker:PlayProcAnimation(frame)
     -- Punch the visual (not the wrapper) so slide animation is unaffected
     local scale = addon.db.profile.auraTracker.punchScale
     if self.Animations and frame.visual and scale > 1 then
-        self.Animations:PlayScalePunch(frame.visual, scale, "procAnim")
+        self.Animations:PlayScalePunch(frame.visual, scale)
     end
 end
 

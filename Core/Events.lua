@@ -2,7 +2,7 @@
     VeevHUD - Event Handling System
 ]]
 
-local ADDON_NAME, addon = ...
+local _, addon = ...
 
 -- Localized WoW API functions (hot path)
 local CombatLogGetCurrentEventInfo = CombatLogGetCurrentEventInfo

@@ -3,7 +3,7 @@
     Displays pet health bar, auto-hides when no pet is active
 ]]
 
-local ADDON_NAME, addon = ...
+local _, addon = ...
 
 local PetHealthBar = {}
 addon:RegisterModule("PetHealthBar", PetHealthBar)

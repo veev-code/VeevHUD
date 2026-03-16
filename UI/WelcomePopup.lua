@@ -3,7 +3,7 @@
     Shows a one-time welcome dialog on first load with Discord link
 ]]
 
-local ADDON_NAME, addon = ...
+local _, addon = ...
 local C = addon.Constants
 
 addon.WelcomePopup = {}

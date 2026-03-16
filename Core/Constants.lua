@@ -3,7 +3,7 @@
     Static values and default settings
 ]]
 
-local ADDON_NAME, addon = ...
+local _, addon = ...
 
 addon.Constants = {}
 local C = addon.Constants
@@ -11,10 +11,6 @@ local C = addon.Constants
 -------------------------------------------------------------------------------
 -- Addon Info
 -------------------------------------------------------------------------------
-
-C.ADDON_NAME = ADDON_NAME
--- Version is set later in Core.lua after API is available
-C.VERSION = nil
 
 -- URLs (matches TOC metadata)
 C.DISCORD_URL = "https://discord.gg/HuSXTa5XNq"
@@ -195,14 +191,6 @@ C.COMBO_POINT_COLOR = { r = 1.0, g = 0.82, b = 0.0 }
 C.MAX_COMBO_POINTS = 5
 
 -------------------------------------------------------------------------------
--- UI Colors
--------------------------------------------------------------------------------
-
-C.COLORS = {
-    TEXT = { r = 1.0, g = 0.906, b = 0.745 },  -- #ffe7be warm cream/gold for cooldown/stack text
-}
-
--------------------------------------------------------------------------------
 -- Timing Constants
 -------------------------------------------------------------------------------
 
@@ -227,9 +215,6 @@ C.ENERGY_PER_TICK_ADRENALINE = 40
 
 -- Five Second Rule duration (spirit-based mana regen suppressed after spending mana)
 C.FIVE_SECOND_RULE_DURATION = 5.0
-
--- Ready glow "almost ready" threshold fallback (see db.readyGlowThreshold for configurable value)
-C.READY_GLOW_THRESHOLD = 0.5
 
 -- Mana spike threshold - gains above this % of max mana are filtered (potions, life tap)
 C.MANA_SPIKE_THRESHOLD = 0.10
@@ -457,7 +442,7 @@ C.DEFAULTS = {
             backdropGlowColor = {1.0, 0.7, 0.35},  -- Warm orange-gold (alpha controlled by intensity)
             punchScale = 1.2,  -- Scale factor for activation pop animation (1.0 = disabled)
             slideAnimation = true,  -- Smooth sliding when auras appear/disappear
-            sortOrder = "fifo",  -- Sort order: "fixed", "fifo", "remaining"
+            sortOrder = C.AURA_SORT_ORDER.FIFO,
             customAuras = {},  -- User-added auras: array of { id = spellID } or { name = "Spell Name" }
         },
 

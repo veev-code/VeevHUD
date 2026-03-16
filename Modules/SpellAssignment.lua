@@ -7,7 +7,7 @@
     separation from Layer 4 (Orchestration).
 ]]
 
-local ADDON_NAME, addon = ...
+local _, addon = ...
 
 local SpellAssignment = {}
 addon:RegisterModule("SpellAssignment", SpellAssignment)

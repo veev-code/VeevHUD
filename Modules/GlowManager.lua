@@ -13,7 +13,7 @@
     Ready Glow Requirements: See CooldownIcons.lua header comments for full spec.
 ]]
 
-local ADDON_NAME, addon = ...
+local _, addon = ...
 local C = addon.Constants
 
 -- Localized WoW API functions (hot path)

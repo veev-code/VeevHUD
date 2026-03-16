@@ -3,7 +3,7 @@
     Handles statusbar texture registration with LibSharedMedia and provides texture utilities
 ]]
 
-local ADDON_NAME, addon = ...
+local _, addon = ...
 
 local TextureManager = {}
 addon.TextureManager = TextureManager

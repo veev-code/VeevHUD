@@ -10,7 +10,7 @@
     - Only shown for Rogues and Feral Druids (Cat Form)
 ]]
 
-local ADDON_NAME, addon = ...
+local _, addon = ...
 local C = addon.Constants
 
 local ComboPoints = {}
@@ -313,7 +313,7 @@ function ComboPoints:PlayActivateAnimation(bar)
     
     -- Use Animations utility for consistent scale punch behavior
     if self.Animations then
-        self.Animations:PlayScalePunch(bar, 1.15, "activateAnim")
+        self.Animations:PlayScalePunch(bar, 1.15)
     end
 end
 

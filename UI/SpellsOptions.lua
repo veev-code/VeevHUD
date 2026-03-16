@@ -37,7 +37,7 @@
        AceGUI widget internals (OnAcquire, OnRelease, SetValue, layout callbacks).
 ]]
 
-local ADDON_NAME, addon = ...
+local _, addon = ...
 
 local SpellsOptions = {}
 addon.SpellsOptions = SpellsOptions

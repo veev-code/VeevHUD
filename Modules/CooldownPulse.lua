@@ -12,7 +12,7 @@
     - Frame pool: reuses pulse frames to avoid garbage
 ]]
 
-local ADDON_NAME, addon = ...
+local _, addon = ...
 
 local tremove = tremove
 local tinsert = tinsert

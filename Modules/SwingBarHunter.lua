@@ -6,7 +6,7 @@
     Loaded before SwingBar.lua. Registers as addon.SwingBarStrategies.HUNTER.
 ]]
 
-local ADDON_NAME, addon = ...
+local _, addon = ...
 addon.SwingBarStrategies = addon.SwingBarStrategies or {}
 
 local GetTime = GetTime

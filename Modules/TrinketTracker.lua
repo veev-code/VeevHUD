@@ -12,7 +12,7 @@
     - Display priority: on-use buff > proc buff > on-use CD > ICD > ready
 ]]
 
-local ADDON_NAME, addon = ...
+local _, addon = ...
 
 local TrinketTracker = {}
 addon:RegisterModule("TrinketTracker", TrinketTracker)

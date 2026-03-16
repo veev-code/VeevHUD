@@ -7,7 +7,7 @@
     Rage: Not predictable (combat-generated)
 ]]
 
-local ADDON_NAME, addon = ...
+local _, addon = ...
 local C = addon.Constants
 
 local ResourcePrediction = {}

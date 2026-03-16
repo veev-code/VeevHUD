@@ -12,7 +12,7 @@
 --   7. Lerp with minimum step: Prevent stuck animations in OnUpdate
 -------------------------------------------------------------------------------
 
-local addonName, addon = ...
+local _, addon = ...
 
 local Animations = {}
 addon.Animations = Animations
@@ -107,36 +107,6 @@ function Animations:FadeOut(frame)
     
     frame.fadeOut:Stop()
     frame.fadeOut:Play()
-end
-
--- Instantly show without animation (cleanup any running animations)
-function Animations:ShowInstant(frame)
-    if not frame then return end
-    
-    if frame.fadeIn and frame.fadeIn:IsPlaying() then
-        frame.fadeIn:Stop()
-    end
-    if frame.fadeOut and frame.fadeOut:IsPlaying() then
-        frame.fadeOut:Stop()
-    end
-    
-    frame:SetAlpha(1)
-    frame:Show()
-end
-
--- Instantly hide without animation (cleanup any running animations)
-function Animations:HideInstant(frame)
-    if not frame then return end
-    
-    if frame.fadeIn and frame.fadeIn:IsPlaying() then
-        frame.fadeIn:Stop()
-    end
-    if frame.fadeOut and frame.fadeOut:IsPlaying() then
-        frame.fadeOut:Stop()
-    end
-    
-    frame:SetAlpha(0)
-    frame:Hide()
 end
 
 -------------------------------------------------------------------------------
@@ -249,8 +219,7 @@ end)
 -- Parameters:
 --   frame: The frame to animate
 --   scale: Target scale (e.g., 1.15 for 15% larger)
---   cacheKey: Unused, kept for API compatibility
-function Animations:PlayScalePunch(frame, scale, cacheKey)
+function Animations:PlayScalePunch(frame, scale)
     if not frame then return end
 
     scale = scale or 1.15
@@ -260,13 +229,6 @@ function Animations:PlayScalePunch(frame, scale, cacheKey)
     if oldState then
         ResetPunchScale(frame, oldState)
         punchDriver.active[frame] = nil
-    end
-
-    -- Also stop any legacy AnimationGroup-based animations (cleanup after code update)
-    cacheKey = cacheKey or "scalePunch"
-    if frame[cacheKey] and type(frame[cacheKey]) == "table" and frame[cacheKey].Stop then
-        frame[cacheKey]:Stop()
-        frame[cacheKey] = nil
     end
 
     -- Save the base anchor before scaling so we can always restore correctly,
@@ -303,11 +265,6 @@ function Animations:StopScalePunch(frame)
         ResetPunchScale(frame, state)
         punchDriver.active[frame] = nil
     end
-end
-
--- Check if frame has an active punch animation (for grace period logic)
-function Animations:IsPunchActive(frame)
-    return frame and punchDriver.active[frame] ~= nil
 end
 
 -- Update the saved base offset for an active punch.

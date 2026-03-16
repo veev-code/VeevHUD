@@ -3,7 +3,7 @@
     Spell cooldowns, effective spell ID resolution, and spell power info
 ]]
 
-local ADDON_NAME, addon = ...
+local _, addon = ...
 
 addon.Utils = addon.Utils or {}
 local Utils = addon.Utils

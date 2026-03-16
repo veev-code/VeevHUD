@@ -10,7 +10,7 @@
     No action bar scanning - spells are shown based on spec relevance.
 ]]
 
-local ADDON_NAME, addon = ...
+local _, addon = ...
 
 local SpellTracker = {}
 addon:RegisterModule("SpellTracker", SpellTracker)

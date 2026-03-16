@@ -21,7 +21,7 @@
       swingBar, primaryRow, secondaryRow, utilityRow
 ]]
 
-local ADDON_NAME, addon = ...
+local _, addon = ...
 
 local Layout = {}
 addon.Layout = Layout

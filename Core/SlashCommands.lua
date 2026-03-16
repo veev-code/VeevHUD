@@ -3,7 +3,7 @@
     Handles all /vh and /veevhud command processing
 ]]
 
-local ADDON_NAME, addon = ...
+local _, addon = ...
 
 addon.SlashCommands = {}
 local SlashCommands = addon.SlashCommands

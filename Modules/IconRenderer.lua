@@ -8,7 +8,7 @@
     a common rendering pipeline.
 ]]
 
-local ADDON_NAME, addon = ...
+local _, addon = ...
 local C = addon.Constants
 
 -- Localized WoW API functions (hot path)
@@ -132,7 +132,7 @@ function IconRenderer:PlayCastFeedback(frame)
 
     -- Use Animations utility for consistent scale punch behavior
     if self.Animations then
-        self.Animations:PlayScalePunch(frame, scale, "punchAnim")
+        self.Animations:PlayScalePunch(frame, scale)
     end
 end
 

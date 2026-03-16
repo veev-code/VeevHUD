@@ -23,7 +23,7 @@
     =====================================================================
 ]]
 
-local ADDON_NAME, addon = ...
+local _, addon = ...
 
 local TotemTracker = {}
 addon:RegisterModule("TotemTracker", TotemTracker)

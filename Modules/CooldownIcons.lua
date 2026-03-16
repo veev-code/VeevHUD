@@ -73,7 +73,7 @@
         This allows the glow to trigger fresh on the next cooldown cycle.
 ]]
 
-local ADDON_NAME, addon = ...
+local _, addon = ...
 local C = addon.Constants
 
 -- Localized WoW API functions (hot path)

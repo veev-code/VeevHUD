@@ -4,7 +4,7 @@
     Supports Bartender4, ElvUI, Dominos, and default UI action bars.
 ]]
 
-local ADDON_NAME, addon = ...
+local _, addon = ...
 
 addon.Keybinds = {}
 local Keybinds = addon.Keybinds
