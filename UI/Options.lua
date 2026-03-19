@@ -3142,21 +3142,45 @@ function Options:BuildBuffRemindersOptions()
 		local seenGroups = {}
 		local order = 10
 
-		-- Build deduplicated list, resolving groups to canonical representatives
+		-- Build deduplicated list, resolving groups to canonical representatives.
+		-- Mixed-target exclusive groups (e.g., SHAMAN_SHIELD with Earth Shield
+		-- on allies + Water/Lightning Shield on self) are split into separate
+		-- entries, matching BuildReminderList behavior.
+		local brModule = addon:GetModule("BuffReminders")
+		local SM = brModule and brModule.SPLIT_MODE
 		local entries = {}
 		for spellID, spellData in pairs(longBuffs) do
 			local groupName = spellData.buffGroup
 			if groupName then
 				if not seenGroups[groupName] then
 					seenGroups[groupName] = true
-					-- Use the group's canonical representative (first in group definition),
-					-- matching BuildReminderList behavior and ensuring consistent defaults
 					local groupInfo = LibSpellDB.BuffGroups[groupName]
 					if groupInfo and groupInfo.spells and groupInfo.spells[1] then
-						local repID = groupInfo.spells[1]
-						local repData = LibSpellDB:GetSpellInfo(repID)
-						if repData then
-							table.insert(entries, { spellID = repID, data = repData, groupName = groupName })
+						-- Check for mixed-target exclusive groups via cached module method
+						local selfSpells, allySpells
+						if brModule then
+							selfSpells, allySpells = brModule:GetMixedTargetSplit(groupName)
+						end
+						if selfSpells and allySpells then
+							-- Self-target entry (Water Shield / Lightning Shield)
+							local selfRep = selfSpells[1]
+							local selfData = LibSpellDB:GetSpellInfo(selfRep)
+							if selfData then
+								table.insert(entries, { spellID = selfRep, data = selfData, groupName = groupName, splitMode = SM.SELF, splitSelfSpells = selfSpells })
+							end
+							-- Ally-target entries (Earth Shield)
+							for _, allyID in ipairs(allySpells) do
+								local allyData = LibSpellDB:GetSpellInfo(allyID)
+								if allyData then
+									table.insert(entries, { spellID = allyID, data = allyData, groupName = groupName, splitMode = SM.ALLY })
+								end
+							end
+						else
+							local repID = groupInfo.spells[1]
+							local repData = LibSpellDB:GetSpellInfo(repID)
+							if repData then
+								table.insert(entries, { spellID = repID, data = repData, groupName = groupName })
+							end
 						end
 					end
 				end
@@ -3181,7 +3205,22 @@ function Options:BuildBuffRemindersOptions()
 			local knownEntries = {}
 			for _, entry in ipairs(entries) do
 				local known = false
-				if entry.groupName then
+				if entry.splitMode then
+					-- Split entries: check only the relevant spell(s)
+					if entry.splitMode == SM.SELF and entry.splitSelfSpells then
+						for _, gSpellID in ipairs(entry.splitSelfSpells) do
+							local hr = LibSpellDB:GetHighestKnownRank(gSpellID)
+							if hr and IsSpellKnown(hr) then
+								known = true
+								break
+							end
+						end
+					else
+						-- Ally split: check the single spell
+						local hr = LibSpellDB:GetHighestKnownRank(entry.spellID)
+						known = hr and IsSpellKnown(hr)
+					end
+				elseif entry.groupName then
 					local groupInfo = LibSpellDB.BuffGroups[entry.groupName]
 					if groupInfo then
 						if groupInfo.talentGate then
@@ -3210,7 +3249,6 @@ function Options:BuildBuffRemindersOptions()
 		end
 
 		-- Sort: enabled-by-default first, then alphabetically by display name
-		local brModule = addon:GetModule("BuffReminders")
 		table.sort(entries, function(a, b)
 			local aDefaults = brModule and brModule.GetSpellDefaults and brModule:GetSpellDefaults(a.spellID)
 			local bDefaults = brModule and brModule.GetSpellDefaults and brModule:GetSpellDefaults(b.spellID)
@@ -3219,9 +3257,10 @@ function Options:BuildBuffRemindersOptions()
 			if aEnabled ~= bEnabled then
 				return aEnabled  -- enabled first
 			end
-			-- Within same enabled state, use display name
-			local aName = a.groupName and LibSpellDB.BuffGroups[a.groupName] and LibSpellDB.BuffGroups[a.groupName].description or (a.data.name or "")
-			local bName = b.groupName and LibSpellDB.BuffGroups[b.groupName] and LibSpellDB.BuffGroups[b.groupName].description or (b.data.name or "")
+			-- Within same enabled state, use display name.
+			-- Ally-split entries use spell name; self-split and non-split use group description.
+			local aName = (a.groupName and a.splitMode ~= SM.ALLY) and LibSpellDB.BuffGroups[a.groupName] and LibSpellDB.BuffGroups[a.groupName].description or (a.data.name or "")
+			local bName = (b.groupName and b.splitMode ~= SM.ALLY) and LibSpellDB.BuffGroups[b.groupName] and LibSpellDB.BuffGroups[b.groupName].description or (b.data.name or "")
 			return aName < bName
 		end)
 
@@ -3241,9 +3280,11 @@ function Options:BuildBuffRemindersOptions()
 				local defaultCombatState = defaults and defaults.combatState or "any"
 				local defaultTrackTarget = defaults and defaults.trackTarget or "player"
 
-				-- Group name for the buff group
+				-- Group label: ally-split entries use the spell name directly ("Earth Shield")
+				-- since they track a single spell. Self-split and non-split groups use
+				-- the group description ("Shaman shields") since they cover multiple spells.
 				local groupLabel = spellName
-				if groupName then
+				if groupName and entry.splitMode ~= SM.ALLY then
 					local groupInfo = LibSpellDB.BuffGroups[groupName]
 					if groupInfo and groupInfo.description then
 						groupLabel = groupInfo.description
@@ -3353,16 +3394,25 @@ function Options:BuildBuffRemindersOptions()
 
 				-- Add min stacks option for spells with charges (Inner Fire, Water Shield, Lightning Shield)
 				if spellData.duration and spellData.duration <= 600 then
-					-- Check if any spell in this entry (or its group) has charges
+					-- Check if any spell in this entry (or its group) has charges.
+					-- For split entries, only check the relevant subset.
 					local maxCharges = 0
-					if groupName and LibSpellDB then
+					local chargeSpells = nil
+					if entry.splitMode == SM.SELF and entry.splitSelfSpells then
+						chargeSpells = entry.splitSelfSpells
+					elseif entry.splitMode == SM.ALLY then
+						chargeSpells = {spellID}
+					elseif groupName and LibSpellDB then
 						local groupInfo = LibSpellDB.BuffGroups[groupName]
 						if groupInfo and groupInfo.spells then
-							for _, gSpellID in ipairs(groupInfo.spells) do
-								local gData = LibSpellDB:GetSpellInfo(gSpellID)
-								if gData and gData.charges and gData.charges > maxCharges then
-									maxCharges = gData.charges
-								end
+							chargeSpells = groupInfo.spells
+						end
+					end
+					if chargeSpells then
+						for _, gSpellID in ipairs(chargeSpells) do
+							local gData = LibSpellDB:GetSpellInfo(gSpellID)
+							if gData and gData.charges and gData.charges > maxCharges then
+								maxCharges = gData.charges
 							end
 						end
 					elseif spellData.charges then
@@ -3393,9 +3443,9 @@ function Options:BuildBuffRemindersOptions()
 				end
 
 				-- Add priority selector for exclusive buff groups (always on its own line).
-				-- Skip for weapon enchant groups — those show the weapon icon, not the spell icon,
-				-- so the priority selection has no visible effect.
-				if groupName then
+				-- Skip for weapon enchant groups and split entries — split groups already
+				-- show the correct spell directly, so priority selection is not needed.
+				if groupName and not entry.splitMode then
 					local groupInfo = LibSpellDB.BuffGroups[groupName]
 					if groupInfo and groupInfo.relationship == "exclusive" and not groupInfo.weaponEnchant then
 						local priorityValues = {}

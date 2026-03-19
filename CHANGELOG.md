@@ -1,5 +1,13 @@
 # VeevHUD Changelog
 
+## [1.0.176] - 2026-03-18
+
+### Added
+- **Buff Reminders: Earth Shield + Water Shield Split Tracking** — Resto Shamans now get separate buff reminders for Earth Shield (on party members) and their self-shield (Water Shield / Lightning Shield). Earth Shield defaults to Party tracking and reminds when it falls off the tank. Water Shield tracks on self as before. If you put Earth Shield on yourself, both reminders are suppressed — no false nagging. Previously, these were grouped as a single "Shaman shields" reminder that couldn't track both simultaneously. *(bewz)*
+
+### LibSpellDB Updates
+- Added Shadowstep for Subtlety Rogues — gap-close with 30s cooldown and damage buff tracking.
+
 ## [1.0.175] - 2026-03-16
 
 ### Added

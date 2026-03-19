@@ -31,6 +31,13 @@ local TRACK_TARGET = {
     RAID = "raid",
 }
 
+-- Split mode constants for mixed-target exclusive groups
+local SPLIT_MODE = {
+    SELF = "self",   -- Self-target spells (Water Shield, Lightning Shield)
+    ALLY = "ally",   -- Ally-target spells (Earth Shield)
+}
+BuffReminders.SPLIT_MODE = SPLIT_MODE  -- Exposed for Options UI
+
 -- Check if offhand slot contains a weapon (not shield/held-in-offhand/empty)
 local function HasOffhandWeapon()
     local itemID = GetInventoryItemID("player", 17)  -- INVSLOT_OFFHAND
@@ -47,6 +54,54 @@ BuffReminders.visibleIcons = {}   -- Currently visible icon frames
 BuffReminders.containerFrame = nil
 BuffReminders.initialized = false
 BuffReminders.iconCounter = 0     -- Unique frame names for Masque
+
+-------------------------------------------------------------------------------
+-- Mixed-Target Exclusive Group Detection
+-- Cached per-group; result is session-static (LibSpellDB data doesn't change).
+-------------------------------------------------------------------------------
+
+BuffReminders._mixedTargetCache = {}
+
+-- Check if an exclusive buff group has mixed auraTargets (some self, some ally).
+-- Returns selfSpells, allySpells arrays if mixed, or nil, nil if not.
+-- Results are cached — safe to call from hot paths like GetSpellDefaults.
+function BuffReminders:GetMixedTargetSplit(groupName)
+    local cached = self._mixedTargetCache[groupName]
+    if cached ~= nil then
+        if cached == false then return nil, nil end
+        return cached[1], cached[2]
+    end
+
+    local LibSpellDB = self.LibSpellDB
+    if not LibSpellDB then
+        self._mixedTargetCache[groupName] = false
+        return nil, nil
+    end
+
+    local groupInfo = LibSpellDB.BuffGroups[groupName]
+    if not groupInfo or groupInfo.relationship ~= "exclusive" then
+        self._mixedTargetCache[groupName] = false
+        return nil, nil
+    end
+
+    local selfSpells, allySpells = {}, {}
+    for _, gSpellID in ipairs(groupInfo.spells) do
+        local at = LibSpellDB:GetAuraTarget(gSpellID)
+        if at == "ally" then
+            table.insert(allySpells, gSpellID)
+        else
+            table.insert(selfSpells, gSpellID)
+        end
+    end
+
+    if #allySpells > 0 and #selfSpells > 0 then
+        self._mixedTargetCache[groupName] = {selfSpells, allySpells}
+        return selfSpells, allySpells
+    end
+
+    self._mixedTargetCache[groupName] = false
+    return nil, nil
+end
 
 -------------------------------------------------------------------------------
 -- Computed Defaults Per Spell
@@ -138,10 +193,23 @@ function BuffReminders:GetSpellDefaults(spellID)
         end
     end
     
+    -- For ally-target spells in mixed-target exclusive groups (e.g., Earth Shield
+    -- in SHAMAN_SHIELD), default to party tracking. The split creates a separate
+    -- reminder for the ally spell, and checking party members is the useful default.
+    if spellData.buffGroup and defaults.groupTrackable then
+        local selfSpells, allySpells = self:GetMixedTargetSplit(spellData.buffGroup)
+        if selfSpells and allySpells then
+            local auraTarget = LibSpellDB:GetAuraTarget(spellID)
+            if auraTarget == "ally" then
+                defaults.trackTarget = TRACK_TARGET.PARTY
+            end
+        end
+    end
+
     -- Stacks for charge-based spells
     -- Inner Fire has 20 charges, Water Shield has 3 charges
     -- We don't set a default minStacks - user can configure it
-    
+
     return defaults
 end
 
@@ -201,13 +269,14 @@ function BuffReminders:Initialize()
     self.initialized = true
     self.Utils:LogInfo("BuffReminders: Initialized with", #self.reminders, "reminders for", self.playerClass)
     for _, r in ipairs(self.reminders) do
-        self.Utils:LogDebug("BuffReminders: Tracking spell", r.spellID, r.spellData.name or "?", "group:", r.buffGroup or "none")
+        self.Utils:LogDebug("BuffReminders: Tracking spell", r.spellID, r.spellData.name or "?", "group:", r.buffGroup or "none", "split:", r.splitMode or "none")
     end
 end
 
 function BuffReminders:BuildReminderList()
     wipe(self.reminders)
-    
+    self.hasAllySplit = false
+
     if not self.LibSpellDB then return end
     
     -- Get all LONG_BUFF spells for the player's class
@@ -218,7 +287,7 @@ function BuffReminders:BuildReminderList()
     
     for spellID, spellData in pairs(longBuffs) do
         local groupName = spellData.buffGroup
-        
+
         if groupName then
             -- For grouped spells, add ONE entry per group using the group definition
             -- order (not random pairs() order) to pick a stable representative
@@ -226,14 +295,45 @@ function BuffReminders:BuildReminderList()
                 seenGroups[groupName] = true
                 local groupInfo = self.LibSpellDB.BuffGroups[groupName]
                 if groupInfo then
-                    -- Use first spell in the group definition as representative
-                    local repSpellID = groupInfo.spells[1]
-                    local repData = self.LibSpellDB:GetSpellInfo(repSpellID) or spellData
-                    table.insert(self.reminders, {
-                        spellID = repSpellID,
-                        spellData = repData,
-                        buffGroup = groupName,
-                    })
+                    -- Check for mixed-target exclusive groups (e.g., SHAMAN_SHIELD
+                    -- has Earth Shield on allies + Water/Lightning Shield on self).
+                    -- Split into separate reminders so each can be tracked independently.
+                    local selfSpells, allySpells = self:GetMixedTargetSplit(groupName)
+                    if selfSpells and allySpells then
+                        -- Self-target reminder (Water Shield / Lightning Shield)
+                        local selfRep = selfSpells[1]
+                        local selfData = self.LibSpellDB:GetSpellInfo(selfRep) or spellData
+                        table.insert(self.reminders, {
+                            spellID = selfRep,
+                            spellData = selfData,
+                            buffGroup = groupName,
+                            splitMode = SPLIT_MODE.SELF,
+                            splitSelfSpells = selfSpells,
+                            splitAllySpells = allySpells,
+                        })
+                        -- Ally-target reminder(s) (Earth Shield)
+                        for _, allyID in ipairs(allySpells) do
+                            local allyData = self.LibSpellDB:GetSpellInfo(allyID) or spellData
+                            table.insert(self.reminders, {
+                                spellID = allyID,
+                                spellData = allyData,
+                                buffGroup = groupName,
+                                splitMode = SPLIT_MODE.ALLY,
+                                splitSelfSpells = selfSpells,
+                                splitAllySpells = allySpells,
+                            })
+                        end
+                        self.hasAllySplit = true
+                    else
+                        -- Normal: single reminder for the group
+                        local repSpellID = groupInfo.spells[1]
+                        local repData = self.LibSpellDB:GetSpellInfo(repSpellID) or spellData
+                        table.insert(self.reminders, {
+                            spellID = repSpellID,
+                            spellData = repData,
+                            buffGroup = groupName,
+                        })
+                    end
                 end
             end
         else
@@ -798,34 +898,45 @@ function BuffReminders:ShouldRemind(reminder)
     -- For grouped spells, find the first known+usable spell across all group members.
     -- This avoids the problem where the representative spell isn't known but another
     -- spell in the group IS known (e.g., player knows Battle Shout but not Commanding Shout).
+    -- For split exclusive groups, restrict to the relevant spell subset.
     local groupSpells = nil
     local activeSpellID = nil  -- The spell we'll use for known/usable checks
-    
+
     if reminder.buffGroup then
         local groupInfo = self.LibSpellDB.BuffGroups[reminder.buffGroup]
         if groupInfo then
-            groupSpells = groupInfo.spells
-            -- Find first known+usable spell in the group
-            local firstKnown = nil
-            for _, gSpellID in ipairs(groupSpells) do
-                local hr = self.LibSpellDB:GetHighestKnownRank(gSpellID)
-                if hr and IsSpellKnown(hr) then
-                    if not firstKnown then
-                        firstKnown = gSpellID
-                    end
-                    local isUsable = IsUsableSpell(hr)
-                    if isUsable then
-                        activeSpellID = gSpellID
-                        break
+            -- Determine which spells to search
+            if reminder.splitMode == SPLIT_MODE.SELF then
+                groupSpells = reminder.splitSelfSpells
+            elseif reminder.splitMode == SPLIT_MODE.ALLY then
+                groupSpells = nil  -- Single spell, no group search
+            else
+                groupSpells = groupInfo.spells
+            end
+
+            if groupSpells then
+                -- Find first known+usable spell in the (possibly restricted) group
+                local firstKnown = nil
+                for _, gSpellID in ipairs(groupSpells) do
+                    local hr = self.LibSpellDB:GetHighestKnownRank(gSpellID)
+                    if hr and IsSpellKnown(hr) then
+                        if not firstKnown then
+                            firstKnown = gSpellID
+                        end
+                        local isUsable = IsUsableSpell(hr)
+                        if isUsable then
+                            activeSpellID = gSpellID
+                            break
+                        end
                     end
                 end
-            end
-            if not activeSpellID then
-                activeSpellID = firstKnown  -- Known but not usable (e.g., no resources)
-            end
-            if not activeSpellID then
-                self.Utils:LogDebug("BuffReminders: group " .. reminder.buffGroup .. " - no spells known")
-                return false
+                if not activeSpellID then
+                    activeSpellID = firstKnown  -- Known but not usable (e.g., no resources)
+                end
+                if not activeSpellID then
+                    self.Utils:LogDebug("BuffReminders: group " .. reminder.buffGroup .. " - no spells known")
+                    return false
+                end
             end
         end
     end
@@ -872,9 +983,23 @@ function BuffReminders:ShouldRemind(reminder)
         return self:CheckWeaponEnchants(config)
     end
     
+    -- Split suppression: if the ally-target spell (e.g., Earth Shield) is active
+    -- ON THE PLAYER, the player made a deliberate choice to use it on self.
+    -- Suppress BOTH the self-shield reminder (don't nag about Water Shield)
+    -- AND the ally-target reminder (don't nag to put ES on a party member).
+    if reminder.splitMode and reminder.splitAllySpells then
+        for _, allySpellID in ipairs(reminder.splitAllySpells) do
+            local found = self:IsBuffOnUnit("player", allySpellID, true)  -- playerOnly
+            if found then
+                self.Utils:LogDebug("BuffReminders: split suppressed (" .. reminder.splitMode .. ") - ally spell " .. allySpellID .. " active on player")
+                return false
+            end
+        end
+    end
+
     -- Check buff status based on track target
     local trackTarget = config.trackTarget or TRACK_TARGET.PLAYER
-    
+
     if trackTarget == TRACK_TARGET.PLAYER then
         -- For exclusive groups (e.g., warrior shouts), check only the player's OWN buffs.
         -- Another player's buff shouldn't suppress the reminder — the player should still
@@ -888,9 +1013,16 @@ function BuffReminders:ShouldRemind(reminder)
         end
         return self:CheckBuffOnPlayer(activeSpellID, groupSpells, config, playerOnly)
     elseif trackTarget == TRACK_TARGET.PARTY or trackTarget == TRACK_TARGET.RAID then
+        if reminder.splitMode == SPLIT_MODE.ALLY then
+            local shouldRemind, allyRemaining, allyStacks = self:CheckBuffOnAllies(activeSpellID, nil, config, trackTarget)
+            -- Stash for OnUpdate alert display (avoids double group scan)
+            reminder._allyRemaining = allyRemaining
+            reminder._allyStacks = allyStacks
+            return shouldRemind
+        end
         return self:CheckBuffOnGroup(activeSpellID, groupSpells, config, trackTarget)
     end
-    
+
     return false
 end
 
@@ -993,6 +1125,63 @@ function BuffReminders:CheckBuffOnGroup(spellID, groupSpells, config, trackTarge
     return false
 end
 
+-- Check party/raid members (NOT player) for a buff. Used for ally-target
+-- spells in split exclusive groups (e.g., Earth Shield on tank).
+-- When solo, returns false (no allies to check = no reminder needed).
+-- Returns shouldRemind, remaining, stacks — remaining/stacks are set when
+-- the buff exists but is below thresholds (for alert text display).
+function BuffReminders:CheckBuffOnAllies(spellID, groupSpells, config, trackTarget)
+    local isInRaid = IsInRaid()
+    local isInGroup = IsInGroup()
+
+    -- Intelligent downsize: raid -> party -> solo
+    if trackTarget == TRACK_TARGET.RAID and not isInRaid then
+        if isInGroup then
+            trackTarget = TRACK_TARGET.PARTY
+        else
+            return false  -- Solo, no allies to check
+        end
+    elseif trackTarget == TRACK_TARGET.PARTY and not isInGroup then
+        return false  -- Solo, no allies to check
+    end
+
+    local prefix, count
+    if trackTarget == TRACK_TARGET.RAID and isInRaid then
+        prefix = "raid"
+        count = GetNumGroupMembers()
+    else
+        prefix = "party"
+        count = GetNumSubgroupMembers()
+    end
+
+    for i = 1, count do
+        local unit = prefix .. i
+        if UnitExists(unit) and not UnitIsDead(unit) and not UnitIsGhost(unit)
+            and UnitIsConnected(unit) and UnitIsVisible(unit) then
+            local found, remaining, stacks
+            if groupSpells then
+                found, remaining, stacks = self:IsBuffGroupOnUnit(unit, groupSpells)
+            else
+                found, remaining, stacks = self:IsBuffOnUnit(unit, spellID)
+            end
+
+            if found then
+                -- Check thresholds — return remaining/stacks for alert text display
+                if config.timeRemaining and config.timeRemaining > 0 and remaining < config.timeRemaining then
+                    return true, remaining, stacks
+                end
+                if config.minStacks and config.minStacks > 0 and stacks < config.minStacks then
+                    return true, remaining, stacks
+                end
+                return false  -- Buff found on an ally and thresholds OK
+            end
+        end
+    end
+
+    -- No ally has the buff — should remind
+    return true
+end
+
 -------------------------------------------------------------------------------
 -- Update Loop
 -------------------------------------------------------------------------------
@@ -1076,8 +1265,9 @@ function BuffReminders:OnUpdate()
                 -- Determine which spell icon to show
                 local displaySpellID = spellID
 
-                -- For buff groups, show the best spell to cast
-                if reminder.buffGroup then
+                -- For non-split buff groups, show the best spell to cast.
+                -- Split reminders already show the correct spell directly.
+                if reminder.buffGroup and not reminder.splitMode then
                     displaySpellID = self:GetBestSpellForGroup(reminder.buffGroup, spellID)
                 end
 
@@ -1093,7 +1283,14 @@ function BuffReminders:OnUpdate()
                     local showStacks = config.minStacks and config.minStacks > 0
                     if showTime or showStacks then
                         local found, remaining, stacks
-                        if reminder.buffGroup then
+                        if reminder.splitMode == SPLIT_MODE.ALLY then
+                            -- Use data stashed by CheckBuffOnAllies (avoids double scan)
+                            remaining = reminder._allyRemaining
+                            stacks = reminder._allyStacks
+                            found = remaining or stacks
+                        elseif reminder.splitMode == SPLIT_MODE.SELF and reminder.splitSelfSpells then
+                            found, remaining, stacks = self:IsBuffGroupOnUnit("player", reminder.splitSelfSpells, true)
+                        elseif reminder.buffGroup then
                             local groupInfo = self.LibSpellDB.BuffGroups[reminder.buffGroup]
                             if groupInfo then
                                 found, remaining, stacks = self:IsBuffGroupOnUnit("player", groupInfo.spells)
@@ -1331,6 +1528,8 @@ end
 
 function BuffReminders:OnUnitAura(event, unit)
     if unit == "player" then
+        self:ThrottledUpdate()
+    elseif self.hasAllySplit and unit ~= "target" and unit ~= "focus" then
         self:ThrottledUpdate()
     end
 end
