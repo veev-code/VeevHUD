@@ -1,5 +1,19 @@
 # VeevHUD Changelog
 
+## [1.0.178] - 2026-03-18
+
+### Fixed
+- **Druid reagent counts** — Rebirth Rank 6 and Gift of the Wild Rank 3 were showing incorrect reagent counts due to wrong item IDs in the spell database. *(Thanks Shadowhawk for reporting)*
+- **Icon text not scaling with icon size** — Cooldown text, stack counts, and charge numbers now properly update when you change a row's icon size in options. Previously, text stayed at its original size until a UI reload.
+- **Non-square icon text sizing** — Text on icons with non-square aspect ratios (4:3, 2:1) now sizes based on icon height instead of width, matching the intended proportions.
+
+### Added
+- **Reagent Count: "Count All Ranks" option** — New toggle under Ability Rows > Reagent Count. When enabled (default), counts reagents for all spell ranks combined. When disabled, only counts the reagent for your highest learned rank — useful if you carry lower-rank reagents for intentional downranking. *(Shadowhawk)*
+
+### LibSpellDB Updates
+- Fixed Rebirth Rank 6 reagent: was Hornbeam Seed (Rank 5's reagent), corrected to Flintweed Seed.
+- Fixed Gift of the Wild Rank 3 reagent: was Wild Thornroot (Rank 2's reagent), corrected to Wild Quillvine.
+
 ## [1.0.177] - 2026-03-18
 
 ### LibSpellDB Updates

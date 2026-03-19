@@ -1209,9 +1209,11 @@ function CooldownIcons:SetupIcon(frame, spellID, actualSpellID, spellData, rowCo
         frame.timedEffectDuration = spellData.duration
     end
 
-    -- Cache reagent item IDs for usability + stack count (IsUsableSpell doesn't check reagents in Classic)
-    -- Uses GetAllReagentItemIDs to handle per-rank reagent differences (e.g., Rebirth seeds)
-    frame.reagentItemIDs = addon.LibSpellDB and addon.LibSpellDB:GetAllReagentItemIDs(spellID) or nil
+    -- Cache reagent info for usability + stack count (IsUsableSpell doesn't check reagents in Classic)
+    -- reagentItemID: current rank's reagent (for default count + usability)
+    -- reagentAllItemIDs: all ranks' reagents (for "count all ranks" option + usability fallback)
+    frame.reagentItemID = addon.LibSpellDB and addon.LibSpellDB:GetReagentItemID(actualSpellID or spellID) or nil
+    frame.reagentAllItemIDs = addon.LibSpellDB and addon.LibSpellDB:GetAllReagentItemIDs(spellID) or nil
 
     -- Check if this spell has dodge-reactive glow (e.g., Overpower)
     -- When set, CLEU dodge detection stores per-target windows in stateEngine.dodgeWindows for stance-independent glow
@@ -1708,6 +1710,7 @@ function CooldownIcons:Refresh()
     end
 
     self:RebuildAllRows()
+    self:RefreshFonts(addon:GetFont())
     self:UpdateAllIcons()
 
     -- Reapply texcoords (handles Masque compositing)
@@ -1735,7 +1738,7 @@ function CooldownIcons:RefreshFonts(fontPath)
     -- Update fonts and text color on all icon text elements
     for _, rowFrame in ipairs(self.rows or {}) do
         for _, iconFrame in ipairs(rowFrame.icons or {}) do
-            local size = iconFrame:GetWidth()
+            local size = iconFrame.iconSize or iconFrame:GetHeight()
 
             -- Cooldown text
             if iconFrame.text then

@@ -465,13 +465,16 @@ function IconStateEngine:_ComputeAuraState(frame, db, s)
     end
 
     -- Reagent count (e.g., Soul Shards, seeds) — show as stack count when no aura stacks active
-    -- Sums across all reagent types for spells with per-rank reagents (e.g., Rebirth uses different seeds per rank)
-    if s.auraStacks == 0 and frame.reagentItemIDs and db.showReagentCount then
-        local total = 0
-        for _, itemID in ipairs(frame.reagentItemIDs) do
-            total = total + GetItemCount(itemID)
+    if s.auraStacks == 0 and frame.reagentItemID and db.showReagentCount then
+        if db.reagentCountAllRanks and frame.reagentAllItemIDs then
+            local total = 0
+            for _, itemID in ipairs(frame.reagentAllItemIDs) do
+                total = total + GetItemCount(itemID)
+            end
+            s.auraStacks = total
+        else
+            s.auraStacks = GetItemCount(frame.reagentItemID)
         end
-        s.auraStacks = total
     end
 
     -- Suppress aura display for element-tagged TOTEM spells when totem element slots are active
@@ -683,15 +686,19 @@ function IconStateEngine:_ComputeCooldownState(frame, db, s)
     -- Usability (IsUsableSpell doesn't check reagents in Classic, so check separately)
     -- Usable if player has ANY reagent across all rank variants (supports intentional downranking)
     s.isUsable = self:IsSpellUsable(actualSpellID)
-    if s.isUsable and frame.reagentItemIDs then
-        local hasAny = false
-        for _, itemID in ipairs(frame.reagentItemIDs) do
-            if GetItemCount(itemID) > 0 then
-                hasAny = true
-                break
+    if s.isUsable and frame.reagentItemID then
+        if frame.reagentAllItemIDs then
+            local hasAny = false
+            for _, itemID in ipairs(frame.reagentAllItemIDs) do
+                if GetItemCount(itemID) > 0 then
+                    hasAny = true
+                    break
+                end
             end
+            s.isUsable = hasAny
+        else
+            s.isUsable = GetItemCount(frame.reagentItemID) > 0
         end
-        s.isUsable = hasAny
     end
 
     -- Update actionableTime for conditional spells
