@@ -1,5 +1,13 @@
 # VeevHUD Changelog
 
+## [1.0.177] - 2026-03-18
+
+### LibSpellDB Updates
+- Added Silencing Shot for Marksmanship Hunters — interrupt with 20s cooldown and 3s silence tracking.
+- Added Counterattack for Survival Hunters — reactive parry ability with 5s root tracking.
+- Added Shadowfury for Destruction Warlocks — AoE stun with 20s cooldown and 2s stun tracking.
+- Added Dark Pact for Affliction Warlocks — pet mana drain talent.
+
 ## [1.0.176] - 2026-03-18
 
 ### Added
