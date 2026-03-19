@@ -26,13 +26,26 @@ function Utils:ToKeyType(key)
 end
 
 
+-- Insert commas into an integer string (e.g., "12345" -> "12,345")
+-- Manual implementation avoids depending on BreakUpLargeNumbers WoW API
+-- which may behave inconsistently across WoW editions
+local function InsertCommas(n)
+    local formatted = tostring(n)
+    local k
+    while true do
+        formatted, k = formatted:gsub("^(-?%d+)(%d%d%d)", "%1,%2")
+        if k == 0 then break end
+    end
+    return formatted
+end
+
 -- Format large numbers with the given number format style
 -- numberFormat: "abbreviated" (4.5k), "full" (4523), "comma" (4,523)
 function Utils:FormatNumber(num, numberFormat)
     if numberFormat == C.NUMBER_FORMAT.FULL then
         return tostring(math.floor(num))
     elseif numberFormat == C.NUMBER_FORMAT.COMMA then
-        return BreakUpLargeNumbers(math.floor(num))
+        return InsertCommas(math.floor(num))
     else
         -- abbreviated (default / legacy behavior)
         if num >= 1000000 then
