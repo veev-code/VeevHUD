@@ -87,10 +87,13 @@ function BuffReminders:GetMixedTargetSplit(groupName)
     local selfSpells, allySpells = {}, {}
     for _, gSpellID in ipairs(groupInfo.spells) do
         local at = LibSpellDB:GetAuraTarget(gSpellID)
-        if at == "ally" then
-            table.insert(allySpells, gSpellID)
-        else
+        if at == "self" then
             table.insert(selfSpells, gSpellID)
+        else
+            -- "ally", "none", or nil all go into allySpells — only explicitly
+            -- "self" spells are self-only. This prevents raid-wide buffs like
+            -- Greater Blessings (auraTarget="none") from being misclassified.
+            table.insert(allySpells, gSpellID)
         end
     end
 

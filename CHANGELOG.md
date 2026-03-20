@@ -1,5 +1,15 @@
 # VeevHUD Changelog
 
+## [1.0.179] - 2026-03-19
+
+### Added
+- **Text Outline Style** — New "Text Outline" option in General > Appearance with four modes: Outline (default), Shadow, Both, or None. Controls how all HUD text is rendered. Each element (icons, health bar, resource bar, etc.) can override the global setting independently.
+
+### Fixed
+- **Comma number format not working below 10,000** — The "Comma" number format on bars (e.g., health, resource) now correctly formats all values. Previously it relied on a WoW API that only inserts commas at 10,000+, so values like 9,311 displayed the same as "Full" mode.
+- **"Count All Ranks" off showing wrong reagent** — Turning off "Count All Ranks" was counting rank 1 reagents (e.g., Maple Seed for Rebirth) instead of your highest learned rank's reagent (e.g., Flintweed Seed). *(Thanks Shadowhawk for reporting)*
+- **Paladin blessing buff reminders stuck on screen** — All paladin blessings were appearing as buff reminders and wouldn't clear when party members were blessed. Caused by the Earth Shield split-tracking feature incorrectly classifying Greater Blessings as self-only spells. *(Thanks Togg for reporting)*
+
 ## [1.0.178] - 2026-03-18
 
 ### Fixed
