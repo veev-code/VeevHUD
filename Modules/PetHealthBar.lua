@@ -148,7 +148,7 @@ function PetHealthBar:CreateFrames(parent)
     -- Text
     if db.textFormat and db.textFormat ~= self.C.TEXT_FORMAT.NONE then
         local text = bar:CreateFontString(nil, "OVERLAY")
-        text:SetFont(addon:GetFont(), db.textSize, "OUTLINE")
+        self.Utils:ApplyFontOutline(text, addon:GetFont(), db.textSize, db)
         text:SetPoint("CENTER")
         self.text = text
     end
@@ -179,7 +179,7 @@ end
 function PetHealthBar:CreateHealPrediction(bar)
     local barTexture = (addon.GetBarTexture and addon:GetBarTexture()) or self.C.TEXTURES.STATUSBAR
 
-    local healPredict = bar:CreateTexture(nil, "ARTWORK", nil, 2)
+    local healPredict = self.Utils:CreateTexture(bar, nil, "ARTWORK", nil, 2)
     healPredict:SetTexture(barTexture)
     healPredict:Hide()
     self.healPrediction = healPredict
@@ -309,6 +309,7 @@ function PetHealthBar:Refresh()
         -- Update bar texture
         local barTexture = addon:GetBarTexture()
         self.bar:SetStatusBarTexture(barTexture)
+        self.Utils:DisablePixelSnap(self.bar:GetStatusBarTexture())
         if self.bar.bg then
             self.bar.bg:SetTexture(barTexture)
         end
@@ -348,7 +349,7 @@ function PetHealthBar:Refresh()
                 text:SetPoint("CENTER")
                 self.text = text
             end
-            self.text:SetFont(addon:GetFont(), db.textSize, "OUTLINE")
+            self.Utils:ApplyFontOutline(self.text, addon:GetFont(), db.textSize, db)
             self.text:Show()
         elseif self.text then
             self.text:Hide()

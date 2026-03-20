@@ -109,6 +109,15 @@ C.PULSE_EFFECT = {
     NONE = "none",     -- No size change (pure alpha)
 }
 
+-- Valid values for textOutline settings (global + per-element)
+C.TEXT_OUTLINE = {
+    OUTLINE = "OUTLINE",   -- Font outline only
+    SHADOW = "SHADOW",     -- Drop shadow only
+    BOTH = "BOTH",         -- Font outline + drop shadow
+    NONE = "NONE",         -- No outline or shadow
+    INHERIT = "INHERIT",   -- Use global appearance.textOutline
+}
+
 -- Druid form detection via spell ID (position-independent)
 -- GetShapeshiftForm() returns the stance bar index, which shifts when forms
 -- aren't trained (e.g., missing Aquatic Form moves Cat from slot 3 to slot 2).
@@ -277,6 +286,7 @@ C.DEFAULTS = {
             statusbarTexture = "Clean",  -- Statusbar texture name (registered with LibSharedMedia)
             showGradient = true,  -- Gradient overlay on all status bars (health, resource, combo points, ticker)
             textColor = { r = 1.0, g = 0.906, b = 0.745 },  -- Warm cream/gold for cooldown/stack/duration text
+            textOutline = "OUTLINE",  -- Global text outline style (OUTLINE, SHADOW, BOTH, NONE)
         },
 
         -- Global positioning anchor (centered by default; configurable via settings)
@@ -342,6 +352,7 @@ C.DEFAULTS = {
             textFormat = "current",  -- "current", "percent", "both", "currentMax", "deficit", "none"
             numberFormat = "abbreviated",  -- "abbreviated", "full", "comma"
             textSize = 11,
+            textOutline = "INHERIT",  -- Text outline style (OUTLINE, SHADOW, BOTH, NONE, INHERIT)
             powerColor = true,    -- Use power-type color (blue/red/yellow) by default
             color = { r = 0.8, g = 0.8, b = 0.8 },  -- Custom color when powerColor is off (neutral light grey)
             innervateHighlight = {
@@ -386,6 +397,7 @@ C.DEFAULTS = {
                 textFormat = "none",
                 numberFormat = "abbreviated",
                 textSize = 9,
+                textOutline = "INHERIT",
                 showSpark = false,
                 color = { r = 0.00, g = 0.00, b = 1.00 },
                 showFormCostMarker = false,
@@ -401,6 +413,7 @@ C.DEFAULTS = {
             textFormat = "percent",  -- "current", "percent", "both", "currentMax", "deficit", "none"
             numberFormat = "abbreviated",  -- "abbreviated", "full", "comma"
             textSize = 10,
+            textOutline = "INHERIT",
             classColored = true,
             color = { r = 0.0, g = 0.8, b = 0.0 },  -- Custom color when classColored is off (green default)
             showHealPrediction = true,   -- Show incoming heal overlay on bar
@@ -414,6 +427,7 @@ C.DEFAULTS = {
             textFormat = "none",  -- "current", "percent", "both", "currentMax", "deficit", "none"
             numberFormat = "abbreviated",  -- "abbreviated", "full", "comma"
             textSize = 9,
+            textOutline = "INHERIT",
             color = { r = 0.0, g = 0.8, b = 0.0 },
             showHealPrediction = true,
         },
@@ -434,6 +448,7 @@ C.DEFAULTS = {
             iconAspectRatio = 1.0,  -- Independent aspect ratio (1.0 = square)
             iconSpacing = 6,  -- spacing between icons
             showDuration = true,  -- show remaining time text on active auras
+            textOutline = "INHERIT",
             showInactiveIcons = false,  -- Only show when active (not exposed in UI)
             inactiveAlpha = 0.4,
             activeGlow = true,  -- Show animated pixel glow around active auras
@@ -467,6 +482,7 @@ C.DEFAULTS = {
             dualWieldSpacing = 1,    -- Gap between MH and OH bars
             showText = false,        -- Timer countdown text (default OFF)
             textSize = 10,
+            textOutline = "INHERIT",
             showSpark = true,
             sparkWidth = 8,
             color = { r = 1.0, g = 1.0, b = 1.0 },           -- Neutral fill
@@ -499,6 +515,7 @@ C.DEFAULTS = {
             -- Cooldown display
             -- Row selection: "none" = disabled, "primary" = Primary only,
             -- "primary_secondary" = Primary + Secondary, "all" = all rows
+            textOutline = "INHERIT",      -- Text outline style (OUTLINE, SHADOW, BOTH, NONE, INHERIT)
             useOwnCooldownText = true,    -- Use VeevHUD's own cooldown text instead of Blizzard's
             detailedTimeThreshold = 2,    -- Minutes: durations below this show m:ss, above show compact "Xm"
             showCooldownTextOn = "all",   -- Which rows show cooldown text
@@ -593,6 +610,7 @@ C.DEFAULTS = {
             enabled = true,
             iconSize = 64,
             iconSpacing = 12,
+            textOutline = "INHERIT",
             alpha = 0.30,     -- Semi-transparent reminder (not meant to obscure gameplay)
             pulseEnabled = true,
             showWhileResting = false,

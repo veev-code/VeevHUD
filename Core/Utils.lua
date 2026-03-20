@@ -58,6 +58,30 @@ function Utils:FormatNumber(num, numberFormat)
     end
 end
 
+-- Apply font with the configured outline style to a FontString.
+-- @param fontString  The FontString to configure
+-- @param font        Font path (from addon:GetFont())
+-- @param size        Font size in points
+-- @param db          Config table for the element (e.g., addon.db.profile.icons)
+--                    Must contain a .textOutline field; "INHERIT" falls back to
+--                    the global appearance.textOutline setting.
+function Utils:ApplyFontOutline(fontString, font, size, db)
+    local style = db.textOutline
+    if style == C.TEXT_OUTLINE.INHERIT then
+        style = addon.db.profile.appearance.textOutline
+    end
+
+    local flag = (style == C.TEXT_OUTLINE.OUTLINE or style == C.TEXT_OUTLINE.BOTH) and "OUTLINE" or ""
+    fontString:SetFont(font, size, flag)
+
+    if style == C.TEXT_OUTLINE.SHADOW or style == C.TEXT_OUTLINE.BOTH then
+        fontString:SetShadowOffset(0.5, -0.5)
+        fontString:SetShadowColor(0, 0, 0, 0.5)
+    else
+        fontString:SetShadowOffset(0, 0)
+    end
+end
+
 -- Format cooldown text for icon overlays (more compact)
 -- No decimals until < 1s remains
 -- Uses floor so "1" displays for exactly 1 second before switching to decimals
@@ -190,18 +214,44 @@ end
 -- Frame Utilities
 -------------------------------------------------------------------------------
 
+-- Disable WoW's automatic pixel-grid snapping on a texture or frame.
+-- At non-integer UI scales (e.g., 105%), the renderer rounds each edge to the
+-- nearest pixel independently, causing 1px borders to vanish on one side or
+-- vary in thickness. Disabling snap lets the GPU render at sub-pixel precision.
+-- Works on Texture, StatusBar, Line, MaskTexture, and any object that supports
+-- the SetSnapToPixelGrid / SetTexelSnappingBias APIs.
+function Utils:DisablePixelSnap(object)
+    if object.SetSnapToPixelGrid then
+        object:SetSnapToPixelGrid(false)
+    end
+    if object.SetTexelSnappingBias then
+        object:SetTexelSnappingBias(0)
+    end
+end
+
+-- Create a texture with pixel snapping disabled.
+-- Drop-in replacement for frame:CreateTexture() — all arguments forwarded.
+-- Use this instead of raw CreateTexture to guarantee correct rendering at
+-- non-integer scales. Used by all factories and modules.
+function Utils:CreateTexture(parent, ...)
+    local tex = parent:CreateTexture(...)
+    self:DisablePixelSnap(tex)
+    return tex
+end
+
 -- Create a status bar
 function Utils:CreateStatusBar(parent, width, height, texture)
     local resolvedTexture = texture or (addon.GetBarTexture and addon:GetBarTexture()) or C.TEXTURES.STATUSBAR
     local bar = CreateFrame("StatusBar", nil, parent)
     bar:SetSize(width, height)
     bar:SetStatusBarTexture(resolvedTexture)
+    self:DisablePixelSnap(bar:GetStatusBarTexture())
     bar:SetMinMaxValues(0, 1)
     bar:SetValue(1)
     bar:EnableMouse(false)  -- Click-through
 
     -- Background
-    bar.bg = bar:CreateTexture(nil, "BACKGROUND")
+    bar.bg = self:CreateTexture(bar, nil, "BACKGROUND")
     bar.bg:SetAllPoints()
     bar.bg:SetTexture(resolvedTexture)
     bar.bg:SetVertexColor(0.2, 0.2, 0.2, 0.8)
@@ -260,7 +310,7 @@ function Utils:CreateBarBorder(bar, skipTop)
     borderFrame:EnableMouse(false)
 
     local function edge(p1, p2, dim)
-        local t = borderFrame:CreateTexture(nil, "ARTWORK")
+        local t = self:CreateTexture(borderFrame, nil, "ARTWORK")
         t:SetTexture("Interface\\Buttons\\WHITE8X8")
         t:SetVertexColor(0, 0, 0, 1)
         t:SetPoint(p1)
@@ -299,10 +349,10 @@ end
 -- Create a horizontal gradient overlay on a status bar (darker left, lighter right)
 -- Returns: gradient texture
 function Utils:CreateBarGradient(bar)
-    local gradient = bar:CreateTexture(nil, "OVERLAY", nil, 1)
+    local gradient = self:CreateTexture(bar, nil, "OVERLAY", nil, 1)
     gradient:SetAllPoints(bar:GetStatusBarTexture())
     gradient:SetTexture([[Interface\Buttons\WHITE8X8]])
-    gradient:SetGradient("HORIZONTAL", 
+    gradient:SetGradient("HORIZONTAL",
         CreateColor(0, 0, 0, 0.35),  -- Left (darker)
         CreateColor(1, 1, 1, 0.15)   -- Right (lighter/highlight)
     )
@@ -510,14 +560,14 @@ function Utils:CreateWrapperIcon(parent, buttonName, width, height)
     visual:EnableMouse(false)
 
     -- Icon texture on visual
-    local icon = visual:CreateTexture(buttonName .. "Icon", "ARTWORK")
+    local icon = self:CreateTexture(visual, buttonName .. "Icon", "ARTWORK")
     icon:SetAllPoints()
     visual.Icon = icon
     wrapper.icon = icon
     wrapper.visual = visual
 
     -- Normal texture for Masque (hidden by default)
-    local normalTexture = visual:CreateTexture(buttonName .. "NormalTexture", "OVERLAY")
+    local normalTexture = self:CreateTexture(visual, buttonName .. "NormalTexture", "OVERLAY")
     normalTexture:SetAllPoints()
     normalTexture:SetTexture([[Interface\Buttons\UI-Quickslot2]])
     normalTexture:SetAlpha(0)

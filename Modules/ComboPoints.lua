@@ -202,39 +202,39 @@ function ComboPoints:CreateComboPointBar(parent, index, db, barWidth)
     
     -- Background (neutral gray, matching resource bar background style)
     local barTexture = addon:GetBarTexture()
-    local bg = bar:CreateTexture(nil, "BACKGROUND")
+    local bg = self.Utils:CreateTexture(bar, nil, "BACKGROUND")
     bg:SetAllPoints()
     bg:SetTexture(barTexture)
     bg:SetVertexColor(0.2, 0.2, 0.2, 0.8)
     bar.bg = bg
-    
+
     -- Fill texture (shown when point is active)
     local cpDb = addon.db and addon.db.profile and addon.db.profile.comboPoints
     local color = (cpDb and cpDb.color) or self.C.COMBO_POINT_COLOR
-    local fill = bar:CreateTexture(nil, "ARTWORK")
+    local fill = self.Utils:CreateTexture(bar, nil, "ARTWORK")
     fill:SetAllPoints()
     fill:SetTexture(barTexture)
     fill:SetVertexColor(color.r, color.g, color.b, 1)
     fill:Hide()
     bar.fill = fill
-    
+
     -- Gradient overlay (darker left, lighter right) - matches resource/health bar style
     -- Only shown when active (hidden by default so empty bars match resource bar background)
     local appearanceDb = addon.db.profile.appearance
     if appearanceDb.showGradient then
-        local gradient = bar:CreateTexture(nil, "ARTWORK", nil, 1)
+        local gradient = self.Utils:CreateTexture(bar, nil, "ARTWORK", nil, 1)
         gradient:SetAllPoints()
         gradient:SetTexture([[Interface\Buttons\WHITE8X8]])
-        gradient:SetGradient("HORIZONTAL", 
+        gradient:SetGradient("HORIZONTAL",
             CreateColor(0, 0, 0, 0.35),  -- Left: darker
             CreateColor(1, 1, 1, 0.15)   -- Right: lighter/highlight
         )
         gradient:Hide()
         bar.gradient = gradient
     end
-    
+
     -- Highlight line at top (bright edge when active, like proc glow style)
-    local highlight = bar:CreateTexture(nil, "ARTWORK", nil, 2)
+    local highlight = self.Utils:CreateTexture(bar, nil, "ARTWORK", nil, 2)
     highlight:SetTexture([[Interface\Buttons\WHITE8X8]])
     highlight:SetHeight(1)
     highlight:SetPoint("TOPLEFT", bar, "TOPLEFT", 0, 0)
@@ -365,10 +365,10 @@ function ComboPoints:Refresh()
             local appearanceDb = addon.db.profile.appearance
             if appearanceDb.showGradient then
                 if not bar.gradient then
-                    local gradient = bar:CreateTexture(nil, "ARTWORK", nil, 1)
+                    local gradient = self.Utils:CreateTexture(bar, nil, "ARTWORK", nil, 1)
                     gradient:SetAllPoints()
                     gradient:SetTexture([[Interface\Buttons\WHITE8X8]])
-                    gradient:SetGradient("HORIZONTAL", 
+                    gradient:SetGradient("HORIZONTAL",
                         CreateColor(0, 0, 0, 0.35),
                         CreateColor(1, 1, 1, 0.15)
                     )

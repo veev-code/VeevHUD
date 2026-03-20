@@ -103,13 +103,13 @@ function CooldownPulse:AcquireFrame()
     f:SetSize(BASE_SIZE, BASE_SIZE)
 
     -- Icon texture with Masque-compatible references
-    local icon = f:CreateTexture(buttonName .. "Icon", "ARTWORK")
+    local icon = addon.Utils:CreateTexture(f, buttonName .. "Icon", "ARTWORK")
     icon:SetAllPoints(f)
     f.icon = icon
     f.Icon = icon  -- Masque reference
 
     -- Normal texture for Masque (hidden by default)
-    local normalTexture = f:CreateTexture(buttonName .. "NormalTexture", "OVERLAY")
+    local normalTexture = addon.Utils:CreateTexture(f, buttonName .. "NormalTexture", "OVERLAY")
     normalTexture:SetAllPoints()
     normalTexture:SetTexture([[Interface\Buttons\UI-Quickslot2]])
     normalTexture:SetAlpha(0)

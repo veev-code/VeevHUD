@@ -73,7 +73,7 @@ function IconFrameFactory:CreateIconFrame(parent, index, size)
     frame.iconHeight = iconHeight
 
     -- Icon texture - fills the frame, spacing between icons creates separation
-    local icon = frame:CreateTexture(buttonName .. "Icon", "ARTWORK")
+    local icon = self.Utils:CreateTexture(frame, buttonName .. "Icon", "ARTWORK")
     icon:SetAllPoints()
     -- Apply texcoords with zoom and aspect ratio cropping
     local zoomPerEdge = db.iconZoom / 2
@@ -83,7 +83,7 @@ function IconFrameFactory:CreateIconFrame(parent, index, size)
     frame.Icon = icon  -- Masque reference
 
     -- Normal texture for Masque compatibility (hidden by default)
-    local normalTexture = frame:CreateTexture(buttonName .. "NormalTexture", "OVERLAY")
+    local normalTexture = self.Utils:CreateTexture(frame, buttonName .. "NormalTexture", "OVERLAY")
     normalTexture:SetAllPoints()
     normalTexture:SetTexture([[Interface\Buttons\UI-Quickslot2]])
     normalTexture:SetAlpha(0)  -- Hidden, Masque will use if configured
@@ -117,18 +117,16 @@ function IconFrameFactory:CreateIconFrame(parent, index, size)
     -- Cooldown text (on top of everything) - scale font with icon size
     local fontSize = math.max(14, math.floor(size * 0.38))
     local text = textFrame:CreateFontString(nil, "OVERLAY", nil, 7)
-    text:SetFont(addon:GetFont(), fontSize, "OUTLINE")
+    self.Utils:ApplyFontOutline(text, addon:GetFont(), fontSize, db)
     text:SetPoint("CENTER", frame, "CENTER", 0, 0)
     text:SetTextColor(addon.db.profile.appearance.textColor.r, addon.db.profile.appearance.textColor.g, addon.db.profile.appearance.textColor.b)
-    text:SetShadowOffset(0.5, -0.5)
-    text:SetShadowColor(0, 0, 0, 0.5)
     frame.text = text
     frame.textFrame = textFrame
 
     -- Charges text (bottom right)
     local chargesFontSize = math.max(9, math.floor(size * 0.24))
     local charges = frame:CreateFontString(nil, "OVERLAY")
-    charges:SetFont(addon:GetFont(), chargesFontSize, "OUTLINE")
+    self.Utils:ApplyFontOutline(charges, addon:GetFont(), chargesFontSize, db)
     charges:SetPoint("BOTTOMRIGHT", -2, 2)
     charges:SetTextColor(1, 1, 1)
     frame.charges = charges
@@ -138,7 +136,7 @@ function IconFrameFactory:CreateIconFrame(parent, index, size)
     -- Parented to textFrame so it renders above cooldown spiral
     local stacksFontSize = math.max(10, math.floor(size * 0.26))
     local stacks = textFrame:CreateFontString(nil, "OVERLAY", nil, 7)
-    stacks:SetFont(addon:GetFont(), stacksFontSize, "OUTLINE")
+    self.Utils:ApplyFontOutline(stacks, addon:GetFont(), stacksFontSize, db)
     stacks:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 2, 2)
     stacks:SetJustifyH("RIGHT")
     stacks:SetJustifyV("TOP")
@@ -157,13 +155,13 @@ function IconFrameFactory:CreateIconFrame(parent, index, size)
     resourceBar:SetHeight(db.resourceBarHeight)
     resourceBar:SetFrameLevel(frame:GetFrameLevel() + 5)
 
-    local resourceBarBg = resourceBar:CreateTexture(nil, "BACKGROUND")
+    local resourceBarBg = self.Utils:CreateTexture(resourceBar, nil, "BACKGROUND")
     resourceBarBg:SetAllPoints()
     resourceBarBg:SetTexture([[Interface\Buttons\WHITE8X8]])
     resourceBarBg:SetVertexColor(0, 0, 0, 0.5)
     resourceBar.bg = resourceBarBg
 
-    local resourceBarFill = resourceBar:CreateTexture(nil, "ARTWORK")
+    local resourceBarFill = self.Utils:CreateTexture(resourceBar, nil, "ARTWORK")
     resourceBarFill:SetPoint("TOPLEFT", resourceBar, "TOPLEFT", 0, 0)
     resourceBarFill:SetPoint("BOTTOMLEFT", resourceBar, "BOTTOMLEFT", 0, 0)
     resourceBarFill:SetTexture([[Interface\Buttons\WHITE8X8]])
@@ -175,7 +173,7 @@ function IconFrameFactory:CreateIconFrame(parent, index, size)
     frame.resourceBar = resourceBar
 
     -- Option B: Vertical fill from top (dark overlay showing missing resources)
-    local resourceFill = frame:CreateTexture(nil, "OVERLAY", nil, 1)
+    local resourceFill = self.Utils:CreateTexture(frame, nil, "OVERLAY", nil, 1)
     resourceFill:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, 0)
     resourceFill:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 0, 0)
     resourceFill:SetTexture([[Interface\Buttons\WHITE8X8]])
@@ -190,7 +188,7 @@ function IconFrameFactory:CreateIconFrame(parent, index, size)
     rangeFrame:SetAlpha(0)
     rangeFrame:Hide()
 
-    local rangeOverlay = rangeFrame:CreateTexture(nil, "OVERLAY", nil, 2)
+    local rangeOverlay = self.Utils:CreateTexture(rangeFrame, nil, "OVERLAY", nil, 2)
     rangeOverlay:SetAllPoints()
     rangeOverlay:SetTexture([[Interface\Buttons\WHITE8X8]])
     rangeOverlay:SetVertexColor(177/255, 22/255, 22/255, 0.4)  -- Out-of-range red
@@ -204,7 +202,7 @@ function IconFrameFactory:CreateIconFrame(parent, index, size)
     frame.rangeFrame = rangeFrame
 
     -- Queued spell highlight (for "next melee" abilities like Heroic Strike, Cleave, Maul)
-    local queuedHighlight = frame:CreateTexture(nil, "OVERLAY", nil, 3)
+    local queuedHighlight = self.Utils:CreateTexture(frame, nil, "OVERLAY", nil, 3)
     queuedHighlight:SetTexture([[Interface\Buttons\CheckButtonHilight]])
     queuedHighlight:SetBlendMode("ADD")
     queuedHighlight:SetAllPoints()

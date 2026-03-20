@@ -1743,20 +1743,20 @@ function CooldownIcons:RefreshFonts(fontPath)
             -- Cooldown text
             if iconFrame.text then
                 local fontSize = math.max(14, math.floor(size * 0.38))
-                iconFrame.text:SetFont(fontPath, fontSize, "OUTLINE")
+                self.Utils:ApplyFontOutline(iconFrame.text, fontPath, fontSize, db)
                 iconFrame.text:SetTextColor(tc.r, tc.g, tc.b)
             end
 
             -- Charges text
             if iconFrame.charges then
                 local chargesFontSize = math.max(9, math.floor(size * 0.24))
-                iconFrame.charges:SetFont(fontPath, chargesFontSize, "OUTLINE")
+                self.Utils:ApplyFontOutline(iconFrame.charges, fontPath, chargesFontSize, db)
             end
 
             -- Stacks text
             if iconFrame.stacks then
                 local stacksFontSize = math.max(10, math.floor(size * 0.26))
-                iconFrame.stacks:SetFont(fontPath, stacksFontSize, "OUTLINE")
+                self.Utils:ApplyFontOutline(iconFrame.stacks, fontPath, stacksFontSize, db)
                 iconFrame.stacks:SetTextColor(tc.r, tc.g, tc.b)
             end
             

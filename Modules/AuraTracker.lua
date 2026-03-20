@@ -387,7 +387,7 @@ function AuraTracker:CreateProcIcon(parent, procData, index, size, iconWidth, ic
     -- Created if intensity > 0 (intensity of 0 effectively disables it)
     local glowIntensity = db.backdropGlowIntensity
     if glowIntensity > 0 then
-        local backdropGlow = frame:CreateTexture(nil, "BACKGROUND", nil, -1)
+        local backdropGlow = self.Utils:CreateTexture(frame, nil, "BACKGROUND", nil, -1)
         local glowWidth = iconWidth * db.backdropGlowSize
         local glowHeight = iconHeight * db.backdropGlowSize
         backdropGlow:SetSize(glowWidth, glowHeight)
@@ -401,7 +401,7 @@ function AuraTracker:CreateProcIcon(parent, procData, index, size, iconWidth, ic
     end
 
     -- Border (BACKGROUND layer on visual - below icon so icon covers it when scaling)
-    local border = visual:CreateTexture(nil, "BACKGROUND")
+    local border = self.Utils:CreateTexture(visual, nil, "BACKGROUND")
     border:SetTexture([[Interface\Buttons\WHITE8X8]])
     border:SetVertexColor(0, 0, 0, 1)
     border:SetPoint("TOPLEFT", -1, 1)
@@ -432,7 +432,7 @@ function AuraTracker:CreateProcIcon(parent, procData, index, size, iconWidth, ic
     local textContainer = frame.textContainer
     local durationFontSize = math.max(10, math.floor(size * 0.38))
     local text = textContainer:CreateFontString(nil, "OVERLAY", nil, 7)
-    text:SetFont(addon:GetFont(), durationFontSize, "OUTLINE")
+    self.Utils:ApplyFontOutline(text, addon:GetFont(), durationFontSize, db)
     text:SetPoint("CENTER", textContainer, "CENTER", 0, 0)
     text:SetTextColor(addon.db.profile.appearance.textColor.r, addon.db.profile.appearance.textColor.g, addon.db.profile.appearance.textColor.b)
     frame.text = text
@@ -440,7 +440,7 @@ function AuraTracker:CreateProcIcon(parent, procData, index, size, iconWidth, ic
     -- Stack count (top right corner) — on textContainer
     local stacksFontSize = math.max(10, math.floor(size * 0.26))
     local stacks = textContainer:CreateFontString(nil, "OVERLAY", nil, 7)
-    stacks:SetFont(addon:GetFont(), stacksFontSize, "OUTLINE")
+    self.Utils:ApplyFontOutline(stacks, addon:GetFont(), stacksFontSize, db)
     stacks:SetPoint("TOPRIGHT", textContainer, "TOPRIGHT", 4, 4)
     stacks:SetJustifyH("RIGHT")
     stacks:SetJustifyV("TOP")
@@ -968,11 +968,11 @@ function AuraTracker:Refresh()
             local fontPath = addon:GetFont()
             if frame.text then
                 local durationFontSize = math.max(10, math.floor(iconSize * 0.38))
-                frame.text:SetFont(fontPath, durationFontSize, "OUTLINE")
+                self.Utils:ApplyFontOutline(frame.text, fontPath, durationFontSize, db)
             end
             if frame.stacks then
                 local stacksFontSize = math.max(10, math.floor(iconSize * 0.26))
-                frame.stacks:SetFont(fontPath, stacksFontSize, "OUTLINE")
+                self.Utils:ApplyFontOutline(frame.stacks, fontPath, stacksFontSize, db)
             end
 
             -- Reset slide animation position so RepositionIcons will snap to new position
@@ -1012,14 +1012,14 @@ function AuraTracker:RefreshFonts(fontPath)
         -- Duration text
         if frame.text then
             local durationFontSize = math.max(10, math.floor(iconSize * 0.38))
-            frame.text:SetFont(fontPath, durationFontSize, "OUTLINE")
+            self.Utils:ApplyFontOutline(frame.text, fontPath, durationFontSize, db)
             frame.text:SetTextColor(tc.r, tc.g, tc.b)
         end
 
         -- Stacks text
         if frame.stacks then
             local stacksFontSize = math.max(10, math.floor(iconSize * 0.26))
-            frame.stacks:SetFont(fontPath, stacksFontSize, "OUTLINE")
+            self.Utils:ApplyFontOutline(frame.stacks, fontPath, stacksFontSize, db)
             frame.stacks:SetTextColor(tc.r, tc.g, tc.b)
         end
     end

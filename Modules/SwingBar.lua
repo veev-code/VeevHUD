@@ -522,7 +522,7 @@ function SwingBar:EnsureZoneTextures(bar, count)
     local barTexture = bar:GetStatusBarTexture():GetTexture()
     for i = 1, count do
         if not bar._zones[i] then
-            local tex = bar:CreateTexture(nil, "BORDER")
+            local tex = self.Utils:CreateTexture(bar, nil, "BORDER")
             tex:SetTexture(barTexture)
             tex:Hide()
             bar._zones[i] = tex
@@ -752,7 +752,7 @@ function SwingBar:CreateBarFrame(barType, parent, db)
 
     -- Spark texture
     if db.showSpark then
-        local spark = bar:CreateTexture(nil, "OVERLAY")
+        local spark = self.Utils:CreateTexture(bar, nil, "OVERLAY")
         spark:SetTexture([[Interface\CastingBar\UI-CastingBar-Spark]])
         spark:SetBlendMode("ADD")
         spark:SetSize(db.sparkWidth, height + SPARK_OVERFLOW)
@@ -767,7 +767,7 @@ function SwingBar:CreateBarFrame(barType, parent, db)
     textContainer:SetFrameLevel(bar:GetFrameLevel() + 5)
 
     local text = textContainer:CreateFontString(nil, "OVERLAY")
-    text:SetFont(addon:GetFont(), db.textSize, "OUTLINE")
+    self.Utils:ApplyFontOutline(text, addon:GetFont(), db.textSize, db)
     text:SetPoint("CENTER", bar, "CENTER", 0, 0)
     text:SetTextColor(addon.db.profile.appearance.textColor.r, addon.db.profile.appearance.textColor.g, addon.db.profile.appearance.textColor.b)
     bar.text = text
@@ -1067,11 +1067,11 @@ function SwingBar:RefreshFonts(fontPath)
     local tc = addon.db.profile.appearance.textColor
 
     if self.mainBar and self.mainBar.text then
-        self.mainBar.text:SetFont(fontPath, db.textSize, "OUTLINE")
+        self.Utils:ApplyFontOutline(self.mainBar.text, fontPath, db.textSize, db)
         self.mainBar.text:SetTextColor(tc.r, tc.g, tc.b)
     end
     if self.offBar and self.offBar.text then
-        self.offBar.text:SetFont(fontPath, db.textSize, "OUTLINE")
+        self.Utils:ApplyFontOutline(self.offBar.text, fontPath, db.textSize, db)
         self.offBar.text:SetTextColor(tc.r, tc.g, tc.b)
     end
 end

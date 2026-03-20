@@ -14,15 +14,11 @@ Work through these items one at a time, clearing context between each. Reference
 **Possible fix:** If WAI, update the option description to clarify behavior. If broken, implement manual comma formatting as fallback.
 
 ## Item 5: Bar Outline Rendering at Non-Integer Scale (Bug/Limitation)
-**Files:** `VeevHUD/Core/Core.lua` (~line 406-410), bar modules (HealthBar, ResourceBar)
-**Problem:** At 105% global scale, health/mana bar outlines disappear on one side or vary in thickness. This is a classic WoW pixel-snapping issue — when `SetScale()` produces non-integer pixel coordinates, WoW's renderer draws borders inconsistently.
-**Investigate:** How are bar borders created? (`CreateBarBorder` in Utils.lua). Are they using `SetBackdrop` with `edgeSize`, or manual texture borders? Each has different scaling behavior.
-**Possible approaches:**
-  - Round scale to nearest pixel-aligned value
-  - Use `PixelUtil` functions (`SetPoint`, `SetSize`) to snap borders to exact pixels
-  - Increase border thickness to be more tolerant of rounding
-  - Switch border implementation if current method is scale-sensitive
-**Note:** This may be partially a WoW engine limitation. Document what can and can't be fixed.
+**Status:** WoW engine limitation — partially mitigated, not fully fixable.
+**What was done:** Added `DisablePixelSnap` (`SetSnapToPixelGrid(false)` + `SetTexelSnappingBias(0)`) to all textures via `Utils:CreateTexture` and `Utils:DisablePixelSnap` utilities. This improves rendering for icons, gradients, sparks, overlays, and all non-StatusBar visuals.
+**What remains:** Bar borders (1px edge textures around StatusBar frames) still render at slightly inconsistent thickness at non-integer scales. The root cause is WoW's `StatusBar` widget — its internal fill texture is positioned by the engine, and at fractional scales the fill edge overlaps border edges asymmetrically.
+**Approaches tried:** PixelUtil pixel-aligned edges (uniform but creates layout gaps between stacked bars due to semi-transparent backgrounds), inside borders (gaps), frame level changes (border bleeds onto adjacent bars), SetBackdrop (renders incorrectly at HUD's effective scale), solid background fill (breaks bar transparency).
+**Future fix:** Replace `StatusBar` with custom masked texture fills (how WeakAuras does it) for full rendering control. Large scope — revisit if border quality becomes a higher priority.
 
 ## Item 6: Text Outline Quality at Small Sizes (Feature Request)
 **Files:** All modules using `SetFont()` with "OUTLINE" flag, `VeevHUD/Core/Constants.lua` (defaults), `VeevHUD/UI/Options.lua`
@@ -45,5 +41,5 @@ Work through these items one at a time, clearing context between each. Reference
 | # | Item | Status |
 |---|------|--------|
 | 4 | Comma number format | Done |
-| 5 | Bar outline at scale | Not started |
-| 6 | Text outline options | Not started |
+| 5 | Bar outline at scale | Partial (WoW limitation) |
+| 6 | Text outline options | Done |

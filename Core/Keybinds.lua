@@ -417,7 +417,7 @@ function Keybinds:CreateKeybindText(frame, textParent, fontPath, fontSize, iconS
     local offsetY = math.floor(iconSize * 0.10)  -- ~10% from bottom edge
     
     local keybindText = textParent:CreateFontString(nil, "OVERLAY", nil, 6)
-    keybindText:SetFont(fontPath, fontSize, "OUTLINE")
+    addon.Utils:ApplyFontOutline(keybindText, fontPath, fontSize, addon.db.profile.icons)
     keybindText:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -offsetX, offsetY)
     keybindText:SetJustifyH("RIGHT")
     keybindText:SetJustifyV("BOTTOM")
@@ -465,6 +465,6 @@ end
 -- fontSize: font size in pixels
 function Keybinds:UpdateKeybindFont(frame, fontPath, fontSize)
     if frame and frame.keybindText then
-        frame.keybindText:SetFont(fontPath, fontSize, "OUTLINE")
+        addon.Utils:ApplyFontOutline(frame.keybindText, fontPath, fontSize, addon.db.profile.icons)
     end
 end

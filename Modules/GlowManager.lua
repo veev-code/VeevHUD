@@ -152,7 +152,7 @@ function GlowManager:ShowPermanentBuffGlow(frame)
 
     -- Create the static glow overlay if it doesn't exist
     if not frame.permanentGlow then
-        frame.permanentGlow = frame:CreateTexture(nil, "OVERLAY", nil, 1)
+        frame.permanentGlow = self.Utils:CreateTexture(frame, nil, "OVERLAY", nil, 1)
         frame.permanentGlow:SetTexture("Interface\\Buttons\\UI-ActionButton-Border")
         frame.permanentGlow:SetBlendMode("ADD")
         -- Offset Y slightly upward to center the glow visually (texture has asymmetric glow)
@@ -206,28 +206,28 @@ function GlowManager:ShowAuraGlow(frame)
         end
 
         -- Top border
-        frame.pixelGlow.top = frame:CreateTexture(nil, "OVERLAY", nil, 7)
+        frame.pixelGlow.top = self.Utils:CreateTexture(frame, nil, "OVERLAY", nil, 7)
         SetSolidColor(frame.pixelGlow.top, r, g, b, a)
         frame.pixelGlow.top:SetPoint("TOPLEFT", frame, "TOPLEFT", -offset, offset)
         frame.pixelGlow.top:SetPoint("TOPRIGHT", frame, "TOPRIGHT", offset, offset)
         frame.pixelGlow.top:SetHeight(thickness)
 
         -- Bottom border
-        frame.pixelGlow.bottom = frame:CreateTexture(nil, "OVERLAY", nil, 7)
+        frame.pixelGlow.bottom = self.Utils:CreateTexture(frame, nil, "OVERLAY", nil, 7)
         SetSolidColor(frame.pixelGlow.bottom, r, g, b, a)
         frame.pixelGlow.bottom:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", -offset, -offset)
         frame.pixelGlow.bottom:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", offset, -offset)
         frame.pixelGlow.bottom:SetHeight(thickness)
 
         -- Left border
-        frame.pixelGlow.left = frame:CreateTexture(nil, "OVERLAY", nil, 7)
+        frame.pixelGlow.left = self.Utils:CreateTexture(frame, nil, "OVERLAY", nil, 7)
         SetSolidColor(frame.pixelGlow.left, r, g, b, a)
         frame.pixelGlow.left:SetPoint("TOPLEFT", frame, "TOPLEFT", -offset, offset - thickness)
         frame.pixelGlow.left:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", -offset, -offset + thickness)
         frame.pixelGlow.left:SetWidth(thickness)
 
         -- Right border
-        frame.pixelGlow.right = frame:CreateTexture(nil, "OVERLAY", nil, 7)
+        frame.pixelGlow.right = self.Utils:CreateTexture(frame, nil, "OVERLAY", nil, 7)
         SetSolidColor(frame.pixelGlow.right, r, g, b, a)
         frame.pixelGlow.right:SetPoint("TOPRIGHT", frame, "TOPRIGHT", offset, offset - thickness)
         frame.pixelGlow.right:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", offset, -offset + thickness)

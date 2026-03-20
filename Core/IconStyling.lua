@@ -58,7 +58,7 @@ function IconStyling:Apply(frame, size, aspectRatio)
     
     -- Create backdrop (empty slot background) - sits behind everything
     if not frame.builtInBackdrop then
-        local backdrop = frame:CreateTexture(nil, "BACKGROUND", nil, -1)
+        local backdrop = Utils:CreateTexture(frame, nil, "BACKGROUND", nil, -1)
         backdrop:SetTexture(CLASSIC_ENHANCED.Backdrop)
         frame.builtInBackdrop = backdrop
     end
@@ -75,7 +75,7 @@ function IconStyling:Apply(frame, size, aspectRatio)
     
     -- Create normal border (the classic action button frame)
     if not frame.builtInNormal then
-        local normal = frame:CreateTexture(nil, "OVERLAY", nil, 1)
+        local normal = Utils:CreateTexture(frame, nil, "OVERLAY", nil, 1)
         normal:SetTexture(CLASSIC_ENHANCED.Normal)
         frame.builtInNormal = normal
     end

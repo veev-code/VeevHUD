@@ -193,7 +193,7 @@ function ResourceBar:CreateFrames(parent)
 
     -- Text overlay
     local text = bar:CreateFontString(nil, "OVERLAY")
-    text:SetFont(addon:GetFont(), db.textSize, "OUTLINE")
+    self.Utils:ApplyFontOutline(text, addon:GetFont(), db.textSize, db)
     text:SetPoint("CENTER")
     self.text = text
 
@@ -258,16 +258,16 @@ end
 
 function ResourceBar:CreateSpark(bar, db)
     if not db.showSpark then return end
-    
-    local spark = bar:CreateTexture(nil, "OVERLAY")
-    
+
+    local spark = self.Utils:CreateTexture(bar, nil, "OVERLAY")
+
     -- Use the casting bar spark texture (available in all WoW versions)
     spark:SetTexture([[Interface\CastingBar\UI-CastingBar-Spark]])
     spark:SetBlendMode("ADD")
     spark:SetSize(db.sparkWidth, db.height + db.sparkOverflow)
     spark:SetPoint("CENTER", bar, "LEFT", 0, 0)
     spark:SetAlpha(0.9)
-    
+
     self.spark = spark
 end
 
@@ -325,14 +325,14 @@ function ResourceBar:CreateTickerBarSpark(ticker, tickerHeight)
     local db = addon.db.profile.resourceBar
     if not db.showSpark then return end
 
-    local spark = ticker:CreateTexture(nil, "OVERLAY")
+    local spark = self.Utils:CreateTexture(ticker, nil, "OVERLAY")
     spark:SetTexture([[Interface\CastingBar\UI-CastingBar-Spark]])
     spark:SetBlendMode("ADD")
     -- Scale spark for the thinner ticker bar (smaller width, height extends above/below)
     spark:SetSize(8, tickerHeight + 6)
     spark:SetPoint("CENTER", ticker, "LEFT", 0, 0)
     spark:SetAlpha(0.9)
-    
+
     self.tickerSpark = spark
 end
 
@@ -343,15 +343,15 @@ function ResourceBar:CreateEnergyTickerSpark(bar, db, tickerDb)
     local sparkHeight = db.height * sparkHeightMult
 
     -- Create the spark overlay
-    local spark = bar:CreateTexture(nil, "OVERLAY", nil, 2)  -- Higher sublevel than normal spark
+    local spark = self.Utils:CreateTexture(bar, nil, "OVERLAY", nil, 2)  -- Higher sublevel than normal spark
     spark:SetTexture([[Interface\CastingBar\UI-CastingBar-Spark]])
     spark:SetBlendMode("ADD")
     spark:SetSize(sparkWidth, sparkHeight)
     spark:SetPoint("CENTER", bar, "LEFT", 0, 0)
     spark:SetAlpha(0.9)
-    
+
     self.tickerOverlaySpark = spark
-    
+
     -- Hide initially (will show when player has energy and not at max)
     spark:Hide()
 end
@@ -371,16 +371,16 @@ function ResourceBar:CreateManaTicker(bar, db)
     local sparkHeight = db.height * sparkHeightMult
 
     -- Create the spark overlay (similar to energy ticker spark style)
-    local spark = bar:CreateTexture(nil, "OVERLAY", nil, 3)  -- Higher sublevel for visibility
+    local spark = self.Utils:CreateTexture(bar, nil, "OVERLAY", nil, 3)  -- Higher sublevel for visibility
     spark:SetTexture([[Interface\CastingBar\UI-CastingBar-Spark]])
     spark:SetBlendMode("ADD")
     spark:SetSize(sparkWidth, sparkHeight)
     spark:SetPoint("CENTER", bar, "LEFT", 0, 0)
     spark:SetAlpha(1.0)
-    
+
     -- Use bright white/cyan color for contrast against blue mana bar
     spark:SetVertexColor(0.8, 1.0, 1.0)
-    
+
     self.manaTickerSpark = spark
     
     -- Hide initially
@@ -452,7 +452,7 @@ function ResourceBar:CreateDruidManaBar(bar, db)
 
     -- Spark (scaled to mana bar height)
     if manaDb.showSpark then
-        local spark = manaBar:CreateTexture(nil, "OVERLAY")
+        local spark = self.Utils:CreateTexture(manaBar, nil, "OVERLAY")
         spark:SetTexture([[Interface\CastingBar\UI-CastingBar-Spark]])
         spark:SetBlendMode("ADD")
         spark:SetSize(db.sparkWidth, manaDb.height + db.sparkOverflow)
@@ -462,7 +462,7 @@ function ResourceBar:CreateDruidManaBar(bar, db)
     end
 
     -- Form cost marker (vertical line showing mana cost of current form)
-    local marker = manaBar:CreateTexture(nil, "OVERLAY")
+    local marker = self.Utils:CreateTexture(manaBar, nil, "OVERLAY")
     marker:SetColorTexture(1, 1, 1, 0.7)
     marker:SetSize(2, manaDb.height)
     marker:Hide()
@@ -470,7 +470,7 @@ function ResourceBar:CreateDruidManaBar(bar, db)
 
     -- Text
     local text = manaBar:CreateFontString(nil, "OVERLAY")
-    text:SetFont(addon:GetFont(), manaDb.textSize, "OUTLINE")
+    self.Utils:ApplyFontOutline(text, addon:GetFont(), manaDb.textSize, manaDb)
     text:SetPoint("CENTER")
     self.manaBarText = text
 
@@ -653,6 +653,7 @@ function ResourceBar:RefreshDruidManaBar()
             -- Update texture
             local barTexture = addon:GetBarTexture()
             self.manaBar:SetStatusBarTexture(barTexture)
+            self.Utils:DisablePixelSnap(self.manaBar:GetStatusBarTexture())
             if self.manaBar.bg then
                 self.manaBar.bg:SetTexture(barTexture)
             end
@@ -683,7 +684,7 @@ function ResourceBar:RefreshDruidManaBar()
             -- Update spark
             if manaDb.showSpark then
                 if not self.manaBarSpark then
-                    local spark = self.manaBar:CreateTexture(nil, "OVERLAY")
+                    local spark = self.Utils:CreateTexture(self.manaBar, nil, "OVERLAY")
                     spark:SetTexture([[Interface\CastingBar\UI-CastingBar-Spark]])
                     spark:SetBlendMode("ADD")
                     spark:SetPoint("CENTER", self.manaBar, "LEFT", 0, 0)
@@ -700,7 +701,7 @@ function ResourceBar:RefreshDruidManaBar()
 
             -- Update form cost marker
             if not self.formCostMarker then
-                local marker = self.manaBar:CreateTexture(nil, "OVERLAY")
+                local marker = self.Utils:CreateTexture(self.manaBar, nil, "OVERLAY")
                 marker:SetColorTexture(1, 1, 1, 0.7)
                 marker:Hide()
                 self.formCostMarker = marker
@@ -709,7 +710,7 @@ function ResourceBar:RefreshDruidManaBar()
 
             -- Update text font
             if self.manaBarText then
-                self.manaBarText:SetFont(addon:GetFont(), manaDb.textSize, "OUTLINE")
+                self.Utils:ApplyFontOutline(self.manaBarText, addon:GetFont(), manaDb.textSize, manaDb)
             end
         end
     else
@@ -755,7 +756,7 @@ function ResourceBar:CreateCostOverlay(bar)
 
     -- ARTWORK sublevel 2: above the StatusBar fill (sublevel 0) so the dark
     -- section is visible on top of the bright fill
-    local costOverlay = bar:CreateTexture(nil, "ARTWORK", nil, 2)
+    local costOverlay = self.Utils:CreateTexture(bar, nil, "ARTWORK", nil, 2)
     costOverlay:SetTexture(barTexture)
     costOverlay:Hide()
     self.costOverlay = costOverlay
@@ -1320,6 +1321,7 @@ function ResourceBar:Refresh()
         -- Update bar texture
         local barTexture = addon:GetBarTexture()
         self.bar:SetStatusBarTexture(barTexture)
+        self.Utils:DisablePixelSnap(self.bar:GetStatusBarTexture())
         if self.bar.bg then
             self.bar.bg:SetTexture(barTexture)
         end
@@ -1370,7 +1372,7 @@ function ResourceBar:Refresh()
         
         -- Toggle text visibility and update font size
         if self.text then
-            self.text:SetFont(addon:GetFont(), db.textSize, "OUTLINE")
+            self.Utils:ApplyFontOutline(self.text, addon:GetFont(), db.textSize, db)
             if db.textFormat and db.textFormat ~= self.C.TEXT_FORMAT.NONE then
                 self.text:Show()
             else
@@ -1414,6 +1416,7 @@ function ResourceBar:RefreshEnergyTicker()
             -- Update ticker texture
             local barTexture = addon:GetBarTexture()
             self.ticker:SetStatusBarTexture(barTexture)
+            self.Utils:DisablePixelSnap(self.ticker:GetStatusBarTexture())
             if self.ticker.bg then
                 self.ticker.bg:SetTexture(barTexture)
             end

@@ -624,17 +624,15 @@ function BuffReminders:GetOrCreateIcon(key)
     -- Cooldown/duration text (center, matching CooldownIcons style)
     local fontSize = math.max(14, math.floor(iconSize * 0.38))
     local text = textContainer:CreateFontString(nil, "OVERLAY", nil, 7)
-    text:SetFont(addon:GetFont(), fontSize, "OUTLINE")
+    self.Utils:ApplyFontOutline(text, addon:GetFont(), fontSize, db)
     text:SetPoint("CENTER", textContainer, "CENTER", 0, 0)
     text:SetTextColor(addon.db.profile.appearance.textColor.r, addon.db.profile.appearance.textColor.g, addon.db.profile.appearance.textColor.b)
-    text:SetShadowOffset(0.5, -0.5)
-    text:SetShadowColor(0, 0, 0, 0.5)
     frame.text = text
 
     -- Stacks text (top right, matching CooldownIcons style)
     local stacksFontSize = math.max(10, math.floor(iconSize * 0.26))
     local stacks = textContainer:CreateFontString(nil, "OVERLAY", nil, 7)
-    stacks:SetFont(addon:GetFont(), stacksFontSize, "OUTLINE")
+    self.Utils:ApplyFontOutline(stacks, addon:GetFont(), stacksFontSize, db)
     stacks:SetPoint("TOPRIGHT", textContainer, "TOPRIGHT", 2, 2)
     stacks:SetJustifyH("RIGHT")
     stacks:SetJustifyV("TOP")
@@ -692,11 +690,11 @@ function BuffReminders:UpdateIconSize()
             frame.textContainer:SetAllPoints(frame)
         end
         if frame.text then
-            frame.text:SetFont(addon:GetFont(), fontSize, "OUTLINE")
+            self.Utils:ApplyFontOutline(frame.text, addon:GetFont(), fontSize, db)
             frame.text:SetTextColor(addon.db.profile.appearance.textColor.r, addon.db.profile.appearance.textColor.g, addon.db.profile.appearance.textColor.b)
         end
         if frame.stacks then
-            frame.stacks:SetFont(addon:GetFont(), stacksFontSize, "OUTLINE")
+            self.Utils:ApplyFontOutline(frame.stacks, addon:GetFont(), stacksFontSize, db)
             frame.stacks:SetTextColor(addon.db.profile.appearance.textColor.r, addon.db.profile.appearance.textColor.g, addon.db.profile.appearance.textColor.b)
         end
         -- Reset slide state so LayoutIcons snaps to positions at the new size

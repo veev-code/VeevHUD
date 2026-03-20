@@ -13,6 +13,34 @@ local C = addon.Constants
 local Options = {}
 addon.Options = Options
 
+-- Shared value tables for text outline dropdowns (used by both BuildOptions and BuildBuffRemindersOptions)
+local textOutlineValues = {
+	[C.TEXT_OUTLINE.OUTLINE] = "Outline",
+	[C.TEXT_OUTLINE.SHADOW] = "Shadow",
+	[C.TEXT_OUTLINE.BOTH] = "Both",
+	[C.TEXT_OUTLINE.NONE] = "None",
+}
+local textOutlineSorting = {
+	C.TEXT_OUTLINE.OUTLINE,
+	C.TEXT_OUTLINE.SHADOW,
+	C.TEXT_OUTLINE.BOTH,
+	C.TEXT_OUTLINE.NONE,
+}
+local textOutlineValuesInherit = {
+	[C.TEXT_OUTLINE.INHERIT] = "Inherit (Global)",
+	[C.TEXT_OUTLINE.OUTLINE] = "Outline",
+	[C.TEXT_OUTLINE.SHADOW] = "Shadow",
+	[C.TEXT_OUTLINE.BOTH] = "Both",
+	[C.TEXT_OUTLINE.NONE] = "None",
+}
+local textOutlineSortingInherit = {
+	C.TEXT_OUTLINE.INHERIT,
+	C.TEXT_OUTLINE.OUTLINE,
+	C.TEXT_OUTLINE.SHADOW,
+	C.TEXT_OUTLINE.BOTH,
+	C.TEXT_OUTLINE.NONE,
+}
+
 Options.isConfigOpen = false
 Options._registered = false
 
@@ -94,8 +122,8 @@ function Options:ApplySettingChange(path)
 		return
 	end
 
-	-- Text color
-	if path == "appearance.textColor" then
+	-- Text color or outline style
+	if path == "appearance.textColor" or path == "appearance.textOutline" then
 		SafeCall(addon.FontManager and addon.FontManager.RefreshAllFonts, addon.FontManager)
 		local buffReminders = addon:GetModule("BuffReminders")
 		SafeCall(buffReminders and buffReminders.Refresh, buffReminders)
@@ -780,6 +808,15 @@ function Options:BuildOptionsTable()
 								arg = "appearance.textColor",
 								order = 5,
 							},
+							textOutline = {
+								type = "select",
+								name = "Text Outline",
+								desc = "Controls how text is rendered across all HUD elements.\n\n|cffffffffOutline|r — Font outline only.\n|cffffffffShadow|r — Drop shadow only (cleaner at small sizes).\n|cffffffffBoth|r — Font outline + drop shadow (maximum readability).\n|cffffffffNone|r — No outline or shadow.\n\nIndividual elements can override this in their own settings.",
+								values = textOutlineValues,
+								sorting = textOutlineSorting,
+								arg = "appearance.textOutline",
+								order = 6,
+							},
 						},
 					},
 					visibility = {
@@ -966,6 +1003,15 @@ function Options:BuildOptionsTable()
 										values = rowSettingAll,
 										arg = "icons.showCooldownTextOn",
 										order = 1,
+									},
+									textOutline = {
+										type = "select",
+										name = "Text Outline",
+										desc = "Text outline style for ability icon text (cooldowns, stacks, charges, keybinds).",
+										values = textOutlineValuesInherit,
+										sorting = textOutlineSortingInherit,
+										arg = "icons.textOutline",
+										order = 1.2,
 									},
 									detailedTimeThreshold = {
 										type = "range",
@@ -1457,6 +1503,7 @@ function Options:BuildOptionsTable()
 									textFormat = { type = "select", name = "Text Format", desc = "Controls what text is shown on the resource bar.\n\n|cffffffffCurrent|r — Shows your actual resource (e.g., 4523).\n|cffffffffPercent|r — Shows your resource percentage (e.g., 85%).\n|cffffffffBoth|r — Shows both (e.g., 4523 (85%)).\n|cffffffffCurrent / Max|r — Shows current and maximum (e.g., 4523 / 5320).\n|cffffffffCurrent / Max (%)|r — Shows current, maximum, and percentage (e.g., 4523 / 5320 (85%)).\n|cffffffffDeficit|r — Shows how much is missing (e.g., -797). Hidden at full.\n|cffffffffNone|r — Hides the text entirely.", values = textFormatValues, sorting = textFormatSorting, arg = "resourceBar.textFormat", order = 1 },
 									numberFormat = { type = "select", name = "Number Format", desc = "Controls how numbers are displayed.\n\n|cffffffffAbbreviated|r — Large numbers shortened (e.g., 4.5k, 1.2m).\n|cffffffffFull|r — Whole numbers (e.g., 4523).\n|cffffffffComma|r — Comma-separated (e.g., 4,523).", values = numberFormatValues, sorting = numberFormatSorting, arg = "resourceBar.numberFormat", order = 2, disabled = function() local fmt = addon.db.profile.resourceBar.textFormat; return fmt == C.TEXT_FORMAT.NONE or fmt == C.TEXT_FORMAT.PERCENT end },
 									textSize = { type = "range", name = "Text Size", desc = "Font size for the resource text. Larger sizes are easier to read but may overflow small bars.", min = 6, max = 24, step = 1, arg = "resourceBar.textSize", order = 3, disabled = function() return addon.db.profile.resourceBar.textFormat == C.TEXT_FORMAT.NONE end },
+									textOutline = { type = "select", name = "Text Outline", desc = "Text outline style for the resource bar.", values = textOutlineValuesInherit, sorting = textOutlineSortingInherit, arg = "resourceBar.textOutline", order = 4, disabled = function() return addon.db.profile.resourceBar.textFormat == C.TEXT_FORMAT.NONE end },
 								},
 							},
 							colorSettings = {
@@ -1600,6 +1647,7 @@ function Options:BuildOptionsTable()
 								textFormat = { type = "select", name = "Text Format", desc = "Controls what text is shown on the Druid mana bar.\n\n|cffffffffCurrent|r — Shows your actual mana.\n|cffffffffPercent|r — Shows your mana percentage.\n|cffffffffBoth|r — Shows both.\n|cffffffffCurrent / Max|r — Shows current and maximum.\n|cffffffffCurrent / Max (%)|r — Shows current, maximum, and percentage.\n|cffffffffDeficit|r — Shows how much is missing. Hidden at full.\n|cffffffffNone|r — Hides the text.", values = textFormatValues, sorting = textFormatSorting, arg = "resourceBar.druidManaBar.textFormat", order = 1 },
 								numberFormat = { type = "select", name = "Number Format", desc = "Controls how numbers are displayed.", values = numberFormatValues, sorting = numberFormatSorting, arg = "resourceBar.druidManaBar.numberFormat", order = 2, disabled = function() local fmt = addon.db.profile.resourceBar.druidManaBar.textFormat; return fmt == C.TEXT_FORMAT.NONE or fmt == C.TEXT_FORMAT.PERCENT end },
 								textSize = { type = "range", name = "Text Size", desc = "Font size for the mana bar text.", min = 6, max = 18, step = 1, arg = "resourceBar.druidManaBar.textSize", order = 3 },
+								textOutline = { type = "select", name = "Text Outline", desc = "Text outline style for the druid mana bar.", values = textOutlineValuesInherit, sorting = textOutlineSortingInherit, arg = "resourceBar.druidManaBar.textOutline", order = 4 },
 							},
 						},
 					},
@@ -1637,6 +1685,7 @@ function Options:BuildOptionsTable()
 									textFormat = { type = "select", name = "Text Format", desc = "Controls what text is shown on the health bar.\n\n|cffffffffCurrent|r — Shows your actual health (e.g., 3256).\n|cffffffffPercent|r — Shows your health percentage (e.g., 71%).\n|cffffffffBoth|r — Shows both (e.g., 3256 (71%)).\n|cffffffffCurrent / Max|r — Shows current and maximum (e.g., 3256 / 4580).\n|cffffffffCurrent / Max (%)|r — Shows current, maximum, and percentage (e.g., 3256 / 4580 (71%)).\n|cffffffffDeficit|r — Shows how much health is missing (e.g., -1324). Hidden at full.\n|cffffffffNone|r — Hides the text entirely.", values = textFormatValues, sorting = textFormatSorting, arg = "healthBar.textFormat", order = 1 },
 									numberFormat = { type = "select", name = "Number Format", desc = "Controls how numbers are displayed.\n\n|cffffffffAbbreviated|r — Large numbers shortened (e.g., 4.5k, 1.2m).\n|cffffffffFull|r — Whole numbers (e.g., 4523).\n|cffffffffComma|r — Comma-separated (e.g., 4,523).", values = numberFormatValues, sorting = numberFormatSorting, arg = "healthBar.numberFormat", order = 2, disabled = function() local fmt = addon.db.profile.healthBar.textFormat; return fmt == C.TEXT_FORMAT.NONE or fmt == C.TEXT_FORMAT.PERCENT end },
 									textSize = { type = "range", name = "Text Size", desc = "Font size for the health text. Larger sizes are easier to read but may overflow small bars.", min = 6, max = 24, step = 1, arg = "healthBar.textSize", order = 3, disabled = function() return addon.db.profile.healthBar.textFormat == C.TEXT_FORMAT.NONE end },
+									textOutline = { type = "select", name = "Text Outline", desc = "Text outline style for the health bar.", values = textOutlineValuesInherit, sorting = textOutlineSortingInherit, arg = "healthBar.textOutline", order = 4, disabled = function() return addon.db.profile.healthBar.textFormat == C.TEXT_FORMAT.NONE end },
 								},
 							},
 							colorSettings = {
@@ -1695,6 +1744,7 @@ function Options:BuildOptionsTable()
 									textFormat = { type = "select", name = "Text Format", desc = "Controls what text is shown on the pet health bar.\n\n|cffffffffCurrent|r — Shows actual health.\n|cffffffffPercent|r — Shows health percentage.\n|cffffffffBoth|r — Shows both.\n|cffffffffCurrent / Max|r — Shows current and maximum.\n|cffffffffCurrent / Max (%)|r — Shows current, maximum, and percentage.\n|cffffffffDeficit|r — Shows how much health is missing. Hidden at full.\n|cffffffffNone|r — Hides the text.", values = textFormatValues, sorting = textFormatSorting, arg = "petHealthBar.textFormat", order = 1 },
 									numberFormat = { type = "select", name = "Number Format", desc = "Controls how numbers are displayed.", values = numberFormatValues, sorting = numberFormatSorting, arg = "petHealthBar.numberFormat", order = 2, disabled = function() local fmt = addon.db.profile.petHealthBar.textFormat; return fmt == C.TEXT_FORMAT.NONE or fmt == C.TEXT_FORMAT.PERCENT end },
 									textSize = { type = "range", name = "Text Size", desc = "Font size for the pet health text.", min = 6, max = 24, step = 1, arg = "petHealthBar.textSize", order = 3, disabled = function() return addon.db.profile.petHealthBar.textFormat == C.TEXT_FORMAT.NONE end },
+									textOutline = { type = "select", name = "Text Outline", desc = "Text outline style for the pet health bar.", values = textOutlineValuesInherit, sorting = textOutlineSortingInherit, arg = "petHealthBar.textOutline", order = 4, disabled = function() return addon.db.profile.petHealthBar.textFormat == C.TEXT_FORMAT.NONE end },
 								},
 							},
 							colorSettings = {
@@ -1818,6 +1868,7 @@ function Options:BuildOptionsTable()
 								disabled = function() return addon.db and addon.db.profile and not addon.db.profile.auraTracker.enabled end,
 								args = {
 									showDuration = { type = "toggle", name = "Show Duration", desc = "Displays the remaining time on aura buffs as text on the icon. Disable if you prefer a cleaner look or if it overlaps with stack counts.", width = "normal", arg = "auraTracker.showDuration", order = 1 },
+									textOutline = { type = "select", name = "Text Outline", desc = "Text outline style for aura tracker text.", values = textOutlineValuesInherit, sorting = textOutlineSortingInherit, arg = "auraTracker.textOutline", order = 1.5 },
 									slideAnimation = { type = "toggle", name = "Slide Animation", desc = "When auras appear or disappear, the remaining icons smoothly slide to re-center instead of snapping instantly. Disable for instant repositioning.", width = "normal", arg = "auraTracker.slideAnimation", order = 2 },
 									punchScale = { type = "range", name = "Activation Pop", desc = "How much the icon briefly grows when an aura activates or refreshes. Set to 100% to disable the pop animation.", min = 1.0, max = 2.0, step = 0.05, isPercent = true, arg = "auraTracker.punchScale", order = 3 },
 									sortOrder = { type = "select", name = "Sort Order", desc = "How active aura icons are arranged.\n\n|cffffffffActivation Order|r — First-activated aura appears on the left, newest on the right.\n\n|cffffffffFixed|r — Icons stay in a consistent order based on spell registration (class procs first, then externals, then custom).\n\n|cffffffffLeast Remaining|r — Aura closest to expiring appears on the left. Icons re-sort as durations tick down.", values = { [C.AURA_SORT_ORDER.FIFO] = "Activation Order", [C.AURA_SORT_ORDER.FIXED] = "Fixed", [C.AURA_SORT_ORDER.REMAINING] = "Least Remaining" }, sorting = { C.AURA_SORT_ORDER.FIFO, C.AURA_SORT_ORDER.FIXED, C.AURA_SORT_ORDER.REMAINING }, arg = "auraTracker.sortOrder", order = 4 },
@@ -1938,6 +1989,7 @@ function Options:BuildOptionsTable()
 								args = {
 									showText = { type = "toggle", name = "Show Timer Text", desc = "Show a countdown timer on the bar.", arg = "swingBar.showText", order = 1 },
 									textSize = { type = "range", name = "Text Size", desc = "Font size for the timer text.", min = 6, max = 24, step = 1, arg = "swingBar.textSize", order = 2, disabled = function() return not addon.db.profile.swingBar.showText end },
+									textOutline = { type = "select", name = "Text Outline", desc = "Text outline style for the swing bar.", values = textOutlineValuesInherit, sorting = textOutlineSortingInherit, arg = "swingBar.textOutline", order = 3, disabled = function() return not addon.db.profile.swingBar.showText end },
 								},
 							},
 							classOptions = {
@@ -3645,6 +3697,15 @@ function Options:BuildBuffRemindersOptions()
 								isPercent = true,
 								arg = "buffReminders.alpha",
 								order = 3,
+							},
+							textOutline = {
+								type = "select",
+								name = "Text Outline",
+								desc = "Text outline style for buff reminder text.",
+								values = textOutlineValuesInherit,
+								sorting = textOutlineSortingInherit,
+								arg = "buffReminders.textOutline",
+								order = 4,
 							},
 						},
 					},

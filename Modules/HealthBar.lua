@@ -124,7 +124,7 @@ function HealthBar:CreatePlayerBar(parent)
     -- Text (create if any text format is enabled, above overlays)
     if db.textFormat and db.textFormat ~= self.C.TEXT_FORMAT.NONE then
         local text = bar:CreateFontString(nil, "OVERLAY")
-        text:SetFont(addon:GetFont(), db.textSize, "OUTLINE")
+        self.Utils:ApplyFontOutline(text, addon:GetFont(), db.textSize, db)
         text:SetPoint("CENTER")
         self.playerText = text
     end
@@ -160,7 +160,7 @@ end
 function HealthBar:CreateHealPrediction(bar)
     local barTexture = (addon.GetBarTexture and addon:GetBarTexture()) or self.C.TEXTURES.STATUSBAR
 
-    local healPredict = bar:CreateTexture(nil, "ARTWORK", nil, 2)
+    local healPredict = self.Utils:CreateTexture(bar, nil, "ARTWORK", nil, 2)
     healPredict:SetTexture(barTexture)
     healPredict:Hide()
     self.healPrediction = healPredict
@@ -302,6 +302,7 @@ function HealthBar:Refresh()
         -- Update bar texture
         local barTexture = addon:GetBarTexture()
         self.playerBar:SetStatusBarTexture(barTexture)
+        self.Utils:DisablePixelSnap(self.playerBar:GetStatusBarTexture())
         if self.playerBar.bg then
             self.playerBar.bg:SetTexture(barTexture)
         end
@@ -341,7 +342,7 @@ function HealthBar:Refresh()
                 text:SetPoint("CENTER")
                 self.playerText = text
             end
-            self.playerText:SetFont(addon:GetFont(), db.textSize, "OUTLINE")
+            self.Utils:ApplyFontOutline(self.playerText, addon:GetFont(), db.textSize, db)
             self.playerText:Show()
         elseif self.playerText then
             self.playerText:Hide()
