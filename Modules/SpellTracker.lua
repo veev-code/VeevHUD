@@ -440,17 +440,11 @@ end
 -- This handles cases where LibSpellDB has spell ID 20572 but the player knows 33697
 -- (both are "Blood Fury" but different class-specific versions)
 function SpellTracker:GetActualSpellID(librarySpellID, spellData)
-    -- First, check if the exact library spell ID is known
-    if IsSpellKnown and IsSpellKnown(librarySpellID) then
-        return librarySpellID
-    end
-    if IsPlayerSpell and IsPlayerSpell(librarySpellID) then
-        return librarySpellID
-    end
-    
-    -- Check ranks - if any rank is known, return that rank ID
+    -- Check ranks first (highest to lowest) so we return the highest known rank,
+    -- not the base rank. This matters for per-rank reagent lookups.
     if spellData and spellData.ranks then
-        for _, rankID in ipairs(spellData.ranks) do
+        for i = #spellData.ranks, 1, -1 do
+            local rankID = spellData.ranks[i]
             if IsSpellKnown and IsSpellKnown(rankID) then
                 return rankID
             end
@@ -458,6 +452,14 @@ function SpellTracker:GetActualSpellID(librarySpellID, spellData)
                 return rankID
             end
         end
+    end
+
+    -- No ranks or no rank matched — check if the exact library spell ID is known
+    if IsSpellKnown and IsSpellKnown(librarySpellID) then
+        return librarySpellID
+    end
+    if IsPlayerSpell and IsPlayerSpell(librarySpellID) then
+        return librarySpellID
     end
     
     -- Fallback: Look up by name in spellbook cache
