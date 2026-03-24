@@ -337,13 +337,14 @@ function GlowManager:UpdateReadyGlow(frame, spellID, remaining, duration, isUsab
     -- Check row-based setting first
     local enabledForRow = addon.Database:IsRowSettingEnabled(glowRows, rowIndex)
 
-    -- Disabled or not enabled for this row: hide any active glow and return (unless reactive or dodge override)
-    if not enabledForRow and not isReactive and not dodgeGlowOverride then
+    -- Disabled or not enabled for this row: hide any active glow (unless reactive or dodge override)
+    -- Sound still runs for filtered rows (checked separately below)
+    local glowEnabledForRow = enabledForRow or isReactive or dodgeGlowOverride
+    if not glowEnabledForRow then
         if frame.readyGlowActive then
             self:HideReadyGlow(frame)
             frame.readyGlowActive = false
         end
-        return
     end
 
     -- Determine effective mode per row:
@@ -441,8 +442,17 @@ function GlowManager:UpdateReadyGlow(frame, spellID, remaining, duration, isUsab
     frame.wasOnRealCooldown = isOnRealCooldown
     frame.wasUsable = isUsable
 
-    -- Show or hide the ready glow
-    if showReadyGlow then
+    -- Play sound on ready transition (independent of row glow filter)
+    if showReadyGlow and not frame.readyGlowSoundPlayed then
+        local spellCfg = addon.Database:GetSpellConfigForSpell(spellID)
+        addon.SoundManager:PlaySound(spellCfg.readyGlowSound or db.readyGlowSound)
+        frame.readyGlowSoundPlayed = true
+    elseif not showReadyGlow then
+        frame.readyGlowSoundPlayed = false
+    end
+
+    -- Show or hide the ready glow visual (respects row filter)
+    if showReadyGlow and glowEnabledForRow then
         if not frame.readyGlowActive then
             self:ShowReadyGlow(frame)
             frame.readyGlowActive = true

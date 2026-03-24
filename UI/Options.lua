@@ -13,6 +13,35 @@ local C = addon.Constants
 local Options = {}
 addon.Options = Options
 
+-- Patch LSM30_Sound to collapse label space when name is empty.
+-- Stock widget always reserves 18px for its label; this hides it and shrinks to 26px.
+do
+	local AceGUI = LibStub and LibStub("AceGUI-3.0", true)
+	if AceGUI then
+		local origCreate = AceGUI.Create
+		AceGUI.Create = function(self, widgetType, ...)
+			local widget = origCreate(self, widgetType, ...)
+			if widget and widgetType == "LSM30_Sound" and not widget._veevhudPatched then
+				widget._veevhudPatched = true
+				local origSetLabel = widget.SetLabel
+				widget.SetLabel = function(w, text)
+					origSetLabel(w, text or "")
+					if text and text ~= "" and text ~= " " then
+						w.frame.label:Show()
+						w:SetHeight(44)
+						w.alignoffset = 31
+					else
+						w.frame.label:Hide()
+						w:SetHeight(26)
+						w.alignoffset = 12
+					end
+				end
+			end
+			return widget
+		end
+	end
+end
+
 -- Shared value tables for text outline dropdowns (used by both BuildOptions and BuildBuffRemindersOptions)
 local textOutlineValues = {
 	[C.TEXT_OUTLINE.OUTLINE] = "Outline",
@@ -82,6 +111,32 @@ local function GetLSMStatusbarValues()
 
 	local LSM = LibStub and LibStub("LibSharedMedia-3.0", true)
 	return LSM and LSM:HashTable("statusbar") or {}
+end
+
+local function GetLSMSoundValues()
+	if type(AceGUIWidgetLSMlists) == "table" and type(AceGUIWidgetLSMlists.sound) == "table" then
+		return AceGUIWidgetLSMlists.sound
+	end
+
+	local LSM = LibStub and LibStub("LibSharedMedia-3.0", true)
+	return LSM and LSM:HashTable("sound") or {}
+end
+
+-- Factory for consistent LSM30_Sound dropdown options.
+-- Pass a table of overrides (name, desc, arg, get, set, order, disabled, etc.)
+local SOUND_DROPDOWN_WIDTH = 0.7
+local function SoundDropdown(overrides)
+	local opt = {
+		type = "select",
+		name = "",
+		dialogControl = "LSM30_Sound",
+		width = SOUND_DROPDOWN_WIDTH,
+		values = GetLSMSoundValues,
+	}
+	for k, v in pairs(overrides) do
+		opt[k] = v
+	end
+	return opt
 end
 
 local function PickValues(source, ...)
@@ -816,6 +871,43 @@ function Options:BuildOptionsTable()
 								sorting = textOutlineSorting,
 								arg = "appearance.textOutline",
 								order = 6,
+							},
+						},
+					},
+					sound = {
+						type = "group",
+						name = "Sound",
+						inline = true,
+						order = 4,
+						args = {
+							channel = {
+								type = "select",
+								name = "Sound Channel",
+								desc = "Audio channel for all VeevHUD sound alerts.\n\n|cffffffffMaster|r — Always plays regardless of volume sliders.\n|cffffffffSound Effects|r — Respects the Sound Effects volume slider.\n|cffffffffMusic|r — Respects the Music volume slider.\n|cffffffffAmbience|r — Respects the Ambience volume slider.",
+								values = { Master = "Master", SFX = "Sound Effects", Music = "Music", Ambience = "Ambience" },
+								arg = "sound.channel",
+								order = 1,
+							},
+							registerKitID = {
+								type = "input",
+								name = "Register Sound Kit ID",
+								desc = "Enter a WoW Sound Kit ID (a number) to register it as an available sound. Once registered, it appears in all sound dropdowns.\n\nBrowse IDs at: wowhead.com/sounds\n\nExamples: 8959 (raid warning), 11466 (Illidan), 8174 (PvP flag).\n\nNote: the speaker preview button in dropdowns does not work for Kit IDs, but the sound plays correctly in-game.",
+								get = function() return "" end,
+								set = function(_, value)
+									local kitID = tonumber(value)
+									if not kitID then
+										addon.Utils:Print("Invalid Sound Kit ID: " .. value)
+										return
+									end
+									local name = addon.SoundManager:RegisterSoundKitID(kitID)
+									if name then
+										pcall(PlaySound, kitID, "Master")
+										addon.Utils:Print("Playing Kit ID " .. kitID .. " — registered as |cff00ff00" .. name .. "|r (top of sound dropdowns).")
+									else
+										addon.Utils:Print("Sound Kit ID registration failed — LibSharedMedia not available.")
+									end
+								end,
+								order = 2,
 							},
 						},
 					},
@@ -1874,6 +1966,28 @@ function Options:BuildOptionsTable()
 									sortOrder = { type = "select", name = "Sort Order", desc = "How active aura icons are arranged.\n\n|cffffffffActivation Order|r — First-activated aura appears on the left, newest on the right.\n\n|cffffffffFixed|r — Icons stay in a consistent order based on spell registration (class procs first, then externals, then custom).\n\n|cffffffffLeast Remaining|r — Aura closest to expiring appears on the left. Icons re-sort as durations tick down.", values = { [C.AURA_SORT_ORDER.FIFO] = "Activation Order", [C.AURA_SORT_ORDER.FIXED] = "Fixed", [C.AURA_SORT_ORDER.REMAINING] = "Least Remaining" }, sorting = { C.AURA_SORT_ORDER.FIFO, C.AURA_SORT_ORDER.FIXED, C.AURA_SORT_ORDER.REMAINING }, arg = "auraTracker.sortOrder", order = 4 },
 								},
 							},
+							soundGroup = {
+								type = "group",
+								name = "Sound",
+								inline = true,
+								order = 5,
+								disabled = function() return addon.db and addon.db.profile and not addon.db.profile.auraTracker.enabled end,
+								args = {
+									soundOnProc = SoundDropdown({
+										name = "Default Sound",
+										desc = "Sound to play when any aura activates. Individual auras can override this in the aura list tabs.",
+										arg = "auraTracker.soundOnProc",
+										order = 1,
+									}),
+									soundOnRefresh = {
+										type = "toggle",
+										name = "Play on Refresh",
+										desc = "Also play the sound when an aura refreshes (is reapplied while already active). Useful for procs like Mace Stun where each trigger matters. Individual auras can override this in the aura list tabs.",
+										arg = "auraTracker.soundOnRefresh",
+										order = 2,
+									},
+								},
+							},
 						},
 					},
 					swingbar = {
@@ -2100,7 +2214,7 @@ function Options:BuildOptionsTable()
 				args = {
 					_desc = {
 						type = "description",
-						name = Dim("Spell configuration uses a standalone window with drag-and-drop reordering.\nCustomize which spells appear on your HUD, their order, and which row they belong to."),
+						name = Dim("Click the button below to open the spell configuration window — enable/disable spells, reorder them, and drag between rows."),
 						order = 1,
 						fontSize = "medium",
 					},
@@ -2125,6 +2239,19 @@ function Options:BuildOptionsTable()
 						end,
 						order = 2,
 						width = "double",
+					},
+					soundDesc = {
+						type = "description",
+						name = "\n" .. Dim("Play a sound when an ability becomes ready — when it comes off cooldown, becomes usable, or meets resource requirements. Set a default sound for all abilities, or override individual spells below.\n\nSound plays for all rows regardless of the Ready Glow row filter. Other settings still apply: combat-only, pre-trigger time, and once vs. re-trigger mode."),
+						fontSize = "medium",
+						order = 2.5,
+					},
+					readyGlowSoundOverrides = {
+						type = "group",
+						name = "Ready Glow Sound",
+						inline = true,
+						order = 3,
+						args = self:BuildReadyGlowSoundOverrideArgs(),
 					},
 				},
 			},
@@ -2439,8 +2566,8 @@ end
 -- Shared dropdown values for aura source filter (used by external + custom aura config)
 local auraSourceFilterValues = {
 	[C.AURA_SOURCE_ANY] = "Any",
-	[C.AURA_SOURCE_OWN] = "Own Only",
-	[C.AURA_SOURCE_NOT_OWN] = "Not Own",
+	[C.AURA_SOURCE_OWN] = "Own",
+	[C.AURA_SOURCE_NOT_OWN] = "Others",
 }
 
 function Options:BuildAuraTrackerOptions(settingsGroup)
@@ -2563,11 +2690,34 @@ function Options:BuildAuraTrackerOptions(settingsGroup)
 							return not addon:IsAuraEnabled(spellID)
 						end,
 					},
+					sound = SoundDropdown({
+						desc = "Sound to play when this aura activates. 'None' uses the global default from the Sound section above.",
+						get = function() return addon:GetAuraSound(spellID) or "None" end,
+						set = function(_, value) addon:SetAuraSound(spellID, value) end,
+						order = 1.6,
+						disabled = function() return not addon:IsAuraEnabled(spellID) end,
+					}),
+					soundOnRefresh = {
+						type = "toggle",
+						name = "Refresh",
+						desc = "Also play the sound when this aura refreshes (is reapplied while already active).",
+						get = function()
+							return addon:GetAuraSoundOnRefresh(spellID)
+						end,
+						set = function(_, value)
+							addon:SetAuraSoundOnRefresh(spellID, value)
+						end,
+						order = 1.7,
+						width = 0.45,
+						disabled = function()
+							return not addon:IsAuraEnabled(spellID)
+						end,
+					},
 					description = {
 						type = "description",
 						name = Dim(procDesc),
 						order = 2,
-						width = 1.6,
+						width = "full",
 					},
 				},
 			}
@@ -2694,53 +2844,68 @@ function Options:BuildExternalBuffsArgs()
 			local iconString = spellIcon and ("|T" .. spellIcon .. ":16|t ") or ""
 			local spellKey = "ext_" .. spellID
 
-			groupArgs[spellKey .. "_toggle"] = {
-				type = "toggle",
+			groupArgs[spellKey] = {
+				type = "group",
 				name = iconString .. spellName,
-				desc = "Track " .. spellName .. " (ID: " .. spellID .. ")",
-				get = function()
-					return addon:IsAuraEnabled(spellID)
-				end,
-				set = function(_, value)
-					addon:SetAuraEnabled(spellID, value)
-					Options:ApplySettingChange("auraTracker.auraConfig")
-				end,
+				inline = true,
 				order = spellOrder,
-				width = 1.0,
-			}
-			groupArgs[spellKey .. "_glow"] = {
-				type = "toggle",
-				name = "Glow",
-				desc = "Show the glowing border and backdrop halo when this aura is active. Disable for auras you want to track quietly.",
-				get = function()
-					return addon:IsAuraGlowEnabled(spellID)
-				end,
-				set = function(_, value)
-					addon:SetAuraGlowEnabled(spellID, value)
-					Options:ApplySettingChange("auraTracker.auraGlowConfig")
-				end,
-				order = spellOrder + 0.05,
-				width = 0.4,
-				disabled = function()
-					return not addon:IsAuraEnabled(spellID)
-				end,
-			}
-			groupArgs[spellKey .. "_source"] = {
-				type = "select",
-				name = "",
-				values = auraSourceFilterValues,
-				get = function()
-					return addon:GetAuraSourceFilter(spellID, "external")
-				end,
-				set = function(_, value)
-					addon:SetAuraSourceFilter(spellID, value, "external")
-					Options:ApplySettingChange("auraTracker.auraSourceFilter")
-				end,
-				order = spellOrder + 0.1,
-				width = 0.6,
-				disabled = function()
-					return not addon:IsAuraEnabled(spellID)
-				end,
+				args = {
+					enabled = {
+						type = "toggle",
+						name = "Enabled",
+						desc = "Track " .. spellName .. " (ID: " .. spellID .. ")",
+						get = function() return addon:IsAuraEnabled(spellID) end,
+						set = function(_, value)
+							addon:SetAuraEnabled(spellID, value)
+							Options:ApplySettingChange("auraTracker.auraConfig")
+						end,
+						order = 1,
+						width = 0.5,
+					},
+					glow = {
+						type = "toggle",
+						name = "Glow",
+						desc = "Show the glowing border and backdrop halo when this aura is active.",
+						get = function() return addon:IsAuraGlowEnabled(spellID) end,
+						set = function(_, value)
+							addon:SetAuraGlowEnabled(spellID, value)
+							Options:ApplySettingChange("auraTracker.auraGlowConfig")
+						end,
+						order = 2,
+						width = 0.4,
+						disabled = function() return not addon:IsAuraEnabled(spellID) end,
+					},
+					source = {
+						type = "select",
+						name = "",
+						values = auraSourceFilterValues,
+						get = function() return addon:GetAuraSourceFilter(spellID, "external") end,
+						set = function(_, value)
+							addon:SetAuraSourceFilter(spellID, value, "external")
+							Options:ApplySettingChange("auraTracker.auraSourceFilter")
+						end,
+						order = 3,
+						width = 0.5,
+						disabled = function() return not addon:IsAuraEnabled(spellID) end,
+					},
+					sound = SoundDropdown({
+						desc = "Sound to play when this aura activates. 'None' uses the global default.",
+						get = function() return addon:GetAuraSound(spellID) or "None" end,
+						set = function(_, value) addon:SetAuraSound(spellID, value) end,
+						order = 4,
+						disabled = function() return not addon:IsAuraEnabled(spellID) end,
+					}),
+					soundRefresh = {
+						type = "toggle",
+						name = "Refresh",
+						desc = "Also play the sound when this aura refreshes.",
+						get = function() return addon:GetAuraSoundOnRefresh(spellID) end,
+						set = function(_, value) addon:SetAuraSoundOnRefresh(spellID, value) end,
+						order = 5,
+						width = 0.4,
+						disabled = function() return not addon:IsAuraEnabled(spellID) end,
+					},
+				},
 			}
 			spellOrder = spellOrder + 1
 		end
@@ -2944,68 +3109,95 @@ function Options:RebuildCustomAuraEntries()
 		end
 
 		local entryKey = "custom_" .. i
-		local base = i * 5
-		entriesArgs[entryKey .. "_label"] = {
-			type = "description",
+		entriesArgs[entryKey] = {
+			type = "group",
 			name = iconString .. resolvedName .. idStr,
-			fontSize = "medium",
-			order = base,
-			width = 1.1,
-		}
-		entriesArgs[entryKey .. "_glow"] = {
-			type = "toggle",
-			name = "Glow",
-			desc = "Show the glowing border and backdrop halo when this aura is active. Disable for auras you want to track quietly.",
-			get = function()
-				if not filterSpellID then return true end
-				return addon:IsAuraGlowEnabled(filterSpellID)
-			end,
-			set = function(_, value)
-				if filterSpellID then
-					addon:SetAuraGlowEnabled(filterSpellID, value)
-					Options:ApplySettingChange("auraTracker.auraGlowConfig")
-				end
-			end,
-			order = base + 1,
-			width = 0.4,
-		}
-		entriesArgs[entryKey .. "_source"] = {
-			type = "select",
-			name = "",
-			values = auraSourceFilterValues,
-			get = function()
-				return addon:GetAuraSourceFilter(filterSpellID, "custom")
-			end,
-			set = function(_, value)
-				addon:SetAuraSourceFilter(filterSpellID, value, "custom")
-				Options:ApplySettingChange("auraTracker.auraSourceFilter")
-			end,
-			order = base + 2,
-			width = 0.6,
-		}
-		entriesArgs[entryKey .. "_remove"] = {
-			type = "execute",
-			name = "Remove",
-			order = base + 3,
-			width = 0.5,
-			func = function()
-				-- Clean up per-aura config before removing
-				if filterSpellID then
-					addon:SetAuraGlowEnabled(filterSpellID, true)
-					addon:SetAuraSourceFilter(filterSpellID, C.AURA_SOURCE_ANY, "custom")
-				end
-				table.remove(customAuras, i)
-				self:RebuildCustomAuraEntries()
-				self:RebuildRecentBuffEntries()
-				-- Rebuild tracker frames to remove the aura
-				local tracker = addon:GetModule("AuraTracker")
-				if tracker then tracker:RebuildFrames() end
-
-				local AceConfigRegistry = LibStub and LibStub("AceConfigRegistry-3.0", true)
-				if AceConfigRegistry then
-					AceConfigRegistry:NotifyChange("VeevHUD")
-				end
-			end,
+			inline = true,
+			order = i,
+			args = {
+				glow = {
+					type = "toggle",
+					name = "Glow",
+					desc = "Show the glowing border and backdrop halo when this aura is active.",
+					get = function()
+						if not filterSpellID then return true end
+						return addon:IsAuraGlowEnabled(filterSpellID)
+					end,
+					set = function(_, value)
+						if filterSpellID then
+							addon:SetAuraGlowEnabled(filterSpellID, value)
+							Options:ApplySettingChange("auraTracker.auraGlowConfig")
+						end
+					end,
+					order = 1,
+					width = 0.4,
+				},
+				source = {
+					type = "select",
+					name = "",
+					values = auraSourceFilterValues,
+					get = function() return addon:GetAuraSourceFilter(filterSpellID, "custom") end,
+					set = function(_, value)
+						addon:SetAuraSourceFilter(filterSpellID, value, "custom")
+						Options:ApplySettingChange("auraTracker.auraSourceFilter")
+					end,
+					order = 2,
+					width = 0.45,
+				},
+				sound = SoundDropdown({
+					desc = "Sound to play when this aura activates. 'None' uses the global default.",
+					get = function()
+						if not filterSpellID then return "None" end
+						return addon:GetAuraSound(filterSpellID) or "None"
+					end,
+					set = function(_, value)
+						if filterSpellID then
+							addon:SetAuraSound(filterSpellID, value)
+						end
+					end,
+					order = 3,
+				}),
+				soundRefresh = {
+					type = "toggle",
+					name = "Refresh",
+					desc = "Also play the sound when this aura refreshes.",
+					get = function()
+						if not filterSpellID then return false end
+						return addon:GetAuraSoundOnRefresh(filterSpellID)
+					end,
+					set = function(_, value)
+						if filterSpellID then
+							addon:SetAuraSoundOnRefresh(filterSpellID, value)
+						end
+					end,
+					order = 4,
+					width = 0.35,
+				},
+				remove = {
+					type = "execute",
+					name = "Del",
+					desc = "Remove this custom aura.",
+					order = 5,
+					width = 0.3,
+					func = function()
+						if filterSpellID then
+							addon:SetAuraGlowEnabled(filterSpellID, true)
+							addon:SetAuraSourceFilter(filterSpellID, C.AURA_SOURCE_ANY, "custom")
+							addon:SetAuraSound(filterSpellID, nil)
+							addon:SetAuraSoundOnRefresh(filterSpellID, addon.db.profile.auraTracker.soundOnRefresh)
+						end
+						table.remove(customAuras, i)
+						self:RebuildCustomAuraEntries()
+						self:RebuildRecentBuffEntries()
+						local tracker = addon:GetModule("AuraTracker")
+						if tracker then tracker:RebuildFrames() end
+						local AceConfigRegistry = LibStub and LibStub("AceConfigRegistry-3.0", true)
+						if AceConfigRegistry then
+							AceConfigRegistry:NotifyChange("VeevHUD")
+						end
+					end,
+				},
+			},
 		}
 	end
 end
@@ -3449,6 +3641,13 @@ function Options:BuildBuffRemindersOptions()
 							order = 5,
 							width = 0.7,
 						},
+						sound = SoundDropdown({
+							desc = "Sound to play when this buff reminder appears. 'None' uses the global default from the General tab.",
+							disabled = isSpellDisabled,
+							get = function() return addon:GetBuffReminderSound(spellID) or "None" end,
+							set = function(_, value) addon:SetBuffReminderSound(spellID, value) end,
+							order = 6,
+						}),
 					},
 				}
 
@@ -3756,6 +3955,24 @@ function Options:BuildBuffRemindersOptions()
 							},
 						},
 					},
+					soundGroup = {
+						type = "group",
+						name = "Sound",
+						inline = true,
+						order = 2.7,
+						disabled = function()
+							local db = addon.db and addon.db.profile
+							return db and not db.buffReminders.enabled
+						end,
+						args = {
+							soundOnMissing = SoundDropdown({
+								name = "Default Sound",
+								desc = "Sound to play when a buff reminder first appears. Individual spells can override this in the Spells tab.",
+								arg = "buffReminders.soundOnMissing",
+								order = 1,
+							}),
+						},
+					},
 					position = {
 						type = "group",
 						name = "Position",
@@ -3830,6 +4047,84 @@ end
 function Options:Refresh()
 	self:RebuildAuraSpellArgs()
 	self:RebuildBuffReminderSpellArgs()
+	self:RebuildReadyGlowSoundOverrideArgs()
+end
+
+function Options:BuildReadyGlowSoundOverrideArgs()
+	local overrideArgs = {}
+	overrideArgs.defaultGroup = {
+		type = "group",
+		name = "Default",
+		inline = true,
+		order = 0,
+		args = {
+			sound = SoundDropdown({
+				name = "Default Sound",
+				desc = "Sound to play when the ready glow activates on any ability. Per-spell overrides below take priority.",
+				arg = "icons.readyGlowSound",
+				order = 1,
+			}),
+		},
+	}
+
+	local cooldownIcons = addon:GetModule("CooldownIcons")
+	local iconsByRow = cooldownIcons and cooldownIcons.iconsByRow
+	local rowConfigs = addon.db and addon.db.profile and addon.db.profile.rows
+
+	if iconsByRow and rowConfigs then
+		local ROW_NAMES = { "Primary", "Secondary", "Utility", "Auxiliary" }
+		for rowIndex = 1, #rowConfigs do
+			local spells = iconsByRow[rowIndex]
+			if spells and #spells > 0 then
+				local rowArgs = {}
+				for spellOrder, entry in ipairs(spells) do
+					local sid = entry.spellID
+					local spellName, _, spellIcon = GetSpellInfo(sid)
+					if spellName then
+						local iconStr = spellIcon and ("|T" .. spellIcon .. ":16|t ") or ""
+						rowArgs["spell_" .. sid] = SoundDropdown({
+							name = iconStr .. spellName,
+							get = function()
+								local cfg = addon.Database:GetSpellConfigForSpell(sid)
+								return cfg.readyGlowSound or "None"
+							end,
+							set = function(_, value)
+								if value == "None" then value = nil end
+								addon:SetSpellConfigOverride(sid, "readyGlowSound", value)
+							end,
+							order = spellOrder,
+						})
+					end
+				end
+				overrideArgs["row_" .. rowIndex] = {
+					type = "group",
+					name = ROW_NAMES[rowIndex] or ("Row " .. rowIndex),
+					inline = true,
+					order = rowIndex,
+					args = rowArgs,
+				}
+			end
+		end
+	end
+
+	self._readyGlowSoundArgs = overrideArgs
+	return overrideArgs
+end
+
+function Options:RebuildReadyGlowSoundOverrideArgs()
+	local argsTable = self._readyGlowSoundArgs
+	if not argsTable then return end
+
+	local newArgs = self:BuildReadyGlowSoundOverrideArgs()
+	wipe(argsTable)
+	for k, v in pairs(newArgs) do
+		argsTable[k] = v
+	end
+
+	local AceConfigRegistry = LibStub and LibStub("AceConfigRegistry-3.0", true)
+	if AceConfigRegistry then
+		AceConfigRegistry:NotifyChange("VeevHUD")
+	end
 end
 
 -- Rebuild the buff reminder spell list in-place (called when showOnlyKnown toggles or spec changes)

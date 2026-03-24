@@ -289,6 +289,12 @@ C.DEFAULTS = {
             textOutline = "OUTLINE",  -- Global text outline style (OUTLINE, SHADOW, BOTH, NONE)
         },
 
+        -- Sound settings
+        sound = {
+            channel = "Master",  -- Audio channel: "Master", "SFX", "Music", "Ambience"
+            registeredKitIDs = {},  -- Persisted Sound Kit IDs: { [kitID] = true }
+        },
+
         -- Global positioning anchor (centered by default; configurable via settings)
         anchor = {
             point = "CENTER",
@@ -458,6 +464,8 @@ C.DEFAULTS = {
             punchScale = 1.2,  -- Scale factor for activation pop animation (1.0 = disabled)
             slideAnimation = true,  -- Smooth sliding when auras appear/disappear
             sortOrder = C.AURA_SORT_ORDER.FIFO,
+            soundOnProc = "None",  -- Default LSM sound name when any proc activates
+            soundOnRefresh = false,  -- Default: don't play sound when auras refresh
             customAuras = {},  -- User-added auras: array of { id = spellID } or { name = "Spell Name" }
         },
 
@@ -573,6 +581,7 @@ C.DEFAULTS = {
             readyGlowAlwaysRows = "primary",  -- Which rows use persistent "always" glow (others flash once)
             readyGlowDuration = 1.0,          -- Duration to show glow in "once" mode
             readyGlowThreshold = 0.5,         -- Seconds before cooldown ends to trigger "almost ready" glow
+            readyGlowSound = "None",         -- LSM sound name when ready glow activates
             
             -- Dynamic sorting by time remaining: which rows dynamically reorder by actionable time
             -- "none" = static order (priority-based, icons don't move)
@@ -618,6 +627,7 @@ C.DEFAULTS = {
             slideAnimation = true,  -- Smooth sliding when reminder icons appear/disappear
             respectResourceCost = true,
             weaponEnchantMH = true,   -- Check mainhand for missing weapon enchant (poison/imbue)
+            soundOnMissing = "None",  -- Default LSM sound name when buff reminder appears
             weaponEnchantOH = true,   -- Check offhand for missing weapon enchant
             showOnlyKnown = true,     -- Filter spell list in options to known spells only
             anchor = {
@@ -672,6 +682,21 @@ C.DEFAULTS = {
         -- Format: auraGlowConfig[spellID] = true/false
         -- Absence = use default (true = glow enabled)
         auraGlowConfig = {},
+
+        -- Per-aura sound overrides (sparse storage, profile-wide)
+        -- Format: auraSoundConfig[spellID] = "LSM Sound Name"
+        -- Absence = use auraTracker.soundOnProc global default
+        auraSoundConfig = {},
+
+        -- Per-aura "sound on refresh" overrides (sparse storage, profile-wide)
+        -- Format: auraSoundRefreshConfig[spellID] = true/false
+        -- Absence = use auraTracker.soundOnRefresh global default
+        auraSoundRefreshConfig = {},
+
+        -- Per-spell buff reminder sound overrides (sparse storage, per-spec)
+        -- Format: buffReminderSoundConfig[specKey][spellID] = "LSM Sound Name"
+        -- Absence = use buffReminders.soundOnMissing global default
+        buffReminderSoundConfig = {},
 
         -- Row definitions (order matters - top to bottom)
         -- Each row shows spells matching these LibSpellDB tags

@@ -646,6 +646,11 @@ function AuraTracker:UpdateProcIcon(frame, db)
         if wasHidden or wasRefreshed then
             frame._needsProcAnim = true
         end
+
+        -- Play sound on activation or refresh (if configured)
+        if wasHidden or (wasRefreshed and addon:GetAuraSoundOnRefresh(spellID)) then
+            addon.SoundManager:PlaySound(addon:GetAuraSound(spellID) or db.soundOnProc)
+        end
         
         -- Show duration text
         if db.showDuration and remaining > 0 then

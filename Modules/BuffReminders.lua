@@ -1463,6 +1463,7 @@ function BuffReminders:UpdateVisibleIcons(alertList)
         -- Animate: appear with shrink-in (or keep pulsing if already shown)
         if not wasAlreadyShown then
             AnimAppear(frame)
+            addon.SoundManager:PlaySound(addon:GetBuffReminderSound(alertKey) or addon.db.profile.buffReminders.soundOnMissing)
         end
 
         -- Update duration/stacks text (after AnimAppear so frame is visible

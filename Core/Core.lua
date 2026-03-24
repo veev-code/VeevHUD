@@ -74,7 +74,12 @@ function addon:OnAddonLoaded()
     if self.TextureManager then
         self.TextureManager:Initialize()
     end
-    
+
+    -- Initialize SoundManager (handles LibSharedMedia integration for sound playback)
+    if self.SoundManager then
+        self.SoundManager:Initialize()
+    end
+
     -- Initialize RangeChecker (handles spell range detection)
     if self.RangeChecker then
         self.RangeChecker:Initialize()
@@ -316,6 +321,30 @@ end
 
 function addon:SetAuraGlowEnabled(spellID, enabled)
     self.Database:SetAuraGlowEnabled(spellID, enabled)
+end
+
+function addon:GetAuraSound(spellID)
+    return self.Database:GetAuraSound(spellID)
+end
+
+function addon:SetAuraSound(spellID, soundName)
+    self.Database:SetAuraSound(spellID, soundName)
+end
+
+function addon:GetAuraSoundOnRefresh(spellID)
+    return self.Database:GetAuraSoundOnRefresh(spellID)
+end
+
+function addon:SetAuraSoundOnRefresh(spellID, enabled)
+    self.Database:SetAuraSoundOnRefresh(spellID, enabled)
+end
+
+function addon:GetBuffReminderSound(spellID)
+    return self.Database:GetBuffReminderSound(spellID)
+end
+
+function addon:SetBuffReminderSound(spellID, soundName)
+    self.Database:SetBuffReminderSound(spellID, soundName)
 end
 
 function addon:GetDefaultValue(path)

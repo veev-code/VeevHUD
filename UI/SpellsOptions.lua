@@ -344,6 +344,11 @@ function SpellsOptions:SetSpellOverride(spellID, field, value)
         if cooldownIcons and cooldownIcons.RepositionRows then
             cooldownIcons:RepositionRows()
         end
+        -- Rebuild ready glow sound overrides to reflect new spell order
+        local options = addon:GetModule("Options")
+        if options and options.RebuildReadyGlowSoundOverrideArgs then
+            options:RebuildReadyGlowSoundOverrideArgs()
+        end
     end)
 end
 

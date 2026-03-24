@@ -1,5 +1,20 @@
 # VeevHUD Changelog
 
+## [1.0.180] - 2026-03-24
+
+### Added
+- **Sound Notifications** — Configurable sound alerts for three combat events: proc activation (Aura Tracker), ability ready (Ready Glow), and missing buff reminders. Each supports a global default sound and per-spell overrides. All sounds default to silent — no behavior change until configured.
+- **Per-aura sound on refresh** — Optional toggle to also play the proc sound when an aura refreshes (reapplied while active), useful for procs like Mace Stun where each trigger matters. Configurable globally and per-aura.
+- **Ready glow sound independent of row filter** — Ready glow sounds play for all ability rows regardless of the visual glow row filter, so you can get audio alerts even where the glow is disabled. Other ready glow settings (combat-only, pre-trigger time, re-trigger mode) still apply.
+- **Sound Kit ID support** — Register WoW's built-in sounds by numeric Kit ID in General > Sound. Registered Kit IDs appear at the top of all sound dropdowns (prefixed with "!Kit") and persist across sessions.
+- **Loading screen sound squelch** — Sound notifications are suppressed during loading screens to prevent spam on zone transitions.
+- **Sound channel selection** — Choose which audio channel (Master, SFX, Music, Ambience) VeevHUD sounds play through, in General > Sound.
+
+### Changed
+- **External Buffs and Custom Auras layout** — Both sections now use per-spell bordered groups (matching Class Procs) instead of flat inline controls, for cleaner layout with the new sound options.
+- **Aura source filter labels** — Shortened "Own Only" to "Own" and "Not Own" to "Others" for better fit in compact layouts.
+- **Compact sound dropdowns** — LSM30_Sound widgets automatically collapse their label area when used without a name, reducing vertical padding in per-spell config rows.
+
 ## [1.0.179] - 2026-03-19
 
 ### Added

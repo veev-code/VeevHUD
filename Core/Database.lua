@@ -435,6 +435,116 @@ function Database:SetAuraGlowEnabled(spellID, enabled)
 end
 
 -------------------------------------------------------------------------------
+-- Aura Sound Config
+-------------------------------------------------------------------------------
+
+-- Get per-aura sound override (returns nil if no override set)
+function Database:GetAuraSound(spellID)
+    local cfg = addon.db and addon.db.profile and addon.db.profile.auraSoundConfig
+    if cfg then
+        return cfg[spellID]  -- "Sound Name" or nil
+    end
+    return nil
+end
+
+-- Set per-aura sound override (sparse: removed when "None" or nil)
+function Database:SetAuraSound(spellID, soundName)
+    if not addon.db or not addon.db.profile then return end
+
+    if not soundName or soundName == "None" then
+        -- Remove override to keep storage sparse
+        local cfg = addon.db.profile.auraSoundConfig
+        if cfg then
+            cfg[spellID] = nil
+            if next(cfg) == nil then
+                addon.db.profile.auraSoundConfig = nil
+            end
+        end
+    else
+        if not addon.db.profile.auraSoundConfig then
+            addon.db.profile.auraSoundConfig = {}
+        end
+        addon.db.profile.auraSoundConfig[spellID] = soundName
+    end
+end
+
+-- Check if sound-on-refresh is enabled for an aura (default: use global setting)
+function Database:GetAuraSoundOnRefresh(spellID)
+    local cfg = addon.db and addon.db.profile and addon.db.profile.auraSoundRefreshConfig
+    if cfg then
+        local override = cfg[spellID]
+        if override ~= nil then
+            return override
+        end
+    end
+    return addon.db.profile.auraTracker.soundOnRefresh
+end
+
+-- Set per-aura sound-on-refresh override (sparse: removed when matching global default)
+function Database:SetAuraSoundOnRefresh(spellID, enabled)
+    if not addon.db or not addon.db.profile then return end
+
+    if enabled == addon.db.profile.auraTracker.soundOnRefresh then
+        -- Matches global default: remove override
+        local cfg = addon.db.profile.auraSoundRefreshConfig
+        if cfg then
+            cfg[spellID] = nil
+            if next(cfg) == nil then
+                addon.db.profile.auraSoundRefreshConfig = nil
+            end
+        end
+    else
+        if not addon.db.profile.auraSoundRefreshConfig then
+            addon.db.profile.auraSoundRefreshConfig = {}
+        end
+        addon.db.profile.auraSoundRefreshConfig[spellID] = enabled
+    end
+end
+
+-------------------------------------------------------------------------------
+-- Buff Reminder Sound Config
+-------------------------------------------------------------------------------
+
+-- Get per-spell buff reminder sound override (returns nil if no override set)
+function Database:GetBuffReminderSound(spellID)
+    local cfg = addon.db and addon.db.profile and addon.db.profile.buffReminderSoundConfig
+    if not cfg then return nil end
+
+    local specKey = self:GetSpecKey()
+    local specConfig = specKey and cfg[specKey]
+    return specConfig and specConfig[spellID]
+end
+
+-- Set per-spell buff reminder sound override (sparse: removed when "None" or nil)
+function Database:SetBuffReminderSound(spellID, soundName)
+    if not addon.db or not addon.db.profile then return end
+
+    local specKey = self:GetSpecKey()
+    if not specKey then return end
+
+    if not soundName or soundName == "None" then
+        local cfg = addon.db.profile.buffReminderSoundConfig
+        if cfg and cfg[specKey] then
+            cfg[specKey][spellID] = nil
+            if next(cfg[specKey]) == nil then
+                cfg[specKey] = nil
+            end
+            if next(cfg) == nil then
+                addon.db.profile.buffReminderSoundConfig = nil
+            end
+        end
+    else
+        if not addon.db.profile.buffReminderSoundConfig then
+            addon.db.profile.buffReminderSoundConfig = {}
+        end
+        if not addon.db.profile.buffReminderSoundConfig[specKey] then
+            addon.db.profile.buffReminderSoundConfig[specKey] = {}
+        end
+        addon.db.profile.buffReminderSoundConfig[specKey][spellID] = soundName
+    end
+end
+
+-------------------------------------------------------------------------------
 -- Spell Config Helpers (continued)
 -------------------------------------------------------------------------------
 

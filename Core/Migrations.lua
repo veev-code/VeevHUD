@@ -54,7 +54,7 @@ local Migrations = addon.Migrations
 -- Bump this when adding new migrations.
 -- Versions 1-4 are legacy (pre-dataVersion system). All users start at
 -- CURRENT_VERSION on first encounter, so legacy versions never run.
-local CURRENT_VERSION = 7
+local CURRENT_VERSION = 8
 
 -- Migration definitions, keyed by version number.
 -- Versions 1-4 (legacy) are intentionally omitted — they corresponded to:
@@ -156,6 +156,26 @@ local migrations = {
                             if AceConfigDialog then
                                 AceConfigDialog:SelectGroup(ADDON_NAME, "cooldownPulse")
                             end
+                        end
+                    end)
+                end },
+                { text = "Got It" },
+            },
+        },
+    },
+
+    -- v8: Sound Notifications feature announcement
+    [8] = {
+        popup = {
+            title = "New: Sound Notifications",
+            message = "VeevHUD can now play sounds for combat events. All sounds default to silent — configure the ones you want.\n\n"
+                .. "Supported on: proc activation (Aura Tracker), ability ready (Spell Config > Ready Glow Sound), and missing buff alerts (Buff Reminders). Each supports per-spell overrides.\n\n"
+                .. "Sounds come from LibSharedMedia (WeakAuras, SharedMedia packs, etc.). You can also register WoW Sound Kit IDs in General > Sound.",
+            buttons = {
+                { text = "Open Settings", action = function()
+                    C_Timer.After(0.1, function()
+                        if addon.Options then
+                            addon.Options:Open()
                         end
                     end)
                 end },
