@@ -1,5 +1,10 @@
 # VeevHUD Changelog
 
+## [1.0.181] - 2026-03-25
+
+### Fixed
+- **Druid form filtering not working for non-Feral specs** — Cat Form and Bear Form abilities were not filtered by current form for Balance and Restoration druids (or druids with undetected spec). This meant leveling druids who invested early talents in Resto while actively playing bear/cat saw both sets of abilities in every form. Form filtering now applies to all druid specs. Use the form label (Cat/Bear/Any) in Spell Configuration to override per-spell if you want a form ability always visible. *(Thanks Zeeyaz for reporting)*
+
 ## [1.0.180] - 2026-03-24
 
 ### Added

@@ -30,7 +30,7 @@ end
 -- @param trackedSpells  Dict of {spellID → {spellData, actualSpellID}} from SpellTracker
 -- @param rowConfigs     Array of row configs from addon.db.profile.rows
 -- @param spellCfg       Dict of {spellID → {rowIndex, order, druidForm}} from spell config
--- @param context        Runtime state: { isFeralDruid, activeFeralForm, totemBarActive }
+-- @param context        Runtime state: { isDruid, activeFeralForm, totemBarActive }
 function SpellAssignment:AssignAllSpells(trackedSpells, rowConfigs, spellCfg, context)
     local LibSpellDB = addon.LibSpellDB
     if not LibSpellDB then
@@ -155,10 +155,12 @@ end
 -------------------------------------------------------------------------------
 -- Internal: Druid Form Filtering
 -- Returns true if spell should be skipped for the current feral form.
+-- Applies to ALL druid specs (leveling druids often invest in Resto while
+-- actively playing bear/cat). cfg.druidForm = "ANY" overrides per-spell.
 -------------------------------------------------------------------------------
 
 function SpellAssignment:_ShouldSkipForDruidForm(spellID, cfg, context, LibSpellDB)
-    if not context.isFeralDruid then return false end
+    if not context.isDruid then return false end
 
     local formOverride = cfg.druidForm  -- "CAT", "BEAR", "ANY", or nil
     if formOverride == "ANY" then
@@ -167,14 +169,14 @@ function SpellAssignment:_ShouldSkipForDruidForm(spellID, cfg, context, LibSpell
         return context.activeFeralForm ~= "CAT"
     elseif formOverride == "BEAR" then
         return context.activeFeralForm ~= "BEAR"
-    else
-        -- Default: tag-based filtering
-        local isCatSpell = LibSpellDB:HasTag(spellID, "CAT_FORM")
-        local isBearSpell = LibSpellDB:HasTag(spellID, "BEAR_FORM")
-        if (isCatSpell and context.activeFeralForm ~= "CAT") or
-           (isBearSpell and context.activeFeralForm ~= "BEAR") then
-            return true
-        end
+    end
+
+    -- Default: tag-based filtering — hide form-tagged spells in the wrong form
+    local isCatSpell = LibSpellDB:HasTag(spellID, "CAT_FORM")
+    local isBearSpell = LibSpellDB:HasTag(spellID, "BEAR_FORM")
+    if (isCatSpell and context.activeFeralForm ~= "CAT") or
+       (isBearSpell and context.activeFeralForm ~= "BEAR") then
+        return true
     end
 
     return false

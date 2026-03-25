@@ -797,7 +797,7 @@ function CooldownIcons:RebuildAllRows()
 
     -- Build runtime context for assignment
     local context = {
-        isFeralDruid = addon.playerClass == "DRUID" and addon.playerSpec == "FERAL",
+        isDruid = addon.playerClass == "DRUID",
         activeFeralForm = self.activeFeralForm,
         totemBarActive = self.totemTracker and self.totemTracker.IsActive and self.totemTracker:IsActive(),
     }

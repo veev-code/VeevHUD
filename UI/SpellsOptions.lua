@@ -490,12 +490,12 @@ function SpellsOptions:RefreshSpellList()
     local rowConfigs = addon.db.profile.rows
 
     -- Druid-specific explanation
-    if addon.playerClass == "DRUID" and addon.playerSpec == "FERAL" then
+    if addon.playerClass == "DRUID" then
         local druidInfo = self.scrollChild:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
         druidInfo:SetPoint("TOPLEFT", self.scrollChild, "TOPLEFT", 10, yOffset)
         druidInfo:SetWidth(460)
         druidInfo:SetJustifyH("LEFT")
-        druidInfo:SetText("|cff888888Feral Druid: Spells are filtered by your last used form — Cat Form abilities hide in Bear Form and vice versa. In caster or travel form, your last Cat/Bear form is remembered. Click the form label (Cat/Bear/Any) next to any spell to override this.|r")
+        druidInfo:SetText("|cff888888Druid: Cat Form and Bear Form abilities are filtered by your current form — Cat abilities hide in Bear Form and vice versa. In caster or travel form, your last Cat/Bear form is remembered. Click the form label (Cat/Bear/Any) next to any spell to override this.|r")
         local infoHeight = druidInfo:GetStringHeight() + 8
         yOffset = yOffset - infoHeight
     end
@@ -1073,9 +1073,9 @@ function SpellsOptions:CreateSpellEntry(spellInfo, rowIndex, index, yOffset)
     end)
     frame.checkbox = checkbox
 
-    -- Druid form selector (Feral only)
+    -- Druid form selector (all druid specs — form filtering applies to all druids)
     local dragAnchor = checkbox  -- Default: drag handle anchors to checkbox
-    if addon.playerClass == "DRUID" and addon.playerSpec == "FERAL" then
+    if addon.playerClass == "DRUID" then
         local LibSpellDB = addon.LibSpellDB
         local sid = spellInfo.spellID
 
