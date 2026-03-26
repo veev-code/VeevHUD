@@ -971,6 +971,14 @@ function BuffReminders:ShouldRemind(reminder)
         end
     end
     
+    -- Most LONG_BUFF spells have no cooldown, but some (e.g., Fear Ward) have
+    -- CD equal to duration — no point nagging when it's impossible to recast.
+    if spellData.cooldown and spellData.cooldown > 0 then
+        if addon.Utils:IsSpellOnRealCooldown(highestRank) then
+            return false
+        end
+    end
+
     -- Pet requirement check (e.g., Soul Link requires an alive pet)
     if self.LibSpellDB:HasTag(spellID, "REQUIRES_PET") then
         if not UnitExists("pet") or UnitIsDead("pet") then

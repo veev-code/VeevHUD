@@ -1,5 +1,13 @@
 # VeevHUD Changelog
 
+## [1.0.182] - 2026-03-26
+
+### Fixed
+- **Buff Reminders nagging for on-cooldown spells** — Buff Reminders no longer nags about missing buffs when the spell is on cooldown and can't be recast yet (e.g., Fear Ward's 3-minute cooldown matching its 3-minute duration).
+
+### LibSpellDB Updates
+- Fear Ward now tagged as `LONG_BUFF`, making it trackable by Buff Reminders.
+
 ## [1.0.181] - 2026-03-25
 
 ### Fixed
