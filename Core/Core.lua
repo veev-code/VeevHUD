@@ -472,20 +472,14 @@ function addon:UpdateVisibility()
 
     if shouldShow then
         self.hudFrame:Show()
-        
-        -- Start/update alpha animation if target changed
-        if self.targetAlpha ~= targetAlpha then
-            self.targetAlpha = targetAlpha
-            -- Use Animations utility for consistent alpha transition
-            if self.Animations then
-                self.Animations:TransitionAlpha(self.hudFrame, targetAlpha, 6)
-            else
-                self.hudFrame:SetAlpha(targetAlpha)
-            end
+        -- TransitionAlpha no-ops when already at target
+        if self.Animations then
+            self.Animations:TransitionAlpha(self.hudFrame, targetAlpha, 6)
+        else
+            self.hudFrame:SetAlpha(targetAlpha)
         end
     else
         self.hudFrame:Hide()
-        self.targetAlpha = nil
         if self.Animations then
             self.Animations:StopAlphaTransition(self.hudFrame)
         end

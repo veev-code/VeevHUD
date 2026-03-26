@@ -1,5 +1,10 @@
 # VeevHUD Changelog
 
+## [1.0.183] - 2026-03-26
+
+### Fixed
+- **Out of combat opacity not updating in real time** — Changing the Out of Combat Opacity slider or entering/leaving combat could stop updating the HUD's opacity until a UI reload. The internal alpha cache could get out of sync with the actual frame state, causing the system to skip transitions.
+
 ## [1.0.182] - 2026-03-26
 
 ### Fixed
