@@ -293,8 +293,8 @@ local function GetAuraDefaultEnabled(spellID)
         if procInfo and procInfo.lowPriority then
             return false
         end
-        -- 2. MINOR_EXTERNAL spells are disabled by default
-        if lib:HasTag(spellID, "MINOR_EXTERNAL") then
+        -- 2. MINOR_EXTERNAL spells are disabled by default (except PVP_POWERUP)
+        if lib:HasTag(spellID, "MINOR_EXTERNAL") and not lib:HasTag(spellID, "PVP_POWERUP") then
             return false
         end
     end

@@ -2786,10 +2786,14 @@ end
 -- Classify an external spell into a UI category based on its LibSpellDB tags.
 -- Returns categoryName, categoryOrder. First matching rule wins.
 local function ClassifyExternal(lib, spellID, isMinor)
-	if isMinor then return "Minor Externals", 4 end
-	if lib:HasTag(spellID, "RAID_DEFENSIVE") then return "Raid Cooldowns", 1 end
-	if lib:HasTag(spellID, "EXTERNAL_DEFENSIVE") or lib:HasTag(spellID, "DEFENSIVE") then return "Defensive Externals", 2 end
-	return "Other Externals", 3
+	if lib:HasTag(spellID, "PVP_POWERUP") then return "PvP Powerups", 5 end
+	if lib:HasTag(spellID, "DRUMS") then return "Drums", 4 end
+	if not isMinor then
+		if lib:HasTag(spellID, "RAID_DEFENSIVE") then return "Raid Cooldowns", 1 end
+		if lib:HasTag(spellID, "EXTERNAL_DEFENSIVE") or lib:HasTag(spellID, "DEFENSIVE") then return "Defensive Externals", 2 end
+		return "Other Externals", 3
+	end
+	return "Minor Externals", 6
 end
 
 function Options:BuildExternalBuffsArgs()
@@ -2797,7 +2801,7 @@ function Options:BuildExternalBuffsArgs()
 
 	args["description"] = {
 		type = "description",
-		name = Dim("Toggle which external buffs from other players are tracked. These appear as icons in the Aura Tracker when active on you.") .. "\n",
+		name = Dim("Toggle which external buffs are tracked (from other players, consumables, or PvP powerups). These appear as icons in the Aura Tracker when active on you.") .. "\n",
 		fontSize = "medium",
 		order = 0,
 	}

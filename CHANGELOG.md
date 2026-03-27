@@ -1,5 +1,15 @@
 # VeevHUD Changelog
 
+## [1.0.184] - 2026-03-27
+
+### Added
+- **PvP Powerup Auras** — Battleground and arena pickup buffs (Berserking, Restoration, Speed, Shadow Sight) now appear in the Aura Tracker. Enabled by default — toggle them in Settings > Aura Tracker > External Buffs.
+- **Separate External Buff categories** — External Buffs settings now group Drums and PvP Powerups into their own sections instead of lumping them under "Minor Externals."
+
+### LibSpellDB Updates
+- Added 4 PvP powerup buffs: Berserking, Restoration, Speed, Shadow Sight.
+- New `DRUMS` and `PVP_POWERUP` category tags for finer-grained classification.
+
 ## [1.0.183] - 2026-03-26
 
 ### Fixed
