@@ -34,15 +34,15 @@ Icons don't just show cooldowns — they show your **applied effects**. Cast a s
 
 **Lockout awareness** — Abilities with restrictions (like Weakened Soul after Power Word: Shield, or Forbearance after a Paladin immunity) show whichever lockout is longer, so you always know when you can cast again.
 
-**Trinket tracking** — Equipped trinkets automatically appear in your ability rows with on-use cooldowns, proc buff durations, internal cooldown tracking, and stack counts — identified via a curated database of 35+ TBC trinkets.
+**Trinket tracking** — Equipped trinkets automatically appear in your ability rows with on-use cooldowns, proc buff durations, internal cooldown tracking, and stack counts.
 
-Every visual detail is designed for instant feedback: icons glow when usable, grey out when you can't afford them, show a red overlay when out of range, and fade when on cooldown. A **Cooldown Pulse** flashes a large icon on-screen when tracked abilities come off cooldown.
+Every visual detail is designed for instant feedback: icons glow when usable, grey out when you can't afford them, show a red overlay when out of range, and fade when on cooldown.
 
 ### Resource Prediction
 
 A unique feature that **extends the cooldown spiral to show when you'll actually be able to cast** — factoring in both the cooldown AND resource regeneration.
 
-Instead of seeing an ability go "ready" when you can't afford it, the icon shows a unified countdown to when you'll have enough resources. This transforms resource management from mental math into visual intuition. Alternative fill and bar display modes are also available.
+Instead of seeing an ability go "ready" when you can't afford it, the icon shows a unified countdown to when you'll have enough resources. This transforms resource management from mental math into visual intuition.
 
 ### Dynamic Sort
 
