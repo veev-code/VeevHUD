@@ -57,6 +57,14 @@ Arrange your row as a priority order and the leftmost icon is always the next be
 
 Small icons above the health bar for important buffs — class procs (Enrage, Flurry, Clearcasting), external buffs from other players (Bloodlust, Power Infusion, Innervate, Drums), and any custom auras you add. They appear only when active, with glows, animations, and duration text.
 
+### Cooldown Pulse
+
+Flashes a large ability icon in the center of your screen when it comes off cooldown — so you never miss a ready ability, even while focused on the action. Configurable size, animation, and per-row filtering.
+
+### Sound Notifications
+
+Configurable sound alerts for three combat events: proc activation, ability ready, and missing buff reminders. Each supports a global default sound and per-spell overrides. Register WoW's built-in sounds by Kit ID, choose your audio channel, and sounds are automatically suppressed during loading screens. All sounds default to silent — no noise until you configure it.
+
 ### Buff Reminders
 
 Large, semi-transparent icons that nudge you to rebuff when missing important long-duration buffs. Pre-configured per class, with awareness of buff equivalents (Fortitude / Prayer of Fortitude) and weapon enchants.
