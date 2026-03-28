@@ -63,7 +63,7 @@ Flashes a large ability icon in the center of your screen when it comes off cool
 
 ### Sound Notifications
 
-Configurable sound alerts for three combat events: proc activation, ability ready, and missing buff reminders. Each supports a global default sound and per-spell overrides. Register WoW's built-in sounds by Kit ID, choose your audio channel, and sounds are automatically suppressed during loading screens. All sounds default to silent — no noise until you configure it.
+Optional sound alerts for proc activation, ability ready, and missing buff reminders — with per-spell overrides. All sounds default to silent.
 
 ### Buff Reminders
 

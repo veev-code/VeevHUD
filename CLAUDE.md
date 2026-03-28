@@ -17,6 +17,9 @@ VeevHUD is a lightweight, WeakAuras-inspired heads-up display addon for World of
 
 ## File Structure
 
+### README.md Purpose
+`README.md` doubles as the CurseForge addon description (https://www.curseforge.com/wow/addons/veevhud). It's a quick pitch to get users to try the addon — not exhaustive documentation. Keep entries short and benefit-focused. Implementation details (Kit IDs, loading screen squelch, channel selection, etc.) belong in CLAUDE.md or CHANGELOG.md, not the README.
+
 ### Root
 - `VeevHUD.toc` — TOC file, MIT license
 - `README.md`, `CHANGELOG.md`, `TODO.md`
