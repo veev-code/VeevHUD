@@ -2,7 +2,7 @@
 
 **A WeakAuras-inspired heads-up display for tracking cooldowns, buffs, debuffs, and resources.**
 
-**Works out of the box** with intelligent defaults for every class and spec — no configuration required, but deeply configurable if you want it.
+**Works out of the box** with intelligent defaults for every class and spec — no configuration required.
 
 ## Why VeevHUD?
 
@@ -51,7 +51,7 @@ Enable dynamic sorting to have icons **reorder by time remaining** — the abili
 *   **DoT classes** — See which debuff is closest to expiring
 *   **Cooldown-heavy rotations** — See which ability comes off cooldown next
 
-Arrange your row as a priority order and the leftmost icon is always the next best spell to cast. Includes optional smooth slide animation.
+Arrange your row as a priority order and the leftmost icon is always the next best spell to cast.
 
 ### Aura Tracker
 
@@ -59,11 +59,11 @@ Small icons above the health bar for important buffs — class procs (Enrage, Fl
 
 ### Cooldown Pulse
 
-Flashes a large ability icon in the center of your screen when it comes off cooldown — so you never miss a ready ability, even while focused on the action. Configurable size, animation, and per-row filtering.
+Flashes a large ability icon in the center of your screen when it comes off cooldown — so you never miss a ready ability, even while focused on the action.
 
 ### Sound Notifications
 
-Optional sound alerts for proc activation, ability ready, and missing buff reminders — with per-spell overrides. All sounds default to silent.
+Optional sound alerts for proc activation, ability ready, and missing buff reminders — with per-spell overrides.
 
 ### Buff Reminders
 
@@ -85,7 +85,7 @@ Compact bars show health and mana/rage/energy at a glance, with combo point trac
 
 ## Configuration
 
-VeevHUD is designed to work great out of the box, but nearly everything is configurable — icon appearance, bar styles, per-spell overrides, element ordering, and more. Profiles with automatic per-spec switching are supported for dual spec users.
+Nearly everything is configurable — icon appearance, bar styles, per-spell overrides, element ordering, and more. Profiles with automatic per-spec switching are supported for dual spec users.
 
 Access settings via **/vh** in chat, or **ESC → Options → AddOns → VeevHUD**.
 
