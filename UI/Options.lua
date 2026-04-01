@@ -1665,7 +1665,7 @@ function Options:BuildOptionsTable()
 									return not t or not t.enabled or t.style ~= C.TICKER_STYLE.BAR
 								end,
 								args = {
-									height = { type = "range", name = "Bar Height", desc = "How tall the energy ticker bar is in pixels.", min = 1, max = 12, step = 1, arg = "resourceBar.energyTicker.height", order = 1 },
+									height = { type = "range", name = "Bar Height", desc = "How tall the energy ticker bar is in pixels.", min = 1, max = 60, step = 1, arg = "resourceBar.energyTicker.height", order = 1 },
 									offsetY = { type = "range", name = "Bar Offset", desc = "Moves the energy ticker bar up or down relative to the resource bar. Positive values move it down, negative values move it up.", min = -24, max = 24, step = 1, arg = "resourceBar.energyTicker.offsetY", order = 2 },
 									color = { type = "color", name = "Color", desc = "The color used for the energy ticker bar.", hasAlpha = false, get = colorGet, set = colorSet, arg = "resourceBar.energyTicker.color", order = 3 },
 								},
@@ -1724,7 +1724,7 @@ function Options:BuildOptionsTable()
 							order = 0,
 						},
 						enabled = { type = "toggle", name = "Enabled", desc = "Show a secondary mana bar below the resource bar while shapeshifted.", arg = "resourceBar.druidManaBar.enabled", order = 1, disabled = function() return addon.db and addon.db.profile and not addon.db.profile.resourceBar.enabled end },
-						height = { type = "range", name = "Height", desc = "How tall the secondary mana bar is in pixels.", min = 2, max = 30, step = 1, arg = "resourceBar.druidManaBar.height", order = 2, disabled = function() return addon.db and addon.db.profile and not addon.db.profile.resourceBar.druidManaBar.enabled end },
+						height = { type = "range", name = "Height", desc = "How tall the secondary mana bar is in pixels.", min = 2, max = 60, step = 1, arg = "resourceBar.druidManaBar.height", order = 2, disabled = function() return addon.db and addon.db.profile and not addon.db.profile.resourceBar.druidManaBar.enabled end },
 						showSpark = { type = "toggle", name = "Show Spark", desc = "Shows a glowing spark at the current fill position on the mana bar.", arg = "resourceBar.druidManaBar.showSpark", order = 3, disabled = function() return addon.db and addon.db.profile and not addon.db.profile.resourceBar.druidManaBar.enabled end },
 						color = { type = "color", name = "Color", desc = "The color used for the secondary mana bar.", hasAlpha = false, get = colorGet, set = colorSet, arg = "resourceBar.druidManaBar.color", order = 4, disabled = function() return addon.db and addon.db.profile and not addon.db.profile.resourceBar.druidManaBar.enabled end },
 						showManaTicker = { type = "toggle", name = "Show Mana Ticker", desc = "Shows the mana tick spark on this bar while in form. When disabled, the mana ticker only appears on the main resource bar in caster form.", arg = "resourceBar.druidManaBar.showManaTicker", order = 5, disabled = function() return addon.db and addon.db.profile and not addon.db.profile.resourceBar.druidManaBar.enabled end },
@@ -1882,7 +1882,7 @@ function Options:BuildOptionsTable()
 								disabled = function() return addon.db and addon.db.profile and not addon.db.profile.comboPoints.enabled end,
 								args = {
 									width = { type = "range", name = "Width", desc = "The total width of the combo points display in pixels.", min = 50, max = 600, step = 1, arg = "comboPoints.width", order = 1 },
-									barHeight = { type = "range", name = "Bar Height", desc = "The height of each combo point bar in pixels. Smaller values create a more subtle display.", min = 2, max = 30, step = 1, arg = "comboPoints.barHeight", order = 2 },
+									barHeight = { type = "range", name = "Bar Height", desc = "The height of each combo point bar in pixels. Smaller values create a more subtle display.", min = 2, max = 60, step = 1, arg = "comboPoints.barHeight", order = 2 },
 									barSpacing = { type = "range", name = "Bar Spacing", desc = "The gap in pixels between each individual combo point segment.", min = 0, max = 20, step = 1, arg = "comboPoints.barSpacing", order = 3 },
 								},
 							},
@@ -2046,7 +2046,7 @@ function Options:BuildOptionsTable()
 									height = {
 										type = "range", name = "Height", order = 2,
 										desc = "Height of the swing bar in pixels (single weapon). Per-class/spec: each class or spec remembers its own height.",
-										min = 1, max = 20, step = 1,
+										min = 1, max = 60, step = 1,
 										get = function()
 											local db = addon.db.profile.swingBar
 											return db.specHeight[addon.playerSpec] or db.classHeight[addon.playerClass] or db.height
@@ -2062,8 +2062,8 @@ function Options:BuildOptionsTable()
 											end
 										end,
 									},
-									wandHeight = { type = "range", name = "Wand Height", desc = "Height of the swing bar in pixels for wand users (Mage, Priest, Warlock).", min = 1, max = 20, step = 1, arg = "swingBar.wandHeight", order = 3, hidden = function() local c = addon.playerClass; return c ~= C.CLASS.MAGE and c ~= C.CLASS.PRIEST and c ~= C.CLASS.WARLOCK end },
-									dualWieldHeight = { type = "range", name = "Dual-Wield Height", desc = "Height of each bar when dual-wielding (MH and OH bars shown separately).", min = 1, max = 20, step = 1, arg = "swingBar.dualWieldHeight", order = 4, hidden = function() local c = addon.playerClass; return c == C.CLASS.MAGE or c == C.CLASS.PRIEST or c == C.CLASS.WARLOCK or c == C.CLASS.DRUID or c == C.CLASS.PALADIN end },
+									wandHeight = { type = "range", name = "Wand Height", desc = "Height of the swing bar in pixels for wand users (Mage, Priest, Warlock).", min = 1, max = 60, step = 1, arg = "swingBar.wandHeight", order = 3, hidden = function() local c = addon.playerClass; return c ~= C.CLASS.MAGE and c ~= C.CLASS.PRIEST and c ~= C.CLASS.WARLOCK end },
+									dualWieldHeight = { type = "range", name = "Dual-Wield Height", desc = "Height of each bar when dual-wielding (MH and OH bars shown separately).", min = 1, max = 60, step = 1, arg = "swingBar.dualWieldHeight", order = 4, hidden = function() local c = addon.playerClass; return c == C.CLASS.MAGE or c == C.CLASS.PRIEST or c == C.CLASS.WARLOCK or c == C.CLASS.DRUID or c == C.CLASS.PALADIN end },
 									dualWieldSpacing = { type = "range", name = "Dual-Wield Spacing", desc = "Gap in pixels between the main-hand and off-hand bars.", min = 0, max = 10, step = 1, arg = "swingBar.dualWieldSpacing", order = 5, hidden = function() local c = addon.playerClass; return c == C.CLASS.MAGE or c == C.CLASS.PRIEST or c == C.CLASS.WARLOCK or c == C.CLASS.DRUID or c == C.CLASS.PALADIN end },
 								},
 							},
