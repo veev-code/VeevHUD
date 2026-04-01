@@ -1,5 +1,10 @@
 # VeevHUD Changelog
 
+## [1.0.185] - 2026-04-01
+
+### Fixed
+- **Buff Reminders: exclusive groups suggest covered spells** — When another player already covers a buff from an exclusive group (e.g., another warrior's Battle Shout), the reminder now suggests the uncovered spell (Commanding Shout) instead of redundantly showing the already-active one.
+
 ## [1.0.184] - 2026-03-27
 
 ### Added

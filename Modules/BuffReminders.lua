@@ -1365,10 +1365,10 @@ function BuffReminders:GetBestSpellForGroup(groupName, defaultSpellID)
             end
         end
     elseif groupInfo.relationship == "exclusive" then
-        -- For exclusive groups, check user priority config, else use first known.
-        -- cfg.priority stores the spell ID of the preferred spell (not a boolean).
-        -- If the priority spell is already on the player from another source,
-        -- suggest a different uncovered spell from the group instead.
+        -- For exclusive groups, suggest an uncovered spell to cast.
+        -- Priority (cfg.priority) wins when uncovered; otherwise pick the
+        -- first uncovered spell in group order. If all are covered, fall
+        -- back to priority or group default.
         local db = addon.db and addon.db.profile and addon.db.profile.buffReminders
         local prioritySpellID = nil
         local specKey = addon.Database:GetSpecKey()
@@ -1386,32 +1386,21 @@ function BuffReminders:GetBestSpellForGroup(groupName, defaultSpellID)
             end
         end
 
-        if prioritySpellID then
-            -- Check if the priority spell is already active from another player
-            local priorityCovered = self:IsBuffOnUnit("player", prioritySpellID)
-            if priorityCovered then
-                -- Priority is covered by someone else — suggest an uncovered spell
-                for _, gSpellID in ipairs(groupInfo.spells) do
-                    if gSpellID ~= prioritySpellID then
-                        local hr = self.LibSpellDB:GetHighestKnownRank(gSpellID)
-                        if hr and IsSpellKnown(hr) then
-                            if not self:IsBuffOnUnit("player", gSpellID) then
-                                return gSpellID
-                            end
-                        end
-                    end
-                end
-            end
+        -- If priority is set and uncovered, use it directly
+        if prioritySpellID and not self:IsBuffOnUnit("player", prioritySpellID) then
             return prioritySpellID
         end
 
-        -- Default: first known spell in the group
+        -- Otherwise find any uncovered spell; fall back to priority or group default
         for _, gSpellID in ipairs(groupInfo.spells) do
             local hr = self.LibSpellDB:GetHighestKnownRank(gSpellID)
             if hr and IsSpellKnown(hr) then
-                return gSpellID
+                if not self:IsBuffOnUnit("player", gSpellID) then
+                    return gSpellID
+                end
             end
         end
+        return prioritySpellID or defaultSpellID
     end
     
     return defaultSpellID
