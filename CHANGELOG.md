@@ -1,5 +1,13 @@
 # VeevHUD Changelog
 
+## [1.0.189] - 2026-04-02
+
+### Fixed
+- **Aimed Shot icon showing debuff instead of cooldown** — The 10s healing reduction debuff outlasts the 6s cooldown, so the icon now prioritizes cooldown display (same behavior as Mortal Strike).
+
+### LibSpellDB Updates
+- Aimed Shot marked `cooldownPriority` so cooldown state takes precedence over the longer debuff duration.
+
 ## [1.0.188] - 2026-04-01
 
 ### Fixed
