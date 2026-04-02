@@ -1,5 +1,18 @@
 # VeevHUD Changelog
 
+## [1.0.188] - 2026-04-01
+
+### Fixed
+- **Taunt not showing as active debuff** — Taunt, Growl, and Righteous Defense now show active aura tracking on the target (3s taunt debuff).
+- **Aimed Shot healing reduction not tracked** — The 10s healing debuff now shows as active on the target.
+- **Blast Wave / Avenger's Shield daze not tracked** — 6s daze debuffs now show as active on the target.
+- **Riposte disarm not tracked** — 6s disarm debuff now shows as active on the target.
+- **Ghostly Strike aura tracked on wrong unit** — The 7s dodge buff now correctly tracks on the player (self) instead of the enemy target.
+
+### LibSpellDB Updates
+- Added missing `duration` and `auraTarget` to 7 spells across Warrior, Druid, Paladin, Hunter, Mage, and Rogue.
+- Fixed Ghostly Strike `auraTarget` from enemy to self.
+
 ## [1.0.187] - 2026-04-01
 
 ### Fixed
