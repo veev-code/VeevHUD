@@ -595,13 +595,13 @@ function SpellsOptions:GetEffectiveSpellList()
     for spellID, _ in pairs(displayedSpellIDs) do
         local tracked = trackedSpells[spellID]
         local cfg = spellCfg[spellID] or {}
-        
+
         -- Get spell data from tracked or LibSpellDB
         local spellData = tracked and tracked.spellData
         if not spellData and addon.LibSpellDB then
             spellData = addon.LibSpellDB:GetSpellInfo(spellID)
         end
-        
+
         if spellData then
             -- Determine effective row
             local defaultRow = nil
@@ -641,9 +641,10 @@ function SpellsOptions:GetEffectiveSpellList()
             if slotData then
                 local sentinelID = slotData.sentinelID
                 local cfg = spellCfg[sentinelID] or {}
-                local label = (slotID == 13) and "Trinket 1" or "Trinket 2"
+                local slotLabel = (slotID == 13) and "Trinket 1" or "Trinket 2"
+                local label = slotLabel
                 if slotData.name then
-                    label = slotData.name .. " (" .. label .. ")"
+                    label = slotLabel .. " (" .. slotData.name .. ")"
                 end
                 local effectiveRow = cfg.rowIndex or 2  -- Default: Secondary
                 rows[effectiveRow] = rows[effectiveRow] or {}
@@ -902,6 +903,43 @@ function SpellsOptions:GetEffectiveSpellList()
         end
     end
 
+    -- Replace shared cooldown group entries with a meta-entry (like exclusive BuffGroups).
+    -- E.g., Arms warrior's Retaliation becomes a group entry showing the override spell icon.
+    if addon.LibSpellDB then
+        for rowIndex, spells in pairs(rows) do
+            for i, spellInfo in ipairs(spells) do
+                local groupName, groupInfo = addon.LibSpellDB:GetSharedCooldownGroup(spellInfo.spellID)
+                if groupName and groupInfo then
+                    local displayID = spellInfo.spellID
+                    local displayData = spellInfo.spellData
+                    local overrideID, overrideData = addon.Database:ResolveSharedCooldownOverride(displayID)
+                    if overrideID then
+                        displayID = overrideID
+                        displayData = overrideData
+                    end
+
+                    -- Replace with shared CD group meta-entry.
+                    -- Unlike isExclusiveGroup (where all members are tracked), only the
+                    -- spec-default spell is tracked — config overrides apply to it alone.
+                    spells[i] = {
+                        spellID = displayID,
+                        spellData = displayData,
+                        enabled = spellInfo.enabled,
+                        rowIndex = spellInfo.rowIndex,
+                        defaultRow = spellInfo.defaultRow,
+                        order = spellInfo.order,
+                        isAvailable = spellInfo.isAvailable,
+                        defaultOrder = spellInfo.defaultOrder,
+                        isSharedCDGroup = true,
+                        sharedCDTrackedSpellID = spellInfo.spellID,  -- original tracked spell for config writes
+                        sharedCDGroupMembers = groupInfo.spells,
+                        sharedCDGroupDescription = groupInfo.description,
+                    }
+                end
+            end
+        end
+    end
+
     return rows
 end
 
@@ -992,12 +1030,14 @@ function SpellsOptions:CreateSpellEntry(spellInfo, rowIndex, index, yOffset)
     icon:SetTexture(spellIcon or "Interface\\Icons\\INV_Misc_QuestionMark")
     frame.icon = icon
     
-    -- Name (use group description for exclusive group entries)
+    -- Name (use group description for group entries)
     local nameText
     if spellInfo.isExclusiveGroup and spellInfo.exclusiveGroupDescription then
-        -- Title-case the group description (e.g., "Warlock curses" → "Curses")
         local desc = spellInfo.exclusiveGroupDescription
-        -- Strip class prefix if present (e.g., "Warlock curses" → "Curses")
+        local shortDesc = desc:match("^%w+%s+(.+)$") or desc
+        nameText = shortDesc:sub(1, 1):upper() .. shortDesc:sub(2)
+    elseif spellInfo.isSharedCDGroup and spellInfo.sharedCDGroupDescription then
+        local desc = spellInfo.sharedCDGroupDescription
         local shortDesc = desc:match("^%w+%s+(.+)$") or desc
         nameText = shortDesc:sub(1, 1):upper() .. shortDesc:sub(2)
     else
@@ -1032,6 +1072,9 @@ function SpellsOptions:CreateSpellEntry(spellInfo, rowIndex, index, yOffset)
             for _, memberID in ipairs(spellInfo.exclusiveGroupMembers) do
                 SpellsOptions:SetSpellOverride(memberID, "enabled", enabled)
             end
+        elseif spellInfo.isSharedCDGroup then
+            -- Only toggle the tracked spell (others aren't spec-relevant)
+            SpellsOptions:SetSpellOverride(spellInfo.sharedCDTrackedSpellID, "enabled", enabled)
         else
             SpellsOptions:SetSpellOverride(spellInfo.spellID, "enabled", enabled)
         end
@@ -1060,6 +1103,11 @@ function SpellsOptions:CreateSpellEntry(spellInfo, rowIndex, index, yOffset)
                         end
                         SpellsOptions:SetSpellOverride(memberID, "rowIndex", memberRow)
                     end
+                end
+            elseif spellInfo.isSharedCDGroup then
+                local trackedCfg = addon:GetSpellConfigForSpell(spellInfo.sharedCDTrackedSpellID)
+                if trackedCfg.rowIndex == nil or trackedCfg.rowIndex == AVAILABLE_ROW_INDEX then
+                    SpellsOptions:SetSpellOverride(spellInfo.sharedCDTrackedSpellID, "rowIndex", defaultRow)
                 end
             else
                 local cfg = addon:GetSpellConfigForSpell(spellInfo.spellID)
@@ -1199,12 +1247,12 @@ function SpellsOptions:CreateSpellEntry(spellInfo, rowIndex, index, yOffset)
     frame:SetScript("OnEnter", function(self)
         self.bg:Show()
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        if spellInfo.isExclusiveGroup then
-            -- Custom tooltip listing all group members
+        if spellInfo.isExclusiveGroup or spellInfo.isSharedCDGroup then
+            local members = spellInfo.exclusiveGroupMembers or spellInfo.sharedCDGroupMembers
             GameTooltip:AddLine("Shared Tracker", 1, 1, 1)
             GameTooltip:AddLine("Only one active at a time — icon swaps on cast", 0.7, 0.7, 0.7, true)
             GameTooltip:AddLine(" ")
-            for _, memberID in ipairs(spellInfo.exclusiveGroupMembers) do
+            for _, memberID in ipairs(members) do
                 local mName = GetSpellInfo(memberID)
                 if mName then
                     GameTooltip:AddLine(mName, 1, 0.82, 0)
@@ -1287,7 +1335,7 @@ function SpellsOptions:StartDrag(frame)
     -- Setup ghost frame
     local spellName, _, spellIcon = GetSpellInfo(frame.spellID)
     self.ghostFrame.icon:SetTexture(spellIcon)
-    if frame.spellInfo.isExclusiveGroup then
+    if frame.spellInfo.isExclusiveGroup or frame.spellInfo.isSharedCDGroup then
         self.ghostFrame.name:SetText(frame.nameText:GetText() or "Group")
     else
         self.ghostFrame.name:SetText(spellName or "Unknown")
@@ -1429,40 +1477,49 @@ function SpellsOptions:EndDrag()
             return
         end
         
-        -- For exclusive group entries, apply overrides to all members
-        local isGroup = self.dragState.spellInfo and self.dragState.spellInfo.isExclusiveGroup
-        local groupMembers = isGroup and self.dragState.spellInfo.exclusiveGroupMembers
+        -- For exclusive group entries, apply overrides to all members.
+        -- For shared CD groups, only apply to the single tracked spell.
+        local isExclGroup = self.dragState.spellInfo and self.dragState.spellInfo.isExclusiveGroup
+        local exclMembers = isExclGroup and self.dragState.spellInfo.exclusiveGroupMembers
+        local isSharedCD = self.dragState.spellInfo and self.dragState.spellInfo.isSharedCDGroup
+        local sharedCDTarget = isSharedCD and self.dragState.spellInfo.sharedCDTrackedSpellID
 
         -- If dragging from Available section to a main row, enable the spell
         if sourceRow == AVAILABLE_ROW_INDEX and newRow ~= AVAILABLE_ROW_INDEX then
-            if isGroup then
-                for _, memberID in ipairs(groupMembers) do
+            if isExclGroup then
+                for _, memberID in ipairs(exclMembers) do
                     self:SetSpellOverride(memberID, "enabled", true)
                     self:SetSpellOverride(memberID, "rowIndex", nil)  -- Clear AVAILABLE_ROW_INDEX
                 end
+            elseif isSharedCD then
+                self:SetSpellOverride(sharedCDTarget, "enabled", true)
+                self:SetSpellOverride(sharedCDTarget, "rowIndex", nil)
             else
                 self:SetSpellOverride(spellID, "enabled", true)
             end
-            self:SetSpellOverride(spellID, "rowIndex", newRow)
+            self:SetSpellOverride(isSharedCD and sharedCDTarget or spellID, "rowIndex", newRow)
         -- If dragging to Available section, disable the spell
         elseif newRow == AVAILABLE_ROW_INDEX and sourceRow ~= AVAILABLE_ROW_INDEX then
-            if isGroup then
-                for _, memberID in ipairs(groupMembers) do
+            if isExclGroup then
+                for _, memberID in ipairs(exclMembers) do
                     self:SetSpellOverride(memberID, "enabled", false)
                     self:SetSpellOverride(memberID, "rowIndex", AVAILABLE_ROW_INDEX)
                 end
+            elseif isSharedCD then
+                self:SetSpellOverride(sharedCDTarget, "enabled", false)
+                self:SetSpellOverride(sharedCDTarget, "rowIndex", AVAILABLE_ROW_INDEX)
             else
                 self:SetSpellOverride(spellID, "enabled", false)
                 self:SetSpellOverride(spellID, "rowIndex", AVAILABLE_ROW_INDEX)
             end
         -- Row changed within main rows
         elseif rowChanged then
-            if isGroup then
-                for _, memberID in ipairs(groupMembers) do
+            if isExclGroup then
+                for _, memberID in ipairs(exclMembers) do
                     self:SetSpellOverride(memberID, "rowIndex", newRow)
                 end
             else
-                self:SetSpellOverride(spellID, "rowIndex", newRow)
+                self:SetSpellOverride(isSharedCD and sharedCDTarget or spellID, "rowIndex", newRow)
             end
         end
         

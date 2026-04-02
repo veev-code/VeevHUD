@@ -1,5 +1,21 @@
 # VeevHUD Changelog
 
+## [1.0.186] - 2026-04-01
+
+### Added
+- **Shared Cooldown Persistence** — Warrior 30-minute cooldowns (Recklessness, Retaliation, Shield Wall) now remember which spell you last used, so the correct icon shows after /reload. The choice is saved per-spec.
+
+### Fixed
+- **Cooldown pulse flickering** — Cooldown-ready pulses and glow effects no longer re-trigger when the spell queue briefly flickers a cooldown state. Added a 1-second rate limit to prevent duplicate sounds and visual noise.
+- **Trinket label format** — Trinket entries in Spell Configuration now show "Trinket 1 (Name)" instead of "Name (Trinket 1)" for better readability.
+
+### Changed
+- **Bar height slider max** — Energy ticker, druid mana bar, combo points, and all swing bar variants now allow heights up to 60px (previously capped at 12–30).
+
+### LibSpellDB Updates
+- Warrior Rend and Slam removed from Arms spec defaults (still available for manual enable).
+- Shortened shared cooldown group descriptions.
+
 ## [1.0.185] - 2026-04-01
 
 ### Fixed

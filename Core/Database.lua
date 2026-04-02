@@ -725,6 +725,60 @@ function Database:ClearOverride(path)
     self:SetValueAtPath(addon.db.profile, path, defaultValue)
 end
 
+-------------------------------------------------------------------------------
+-- Shared Cooldown Override Helpers
+-------------------------------------------------------------------------------
+
+function Database:GetSharedCooldownOverride(groupName, specKey)
+    specKey = specKey or self:GetSpecKey()
+    local overrides = addon.db and addon.db.profile and addon.db.profile.sharedCooldownOverrides
+    if overrides and overrides[specKey] then
+        return overrides[specKey][groupName]
+    end
+    return nil
+end
+
+-- Resolve the display spell for a shared cooldown group.
+-- Returns overrideSpellID, overrideData if an override exists and is valid.
+-- Returns nil, nil if no override or spellID is already the active override.
+-- Cleans up stale overrides (spell removed from LibSpellDB).
+function Database:ResolveSharedCooldownOverride(spellID)
+    if not addon.LibSpellDB then return nil, nil end
+    local groupName = addon.LibSpellDB:GetSharedCooldownGroup(spellID)
+    if not groupName then return nil, nil end
+    local overrideID = self:GetSharedCooldownOverride(groupName)
+    if not overrideID or overrideID == spellID then return nil, nil end
+    local overrideData = addon.LibSpellDB:GetSpellInfo(overrideID)
+    if overrideData then
+        return overrideID, overrideData
+    end
+    -- Stale override — clean up
+    self:SetSharedCooldownOverride(groupName, nil)
+    return nil, nil
+end
+
+-- Sparse with nil-cleanup (mirrors SetSpellConfigOverride pattern)
+function Database:SetSharedCooldownOverride(groupName, spellID, specKey)
+    specKey = specKey or self:GetSpecKey()
+
+    if not addon.db or not addon.db.profile then return end
+
+    addon.db.profile.sharedCooldownOverrides = addon.db.profile.sharedCooldownOverrides or {}
+    addon.db.profile.sharedCooldownOverrides[specKey] = addon.db.profile.sharedCooldownOverrides[specKey] or {}
+
+    if spellID == nil then
+        addon.db.profile.sharedCooldownOverrides[specKey][groupName] = nil
+        if next(addon.db.profile.sharedCooldownOverrides[specKey]) == nil then
+            addon.db.profile.sharedCooldownOverrides[specKey] = nil
+        end
+        if next(addon.db.profile.sharedCooldownOverrides) == nil then
+            addon.db.profile.sharedCooldownOverrides = nil
+        end
+    else
+        addon.db.profile.sharedCooldownOverrides[specKey][groupName] = spellID
+    end
+end
+
 function Database:ResetProfile()
     if addon.db and addon.db.ResetProfile then
         addon.db:ResetProfile()

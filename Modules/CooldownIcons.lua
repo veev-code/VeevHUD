@@ -427,11 +427,16 @@ end
 function CooldownIcons:HandleSharedCooldownCast(castSpellID)
     local LibSpellDB = addon.LibSpellDB
     if not LibSpellDB then return end
-    
-    -- Get the shared cooldown group for the cast spell
+
     local groupName, groupInfo = LibSpellDB:GetSharedCooldownGroup(castSpellID)
     if not groupName or not groupInfo then return end
-    
+
+    -- Persist so the icon survives /reload (per-spec via specKey)
+    local currentOverride = addon.Database:GetSharedCooldownOverride(groupName)
+    if currentOverride ~= castSpellID then
+        addon.Database:SetSharedCooldownOverride(groupName, castSpellID)
+    end
+
     -- Find if we have an icon tracking any spell from this group
     for _, rowFrame in ipairs(self.rows or {}) do
         if rowFrame.icons then
@@ -1152,6 +1157,16 @@ function CooldownIcons:SetupIcon(frame, spellID, actualSpellID, spellData, rowCo
     if self.stanceTracker and self.stanceTracker:IsStanceSentinel(spellID) then
         self.stanceTracker:SetupStanceIcon(frame, spellID, rowConfig, rowIndex)
         return
+    end
+
+    -- If the player previously used a different spell from this shared CD group
+    -- (e.g., Arms warrior uses Recklessness instead of Retaliation), swap at setup time
+    local overrideSpellID, overrideData = addon.Database:ResolveSharedCooldownOverride(spellID)
+    if overrideSpellID then
+        spellID = overrideSpellID
+        actualSpellID = overrideSpellID
+        spellData = overrideData
+        self.Utils:Debug("SharedCD override: showing", spellID)
     end
 
     -- spellID = canonical ID for identification and tag lookups

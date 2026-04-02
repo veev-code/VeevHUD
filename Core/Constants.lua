@@ -698,6 +698,12 @@ C.DEFAULTS = {
         -- Absence = use buffReminders.soundOnMissing global default
         buffReminderSoundConfig = {},
 
+        -- Shared cooldown group overrides (sparse storage, per-spec)
+        -- When a player uses a different spell from a shared CD group (e.g., Arms warrior
+        -- uses Recklessness instead of Retaliation), persist that choice per-spec.
+        -- Format: sharedCooldownOverrides[specKey][groupName] = spellID
+        sharedCooldownOverrides = {},
+
         -- Row definitions (order matters - top to bottom)
         -- Each row shows spells matching these LibSpellDB tags
         -- Spells are assigned to the FIRST matching row (no duplicates)
