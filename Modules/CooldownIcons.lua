@@ -1095,6 +1095,7 @@ function CooldownIcons:ResetIconState(frame)
     frame.readyGlowActive = false
     frame.wasOnRealCooldown = nil
     frame.wasUsable = nil
+    frame.lastCooldownDuration = nil
     frame.glowActive = false
     frame.glowType = nil
     frame.glowAlpha = nil

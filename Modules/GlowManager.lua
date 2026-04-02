@@ -23,10 +23,6 @@ local IsSpellOverlayed = IsSpellOverlayed
 local ActionButton_ShowOverlayGlow = ActionButton_ShowOverlayGlow
 local ActionButton_HideOverlayGlow = ActionButton_HideOverlayGlow
 
--- Minimum seconds between cooldown pulse re-arms for the same spell.
--- Prevents spell queue flicker from triggering duplicate pulses/glows.
-local PULSE_RATE_LIMIT = 1
-
 local GlowManager = {}
 addon:RegisterModule("GlowManager", GlowManager)
 
@@ -45,10 +41,6 @@ function GlowManager:Initialize()
     -- Track cooldown pulse fired state per spell ID (not per frame,
     -- since row rebuilds can create multiple frames for the same spell)
     self.cooldownPulseFired = {}
-
-    -- Rate-limit cooldown pulses: maps spellID -> GetTime() of last pulse.
-    -- Prevents rapid re-triggering when spell queue flickers the CD state.
-    self.cooldownPulseTime = {}
 
     -- Whether Masque is active (set by CooldownIcons after Masque init)
     self.masqueEnabled = false
@@ -300,15 +292,13 @@ function GlowManager:UpdateCooldownPulse(frame, spellID, remaining, duration)
     local isOnRealCooldown = self.Utils:IsOnRealCooldown(remaining, duration)
     local wasOnRealCooldown = frame.wasOnRealCooldown or false
 
-    -- Reset pulse tracking when ability goes on cooldown.
-    -- Rate-limit: if a pulse fired recently, don't re-arm. Prevents rapid
-    -- re-triggering when spell queue flickers the CD state.
-    local now = GetTime()
+    -- Reset pulse tracking when ability goes on cooldown
     if isOnRealCooldown and not wasOnRealCooldown then
-        local lastPulse = self.cooldownPulseTime[spellID]
-        if not lastPulse or (now - lastPulse) > PULSE_RATE_LIMIT then
-            self.cooldownPulseFired[spellID] = false
-        end
+        self.cooldownPulseFired[spellID] = false
+        -- Snapshot the cooldown duration at cast time. When the CD expires,
+        -- the API returns duration=0, but downstream filters (minCooldown)
+        -- need the original duration to decide whether to show the pulse.
+        frame.lastCooldownDuration = duration
     end
 
     if not self.cooldownPulseFired[spellID] then
@@ -321,10 +311,10 @@ function GlowManager:UpdateCooldownPulse(frame, spellID, remaining, duration)
         end
         if shouldFire then
             self.cooldownPulseFired[spellID] = true
-            self.cooldownPulseTime[spellID] = now
             local texture = frame.icon and frame.icon:GetTexture()
             local spellName = frame.actualSpellID and C_Spell.GetSpellName(frame.actualSpellID)
-            addon.Events:FireAddonEvent("COOLDOWN_READY", spellID, texture, spellName, frame.rowIndex or 1, duration)
+            local cdDuration = frame.lastCooldownDuration or duration
+            addon.Events:FireAddonEvent("COOLDOWN_READY", spellID, texture, spellName, frame.rowIndex or 1, cdDuration)
         end
     end
 
@@ -401,15 +391,10 @@ function GlowManager:UpdateReadyGlow(frame, spellID, remaining, duration, isUsab
     local wasOnRealCooldown = frame.wasOnRealCooldown or false
     local wasUsable = frame.wasUsable or false
 
-    -- Detect when ability goes on cooldown (used) -> reset tracking for ALL abilities.
-    -- Rate-limit: if a pulse fired recently, don't re-arm. Prevents spell queue
-    -- flicker from re-triggering glow/sound repeatedly.
+    -- Detect when ability goes on cooldown (used) -> reset tracking for ALL abilities
     if isOnRealCooldown and not wasOnRealCooldown then
-        local lastPulse = self.cooldownPulseTime[spellID]
-        if not lastPulse or (now - lastPulse) > PULSE_RATE_LIMIT then
-            frame.readyGlowShown = false
-            frame.readyGlowExpires = nil
-        end
+        frame.readyGlowShown = false
+        frame.readyGlowExpires = nil
     end
 
     local inCombat = UnitAffectingCombat("player")

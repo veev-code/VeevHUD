@@ -104,7 +104,9 @@ end
 function Utils:StartNewSession()
     local log = GetLog()
     if not log then return end  -- Debug mode off, skip
-    
+
+    -- Wipe previous session logs so stale entries don't pollute new debug runs
+    log.entries = {}
     log.session = (log.session or 0) + 1
     self:LogInfo("=== Session", log.session, "started ===")
     self:LogInfo("Player:", UnitName("player"), "Class:", select(2, UnitClass("player")))

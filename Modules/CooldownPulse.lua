@@ -19,6 +19,10 @@ local tinsert = tinsert
 local GetTime = GetTime
 local UnitAffectingCombat = UnitAffectingCombat
 
+-- Minimum seconds between pulses for the same spell.
+-- Suppresses duplicates from spell queue CD-state flicker.
+local PULSE_THROTTLE = 1
+
 local CooldownPulse = {}
 CooldownPulse.addon = addon
 addon:RegisterModule("CooldownPulse", CooldownPulse)
@@ -49,6 +53,10 @@ function CooldownPulse:Initialize()
     -- Maps canonical spellID -> GetTime() of cast.
     self.recentCasts = {}
     self.recentCastsCount = 0
+
+    -- Rate-limit: maps spellID -> GetTime() of last pulse.
+    -- Prevents duplicate pulses when spell queue flickers the CD state.
+    self.lastPulseTime = {}
 
     -- Initialize Masque support if available
     local MSQ = LibStub and LibStub("Masque", true)
@@ -198,12 +206,19 @@ function CooldownPulse:OnCooldownReady(event, spellID, texture, spellName, rowIn
 
     if not texture then return end
 
+    -- Rate-limit: suppress duplicate pulses from spell queue flicker
+    -- (e.g., spamming an ability out of range can rapidly toggle CD state)
+    local now = GetTime()
+    local lastPulse = self.lastPulseTime[spellID]
+    if lastPulse and (now - lastPulse) < PULSE_THROTTLE then return end
+
     -- Shared-cooldown dedup: only pulse the spell that was actually cast.
     -- spellID is the canonical base ID from GlowManager; recentCasts stores
     -- canonical IDs via GetCanonicalSpellID().
     -- Sentinel IDs (trinkets, totems, stance) bypass dedup — they're synthetic
     -- and never share cooldowns with other spells.
     if spellID >= addon.Constants.SENTINEL_ID_MIN or self.recentCastsCount == 0 or self.recentCasts[spellID] then
+        self.lastPulseTime[spellID] = now
         self:StartPulse(texture, db)
     end
     -- If we have cast history but no record for THIS spell, it came off CD

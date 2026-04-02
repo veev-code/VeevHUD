@@ -1,5 +1,12 @@
 # VeevHUD Changelog
 
+## [1.0.187] - 2026-04-01
+
+### Fixed
+- **Cooldown pulse not firing with minimum cooldown filter** — The "Minimum Cooldown" setting (e.g., 30s to skip short CDs) was suppressing all pulses because the WoW API reports duration=0 when a cooldown expires. Now snapshots the real cooldown duration at cast time.
+- **Cooldown pulse rate-limiting** — Replaced the v1.0.186 rate-limit approach which could prevent legitimate pulses from firing. Pulse dedup now happens at the animation layer with a simple 1-second throttle per spell.
+- **Debug logs persisting across sessions** — `/vh debug` logs now clear on each UI reload so previous debug sessions don't pollute new diagnostic runs.
+
 ## [1.0.186] - 2026-04-01
 
 ### Added
