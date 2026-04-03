@@ -40,8 +40,6 @@ function WelcomePopup:CreateDialog()
     message:SetJustifyH("CENTER")
     message:SetText("Thanks for trying VeevHUD!\n\n" ..
                    "Type |cff00ff00/vh|r to open settings.\n\n" ..
-                   "This addon is under active development.\n" ..
-                   "Your feedback helps shape its future.\n\n" ..
                    "Join the |cffffffffVeev Addons Discord|r for suggestions,\n" ..
                    "bug reports, and updates:")
     

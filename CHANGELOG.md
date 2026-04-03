@@ -1,5 +1,16 @@
 # VeevHUD Changelog
 
+## [1.0.190] - 2026-04-03
+
+### Fixed
+- **Consumable item cooldowns lost after zone change** — Used items (e.g., potions, engineering gadgets) no longer lose their cooldown display when crossing zone boundaries or changing specs, which triggers a frame rebuild.
+
+### Added
+- **Donate link** — Added a "Buy Me a Coffee" link in the About tab for anyone who wants to help offset development costs.
+
+### Changed
+- Trimmed welcome popup text for a cleaner first-run experience.
+
 ## [1.0.189] - 2026-04-02
 
 ### Fixed

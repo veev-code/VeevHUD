@@ -82,9 +82,32 @@ local screenH = math.ceil((GetScreenHeight and GetScreenHeight() or 1080) / 100)
 -------------------------------------------------------------------------------
 
 
-local DESC_COLOR = "cff888888"
+-- Color constants for options UI text
+local COLOR_DIM       = "|cffaaaaaa"
+local COLOR_WHITE     = "|cffffffff"
+local COLOR_GOLD      = "|cffffd100"
+local COLOR_GREEN     = "|cff00ff00"
+local COLOR_ORANGE    = "|cffff8800"
+local COLOR_CYAN      = "|cff00ccff"
+local COLOR_END       = "|r"
+
 local function Dim(text)
-	return "|" .. DESC_COLOR .. text .. "|r"
+	return COLOR_DIM .. text .. COLOR_END
+end
+local function White(text)
+	return COLOR_WHITE .. text .. COLOR_END
+end
+local function Gold(text)
+	return COLOR_GOLD .. text .. COLOR_END
+end
+local function Green(text)
+	return COLOR_GREEN .. text .. COLOR_END
+end
+local function Orange(text)
+	return COLOR_ORANGE .. text .. COLOR_END
+end
+local function Cyan(text)
+	return COLOR_CYAN .. text .. COLOR_END
 end
 
 local function SafeCall(method, ...)
@@ -686,7 +709,7 @@ function Options:BuildOptionsTable()
 			-- Element name label
 			layoutArgs["name" .. i] = {
 				type = "description",
-				name = "|cffffd100" .. displayName .. "|r",
+				name = Gold(displayName),
 				order = base + 1,
 				width = 0.7,
 				fontSize = "medium",
@@ -902,7 +925,7 @@ function Options:BuildOptionsTable()
 									local name = addon.SoundManager:RegisterSoundKitID(kitID)
 									if name then
 										pcall(PlaySound, kitID, "Master")
-										addon.Utils:Print("Playing Kit ID " .. kitID .. " — registered as |cff00ff00" .. name .. "|r (top of sound dropdowns).")
+										addon.Utils:Print("Playing Kit ID " .. kitID .. " — registered as " .. Green(name) .. " (top of sound dropdowns).")
 									else
 										addon.Utils:Print("Sound Kit ID registration failed — LibSharedMedia not available.")
 									end
@@ -2263,7 +2286,7 @@ function Options:BuildOptionsTable()
 				args = {
 					discordInfo = {
 						type = "description",
-						name = "|cff888888Join the |cffffffffVeev Addons Discord|r|cff888888 for feedback, suggestions, and bug reports:|r",
+						name = Dim("Join the " .. White("Veev Addons Discord") .. " for feedback, suggestions, and bug reports:"),
 						fontSize = "medium",
 						order = 1,
 					},
@@ -2274,6 +2297,26 @@ function Options:BuildOptionsTable()
 						get = function() return C.DISCORD_URL end,
 						set = function() end,
 						order = 2,
+						width = "double",
+					},
+					donateSpacing = {
+						type = "description",
+						name = " ",
+						order = 3,
+					},
+					donateInfo = {
+						type = "description",
+						name = Dim("VeevHUD is built with a $200/mo Claude subscription, late-night coding sessions, and unhealthy amounts of caffeine. I code for the love of the game, not for profit. Donations to help offset the costs are appreciated but never expected!"),
+						fontSize = "medium",
+						order = 4,
+					},
+					donateLink = {
+						type = "input",
+						name = "Donate URL",
+						desc = "Press Ctrl+C to copy the URL.",
+						get = function() return C.DONATE_URL end,
+						set = function() end,
+						order = 5,
 						width = "double",
 					},
 				},
@@ -3002,7 +3045,7 @@ function Options:BuildCustomAurasArgs()
 				if (entry.id and existing.id == entry.id)
 					or (entry.name and existing.name == entry.name) then
 					self._customAuraInput = ""
-					self._customAuraStatus = "|cffff8800" .. (resolvedName or ("ID " .. (entry.id or entry.name))) .. " is already being tracked.|r"
+					self._customAuraStatus = Orange((resolvedName or ("ID " .. (entry.id or entry.name))) .. " is already being tracked.")
 					return
 				end
 			end
@@ -3012,11 +3055,11 @@ function Options:BuildCustomAurasArgs()
 			self._customAuraInput = ""
 			local iconString = resolvedIcon and ("|T" .. resolvedIcon .. ":16|t ") or ""
 			if not resolvedName then
-				self._customAuraStatus = "|cff00ff00Added:|r ID " .. entry.id .. " |cff888888(icon shows when buff is active)|r"
+				self._customAuraStatus = Green("Added:") .. " ID " .. entry.id .. " " .. Dim("(icon shows when buff is active)")
 			elseif entry.name and not entry.id then
-				self._customAuraStatus = "|cff00ff00Added:|r " .. resolvedName .. " |cff888888(by name — icon shows when buff is active)|r"
+				self._customAuraStatus = Green("Added:") .. " " .. resolvedName .. " " .. Dim("(by name — icon shows when buff is active)")
 			else
-				self._customAuraStatus = "|cff00ff00Added:|r " .. iconString .. resolvedName
+				self._customAuraStatus = Green("Added:") .. " " .. iconString .. resolvedName
 			end
 			self:RebuildCustomAuraEntries()
 
@@ -3103,7 +3146,7 @@ function Options:RebuildCustomAuraEntries()
 		end
 		resolvedName = resolvedName or spellName or ("Unknown Spell " .. (spellID or ""))
 		local iconString = resolvedIcon and ("|T" .. resolvedIcon .. ":16|t ") or ""
-		local idStr = spellID and (" |cff888888(ID: " .. spellID .. ")|r") or ""
+		local idStr = spellID and (" " .. Dim("(ID: " .. spellID .. ")")) or ""
 
 		-- Resolve spell ID for source filter config key
 		local filterSpellID = spellID
@@ -3290,7 +3333,7 @@ function Options:RebuildRecentBuffEntries()
 
 		recentArgs[entryKey .. "_label"] = {
 			type = "description",
-			name = iconString .. (entry.name or ("Spell " .. entry.spellID)) .. " |cff888888(ID: " .. entry.spellID .. ")|r",
+			name = iconString .. (entry.name or ("Spell " .. entry.spellID)) .. " " .. Dim("(ID: " .. entry.spellID .. ")"),
 			fontSize = "medium",
 			order = i * 2 - 1,
 			width = 1.4,
@@ -4229,7 +4272,7 @@ function Options:RegisterSettingsPanel()
 
 	local desc = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 	desc:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -8)
-	desc:SetText("Type |cff00ccff/vh|r to open settings.")
+	desc:SetText("Type " .. Cyan("/vh") .. " to open settings.")
 
 	local openBtn = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
 	openBtn:SetText("Open VeevHUD Settings")

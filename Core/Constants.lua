@@ -14,6 +14,7 @@ local C = addon.Constants
 
 -- URLs (matches TOC metadata)
 C.DISCORD_URL = "https://discord.gg/HuSXTa5XNq"
+C.DONATE_URL = "https://buymeacoffee.com/veev"
 
 -------------------------------------------------------------------------------
 -- Class Names

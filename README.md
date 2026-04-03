@@ -74,7 +74,8 @@ Large, semi-transparent icons that nudge you to rebuff when missing important lo
 A swing timer bar that adapts to your class and spec:
 
 *   **Hunter** — Color-coded clip zones show when it's safe to weave shots versus when you'd clip your next Auto Shot
-*   **Enhancement Shaman / Fury Warrior** — Dual-wield bars colored by swing synchronization for Flurry and Windfury optimization
+*   **Fury Warrior** — Dual-wield bars colored by swing desynchronization for Heroic Strike queue optimization
+*   **Enhancement Shaman** — Dual-wield bars colored by swing synchronization for Flurry and Windfury optimization
 *   **Retribution Paladin** — Highlights the twist window at the end of each swing for seal twisting
 
 ### Health & Resource Bars

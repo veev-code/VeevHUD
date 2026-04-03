@@ -42,6 +42,11 @@ IconStateEngine._state = {}
 -- Keyed by destGUID → expiry time. Entries expire naturally.
 IconStateEngine.dodgeWindows = {}
 
+-- Persistent item cooldown cache: survives frame rebuilds (zone changes, spec changes).
+-- Keyed by canonical spellID → {start, duration}. Needed because consumed items
+-- can't be queried via GetItemCooldown, and frame.itemCdStart is wiped on rebuild.
+IconStateEngine._itemCdPersist = {}
+
 -- Cached GetTime() value, set once per tick via SetTime()
 IconStateEngine.now = 0
 
@@ -567,6 +572,20 @@ function IconStateEngine:_ComputeCooldownState(frame, db, s)
             frame.itemCdDuration = s.auraDuration
         end
 
+        -- Restore from persistent cache after frame rebuild (zone change, etc.)
+        if not foundCooldown and not frame.itemCdStart then
+            local persist = self._itemCdPersist[spellID]
+            if persist then
+                local persistRemaining = (persist.start + persist.duration) - now
+                if persistRemaining > 0 then
+                    frame.itemCdStart = persist.start
+                    frame.itemCdDuration = persist.duration
+                else
+                    self._itemCdPersist[spellID] = nil
+                end
+            end
+        end
+
         -- Tier 3: Frame cache
         if not foundCooldown and frame.itemCdStart and frame.itemCdDuration then
             local cachedRemaining = (frame.itemCdStart + frame.itemCdDuration) - now
@@ -577,6 +596,7 @@ function IconStateEngine:_ComputeCooldownState(frame, db, s)
             else
                 frame.itemCdStart = nil
                 frame.itemCdDuration = nil
+                self._itemCdPersist[spellID] = nil
             end
         end
     end
@@ -602,6 +622,17 @@ function IconStateEngine:_ComputeCooldownState(frame, db, s)
         end
 
         frame.itemWasAvailable = itemAvailable
+
+        -- Persist to _itemCdPersist so it survives frame rebuilds
+        if frame.itemCdStart and frame.itemCdDuration then
+            local persist = self._itemCdPersist[spellID]
+            if not persist then
+                self._itemCdPersist[spellID] = { start = frame.itemCdStart, duration = frame.itemCdDuration }
+            elseif persist.start ~= frame.itemCdStart then
+                persist.start = frame.itemCdStart
+                persist.duration = frame.itemCdDuration
+            end
+        end
 
         if itemAvailable
             and not s.auraActive
