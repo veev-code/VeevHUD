@@ -36,6 +36,8 @@ Icons don't just show cooldowns — they show your **applied effects**. Cast a s
 
 **Trinket tracking** — Equipped trinkets automatically appear in your ability rows with on-use cooldowns, proc buff durations, internal cooldown tracking, and stack counts.
 
+**Consumable tracking** — Track combat potions, runes, and other mid-fight consumables on your HUD. Each icon shows the item cooldown, buff duration, and your current bag count. Consumable lists are per-spec, and items can be dragged between rows just like abilities.
+
 Every visual detail is designed for instant feedback: icons glow when usable, grey out when you can't afford them, show a red overlay when out of range, and fade when on cooldown.
 
 ### Resource Prediction

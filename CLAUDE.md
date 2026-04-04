@@ -12,6 +12,7 @@ VeevHUD is a lightweight, WeakAuras-inspired heads-up display addon for World of
 - **Resource display**: Resource cost progress on icons (vertical fill or bottom bar)
 - **Health/resource bars**: With heal prediction, predicted cost overlays, tickers
 - **Trinket tracking**: Equipped trinkets shown as icons in ability rows with on-use cooldowns, proc buff tracking, ICD display, and stack counts
+- **Consumable tracking**: User-configured combat potions, runes, and other mid-fight consumables with cooldown display, buff duration, and bag count overlay (per-spec)
 - **Aura tracker**: Horizontal aura icons (procs, externals, custom) with stack tracking and glow
 - **Masque support**: Compatible with Masque for icon skinning
 
