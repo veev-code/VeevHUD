@@ -270,13 +270,45 @@ function addon:GetSpecKey()
     return self.Database:GetSpecKey()
 end
 
--- Format spec key "PRIEST_HOLY" as "Holy Priest" for display
+-- Format spec key "PRIEST_HOLY" or "HUNTER_BEAST_MASTERY" for display.
+-- Class token is always a single word; spec token may contain underscores.
 function addon:FormatSpecKey(specKey)
     specKey = specKey or self:GetSpecKey()
-    local class, spec = specKey:match("^(%a+)_(%a+)$")
+    local class, spec = specKey:match("^(%a+)_(.+)$")
     if not class then return specKey end
     local function titleCase(s) return s:sub(1,1):upper() .. s:sub(2):lower() end
-    return titleCase(spec) .. " " .. titleCase(class)
+    -- Convert underscored spec tokens like "BEAST_MASTERY" to "Beast Mastery"
+    local specWords = {}
+    for word in spec:gmatch("[^_]+") do
+        table.insert(specWords, titleCase(word))
+    end
+    return table.concat(specWords, " ") .. " " .. titleCase(class)
+end
+
+--- Format a spec label with icon and class color for use in descriptions.
+-- Returns e.g. "|T134940:14|t |cFFC79C6EArms Warrior|r"
+function addon:FormatSpecLabel(specKey)
+    specKey = specKey or self:GetSpecKey()
+    if not specKey then return nil end
+
+    local name = self:FormatSpecKey(specKey)
+    local class, spec = specKey:match("^(%a+)_(.+)$")
+
+    -- Icon from LibSpellDB talent tree tab
+    local icon = self.LibSpellDB and spec and self.LibSpellDB:GetSpecIcon(class, spec)
+    local iconStr = icon and ("|T" .. icon .. ":14|t ") or ""
+
+    -- Class color
+    local coloredName
+    local color = self.Constants.CLASS_COLORS[class]
+    if color then
+        local hex = string.format("|cFF%02x%02x%02x", color.r * 255, color.g * 255, color.b * 255)
+        coloredName = hex .. name .. "|r"
+    else
+        coloredName = name
+    end
+
+    return iconStr .. coloredName
 end
 
 function addon:GetSpellConfig(specKey)

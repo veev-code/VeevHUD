@@ -400,7 +400,7 @@ function IconStateEngine:_ComputeAuraState(frame, db, s)
     s.auraActive = false
     s.auraRemaining = 0
     s.auraDuration = 0
-    s.auraStacks = 0
+    s.stackCount = 0
     s.swapTexture = nil
 
     -- Pre-compute spell targeting behavior
@@ -412,7 +412,7 @@ function IconStateEngine:_ComputeAuraState(frame, db, s)
     if db.showAuraTracking then
         local auraTracker = self.auraState
         if auraTracker and auraTracker.GetAuraState then
-            s.auraActive, s.auraRemaining, s.auraDuration, s.auraStacks = auraTracker:GetAuraState(spellID)
+            s.auraActive, s.auraRemaining, s.auraDuration, s.stackCount = auraTracker:GetAuraState(spellID)
         end
 
         -- Also check buffs directly for shared CD abilities (Reck/Retal/SWall)
@@ -422,7 +422,7 @@ function IconStateEngine:_ComputeAuraState(frame, db, s)
                 s.auraActive = true
                 s.auraRemaining = buffRemaining
                 s.auraDuration = buffDuration
-                s.auraStacks = buffStacks or 0
+                s.stackCount = buffStacks or 0
             end
         end
     end
@@ -460,7 +460,7 @@ function IconStateEngine:_ComputeAuraState(frame, db, s)
                             s.auraActive = true
                             s.auraRemaining = mRemaining
                             s.auraDuration = mDuration
-                            s.auraStacks = mStacks or 0
+                            s.stackCount = mStacks or 0
                             break
                         end
                     end
@@ -470,15 +470,15 @@ function IconStateEngine:_ComputeAuraState(frame, db, s)
     end
 
     -- Reagent count (e.g., Soul Shards, seeds) — show as stack count when no aura stacks active
-    if s.auraStacks == 0 and frame.reagentItemID and db.showReagentCount then
+    if s.stackCount == 0 and frame.reagentItemID and db.showReagentCount then
         if db.reagentCountAllRanks and frame.reagentAllItemIDs then
             local total = 0
             for _, itemID in ipairs(frame.reagentAllItemIDs) do
                 total = total + GetItemCount(itemID)
             end
-            s.auraStacks = total
+            s.stackCount = total
         else
-            s.auraStacks = GetItemCount(frame.reagentItemID)
+            s.stackCount = GetItemCount(frame.reagentItemID)
         end
     end
 
@@ -489,7 +489,7 @@ function IconStateEngine:_ComputeAuraState(frame, db, s)
             s.auraActive = false
             s.auraRemaining = 0
             s.auraDuration = 0
-            s.auraStacks = 0
+            s.stackCount = 0
         end
     end
 end

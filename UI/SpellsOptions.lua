@@ -105,21 +105,33 @@ function SpellsOptions:CreateDialog()
 
     local panel = dialog
     
-    -- Subtitle with spec info (set placeholder text so it has dimensions for anchoring)
-    local subtitle = panel:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-    subtitle:SetPoint("TOPLEFT", 16, -34)
-    subtitle:SetText("Loading...")  -- Placeholder, will be updated
-    subtitle:SetTextColor(0.6, 0.6, 0.6)
-    self.subtitleText = subtitle
-    
     -- Description/Help text (single line, hover for details)
     local descFrame = CreateFrame("Frame", nil, panel)
-    descFrame:SetPoint("TOPLEFT", subtitle, "BOTTOMLEFT", 0, -8)
+    descFrame:SetPoint("TOPLEFT", 16, -34)
     descFrame:SetSize(400, 16)
-    
+
     local description = descFrame:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
     description:SetPoint("LEFT", 0, 0)
     description:SetText("Customize which spells appear on your HUD and their order. |cff888888[?]|r")
+
+    -- Spec label below description (wrapped in a frame for mouse interaction)
+    local specFrame = CreateFrame("Frame", nil, panel)
+    specFrame:SetPoint("TOPLEFT", descFrame, "BOTTOMLEFT", 0, -4)
+    specFrame:SetSize(300, 16)
+    local subtitle = specFrame:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+    subtitle:SetPoint("LEFT", 0, 0)
+    subtitle:SetText("Loading...")
+    self.subtitleText = subtitle
+
+    specFrame:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
+        GameTooltip:AddLine("Per-Spec Configuration", 1, 1, 1)
+        GameTooltip:AddLine("Settings on this screen are saved per-spec. Switching specs loads that spec's configuration.", 1, 0.82, 0, true)
+        GameTooltip:Show()
+    end)
+    specFrame:SetScript("OnLeave", function()
+        GameTooltip:Hide()
+    end)
     
     descFrame:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
@@ -201,7 +213,7 @@ function SpellsOptions:CreateDialog()
     
     -- Create scroll frame (positioned below the description)
     local scrollFrame = CreateFrame("ScrollFrame", nil, panel, "UIPanelScrollFrameTemplate")
-    scrollFrame:SetPoint("TOPLEFT", descFrame, "BOTTOMLEFT", 0, -8)
+    scrollFrame:SetPoint("TOPLEFT", specFrame, "BOTTOMLEFT", 0, -8)
     scrollFrame:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -26, 10)
     self.resetSpellsButton = resetSpellsButton
     
@@ -389,6 +401,17 @@ function SpellsOptions:GetDefaultValue(spellID, field)
         return nil
     end
 
+    -- Consumable sentinel IDs — handle directly
+    local consumableTracker = addon:GetModule("ConsumableTracker")
+    if consumableTracker and consumableTracker:IsConsumableSentinel(spellID) then
+        if field == "enabled" then
+            return true  -- Consumables enabled by default when configured
+        elseif field == "rowIndex" then
+            return 2  -- Default to Secondary row
+        end
+        return nil
+    end
+
     if field == "enabled" then
         -- A spell is enabled by default if:
         -- 1. It has a default row assignment (spec-relevant and matches row tags)
@@ -459,7 +482,7 @@ function SpellsOptions:RefreshSpellList()
     -- Update subtitle with spec info
     local specKey = self:GetSpecKey()
     if self.subtitleText then
-        self.subtitleText:SetText("Current spec: " .. addon:FormatSpecKey(specKey))
+        self.subtitleText:SetText(addon:FormatSpecLabel(specKey) or ("Current spec: " .. addon:FormatSpecKey(specKey)))
     end
     
     -- Clear existing content (children/frames)
@@ -681,6 +704,33 @@ function SpellsOptions:GetEffectiveSpellList()
                     defaultRow = 4,
                     order = cfg.order,
                     isTotemSlot = true,
+                    isAvailable = (effectiveRow == AVAILABLE_ROW_INDEX),
+                })
+            end
+        end
+    end
+
+    -- Inject consumable entries from ConsumableTracker
+    local consumableTracker = addon:GetModule("ConsumableTracker")
+    if consumableTracker then
+        local configured = consumableTracker:GetConfiguredItems()
+        for _, entry in ipairs(configured) do
+            local consumableData = consumableTracker:GetConsumableData(entry.itemID)
+            if consumableData then
+                local sentinelID = consumableData.sentinelID
+                local cfg = spellCfg[sentinelID] or {}
+                local label = consumableData.name
+                local effectiveRow = cfg.rowIndex or 2  -- Default: Secondary
+                rows[effectiveRow] = rows[effectiveRow] or {}
+                table.insert(rows[effectiveRow], {
+                    spellID = sentinelID,
+                    spellData = { tags = {"POTION"}, icon = consumableData.icon, name = label, priority = 2000 + entry.itemID },
+                    enabled = cfg.enabled ~= false,
+                    rowIndex = effectiveRow,
+                    defaultRow = 2,
+                    order = cfg.order,
+                    isConsumable = true,
+                    consumableItemID = entry.itemID,
                     isAvailable = (effectiveRow == AVAILABLE_ROW_INDEX),
                 })
             end
@@ -1021,7 +1071,7 @@ function SpellsOptions:CreateSpellEntry(spellInfo, rowIndex, index, yOffset)
     icon:SetPoint("LEFT", 0, 0)
     icon:SetSize(ICON_SIZE, ICON_SIZE)
     local spellName, _, spellIcon
-    if spellInfo.isTrinket or spellInfo.isTotemSlot or spellInfo.isStanceIndicator then
+    if spellInfo.isTrinket or spellInfo.isTotemSlot or spellInfo.isStanceIndicator or spellInfo.isConsumable then
         spellName = spellInfo.spellData.name
         spellIcon = spellInfo.spellData.icon
     else
@@ -1086,7 +1136,7 @@ function SpellsOptions:CreateSpellEntry(spellInfo, rowIndex, index, yOffset)
             local defaultRow = 3  -- Default to Utility for non-spec-relevant spells
             if spellInfo.isTotemSlot or spellInfo.isStanceIndicator then
                 defaultRow = spellInfo.defaultRow or 4
-            elseif spellInfo.isTrinket then
+            elseif spellInfo.isTrinket or spellInfo.isConsumable then
                 defaultRow = spellInfo.defaultRow or 2
             elseif cooldownIcons and cooldownIcons.GetDefaultRowForSpell then
                 defaultRow = cooldownIcons:GetDefaultRowForSpell(spellInfo.spellID) or 3
@@ -1267,6 +1317,8 @@ function SpellsOptions:CreateSpellEntry(spellInfo, rowIndex, index, yOffset)
         elseif spellInfo.isTrinket then
             local slotID = (spellInfo.spellID == addon.Constants.TRINKET_SLOT_13) and 13 or 14
             GameTooltip:SetInventoryItem("player", slotID)
+        elseif spellInfo.isConsumable and spellInfo.consumableItemID then
+            GameTooltip:SetItemByID(spellInfo.consumableItemID)
         else
             GameTooltip:SetSpellByID(spellInfo.spellID)
         end

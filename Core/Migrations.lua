@@ -54,7 +54,7 @@ local Migrations = addon.Migrations
 -- Bump this when adding new migrations.
 -- Versions 1-4 are legacy (pre-dataVersion system). All users start at
 -- CURRENT_VERSION on first encounter, so legacy versions never run.
-local CURRENT_VERSION = 8
+local CURRENT_VERSION = 9
 
 -- Migration definitions, keyed by version number.
 -- Versions 1-4 (legacy) are intentionally omitted — they corresponded to:
@@ -176,6 +176,28 @@ local migrations = {
                     C_Timer.After(0.1, function()
                         if addon.Options then
                             addon.Options:Open()
+                        end
+                    end)
+                end },
+                { text = "Got It" },
+            },
+        },
+    },
+
+    -- v9: Consumable Tracking feature announcement
+    [9] = {
+        popup = {
+            title = "New: Consumable Tracking",
+            message = "You can now track combat consumables on your HUD — potions, runes, sappers, and more.\n\nOpen Settings > Spell Config > Consumables tab, then select items from the Potions or Other Consumables dropdowns. Each icon shows the item cooldown, buff duration (if applicable), and your current bag count.\n\nOnce added, consumables appear in the Spell Configuration window where you can drag them between rows or reorder them alongside your abilities.",
+            buttons = {
+                { text = "Open Settings", action = function()
+                    C_Timer.After(0.1, function()
+                        if addon.Options then
+                            addon.Options:Open()
+                            local AceConfigDialog = LibStub and LibStub("AceConfigDialog-3.0", true)
+                            if AceConfigDialog then
+                                AceConfigDialog:SelectGroup(ADDON_NAME, "spells", "consumablesTab")
+                            end
                         end
                     end)
                 end },

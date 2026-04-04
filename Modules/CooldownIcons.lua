@@ -152,6 +152,9 @@ function CooldownIcons:Initialize()
     -- Cache stance tracker reference (delegation for stance/form indicator)
     self.stanceTracker = addon:GetModule("StanceTracker")
 
+    -- Cache consumable tracker reference (delegation for consumable icons)
+    self.consumableTracker = addon:GetModule("ConsumableTracker")
+
     -- Initialize Masque support if available
     self:InitializeMasque()
 
@@ -828,7 +831,10 @@ function CooldownIcons:RebuildAllRows()
     if self.stanceTracker then
         self.stanceTracker:InjectRowEntries(self.iconsByRow, rowConfigs, spellCfg, self.spellAssignments)
     end
-    if self.trinketTracker or (self.totemTracker and addon.playerClass == "SHAMAN") or self.stanceTracker then
+    if self.consumableTracker then
+        self.consumableTracker:InjectRowEntries(self.iconsByRow, rowConfigs, spellCfg, self.spellAssignments)
+    end
+    if self.trinketTracker or (self.totemTracker and addon.playerClass == "SHAMAN") or self.stanceTracker or self.consumableTracker then
         self.spellAssignment:_SortRowSpells(self.iconsByRow)
     end
 
@@ -1053,6 +1059,11 @@ function CooldownIcons:ResetIconState(frame)
     frame.isTotemSlot = false
     frame.totemElement = nil
     frame.isStanceIndicator = false
+    frame.isConsumable = false
+    frame.consumableItemID = nil
+
+    -- Clear stale visual text from previous assignment
+    if frame.stacks then frame.stacks:SetText("") end
 
     -- Cooldown cache (IconStateEngine:_ComputeCooldownState)
     frame.itemCdStart = nil
@@ -1151,6 +1162,12 @@ function CooldownIcons:SetupIcon(frame, spellID, actualSpellID, spellData, rowCo
     -- Totem element slots: delegate setup to TotemTracker
     if self.totemTracker and self.totemTracker:IsTotemSentinel(spellID) then
         self.totemTracker:SetupTotemIcon(frame, spellID, rowConfig, rowIndex)
+        return
+    end
+
+    -- Consumable icons: delegate setup to ConsumableTracker
+    if self.consumableTracker and self.consumableTracker:IsConsumableSentinel(spellID) then
+        self.consumableTracker:SetupConsumableIcon(frame, spellID, rowConfig, rowIndex)
         return
     end
 
@@ -1490,6 +1507,15 @@ function CooldownIcons:UpdateIconState(frame, db)
         return false  -- No countdown text
     end
 
+    -- Consumable icons: delegate entirely to ConsumableTracker
+    if frame.isConsumable then
+        if self.consumableTracker then
+            self.consumableTracker:UpdateConsumableIconState(frame, db)
+        end
+        local text = frame.text and frame.text:GetText()
+        return text and text ~= ""
+    end
+
     if not frame.spellID then return end
 
     -- Compute all state (aura, cooldown, prediction, visual flags, glow params)
@@ -1508,7 +1534,7 @@ function CooldownIcons:UpdateIconState(frame, db)
     visualState.showAuraActive = s.showAuraActive
     visualState.auraRemaining = s.auraDisplayRemaining
     visualState.auraDuration = s.auraDisplayDuration
-    visualState.auraStacks = s.auraStacks
+    visualState.stackCount = s.stackCount
     visualState.cdRemaining = s.remaining
     visualState.cdDuration = s.duration
     visualState.cdStartTime = s.cdStartTime

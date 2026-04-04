@@ -355,7 +355,7 @@ function TrinketTracker:UpdateTrinketIconState(frame, db)
     -- Initialize state variables
     local auraActive = false
     local auraRemaining, auraDuration = 0, 0
-    local auraStacks = 0
+    local stackCount = 0
     local cdRemaining, cdDuration, cdStartTime = 0, 0, 0
 
     -------------------------------------------------------------------
@@ -375,10 +375,10 @@ function TrinketTracker:UpdateTrinketIconState(frame, db)
             auraActive = true
             auraRemaining = aura.expirationTime - now
             auraDuration = aura.duration or 0
-            auraStacks = aura.count or 0
+            stackCount = aura.count or 0
             if auraRemaining <= 0 then
                 auraActive = false
-                auraRemaining, auraDuration, auraStacks = 0, 0, 0
+                auraRemaining, auraDuration, stackCount = 0, 0, 0
             end
         end
     end
@@ -395,10 +395,10 @@ function TrinketTracker:UpdateTrinketIconState(frame, db)
             auraActive = true
             auraRemaining = aura.expirationTime - now
             auraDuration = aura.duration or 0
-            auraStacks = aura.count or 0
+            stackCount = aura.count or 0
             if auraRemaining <= 0 then
                 auraActive = false
-                auraRemaining, auraDuration, auraStacks = 0, 0, 0
+                auraRemaining, auraDuration, stackCount = 0, 0, 0
             end
         end
     end
@@ -489,7 +489,7 @@ function TrinketTracker:UpdateTrinketIconState(frame, db)
             showAuraActive = showAuraActive,
             auraRemaining = auraDisplayRemaining,
             auraDuration = auraDisplayDuration,
-            auraStacks = auraStacks,
+            stackCount = stackCount,
             cdRemaining = cdRemaining,
             cdDuration = cdDuration,
             cdStartTime = cdStartTime,

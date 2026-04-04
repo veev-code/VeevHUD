@@ -247,6 +247,10 @@ C.TOTEM_SLOT_AIR   = 9999904
 -- Stance/form indicator sentinel ID (Warriors, Druids, Paladins)
 C.STANCE_INDICATOR = 9999905
 
+-- Consumable sentinel ID base: sentinelID = CONSUMABLE_SENTINEL_BASE + itemID
+-- Range 10000000+ avoids collision with real spell IDs and other sentinels
+C.CONSUMABLE_SENTINEL_BASE = 10000000
+
 -------------------------------------------------------------------------------
 -- Spell IDs
 -------------------------------------------------------------------------------
@@ -470,6 +474,12 @@ C.DEFAULTS = {
             customAuras = {},  -- User-added auras: array of { id = spellID } or { name = "Spell Name" }
         },
 
+        -- Consumable Tracker settings (user-configured potion/consumable tracking)
+        -- Per-spec: items[specKey] = { {itemID = number}, ... }
+        consumableTracker = {
+            items = {},
+        },
+
         -- Totem Bar settings (DEPRECATED - migrated to Auxiliary Row totem slots)
         -- Kept for migration compatibility only; new installs use rows[4]
         totemBar = {
@@ -602,6 +612,9 @@ C.DEFAULTS = {
             -- (e.g., Soul Shards on warlock spells, seeds on Rebirth, Flash Powder on Vanish)
             showReagentCount = true,
             reagentCountAllRanks = true,  -- true = count all ranks' reagents, false = count only current rank
+
+            -- Consumable count: show bag count on consumable icons (potions, runes, etc.)
+            showConsumableCount = true,
 
             -- Queued highlight: shows a glow on icons for "next melee" abilities
             -- (Heroic Strike, Cleave, Maul, etc.) that are queued via IsCurrentSpell

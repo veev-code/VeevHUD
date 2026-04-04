@@ -156,7 +156,7 @@ function IconRenderer:ApplyIconVisuals(frame, state, db)
     local showAuraActive = state.showAuraActive
     local auraRemaining = state.auraRemaining or 0
     local auraDuration = state.auraDuration or 0
-    local auraStacks = state.auraStacks or 0
+    local stackCount = state.stackCount or 0
     local cdRemaining = state.cdRemaining or 0
     local cdDuration = state.cdDuration or 0
     local cdStartTime = state.cdStartTime or 0
@@ -332,8 +332,8 @@ function IconRenderer:ApplyIconVisuals(frame, state, db)
     -- Stacks
     -------------------------------------------------------------------
     if frame.stacks then
-        if auraStacks >= 1 then
-            frame.stacks:SetText(auraStacks)
+        if stackCount >= 1 then
+            frame.stacks:SetText(stackCount)
         else
             frame.stacks:SetText("")
         end

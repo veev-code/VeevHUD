@@ -1,5 +1,21 @@
 # VeevHUD Changelog
 
+## [1.0.191] - 2026-04-03
+
+### Added
+- **Consumable Tracking** — Track combat consumables on your HUD alongside abilities and trinkets. Add potions, runes, engineering items, and other mid-fight consumables via Settings > Spell Config > Consumables. Each icon shows the item cooldown, buff duration (if applicable), and your current bag count. Consumable lists are per-spec — your healer's mana pots won't appear on your warrior. Once added, consumables appear in the Spell Configuration window where you can drag them between rows and reorder alongside your abilities. You can also add any item by ID for consumables not in the built-in lists.
+- **Spec Icon Labels** — All per-spec settings tabs (Consumables, Aura Tracker, Buff Reminders, Spell Configuration) now show your current spec with its talent tree icon and class-colored name for clearer identification.
+
+### Changed
+- **Spell Config tab reorganized** — Split into three sub-tabs: Spells (drag-and-drop configuration), Consumables (add/remove tracked consumables), and Sounds (ready glow sound overrides). Each section has room to breathe instead of sharing one long page.
+- **General tab layout** — Appearance settings regrouped: text settings (Font, Text Color, Text Outline) are now adjacent, followed by bar and icon settings. "Grey Out When Not Usable" label shortened for cleaner display.
+- **Renamed internal field** — `auraStacks` → `stackCount` across all icon modules for clarity, since the field now serves both aura stacks and item counts.
+
+### LibSpellDB Updates
+- New Potion and Consumable APIs for item metadata (`RegisterPotions`, `GetPotionInfo`, `GetAllPotions`, `RegisterConsumables`, `GetConsumableInfo`, `GetAllConsumables`).
+- 30 combat potions and 8 non-potion consumables registered with item IDs and buff spell IDs.
+- New `GetSpecIcon(class, spec)` API returning talent tree tab icons.
+
 ## [1.0.190] - 2026-04-03
 
 ### Fixed

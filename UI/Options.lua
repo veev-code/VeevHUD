@@ -809,22 +809,13 @@ function Options:BuildOptionsTable()
 						inline = true,
 						order = 1,
 						args = {
-							scale = {
-								type = "range",
-								name = "Global Scale",
-								desc = "Makes everything in the HUD bigger or smaller. 100% is the normal size. Increase if you have trouble seeing the icons, decrease if they take up too much screen space.",
-								min = 0.25, max = 3.0, step = 0.05,
-								isPercent = true,
-								arg = "icons.scale",
-								order = 2,
-							},
 							hOffset = {
 								type = "range",
 								name = "Horizontal Offset",
 								desc = "Moves the entire HUD left or right from the center of the screen. Negative values shift it left, positive values shift it right. The range adjusts to your screen resolution.",
 								min = -screenW, max = screenW, step = 1,
 								arg = "anchor.x",
-								order = 3,
+								order = 2,
 							},
 							vOffset = {
 								type = "range",
@@ -832,6 +823,15 @@ function Options:BuildOptionsTable()
 								desc = "Moves the entire HUD up or down on your screen. Negative values move it below center, positive values move it above. The range adjusts to your screen resolution.",
 								min = -screenH, max = screenH, step = 1,
 								arg = "anchor.y",
+								order = 3,
+							},
+							scale = {
+								type = "range",
+								name = "Scale",
+								desc = "Makes everything in the HUD bigger or smaller. 100% is the normal size. Increase if you have trouble seeing the icons, decrease if they take up too much screen space.",
+								min = 0.25, max = 3.0, step = 0.05,
+								isPercent = true,
+								arg = "icons.scale",
 								order = 4,
 							},
 						},
@@ -850,31 +850,7 @@ function Options:BuildOptionsTable()
 								values = GetLSMFontValues,
 								arg = "appearance.font",
 								order = 1,
-							},
-							statusbarTexture = {
-								type = "select",
-								name = "Bar Texture",
-								desc = "The texture used for all status bars in the HUD, including health, resource, combo point, and energy ticker bars.\n\nIf you have texture-sharing addons installed (SharedMedia, etc.), their textures will appear here automatically.",
-								dialogControl = "LSM30_Statusbar",
-								values = GetLSMStatusbarValues,
-								arg = "appearance.statusbarTexture",
-								order = 2,
-							},
-							showGradient = {
-								type = "toggle",
-								name = "Bar Gradient",
-								desc = "Adds a subtle dark-to-light gradient across all status bars (health, resource, combo points, and energy ticker), giving them more visual depth instead of a flat solid color.",
-								arg = "appearance.showGradient",
-								order = 3,
-							},
-							iconZoom = {
-								type = "range",
-								name = "Icon Zoom",
-								desc = "Zooms into each icon's artwork, cropping the edges. Affects ability rows and Aura Tracker. Useful for removing the default border that some spell textures have. 0% shows the full icon, 16% is a subtle crop.",
-								min = 0, max = 0.6, step = 0.01,
-								isPercent = true,
-								arg = "icons.iconZoom",
-								order = 4,
+								width = 1,
 							},
 							textColor = {
 								type = "color",
@@ -884,7 +860,8 @@ function Options:BuildOptionsTable()
 								get = colorGet,
 								set = colorSet,
 								arg = "appearance.textColor",
-								order = 5,
+								order = 2,
+								width = 0.5,
 							},
 							textOutline = {
 								type = "select",
@@ -893,6 +870,34 @@ function Options:BuildOptionsTable()
 								values = textOutlineValues,
 								sorting = textOutlineSorting,
 								arg = "appearance.textOutline",
+								order = 3,
+								width = 1,
+							},
+							statusbarTexture = {
+								type = "select",
+								name = "Bar Texture",
+								desc = "The texture used for all status bars in the HUD, including health, resource, combo point, and energy ticker bars.\n\nIf you have texture-sharing addons installed (SharedMedia, etc.), their textures will appear here automatically.",
+								dialogControl = "LSM30_Statusbar",
+								values = GetLSMStatusbarValues,
+								arg = "appearance.statusbarTexture",
+								order = 4,
+								width = 1,
+							},
+							showGradient = {
+								type = "toggle",
+								name = "Bar Gradient",
+								desc = "Adds a subtle dark-to-light gradient across all status bars (health, resource, combo points, and energy ticker), giving them more visual depth instead of a flat solid color.",
+								arg = "appearance.showGradient",
+								order = 5,
+								width = 0.6,
+							},
+							iconZoom = {
+								type = "range",
+								name = "Icon Zoom",
+								desc = "Zooms into each icon's artwork, cropping the edges. Affects ability rows and Aura Tracker. Useful for removing the default border that some spell textures have. 0% shows the full icon, 16% is a subtle crop.",
+								min = 0, max = 0.6, step = 0.01,
+								isPercent = true,
+								arg = "icons.iconZoom",
 								order = 6,
 							},
 						},
@@ -1085,7 +1090,7 @@ function Options:BuildOptionsTable()
 									},
 									desaturateNoResources = {
 										type = "toggle",
-										name = "Grey Out When Not Usable",
+										name = "Grey Out Unusable",
 										desc = "Makes icons grey when you don't have enough mana, rage, or energy to use the ability, or when you're in the wrong stance. Works the same way as WoW's default action bars.\n\nAutomatically disabled while resting in an inn or city to avoid constant grey-outs on combat abilities.",
 										arg = "icons.desaturateNoResources",
 										order = 3,
@@ -1551,15 +1556,15 @@ function Options:BuildOptionsTable()
 									},
 								},
 							},
-							reagentCount = {
+							itemCounts = {
 								type = "group",
-								name = "Reagent Count",
+								name = "Item Counts",
 								inline = true,
 								order = 3,
 								args = {
 									showReagentCount = {
 										type = "toggle",
-										name = "Enabled",
+										name = "Reagent Count",
 										desc = "Shows the number of reagents you have in the top-right corner of spell icons that consume reagents on cast. Examples: Soul Shards on warlock abilities, seeds on Rebirth, Flash Powder on Vanish, Ankhs on Reincarnation.",
 										arg = "icons.showReagentCount",
 										order = 1,
@@ -1571,6 +1576,13 @@ function Options:BuildOptionsTable()
 										arg = "icons.reagentCountAllRanks",
 										order = 2,
 										disabled = function() return not addon.db.profile.icons.showReagentCount end,
+									},
+									showConsumableCount = {
+										type = "toggle",
+										name = "Consumable Count",
+										desc = "Shows your current bag count in the top-right corner of consumable icons (potions, runes, etc.).",
+										arg = "icons.showConsumableCount",
+										order = 3,
 									},
 								},
 							},
@@ -2234,47 +2246,152 @@ function Options:BuildOptionsTable()
 				type = "group",
 				name = "Spell Config",
 				order = 3,
+				childGroups = "tab",
 				args = {
-					_desc = {
-						type = "description",
-						name = Dim("Click the button below to open the spell configuration window — enable/disable spells, reorder them, and drag between rows."),
-						order = 1,
-						fontSize = "medium",
-					},
-					openButton = {
-						type = "execute",
-						name = "Open Spell Configuration",
-						desc = "Opens the spell configuration window where you can enable/disable spells, reorder them, and move them between rows using drag-and-drop.",
-						func = function()
-							local AceConfigDialog = LibStub and LibStub("AceConfigDialog-3.0", true)
-							if not AceConfigDialog then return end
-							local widget = AceConfigDialog.OpenFrames[ADDON_NAME]
-							local frame = widget and widget.frame
-							local cx, cy
-							if frame and frame:IsShown() then
-								cx, cy = frame:GetCenter()
-							end
-							AceConfigDialog:Close(ADDON_NAME)
-							local spellsOptions = addon:GetModule("SpellsOptions")
-							if spellsOptions and spellsOptions.Open then
-								spellsOptions:Open(cx, cy)
-							end
-						end,
-						order = 2,
-						width = "double",
-					},
-					soundDesc = {
-						type = "description",
-						name = "\n" .. Dim("Play a sound when an ability becomes ready — when it comes off cooldown, becomes usable, or meets resource requirements. Set a default sound for all abilities, or override individual spells below.\n\nSound plays for all rows regardless of the Ready Glow row filter. Other settings still apply: combat-only, pre-trigger time, and once vs. re-trigger mode."),
-						fontSize = "medium",
-						order = 2.5,
-					},
-					readyGlowSoundOverrides = {
+					spellsTab = {
 						type = "group",
-						name = "Ready Glow Sound",
-						inline = true,
+						name = "Spells",
+						order = 1,
+						args = {
+							_desc = {
+								type = "description",
+								name = Dim("Click the button below to open the spell configuration window — enable/disable spells, reorder them, and drag between rows."),
+								order = 1,
+								fontSize = "medium",
+							},
+							openButton = {
+								type = "execute",
+								name = "Open Spell Configuration",
+								desc = "Opens the spell configuration window where you can enable/disable spells, reorder them, and move them between rows using drag-and-drop.",
+								func = function()
+									local AceConfigDialog = LibStub and LibStub("AceConfigDialog-3.0", true)
+									if not AceConfigDialog then return end
+									local widget = AceConfigDialog.OpenFrames[ADDON_NAME]
+									local frame = widget and widget.frame
+									local cx, cy
+									if frame and frame:IsShown() then
+										cx, cy = frame:GetCenter()
+									end
+									AceConfigDialog:Close(ADDON_NAME)
+									local spellsOptions = addon:GetModule("SpellsOptions")
+									if spellsOptions and spellsOptions.Open then
+										spellsOptions:Open(cx, cy)
+									end
+								end,
+								order = 2,
+								width = "double",
+							},
+						},
+					},
+					consumablesTab = {
+						type = "group",
+						name = "Consumables",
+						order = 2,
+						args = {
+							desc = {
+								type = "description",
+								name = Dim("Track combat consumables on your HUD — potions, runes, and other items you use mid-fight. Each icon shows the item cooldown, buff duration, and bag count. For long-duration pre-pull buffs (elixirs, flasks, food), use a consumable-tracking addon like NovaConsumesHelper."),
+								fontSize = "medium",
+								order = 1,
+							},
+							specLabel = {
+								type = "description",
+								name = function()
+									return addon:FormatSpecLabel() or Dim("Spec not yet detected")
+								end,
+								fontSize = "medium",
+								order = 1.5,
+							},
+							addHeader = {
+								type = "header",
+								name = "Add Consumables",
+								order = 2,
+							},
+							potionSelect = self:BuildConsumableDropdown(
+								"Add Potion",
+								"Select a potion to add to your HUD. Potions in your bags are listed first, sorted by count.",
+								3, "GetAllPotionChoices", "_cachedPotionChoices"
+							),
+							otherSelect = self:BuildConsumableDropdown(
+								"Add Other Consumable",
+								"Select a consumable to add to your HUD. Includes runes, engineering items, and other raid consumables.",
+								4, "GetAllOtherConsumableChoices", "_cachedOtherChoices"
+							),
+							customInput = {
+								type = "input",
+								name = "Add by Item ID",
+								desc = "Enter an item ID to track any consumable not listed above. You can find item IDs on Wowhead (the number in the URL) or with the idTip addon.",
+								order = 5,
+								width = 1.5,
+								get = function() return self._customConsumableInput or "" end,
+								set = function(_, value)
+									if not value or value == "" then
+										self._customConsumableInput = ""
+										self._customConsumableStatus = ""
+										return
+									end
+
+									local itemID = tonumber(value)
+									if not itemID then
+										self._customConsumableInput = ""
+										self._customConsumableStatus = Orange("Invalid input — enter a numeric item ID.")
+										return
+									end
+
+									local itemName, _, _, _, _, _, _, _, _, itemIcon = GetItemInfo(itemID)
+									if not itemName then
+										-- Item not cached — request load and tell user to retry
+										C_Item.RequestLoadItemData(itemID)
+										self._customConsumableInput = ""
+										self._customConsumableStatus = Orange("Item " .. itemID .. " not cached yet. Try again in a moment.")
+										return
+									end
+
+									local ct = addon:GetModule("ConsumableTracker")
+									if ct then
+										ct:AddConsumable(itemID)
+										self._customConsumableInput = ""
+										local iconStr = itemIcon and ("|T" .. itemIcon .. ":16|t ") or ""
+										self._customConsumableStatus = Green("Added:") .. " " .. iconStr .. itemName
+										self:RebuildConsumableEntries()
+									end
+								end,
+							},
+							customStatus = {
+								type = "description",
+								name = function() return self._customConsumableStatus or "" end,
+								fontSize = "medium",
+								order = 6,
+								width = "full",
+							},
+							trackedHeader = {
+								type = "header",
+								name = "Tracked Consumables",
+								order = 7,
+							},
+							consumableEntries = {
+								type = "group",
+								name = "",
+								inline = true,
+								order = 8,
+								args = {},
+							},
+						},
+					},
+					soundsTab = {
+						type = "group",
+						name = "Sounds",
 						order = 3,
-						args = self:BuildReadyGlowSoundOverrideArgs(),
+						args = (function()
+							local args = self:BuildReadyGlowSoundOverrideArgs()
+							args._desc = {
+								type = "description",
+								name = Dim("Play a sound when an ability becomes ready — when it comes off cooldown, becomes usable, or meets resource requirements. Set a default sound for all abilities, or override individual spells below.\n\nSound plays for all rows regardless of the Ready Glow row filter. Other settings still apply: combat-only, pre-trigger time, and once vs. re-trigger mode."),
+								fontSize = "medium",
+								order = 1,
+							}
+							return args
+						end)(),
 					},
 				},
 			},
@@ -2596,10 +2713,112 @@ function Options:BuildOptionsTable()
 		args = layoutArgs,
 	}
 
+	-- Store reference to consumable entries args for dynamic rebuilding
+	local consumablesTab = optionsTable.args.spells.args.consumablesTab
+	if consumablesTab and consumablesTab.args.consumableEntries then
+		self._consumableEntriesArgs = consumablesTab.args.consumableEntries.args
+		self:RebuildConsumableEntries()
+	end
+
 	-- Enrich all setting tooltips with their default values
 	enrichDescsWithDefaults(optionsTable.args)
 
 	return optionsTable
+end
+
+--- Build an AceConfig select dropdown for adding consumables.
+-- Shared by the Potions and Other Consumables dropdowns.
+function Options:BuildConsumableDropdown(name, desc, order, sourceMethod, cacheField)
+	return {
+		type = "select",
+		name = name,
+		desc = desc,
+		order = order,
+		width = 1.5,
+		values = function()
+			local ct = addon:GetModule("ConsumableTracker")
+			if not ct then return {} end
+			self[cacheField] = ct[sourceMethod](ct)
+			local vals = {}
+			for _, data in ipairs(self[cacheField]) do
+				local iconStr = data.icon and ("|T" .. data.icon .. ":16|t ") or ""
+				local countStr = data.count > 0 and (" |cFFFFFF00(x" .. data.count .. ")|r") or ""
+				vals[tostring(data.itemID)] = iconStr .. data.name .. countStr
+			end
+			return vals
+		end,
+		sorting = function()
+			local choices = self[cacheField] or {}
+			local keys = {}
+			for _, data in ipairs(choices) do
+				table.insert(keys, tostring(data.itemID))
+			end
+			return keys
+		end,
+		get = function() return nil end,
+		set = function(_, value)
+			local ct = addon:GetModule("ConsumableTracker")
+			if ct then
+				ct:AddConsumable(tonumber(value))
+				self[cacheField] = nil
+				self:RebuildConsumableEntries()
+			end
+		end,
+	}
+end
+
+function Options:RebuildConsumableEntries()
+	local entriesArgs = self._consumableEntriesArgs
+	if not entriesArgs then return end
+
+	wipe(entriesArgs)
+
+	local ct = addon:GetModule("ConsumableTracker")
+	local items = ct and ct:GetConfiguredItems() or {}
+	if #items == 0 then
+		entriesArgs["empty"] = {
+			type = "description",
+			name = Dim("No consumables added yet. Select one from the dropdowns above."),
+			order = 1,
+		}
+		return
+	end
+
+	for i, entry in ipairs(items) do
+		local itemID = entry.itemID
+		local itemName, _, _, _, _, _, _, _, _, itemIcon = GetItemInfo(itemID)
+		local count = C_Item.GetItemCount(itemID)
+		itemName = itemName or ("Item " .. itemID)
+		local iconString = itemIcon and ("|T" .. itemIcon .. ":16|t ") or ""
+		local countStr = count > 0 and (" |cFFFFFF00(x" .. count .. ")|r") or " |cFFFF0000(0)|r"
+
+		local entryKey = "consumable_" .. i
+		entriesArgs[entryKey] = {
+			type = "group",
+			name = iconString .. itemName .. countStr,
+			inline = true,
+			order = i,
+			args = {
+				remove = {
+					type = "execute",
+					name = "Remove",
+					desc = "Remove this consumable from tracking.",
+					func = function()
+						if ct then
+							ct:RemoveConsumable(itemID)
+						end
+						self:RebuildConsumableEntries()
+						local AceConfigRegistry = LibStub and LibStub("AceConfigRegistry-3.0", true)
+						if AceConfigRegistry then
+							AceConfigRegistry:NotifyChange("VeevHUD")
+						end
+					end,
+					order = 1,
+					width = 0.5,
+				},
+			},
+		}
+	end
 end
 
 -------------------------------------------------------------------------------
@@ -2664,11 +2883,7 @@ function Options:BuildAuraTrackerOptions(settingsGroup)
 		args["specIndicator"] = {
 			type = "description",
 			name = function()
-				local sk = addon.Database:GetSpecKey()
-				if sk then
-					return Dim("Current spec: " .. addon:FormatSpecKey(sk))
-				end
-				return Dim("Spec not yet detected")
+				return addon:FormatSpecLabel() or Dim("Spec not yet detected")
 			end,
 			fontSize = "medium",
 			order = 1,
@@ -3847,11 +4062,7 @@ function Options:BuildBuffRemindersOptions()
 		args["specIndicator"] = {
 			type = "description",
 			name = function()
-				local sk = addon.Database:GetSpecKey()
-				if sk then
-					return Dim("Current spec: " .. addon:FormatSpecKey(sk))
-				end
-				return Dim("Spec not yet detected")
+				return addon:FormatSpecLabel() or Dim("Spec not yet detected")
 			end,
 			fontSize = "medium",
 			order = 1,
@@ -4095,6 +4306,7 @@ function Options:Refresh()
 	self:RebuildAuraSpellArgs()
 	self:RebuildBuffReminderSpellArgs()
 	self:RebuildReadyGlowSoundOverrideArgs()
+	self:RebuildConsumableEntries()
 end
 
 function Options:BuildReadyGlowSoundOverrideArgs()
@@ -4103,7 +4315,7 @@ function Options:BuildReadyGlowSoundOverrideArgs()
 		type = "group",
 		name = "Default",
 		inline = true,
-		order = 0,
+		order = 2,
 		args = {
 			sound = SoundDropdown({
 				name = "Default Sound",
@@ -4127,6 +4339,13 @@ function Options:BuildReadyGlowSoundOverrideArgs()
 				for spellOrder, entry in ipairs(spells) do
 					local sid = entry.spellID
 					local spellName, _, spellIcon = GetSpellInfo(sid)
+
+					-- Sentinel IDs (trinkets, consumables) aren't real spells — resolve from their trackers
+					if not spellName and entry.spellData then
+						spellName = entry.spellData.name
+						spellIcon = entry.spellData.icon
+					end
+
 					if spellName then
 						local iconStr = spellIcon and ("|T" .. spellIcon .. ":16|t ") or ""
 						rowArgs["spell_" .. sid] = SoundDropdown({
@@ -4147,7 +4366,7 @@ function Options:BuildReadyGlowSoundOverrideArgs()
 					type = "group",
 					name = ROW_NAMES[rowIndex] or ("Row " .. rowIndex),
 					inline = true,
-					order = rowIndex,
+					order = 10 + rowIndex,
 					args = rowArgs,
 				}
 			end

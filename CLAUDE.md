@@ -61,6 +61,7 @@ VeevHUD is a lightweight, WeakAuras-inspired heads-up display addon for World of
 - `CooldownIcons.lua` — Main icon orchestrator: event dispatch, row/icon management, dynamic layout, dynamic sorting, range indicator, queued highlight. Delegates assignment to SpellAssignment, frame construction to IconFrameFactory, state computation to IconStateEngine, rendering to IconRenderer, and glow to GlowManager.
 - `CooldownPulse.lua` — Flashes a large icon in center-screen when a tracked ability comes off cooldown. Listens for `COOLDOWN_READY` addon event from GlowManager. Per-row filtering, concurrent pulses overlay simultaneously, eased fade+scale animation, frame pool. Inspired by Doom_CooldownPulse.
 - `TrinketTracker.lua` — Trinket tracking: equipment detection, on-use/proc classification, ICD tracking via CLEU, icon state computation. Delegates rendering to IconRenderer and glow to GlowManager.
+- `ConsumableTracker.lua` — User-configured consumable tracking (potions, runes, sappers, etc.): dynamic N slots, bag scanning for potion discovery, LibSpellDB fallback lists for potions and other consumables, cooldown display, bag count overlay. Sentinel IDs: `CONSUMABLE_SENTINEL_BASE (10000000) + itemID`. Delegates to CooldownIcons via same 3-point pattern as TrinketTracker.
 - `AuraTracker.lua` — Aura icons (class procs, external buffs, custom auras) with stacks, glow, and configurable enable/disable
 - `BuffReminders.lua` — Buff reminder alerts for missing class/role buffs with per-spec configuration
 
