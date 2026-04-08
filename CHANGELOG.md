@@ -1,5 +1,10 @@
 # VeevHUD Changelog
 
+## [1.0.194] - 2026-04-08
+
+### Fixed
+- Corrected the addon version number reported in-game (1.0.193 was packaged with a stale TOC version).
+
 ## [1.0.193] - 2026-04-08
 
 ### Fixed
