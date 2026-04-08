@@ -1,5 +1,11 @@
 # VeevHUD Changelog
 
+## [1.0.193] - 2026-04-08
+
+### Fixed
+- **Add Potion / Add Consumable dropdowns** — Dropdowns now show the full list the first time they're opened, instead of being missing entries until items finished loading from the server.
+- Renamed the "Tenths Threshold" cooldown text option to "Decimal Threshold" for clarity.
+
 ## [1.0.192] - 2026-04-08
 
 ### Added

@@ -1143,7 +1143,7 @@ function Options:BuildOptionsTable()
 									},
 									tenthsThreshold = {
 										type = "range",
-										name = "Tenths Threshold",
+										name = "Decimal Threshold",
 										desc = "Remaining times below this many seconds are shown with one decimal. At the default of 2, 3.4 seconds is shown as 3, while 1.8 seconds is shown as 1.8.",
 										min = 1, max = 10, step = 0.5,
 										arg = "icons.tenthsThreshold",

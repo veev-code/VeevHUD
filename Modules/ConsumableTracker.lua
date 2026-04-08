@@ -254,6 +254,8 @@ function ConsumableTracker:GetAllPotionChoices()
                     count = 0,
                 })
                 seen[itemID] = true
+            else
+                C_Item.RequestLoadItemDataByID(itemID)
             end
         end
     end
@@ -297,6 +299,8 @@ function ConsumableTracker:GetAllOtherConsumableChoices()
                     icon = itemIcon,
                     count = count,
                 })
+            else
+                C_Item.RequestLoadItemDataByID(itemID)
             end
         end
     end
@@ -317,7 +321,24 @@ function ConsumableTracker:OnPlayerEnteringWorld()
     C_Timer.After(1, function()
         self:LoadAllConsumables()
         self:NotifyCooldownIcons()
+        self:PreloadDropdownItems()
     end)
+end
+
+--- Request client-side load of all potion/consumable item data so the
+-- "Add Potion" / "Add Consumable" dropdowns are fully populated the first
+-- time the user opens them. GetItemInfo returns nil for uncached items
+-- (and the entry is skipped) until WoW finishes loading the item.
+function ConsumableTracker:PreloadDropdownItems()
+    if not C_Item or not C_Item.RequestLoadItemDataByID then return end
+    local potions = self.LibSpellDB:GetAllPotions()
+    for itemID in pairs(potions) do
+        C_Item.RequestLoadItemDataByID(itemID)
+    end
+    local consumables = self.LibSpellDB:GetAllConsumables()
+    for itemID in pairs(consumables) do
+        C_Item.RequestLoadItemDataByID(itemID)
+    end
 end
 
 --- Notify CooldownIcons to rebuild rows.
