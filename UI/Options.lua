@@ -1135,11 +1135,19 @@ function Options:BuildOptionsTable()
 									},
 									detailedTimeThreshold = {
 										type = "range",
-										name = "Detailed Time Threshold",
-										desc = "Threshold in minutes. Cooldowns below this show precise m:ss format (e.g., 3:27). Above this, compact format is used (e.g., 3m), rounded down to the nearest minute.",
+										name = "Minutes Threshold",
+										desc = "Remaining times above this many minutes are shown compactly. At the default of 2, 3 minutes 27 seconds is shown as 3m, while 1 minute 45 seconds is shown as 1:45.",
 										min = 1, max = 10, step = 1,
 										arg = "icons.detailedTimeThreshold",
 										order = 1.5,
+									},
+									tenthsThreshold = {
+										type = "range",
+										name = "Tenths Threshold",
+										desc = "Remaining times below this many seconds are shown with one decimal. At the default of 2, 3.4 seconds is shown as 3, while 1.8 seconds is shown as 1.8.",
+										min = 1, max = 10, step = 0.5,
+										arg = "icons.tenthsThreshold",
+										order = 1.6,
 									},
 									showCooldownSpiralOn = {
 										type = "select",

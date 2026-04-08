@@ -1,5 +1,14 @@
 # VeevHUD Changelog
 
+## [1.0.192] - 2026-04-08
+
+### Added
+- **Tenths Threshold** — Icon time text now shows one decimal place (e.g., `1.8`) when remaining time drops below a configurable number of seconds (default 2). Makes it much easier to time the recast of short-duration spells like Corruption or Immolate so the last tick lands cleanly. Configurable in Settings > Ability Rows > Cooldowns. *(Seifer)*
+
+### Changed
+- **Time text rounding** — Cooldown, aura, and swing timer text now uses round-half-up at every magnitude (matching OmniCC), so each displayed number is the closest representable value to the actual remaining time.
+- **Renamed setting** — "Detailed Time Threshold" is now "Minutes Threshold" for clarity alongside the new Tenths Threshold.
+
 ## [1.0.191] - 2026-04-03
 
 ### Added

@@ -82,26 +82,32 @@ function Utils:ApplyFontOutline(fontString, font, size, db)
     end
 end
 
--- Format cooldown text for icon overlays (more compact)
--- No decimals until < 1s remains
--- Uses floor so "1" displays for exactly 1 second before switching to decimals
+-- Format cooldown text for icon overlays (more compact).
+-- Uses round-half-up at every magnitude so each displayed value is the closest
+-- representable number to the actual remaining time. This matches OmniCC, the
+-- de-facto standard cooldown text addon, so VeevHUD's icon text reads the same
+-- as cooldown text users see elsewhere on their UI.
 function Utils:FormatCooldown(seconds)
-    local threshold = addon.db.profile.icons.detailedTimeThreshold * 60
-    if seconds >= 3600 then
-        return string.format("%dh", math.floor(seconds / 3600))
-    elseif seconds >= threshold and seconds >= 60 then
-        return string.format("%dm", math.floor(seconds / 60))
-    elseif seconds >= 60 then
-        local m = math.floor(seconds / 60)
-        local s = math.floor(seconds % 60)
-        return string.format("%d:%02d", m, s)
-    elseif seconds >= 1 then
-        return string.format("%d", math.floor(seconds))
-    elseif seconds > 0 then
-        return string.format("%.1f", seconds)
-    else
-        return ""
+    if seconds <= 0 then return "" end
+    local minutesThreshold = addon.db.profile.icons.detailedTimeThreshold * 60
+    local tenthsThreshold = addon.db.profile.icons.tenthsThreshold
+    -- Subtract half a tenth so the rounded tenths value never equals the
+    -- threshold itself; this avoids a redundant "2.0" tick between "2" and "1.9".
+    if seconds < tenthsThreshold - 0.05 then
+        local tenths = math.floor(seconds * 10 + 0.5) / 10
+        if tenths <= 0 then return "" end
+        return string.format("%.1f", tenths)
     end
+    if seconds >= 3600 then
+        return string.format("%dh", math.floor(seconds / 3600 + 0.5))
+    elseif seconds >= minutesThreshold then
+        return string.format("%dm", math.floor(seconds / 60 + 0.5))
+    end
+    local whole = math.floor(seconds + 0.5)
+    if whole >= 60 then
+        return string.format("%d:%02d", math.floor(whole / 60), whole % 60)
+    end
+    return string.format("%d", whole)
 end
 
 -------------------------------------------------------------------------------

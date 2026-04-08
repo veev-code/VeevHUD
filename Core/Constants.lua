@@ -537,6 +537,7 @@ C.DEFAULTS = {
             textOutline = "INHERIT",      -- Text outline style (OUTLINE, SHADOW, BOTH, NONE, INHERIT)
             useOwnCooldownText = true,    -- Use VeevHUD's own cooldown text instead of Blizzard's
             detailedTimeThreshold = 2,    -- Minutes: durations below this show m:ss, above show compact "Xm"
+            tenthsThreshold = 2,          -- Seconds: at or below this remaining, show one decimal place (e.g., 1.8)
             showCooldownTextOn = "all",   -- Which rows show cooldown text
             showCooldownSpiralOn = "all", -- Which rows show cooldown spiral
             cooldownSpiralAlpha = 1.0,    -- Darkness of cooldown spiral overlay (0 = invisible, 1 = max darkness)
