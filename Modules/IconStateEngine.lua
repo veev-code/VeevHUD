@@ -402,6 +402,7 @@ function IconStateEngine:_ComputeAuraState(frame, db, s)
     s.auraDuration = 0
     s.stackCount = 0
     s.swapTexture = nil
+    s.lockoutTexture = nil
 
     -- Pre-compute spell targeting behavior
     s.checkSelfOnly = true
@@ -691,17 +692,40 @@ function IconStateEngine:_ComputeCooldownState(frame, db, s)
             self:GetTargetLockoutDebuff(spellData.targetLockoutDebuff, s.checkSelfOnly)
 
         if tlActive and tlRemaining > 0 then
-            if tlRemaining > remaining then
+            -- If another spell can reset this cooldown (e.g. Cold Snap resets Ice Block),
+            -- the lockout may be the real bottleneck. Compute effective time-to-availability
+            -- as the min of own CD and the reset spell's CD.
+            local effectiveRemaining = remaining
+            local resetSpellID = spellData.cooldownResetBy
+            if resetSpellID and IsSpellKnown(resetSpellID) then
+                local resetRemaining = self.Utils:GetSpellCooldown(resetSpellID)
+                if resetRemaining and resetRemaining < effectiveRemaining then
+                    effectiveRemaining = resetRemaining
+                end
+            end
+
+            if tlRemaining > effectiveRemaining then
                 s.lockoutIsLimitingFactor = true
-                remaining = tlRemaining
-                duration = tlDuration
-                cdStartTime = tlExpiration - tlDuration
-                s.remaining = remaining
-                s.duration = duration
-                s.cdStartTime = cdStartTime
-                -- Recompute: lockout overrode remaining/duration after initial computation
-                s.isOnGCD = self.Utils:IsOnGCD(remaining, duration)
-                s.isOnActualCooldown = self.Utils:IsOnRealCooldown(remaining, duration)
+                if effectiveRemaining == remaining then
+                    -- Lockout exceeds own CD (e.g. Weakened Soul > PWS cooldown):
+                    -- override the CD display to show the lockout timer
+                    remaining = tlRemaining
+                    duration = tlDuration
+                    cdStartTime = tlExpiration - tlDuration
+                    s.remaining = remaining
+                    s.duration = duration
+                    s.cdStartTime = cdStartTime
+                    s.isOnGCD = self.Utils:IsOnGCD(remaining, duration)
+                    s.isOnActualCooldown = self.Utils:IsOnRealCooldown(remaining, duration)
+                else
+                    -- Lockout exceeds reset spell CD but not own CD (e.g. Hypothermia
+                    -- blocks Ice Block after Cold Snap): show as aura effect with the
+                    -- lockout debuff icon, keeping the real CD spiral underneath
+                    s.auraActive = true
+                    s.auraRemaining = tlRemaining
+                    s.auraDuration = tlDuration
+                    s.lockoutTexture = select(3, GetSpellInfo(spellData.targetLockoutDebuff))
+                end
             end
             if not s.isPermanentBuffActive then
                 frame.actionableTime = math.max(frame.actionableTime, tlRemaining)

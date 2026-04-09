@@ -1,5 +1,13 @@
 # VeevHUD Changelog
 
+## [1.0.198] - 2026-04-09
+
+### Fixed
+- **Ice Block: Hypothermia lockout** — Hypothermia now correctly displays on the Ice Block icon when it's the actual bottleneck. When Cold Snap is available (or nearly ready) but Hypothermia is still active, the icon swaps to the Hypothermia texture with an aura-style countdown. In normal usage without Cold Snap, the regular 5-minute cooldown displays as before. *(Thanks Boosterseat for reporting)*
+
+### LibSpellDB Updates
+- New `cooldownResetBy` field and `GetCooldownResetBy()` API for spells whose cooldown can be reset by another spell (e.g., Ice Block → Cold Snap).
+
 ## [1.0.197] - 2026-04-09
 
 ### Added

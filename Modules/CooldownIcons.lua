@@ -1530,6 +1530,17 @@ function CooldownIcons:UpdateIconState(frame, db)
         frame.spellData = s.spellData
     end
 
+    -- Temporary lockout texture swap (e.g. Hypothermia icon on Ice Block)
+    if s.lockoutTexture then
+        if not frame._savedTexture then
+            frame._savedTexture = frame.icon:GetTexture()
+        end
+        frame.icon:SetTexture(s.lockoutTexture)
+    elseif frame._savedTexture then
+        frame.icon:SetTexture(frame._savedTexture)
+        frame._savedTexture = nil
+    end
+
     -- 1. Apply rendering (spiral, text, alpha, desat, stacks, charges)
     visualState.showAuraActive = s.showAuraActive
     visualState.auraRemaining = s.auraDisplayRemaining
