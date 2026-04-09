@@ -1,5 +1,13 @@
 # VeevHUD Changelog
 
+## [1.0.197] - 2026-04-09
+
+### Added
+- **Ice Block: Hypothermia lockout** — After Ice Block ends, the 30s Hypothermia debuff now displays as the limiting cooldown on the icon (same lockout treatment as Weakened Soul on Power Word: Shield and Forbearance on Paladin immunities). *(Boosterseat)*
+
+### LibSpellDB Updates
+- Added Hypothermia (`targetLockoutDebuff`) to Ice Block spell data.
+
 ## [1.0.196] - 2026-04-09
 
 ### Changed
