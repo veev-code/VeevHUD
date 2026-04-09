@@ -166,6 +166,12 @@ function BuffReminders:GetSpellDefaults(spellID)
         defaults.combatState = COMBAT_STATE.OOC
     end
 
+    -- CREATES_CONSUMABLE spells (Conjure Mana Gem, Create Healthstone) default OOC:
+    -- restocking is a between-pulls activity, not a mid-fight nag.
+    if LibSpellDB:HasTag(spellID, "CREATES_CONSUMABLE") then
+        defaults.combatState = COMBAT_STATE.OOC
+    end
+
     -- Talent-gated buff groups (e.g., Demonic Sacrifice) require a multi-step
     -- process that can't be done mid-combat → default OOC
     if spellData.buffGroup then
@@ -349,6 +355,28 @@ function BuffReminders:BuildReminderList()
         end
     end
     
+    -- Append CREATES_CONSUMABLE spells (Conjure Mana Gem, Create Healthstone).
+    -- These are stock-restock reminders, not buff reminders — they fire when the
+    -- created item's bag count is zero. They share the BuffReminders pipeline so
+    -- they inherit per-spec config, combat-state gating, and the alert UI.
+    local createsConsumable = self.LibSpellDB:GetSpellsByClassAndTag(self.playerClass, "CREATES_CONSUMABLE")
+    if createsConsumable then
+        -- Track spellIDs already added by the LONG_BUFF loop above to avoid duplicates
+        local seenSpells = {}
+        for _, r in ipairs(self.reminders) do
+            seenSpells[r.spellID] = true
+        end
+        for spellID, spellData in pairs(createsConsumable) do
+            if not seenSpells[spellID] then
+                table.insert(self.reminders, {
+                    spellID = spellID,
+                    spellData = spellData,
+                    isConsumable = true,
+                })
+            end
+        end
+    end
+
     -- Sort by spell name for consistent ordering
     table.sort(self.reminders, function(a, b)
         local nameA = a.spellData.name or ""
@@ -388,6 +416,10 @@ function BuffReminders:CreateFrames(parent)
     self.Events:RegisterEvent(self, "PLAYER_REGEN_ENABLED", self.OnCombatChanged)
     self.Events:RegisterEvent(self, "PLAYER_UPDATE_RESTING", self.OnRestingChanged)
     self.Events:RegisterEvent(self, "SPELLS_CHANGED", self.OnSpellsChanged)
+    -- Bag changes drive CREATES_CONSUMABLE reminders (Conjure Mana Gem, Healthstone).
+    -- Set a dirty flag so the next 1s ticker re-checks item counts, rather than
+    -- running the full OnUpdate on every bag mutation (looting, vendoring, etc.).
+    self.Events:RegisterEvent(self, "BAG_UPDATE_DELAYED", self.OnBagChanged)
 end
 
 function BuffReminders:UpdatePosition()
@@ -986,6 +1018,22 @@ function BuffReminders:ShouldRemind(reminder)
         end
     end
 
+    -- CREATES_CONSUMABLE: remind when bag count of the created item is zero.
+    -- Soul Shard / reagent gating is already handled by IsUsableSpell above
+    -- (notEnoughResources path), so Create Healthstone correctly suppresses
+    -- when no Soul Shard is in bags.
+    if reminder.isConsumable then
+        -- Item counts can only change on bag events; reuse cached result
+        -- between bag changes to avoid redundant GetItemCount calls on
+        -- every 1s tick.
+        if self._bagDirty or reminder._cachedItemCount == nil then
+            reminder._cachedItemCount = self.LibSpellDB:GetCreatedItemCount(spellID)
+        end
+        local count = reminder._cachedItemCount
+        if not count then return false end
+        return count == 0
+    end
+
     -- Spell-based weapon enchants (shaman imbues) pass through IsSpellKnown/IsUsableSpell above,
     -- then check actual enchant status via GetWeaponEnchantInfo instead of UnitBuff.
     if spellData.weaponEnchant then
@@ -1195,6 +1243,10 @@ end
 -- Update Loop
 -------------------------------------------------------------------------------
 
+function BuffReminders:OnBagChanged()
+    self._bagDirty = true
+end
+
 function BuffReminders:OnUpdate()
     if not self.initialized then return end
     
@@ -1332,6 +1384,7 @@ function BuffReminders:OnUpdate()
     -- Update visible icons
     self:UpdateVisibleIcons(alertList)
     self.activeAlerts = newAlerts
+    self._bagDirty = false
 end
 
 -- Determine the best spell to show for a buff group

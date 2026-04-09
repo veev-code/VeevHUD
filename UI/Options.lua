@@ -3711,6 +3711,21 @@ function Options:BuildBuffRemindersOptions()
 			end
 		end
 
+		-- Append CREATES_CONSUMABLE spells (Conjure Mana Gem, Create Healthstone),
+		-- matching BuildReminderList behavior. Deduplicate against LONG_BUFF entries.
+		local createsConsumable = LibSpellDB:GetSpellsByClassAndTag(playerClass, "CREATES_CONSUMABLE")
+		if createsConsumable then
+			local seenSpells = {}
+			for _, entry in ipairs(entries) do
+				seenSpells[entry.spellID] = true
+			end
+			for spellID, spellData in pairs(createsConsumable) do
+				if not seenSpells[spellID] then
+					table.insert(entries, { spellID = spellID, data = spellData, groupName = nil })
+				end
+			end
+		end
+
 		-- Always filter out spells for other races (a Dwarf can never cast Shadowguard)
 		do
 			local filteredEntries = {}
@@ -3770,17 +3785,29 @@ function Options:BuildBuffRemindersOptions()
 			entries = knownEntries
 		end
 
-		-- Sort: enabled-by-default first, then alphabetically by display name
+		-- Sort: spells before items (CREATES_CONSUMABLE), then enabled before disabled,
+		-- then alphabetically / by level. This keeps all gems at the bottom regardless
+		-- of enabled state, rather than interleaving them with disabled spells.
 		table.sort(entries, function(a, b)
+			-- Spells before created-consumable items
+			local aIsItem = LibSpellDB:HasTag(a.spellID, "CREATES_CONSUMABLE")
+			local bIsItem = LibSpellDB:HasTag(b.spellID, "CREATES_CONSUMABLE")
+			if aIsItem ~= bIsItem then
+				return bIsItem  -- spells first
+			end
+			-- Within same category: enabled before disabled
 			local aDefaults = brModule and brModule.GetSpellDefaults and brModule:GetSpellDefaults(a.spellID)
 			local bDefaults = brModule and brModule.GetSpellDefaults and brModule:GetSpellDefaults(b.spellID)
 			local aEnabled = not aDefaults or aDefaults.enabled ~= false
 			local bEnabled = not bDefaults or bDefaults.enabled ~= false
 			if aEnabled ~= bEnabled then
-				return aEnabled  -- enabled first
+				return aEnabled
 			end
-			-- Within same enabled state, use display name.
-			-- Ally-split entries use spell name; self-split and non-split use group description.
+			-- Items: highest level (spellID) first
+			if aIsItem and bIsItem then
+				return a.spellID > b.spellID
+			end
+			-- Spells: alphabetically by display name
 			local aName = (a.groupName and a.splitMode ~= SM.ALLY) and LibSpellDB.BuffGroups[a.groupName] and LibSpellDB.BuffGroups[a.groupName].description or (a.data.name or "")
 			local bName = (b.groupName and b.splitMode ~= SM.ALLY) and LibSpellDB.BuffGroups[b.groupName] and LibSpellDB.BuffGroups[b.groupName].description or (b.data.name or "")
 			return aName < bName
@@ -3793,6 +3820,9 @@ function Options:BuildBuffRemindersOptions()
 
 			do
 				local spellName = spellData.name or ("Spell " .. spellID)
+				if spellData.requiredLevel then
+					spellName = spellName .. " (Lv. " .. spellData.requiredLevel .. ")"
+				end
 				local spellIcon = spellData.icon
 				local iconString = spellIcon and ("|T" .. spellIcon .. ":16|t ") or ""
 

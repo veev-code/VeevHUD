@@ -1,5 +1,15 @@
 # VeevHUD Changelog
 
+## [1.0.195] - 2026-04-09
+
+### Added
+- **Conjured consumable reminders** — Buff Reminders now alert when a self-craftable consumable is missing from your bags. Mages get per-rank reminders for all five Conjure Mana Gem ranks (Agate through Emerald — TBC mages carry one of each). Warlocks get a Create Healthstone reminder that automatically suppresses when no Soul Shard is available. Defaults to out-of-combat, configurable per spec like other reminders. *(Boosterseat)*
+
+### LibSpellDB Updates
+- New `CREATES_CONSUMABLE` tag and `GetCreatedItemCount` API for spells that create restockable items.
+- Five Conjure Mana Gem entries added for Mage (Agate, Jade, Citrine, Ruby, Emerald) with per-rank item IDs.
+- Create Healthstone now tagged for restock reminders.
+
 ## [1.0.194] - 2026-04-08
 
 ### Fixed
