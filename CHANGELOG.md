@@ -1,5 +1,10 @@
 # VeevHUD Changelog
 
+## [1.0.196] - 2026-04-09
+
+### Changed
+- **Conjured consumable reminders** — Only the highest-known rank now defaults to enabled (e.g., Emerald for a level 68+ mage). Lower ranks default to disabled to avoid overwhelming the screen, but can be individually enabled in the Buff Reminders config.
+
 ## [1.0.195] - 2026-04-09
 
 ### Added

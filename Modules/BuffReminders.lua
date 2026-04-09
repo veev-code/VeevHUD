@@ -166,10 +166,15 @@ function BuffReminders:GetSpellDefaults(spellID)
         defaults.combatState = COMBAT_STATE.OOC
     end
 
-    -- CREATES_CONSUMABLE spells (Conjure Mana Gem, Create Healthstone) default OOC:
-    -- restocking is a between-pulls activity, not a mid-fight nag.
+    -- CREATES_CONSUMABLE spells (Conjure Mana Gem, Create Healthstone) default OOC.
+    -- Only the highest-known rank defaults to enabled; lower ranks are opt-in to
+    -- avoid overwhelming the screen (e.g., 5 mana gem reminders at once).
+    -- _highestConsumable is computed once in BuildReminderList (rebuilds on SPELLS_CHANGED).
     if LibSpellDB:HasTag(spellID, "CREATES_CONSUMABLE") then
         defaults.combatState = COMBAT_STATE.OOC
+        if defaults.enabled and not self._highestConsumable[spellID] then
+            defaults.enabled = false
+        end
     end
 
     -- Talent-gated buff groups (e.g., Demonic Sacrifice) require a multi-step
@@ -284,6 +289,7 @@ end
 
 function BuffReminders:BuildReminderList()
     wipe(self.reminders)
+    self._highestConsumable = {}  -- spellID -> true for the highest-known CREATES_CONSUMABLE rank
     self.hasAllySplit = false
 
     if not self.LibSpellDB then return end
@@ -366,8 +372,28 @@ function BuffReminders:BuildReminderList()
         for _, r in ipairs(self.reminders) do
             seenSpells[r.spellID] = true
         end
+
+        -- Find the highest requiredLevel among known CREATES_CONSUMABLE spells.
+        -- Only that rank defaults to enabled; lower ranks are opt-in to avoid
+        -- overwhelming the screen (e.g., 5 mana gem reminders at once).
+        -- Computed once at build time (rebuilds on SPELLS_CHANGED).
+        local highestKnownLevel  -- nil when no ranked consumable is known
+        for _, cData in pairs(createsConsumable) do
+            if cData.requiredLevel and IsSpellKnown(cData.spellID) then
+                highestKnownLevel = math.max(highestKnownLevel or 0, cData.requiredLevel)
+            end
+        end
+
         for spellID, spellData in pairs(createsConsumable) do
             if not seenSpells[spellID] then
+                -- Spells without requiredLevel (Healthstone) are always highest.
+                -- Ranked spells: only the highest known rank is marked; if none
+                -- are known yet, none are marked (all default to disabled).
+                local isHighest = not spellData.requiredLevel
+                    or (highestKnownLevel and spellData.requiredLevel >= highestKnownLevel)
+                if isHighest then
+                    self._highestConsumable[spellID] = true
+                end
                 table.insert(self.reminders, {
                     spellID = spellID,
                     spellData = spellData,
