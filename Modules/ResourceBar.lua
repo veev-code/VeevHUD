@@ -16,6 +16,24 @@ local IsSpellKnown = IsSpellKnown
 local ResourceBar = {}
 addon:RegisterModule("ResourceBar", ResourceBar)
 
+-- "Next melee" spell rank IDs (Heroic Strike, Cleave, Maul, Raptor Strike).
+-- These are the only spells that can be queued without firing UNIT_SPELLCAST_START,
+-- so they're the only ones we need to poll via IsCurrentSpell.
+-- Casting/channeling spells are already tracked by spellID from their events.
+local NEXT_MELEE_SPELLS = {}
+do
+    local LibSpellDB = LibStub and LibStub("LibSpellDB-1.0", true)
+    if LibSpellDB then
+        local tagged = LibSpellDB:GetSpellsByTag("SWING_RESET")
+        for spellID in pairs(tagged) do
+            local allRanks = LibSpellDB:GetAllRankIDs(spellID)
+            for rankID in pairs(allRanks) do
+                NEXT_MELEE_SPELLS[rankID] = true
+            end
+        end
+    end
+end
+
 -- Resolve Innervate spell ID + name from LibSpellDB (tagged IMPORTANT_EXTERNAL + RESOURCE)
 local innervateSpellID, innervateName
 do
@@ -872,31 +890,21 @@ function ResourceBar:GetSpellResourceCost(spellID)
     return 0
 end
 
--- Find ALL queued abilities among tracked spells and return their combined cost
--- Skips spells already tracked as casting/channeling to prevent double-counting
+-- Find queued "next melee" abilities and return their combined cost.
+-- Only SWING_RESET spells (Heroic Strike, Cleave, Maul, etc.) need polling here —
+-- they queue onto the next swing without firing UNIT_SPELLCAST_START, so we don't
+-- get the spellID from an event. All other spells are already captured by
+-- castingSpellID/channelingSpellID via their cast/channel events.
 function ResourceBar:GetQueuedSpellCost()
     if not IsCurrentSpell then return 0 end
 
-    local CooldownIcons = addon:GetModule("CooldownIcons")
-    if not CooldownIcons then return 0 end
-
-    local LibSpellDB = addon.LibSpellDB
-
-    local totalCost = 0
-    for _, icons in pairs(CooldownIcons.iconsByRow or {}) do
-        for _, frame in ipairs(icons) do
-            local sid = frame.actualSpellID
-            if sid and IsCurrentSpell(sid) then
-                -- Pet summons stay "current" permanently after casting; skip them
-                if LibSpellDB and LibSpellDB:HasTag(sid, "PET_SUMMON") then
-                    -- skip
-                elseif sid ~= self.castingSpellID and sid ~= self.channelingSpellID then
-                    totalCost = totalCost + self:GetSpellResourceCost(sid)
-                end
-            end
+    for rankID in pairs(NEXT_MELEE_SPELLS) do
+        -- Skip spells already counted as casting/channeling (Slam is both SWING_RESET and a cast)
+        if IsCurrentSpell(rankID) and rankID ~= self.castingSpellID and rankID ~= self.channelingSpellID then
+            return self:GetSpellResourceCost(rankID)
         end
     end
-    return totalCost
+    return 0
 end
 
 -------------------------------------------------------------------------------

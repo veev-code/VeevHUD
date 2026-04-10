@@ -1,5 +1,10 @@
 # VeevHUD Changelog
 
+## [1.0.199] - 2026-04-09
+
+### Fixed
+- **Predicted Resource Cost: Queued Next-Melee Abilities** — The resource bar's predicted cost overlay now correctly shows the rage cost of queued "next melee" abilities like Heroic Strike, Cleave, and Maul. Previously, the prediction only worked for abilities tracked as icons — these abilities were excluded because they have no cooldown. *(Thanks Caworder for reporting)*
+
 ## [1.0.198] - 2026-04-09
 
 ### Fixed
