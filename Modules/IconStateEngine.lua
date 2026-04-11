@@ -350,6 +350,12 @@ function IconStateEngine:ComputeIconState(frame, db)
     -- 2. Compute cooldown state (raw CD, item CD, GCD override, lockout, usability, charges)
     self:_ComputeCooldownState(frame, db, s)
 
+    -- 2.5 Compute dodge-reactive window state (Overpower etc.)
+    -- Needs s.remaining / s.canAfford from step 2. Result (s.dodgeWindowUsable)
+    -- drives the synthetic-aura countdown in step 4 and the glow override
+    -- passed to GlowManager at the CooldownIcons render site.
+    self:_ComputeDodgeWindowState(frame, s)
+
     -- 3. Compute prediction state (resource timer spiral, fallback)
     self:_ComputePredictionState(frame, db, s)
 
@@ -360,30 +366,50 @@ function IconStateEngine:ComputeIconState(frame, db)
     s.isReactive = frame.isReactive or false
     s.predictionIsLimitingFactor = s.showPredictionSpiral and s.predictionRemaining > 0
 
-    -- 6. Dodge-reactive glow override
-    s.dodgeGlowOverride = false
-    if frame.dodgeReactive then
-        local targetGUID = UnitGUID("target")
-        local dodgeExpires = targetGUID and self.dodgeWindows[targetGUID]
-        if dodgeExpires then
-            if self.now >= dodgeExpires then
-                self.dodgeWindows[targetGUID] = nil
-            else
-                local isOffRealCooldown = not self.Utils:IsOnRealCooldown(s.remaining, s.duration)
-                if isOffRealCooldown and s.canAfford then
-                    s.dodgeGlowOverride = true
-                end
-            end
-        end
-    end
-
-    -- 7. Queued spell state
+    -- 6. Queued spell state
     s.isQueued = db.showQueuedHighlight and IsCurrentSpell and IsCurrentSpell(s.actualSpellID) or false
 
-    -- 8. Copy frame-persistent field for orchestrator
+    -- 7. Copy frame-persistent field for orchestrator
     s.gcdContinueText = frame.gcdContinueText
 
     return s
+end
+
+-------------------------------------------------------------------------------
+-- Internal: Dodge Window State
+-- For dodgeReactive spells (e.g. Overpower), reads the per-target dodge window
+-- recorded via RecordDodge() and decides whether the proc is actually usable
+-- before it expires. Target A→B→A is handled implicitly because dodgeWindows
+-- is keyed by destGUID — the entry for A still carries its original expiry.
+--
+-- dodgeWindowUsable is the single flag consumed by both the visual-flag
+-- synthetic aura injection and the ready-glow override. It turns off as soon
+-- as the current spell lockout (own CD or GCD) would outlast the window, so
+-- the glow + countdown hide together when you no longer have time to stance
+-- dance into the cast.
+-------------------------------------------------------------------------------
+
+function IconStateEngine:_ComputeDodgeWindowState(frame, s)
+    s.dodgeWindowRemaining = 0
+    s.dodgeWindowUsable = false
+
+    if not frame.dodgeReactive then return end
+
+    local targetGUID = UnitGUID("target")
+    local dodgeExpires = targetGUID and self.dodgeWindows[targetGUID]
+    if not dodgeExpires then return end
+
+    local remaining = dodgeExpires - self.now
+    if remaining <= 0 then
+        self.dodgeWindows[targetGUID] = nil
+        return
+    end
+
+    s.dodgeWindowRemaining = remaining
+    -- Usable only if the current lockout (own CD or GCD) ends before the
+    -- window does, AND we can afford the cost. s.remaining already reflects
+    -- whichever cooldown is the limiting factor.
+    s.dodgeWindowUsable = s.canAfford and s.remaining <= remaining
 end
 
 -------------------------------------------------------------------------------
@@ -931,6 +957,16 @@ function IconStateEngine:_ComputeVisualFlags(frame, db, s)
         end
     end
 
+    -- Dodge-reactive window: inject synthetic aura data so the icon shows a
+    -- spiral + text countdown while the proc is usable (e.g. Overpower after
+    -- target dodges). Suppressed once the current lockout would outlast the
+    -- window — see _ComputeDodgeWindowState.
+    if s.dodgeWindowUsable then
+        s.auraActive = true
+        s.auraRemaining = s.dodgeWindowRemaining
+        s.auraDuration = frame.dodgeReactive
+    end
+
     -- Timed effect: inject synthetic aura data (Flamestrike, Distract, Consecration)
     if frame.timedEffectExpires then
         local teRemaining = frame.timedEffectExpires - now
@@ -964,6 +1000,14 @@ function IconStateEngine:_ComputeVisualFlags(frame, db, s)
         s.showGlow = true
         s.showSpinner = true
         s.showText = true
+
+        -- Dodge-reactive procs rely on the big proc-overlay glow as the
+        -- attention-grabber. Suppress the subtle aura-border glow here so
+        -- UpdateReadyGlow (called with dodgeGlowOverride at the render site)
+        -- isn't fighting the aura pixel border for visual space.
+        if s.dodgeWindowUsable then
+            s.showGlow = false
+        end
 
     elseif s.isPermanentBuffActive then
         -- PERMANENT BUFF ACTIVE

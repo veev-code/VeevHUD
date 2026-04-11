@@ -1,5 +1,13 @@
 # VeevHUD Changelog
 
+## [1.0.200] - 2026-04-11
+
+### Added
+- **Overpower proc countdown** — When a target dodges, Overpower now shows a spiral + text countdown of the 5-second proc window alongside its ready glow, so you can see at a glance whether you have time to stance-dance into the cast. The glow and countdown automatically hide once your current GCD would outlast the window, so you won't waste a stance swap chasing an unusable proc.
+
+### Fixed
+- **Consumable buff tracking: false positives from generic buff names** — Consumable icons (potions, runes, etc.) would sometimes latch onto unrelated buffs that shared a generic name like "Haste" from trinkets, enchants, or procs. Buff matching is now strictly by spell ID.
+
 ## [1.0.199] - 2026-04-09
 
 ### Fixed

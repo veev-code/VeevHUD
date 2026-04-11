@@ -21,7 +21,6 @@ addon:RegisterModule("ConsumableTracker", ConsumableTracker)
 
 -- Cached API calls
 local GetItemInfo = GetItemInfo
-local GetSpellInfo = GetSpellInfo
 local GetTime = GetTime
 local C_Container = C_Container
 local C_Item = C_Item
@@ -99,11 +98,10 @@ function ConsumableTracker:LoadConsumable(itemID)
     -- Detect if the item applies a buff (for duration tracking).
     -- Only use LibSpellDB data — GetItemSpell returns the trigger spell (hidden passive),
     -- not the visible buff, so it cannot be used for UnitBuff tracking.
-    local buffSpellID, buffSpellName
+    local buffSpellID
     local itemInfo = self.LibSpellDB:GetPotionInfo(itemID) or self.LibSpellDB:GetConsumableInfo(itemID)
     if itemInfo and itemInfo.buffSpellID then
         buffSpellID = itemInfo.buffSpellID
-        buffSpellName = GetSpellInfo(buffSpellID)
     end
 
     self.consumables[itemID] = {
@@ -112,7 +110,6 @@ function ConsumableTracker:LoadConsumable(itemID)
         name = itemName or ("Item " .. itemID),
         icon = itemIcon,
         buffSpellID = buffSpellID,
-        buffSpellName = buffSpellName,
     }
 
     -- Retry if item data wasn't cached yet
@@ -480,7 +477,10 @@ function ConsumableTracker:UpdateConsumableIconState(frame, db)
     -- PRIORITY 1: Buff active (if consumable applies a trackable buff)
     -------------------------------------------------------------------
     if consumableData.buffSpellID then
-        local aura = self.Utils:GetCachedBuff("player", consumableData.buffSpellID, consumableData.buffSpellName)
+        -- Match by spell ID only — the buff name (e.g. "Haste") is often generic
+        -- and collides with unrelated effects from trinkets, enchants, and procs.
+        -- LibSpellDB authoritatively maps each consumable to its specific buff ID.
+        local aura = self.Utils:GetCachedBuff("player", consumableData.buffSpellID, nil)
         if aura and aura.expirationTime and aura.expirationTime > 0 then
             auraActive = true
             auraRemaining = aura.expirationTime - now
