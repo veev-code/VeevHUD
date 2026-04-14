@@ -27,7 +27,8 @@
        - Ret Paladin: Single MH bar. Neutral -> Yellow (prep Command) -> Green (cast Blood).
          Red override when twist is impossible (GCD lockout or Command not prepped).
        - Enhancement Shaman: Dual MH+OH bars. Entire bar green (synced) or red (desynced).
-       - Fury Warrior: Dual MH+OH bars. Entire bar green (desynced) or red (synced).
+       - Fury Warrior: Dual MH+OH bars. Green when OH fires well before/after MH
+         (safe HS re-queue window), red when OH fires right after MH (no time to re-queue).
        - Arms Warrior: Single MH bar. Neutral only (fill itself signals timing).
        - Prot Warrior: Single MH bar. Neutral only.
        - Rogue (all): Single or dual bar. Neutral only.
@@ -92,6 +93,7 @@ local CombatLogGetCurrentEventInfo = CombatLogGetCurrentEventInfo
 local select = select
 local math_abs = math.abs
 local math_max = math.max
+local C = addon.Constants
 
 local SwingBar = {}
 addon:RegisterModule("SwingBar", SwingBar)
@@ -160,7 +162,7 @@ SwingBar.isRanged = false
 SwingBar.isHunter = false
 SwingBar.isWand = false
 SwingBar.isDualWieldSync = false
-SwingBar.invertSyncColors = false  -- Warriors invert sync color meaning
+SwingBar.useDirectionalSync = false  -- Warriors: direction-aware sync (HS queue mechanic)
 SwingBar.hasTwistWindow = false    -- Set by Paladin strategy
 
 -- Visibility
@@ -235,9 +237,9 @@ function SwingBar:UpdateSpecFeatures()
     local class = addon.playerClass
     local spec = addon.playerSpec
 
-    self.isDualWieldSync = (class == "SHAMAN" and spec == "ENHANCEMENT")
-                        or (class == "WARRIOR" and spec == "FURY")
-    self.invertSyncColors = (class == "WARRIOR")
+    self.isDualWieldSync = (class == C.CLASS.SHAMAN and spec == C.SPEC.ENHANCEMENT)
+                        or (class == C.CLASS.WARRIOR and spec == C.SPEC.FURY)
+    self.useDirectionalSync = (class == C.CLASS.WARRIOR and spec == C.SPEC.FURY)
 
     CallStrategy(self, "OnUpdateSpecFeatures")
 end
@@ -573,19 +575,37 @@ end
 function SwingBar:GetFillColor(progress, isOffHand)
     local db = addon.db.profile.swingBar
 
-    -- Dual-wield sync: entire bar colored by sync status.
-    -- Enhancement Shamans want sync (Flurry charge efficiency): green = synced, red = desynced.
-    -- Fury Warriors want desync (HS queue removes OH miss penalty): inverted.
+    -- Dual-wield sync coloring.
     if self.isDualWieldSync and self.hasOffHand and db.enableSyncColors then
-        local delta = math_abs(self.mainTimer - self.offTimer)
         local period = math_max(self.mainSpeed, self.offSpeed)
-        if period > 0 and delta > period / 2 then
-            delta = period - delta
-        end
-        if delta <= db.syncThreshold then
-            return self.invertSyncColors and db.dangerColor or db.safeColor
-        else
-            return self.invertSyncColors and db.safeColor or db.dangerColor
+        if period > 0 then
+            if self.useDirectionalSync then
+                -- Fury Warriors: direction-aware.
+                -- HS queue removes OH miss penalty, but only while HS is queued.
+                -- MH fire consumes the queued HS — the danger is OH firing right AFTER MH
+                -- (no time to re-queue HS). OH firing before MH is always safe (HS still queued).
+                -- ohAfterMh: time from next MH fire until next OH fire (wraps cyclically).
+                -- Small = bad (OH right after MH, can't re-queue). Large = good.
+                -- Modular arithmetic keeps this stable through timer resets (no flicker).
+                local ohAfterMh = (self.offTimer - self.mainTimer) % period
+                if ohAfterMh < db.syncThreshold then
+                    return db.dangerColor
+                else
+                    return db.safeColor
+                end
+            else
+                -- Enhancement Shamans: symmetric (direction doesn't matter).
+                -- Synced swings = efficient Flurry charge usage. Circular distance only.
+                local delta = math_abs(self.mainTimer - self.offTimer)
+                if delta > period / 2 then
+                    delta = period - delta
+                end
+                if delta <= db.syncThreshold then
+                    return db.safeColor
+                else
+                    return db.dangerColor
+                end
+            end
         end
     end
 

@@ -12,6 +12,7 @@ local GetTime = GetTime
 local GetSpellCooldown = GetSpellCooldown
 local GetSpellInfo = GetSpellInfo
 local math_max = math.max
+local C = addon.Constants
 
 -------------------------------------------------------------------------------
 -- Constants
@@ -44,7 +45,7 @@ function Paladin:OnInitialize(sb)
 end
 
 function Paladin:OnUpdateSpecFeatures(sb)
-    sb.hasTwistWindow = (addon.playerClass == "PALADIN" and addon.playerSpec == "RETRIBUTION")
+    sb.hasTwistWindow = (addon.playerClass == C.CLASS.PALADIN and addon.playerSpec == C.SPEC.RETRIBUTION)
 
     -- Resolve localized Seal of Command name (once) for twist prep detection
     if sb.hasTwistWindow and not sb.commandSealName then

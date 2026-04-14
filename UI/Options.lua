@@ -426,6 +426,15 @@ function Options:BuildOptionsTable()
 		Options:ApplySettingChange(info.arg)
 	end
 
+	local function isDualWieldSyncSpec()
+		return (addon.playerClass == C.CLASS.SHAMAN and addon.playerSpec == C.SPEC.ENHANCEMENT)
+			or (addon.playerClass == C.CLASS.WARRIOR and addon.playerSpec == C.SPEC.FURY)
+	end
+
+	local function isRetPaladin()
+		return addon.playerClass == C.CLASS.PALADIN and addon.playerSpec == C.SPEC.RETRIBUTION
+	end
+
 	-- Post-process: append "Default: X" to every setting's desc tooltip
 	local function enrichDescsWithDefaults(args)
 		for _, opt in pairs(args) do
@@ -2046,21 +2055,21 @@ function Options:BuildOptionsTable()
 									if class == C.CLASS.HUNTER then
 										return Dim("Your character automatically fires auto-shots on a timer. If you cast an ability too late in the timer, it 'clips' (delays) your next auto-shot, costing you DPS. The bar turns green when it's safe to cast and red when casting would clip. Once you learn Steady Shot, a yellow zone appears for the window where Steady Shot would clip but instants and movement are still safe.") .. "\n"
 									elseif class == C.CLASS.PALADIN then
-										if spec == "RETRIBUTION" then
+										if spec == C.SPEC.RETRIBUTION then
 											return Dim("Seal twisting lets you get two seal procs on a single melee swing by swapping seals right before the hit lands. The bar turns green during the twist window — the last ~0.4 seconds before impact — telling you when to swap to your second seal.") .. "\n"
 										else
 											return Dim("Tracks your melee swing timer — a bar that fills up as your next auto-attack approaches. Auto-hides between pulls.") .. "\n"
 										end
 									elseif class == C.CLASS.SHAMAN then
-										if spec == "ENHANCEMENT" then
+										if spec == C.SPEC.ENHANCEMENT then
 											return Dim("Two bars track your main-hand and off-hand swing timers. When both weapons swing at the same time (synced), your Flurry haste charges aren't wasted on isolated off-hand hits, and Windfury extra attacks land alongside your normal swings. Bars turn green when synced and red when desynced — meaning one weapon has drifted ahead of the other.") .. "\n"
 										else
 											return Dim("Tracks your melee swing timer — a bar that fills up as your next auto-attack approaches. Auto-hides between pulls.") .. "\n"
 										end
 									elseif class == C.CLASS.WARRIOR then
-										if spec == "FURY" then
-											return Dim("Two bars track your main-hand and off-hand swing timers. You want your weapons desynced — when Heroic Strike is queued, your off-hand's dual-wield miss penalty is removed, but only if the off-hand swings while HS is still queued (not at the same instant the main-hand consumes it). Bars turn green when desynced and red when synced. Use a desync macro if they drift together.") .. "\n"
-										elseif spec == "ARMS" then
+										if spec == C.SPEC.FURY then
+											return Dim("Two bars track your main-hand and off-hand swing timers. When Heroic Strike is queued, your off-hand's dual-wield miss penalty is removed — but MH fire consumes the queued HS. Bars turn red when your off-hand fires right after your main-hand (no time to re-queue HS), and green when there's a comfortable gap. Use a desync macro if they drift together.") .. "\n"
+										elseif spec == C.SPEC.ARMS then
 											return Dim("Tracks your melee swing timer. Slam resets this timer, so for maximum DPS you want to Slam right after a swing lands (when the bar reaches the end and resets). This avoids losing auto-attack time to the Slam cast.") .. "\n"
 										else
 											return Dim("Tracks your melee swing timer — a bar that fills up as your next auto-attack approaches. Auto-hides between pulls.") .. "\n"
@@ -2125,13 +2134,9 @@ function Options:BuildOptionsTable()
 										get = colorGet, set = colorSet, arg = "swingBar.color", order = 3,
 										disabled = function()
 											if not addon.db.profile.swingBar.enabled then return true end
-											local class = addon.playerClass
-											local spec = addon.playerSpec
-											local db = addon.db.profile.swingBar
 											-- Full override: entire bar is zone-colored, base color unused
 											-- Hunter shot zones only override ranged bar; melee still uses base color
-											if (class == C.CLASS.SHAMAN and spec == "ENHANCEMENT") and db.enableSyncColors then return true end
-											if (class == C.CLASS.WARRIOR and spec == "FURY") and db.enableSyncColors then return true end
+											if isDualWieldSyncSpec() and addon.db.profile.swingBar.enableSyncColors then return true end
 											return false
 										end,
 									},
@@ -2156,12 +2161,9 @@ function Options:BuildOptionsTable()
 								order = 5,
 								disabled = function() return not addon.db.profile.swingBar.enabled end,
 								hidden = function()
-									local class = addon.playerClass
-									local spec = addon.playerSpec
-									return class ~= C.CLASS.HUNTER
-										and not (class == C.CLASS.SHAMAN and spec == "ENHANCEMENT")
-										and not (class == C.CLASS.WARRIOR and spec == "FURY")
-										and not (class == C.CLASS.PALADIN and spec == "RETRIBUTION")
+									return addon.playerClass ~= C.CLASS.HUNTER
+										and not isDualWieldSyncSpec()
+										and not isRetPaladin()
 								end,
 								args = {
 									-- Hunter: shot zones
@@ -2171,8 +2173,8 @@ function Options:BuildOptionsTable()
 									hunterDangerColor = { type = "color", name = "Stop Zone (Red)", desc = "Bar color when moving would cancel your auto-shot and Multi-Shot would clip.", hasAlpha = false, get = colorGet, set = colorSet, arg = "swingBar.dangerColor", order = 4, hidden = function() return addon.playerClass ~= C.CLASS.HUNTER end, disabled = function() return not addon.db.profile.swingBar.enableClipZones end },
 
 									-- Ret Paladin: twist window
-									enableTwistWindow = { type = "toggle", name = "Enable Twist Window", desc = "Highlight the last ~0.4 seconds before your melee swing with a different color — your cue to swap seals for seal twisting.", arg = "swingBar.enableTwistWindow", order = 5, width = "full", hidden = function() return not (addon.playerClass == C.CLASS.PALADIN and addon.playerSpec == "RETRIBUTION") end },
-									twistColor = { type = "color", name = "Twist Window Color", desc = "Bar color during the seal twist window.", hasAlpha = false, get = colorGet, set = colorSet, arg = "swingBar.safeColor", order = 6, hidden = function() return not (addon.playerClass == C.CLASS.PALADIN and addon.playerSpec == "RETRIBUTION") end, disabled = function() return not addon.db.profile.swingBar.enableTwistWindow end },
+									enableTwistWindow = { type = "toggle", name = "Enable Twist Window", desc = "Highlight the last ~0.4 seconds before your melee swing with a different color — your cue to swap seals for seal twisting.", arg = "swingBar.enableTwistWindow", order = 5, width = "full", hidden = function() return not isRetPaladin() end },
+									twistColor = { type = "color", name = "Twist Window Color", desc = "Bar color during the seal twist window.", hasAlpha = false, get = colorGet, set = colorSet, arg = "swingBar.safeColor", order = 6, hidden = function() return not isRetPaladin() end, disabled = function() return not addon.db.profile.swingBar.enableTwistWindow end },
 
 									-- Zone opacity (Hunter shot zones + Ret twist window)
 									zoneAlpha = {
@@ -2181,12 +2183,12 @@ function Options:BuildOptionsTable()
 										arg = "swingBar.zoneAlpha", order = 7, isPercent = true,
 										hidden = function()
 											return addon.playerClass ~= C.CLASS.HUNTER
-												and not (addon.playerClass == C.CLASS.PALADIN and addon.playerSpec == "RETRIBUTION")
+												and not isRetPaladin()
 										end,
 										disabled = function()
 											local db = addon.db.profile.swingBar
 											if addon.playerClass == C.CLASS.HUNTER and db.enableClipZones then return false end
-											if addon.playerClass == C.CLASS.PALADIN and addon.playerSpec == "RETRIBUTION" and db.enableTwistWindow then return false end
+											if isRetPaladin() and db.enableTwistWindow then return false end
 											return true
 										end,
 									},
@@ -2199,49 +2201,49 @@ function Options:BuildOptionsTable()
 										type = "toggle", name = "Enable Sync Colors",
 										desc = function()
 											if addon.playerClass == C.CLASS.WARRIOR then
-												return "Color both bars by how well your weapons are desynced. |cffffffffGreen|r when desynced (ideal for Heroic Strike queue), |cffffffffRed|r when synced (off-hand misses the HS hit bonus)."
+												return "Color both bars by your HS re-queue window. |cffffffffGreen|r when there's time to re-queue HS before off-hand fires, |cffffffffRed|r when off-hand fires too soon after main-hand (no time to re-queue)."
 											end
 											return "Color both bars by how well your main-hand and off-hand swings are synced. |cffffffffGreen|r when synced, |cffffffffRed|r when drifted apart."
 										end,
 										arg = "swingBar.enableSyncColors", order = 20, width = "full",
-										hidden = function() return not ((addon.playerClass == C.CLASS.SHAMAN and addon.playerSpec == "ENHANCEMENT") or (addon.playerClass == C.CLASS.WARRIOR and addon.playerSpec == "FURY")) end,
+										hidden = function() return not isDualWieldSyncSpec() end,
 									},
 									syncThreshold = {
 										type = "range", name = "Sync Threshold",
 										desc = function()
 											if addon.playerClass == C.CLASS.WARRIOR then
-												return "How close (in seconds) your swings need to be to count as synced (red). If the bars flicker too often, increase this value."
+												return "If your off-hand fires within this many seconds after your main-hand, bars turn red. Increase if you need more reaction time to re-queue HS."
 											end
 											return "How close (in seconds) your main-hand and off-hand swings need to be to count as synced (green). If the bars flicker between green and red too often, increase this value."
 										end,
 										min = 0.1, max = 2.0, step = 0.05, arg = "swingBar.syncThreshold", order = 21,
-										hidden = function() return not ((addon.playerClass == C.CLASS.SHAMAN and addon.playerSpec == "ENHANCEMENT") or (addon.playerClass == C.CLASS.WARRIOR and addon.playerSpec == "FURY")) or not addon.db.profile.swingBar.enableSyncColors end,
+										hidden = function() return not isDualWieldSyncSpec() or not addon.db.profile.swingBar.enableSyncColors end,
 									},
 									syncSafeColor = {
 										type = "color",
 										name = function()
-											if addon.playerClass == C.CLASS.WARRIOR then return "Desynced Color" end
+											if addon.playerClass == C.CLASS.WARRIOR then return "Safe Color" end
 											return "Synced Color"
 										end,
 										desc = function()
-											if addon.playerClass == C.CLASS.WARRIOR then return "Bar color when your weapons are well-separated (good — HS queue effective)." end
+											if addon.playerClass == C.CLASS.WARRIOR then return "Bar color when you have time to re-queue HS before off-hand fires." end
 											return "Bar color when both weapons are swinging in sync."
 										end,
 										hasAlpha = false, get = colorGet, set = colorSet, arg = "swingBar.safeColor", order = 22,
-										hidden = function() return not ((addon.playerClass == C.CLASS.SHAMAN and addon.playerSpec == "ENHANCEMENT") or (addon.playerClass == C.CLASS.WARRIOR and addon.playerSpec == "FURY")) or not addon.db.profile.swingBar.enableSyncColors end,
+										hidden = function() return not isDualWieldSyncSpec() or not addon.db.profile.swingBar.enableSyncColors end,
 									},
 									syncDangerColor = {
 										type = "color",
 										name = function()
-											if addon.playerClass == C.CLASS.WARRIOR then return "Synced Color" end
+											if addon.playerClass == C.CLASS.WARRIOR then return "Danger Color" end
 											return "Desynced Color"
 										end,
 										desc = function()
-											if addon.playerClass == C.CLASS.WARRIOR then return "Bar color when both weapons are swinging together (bad — HS queue ineffective)." end
+											if addon.playerClass == C.CLASS.WARRIOR then return "Bar color when off-hand fires too soon after main-hand to re-queue HS." end
 											return "Bar color when your weapons have drifted apart."
 										end,
 										hasAlpha = false, get = colorGet, set = colorSet, arg = "swingBar.dangerColor", order = 23,
-										hidden = function() return not ((addon.playerClass == C.CLASS.SHAMAN and addon.playerSpec == "ENHANCEMENT") or (addon.playerClass == C.CLASS.WARRIOR and addon.playerSpec == "FURY")) or not addon.db.profile.swingBar.enableSyncColors end,
+										hidden = function() return not isDualWieldSyncSpec() or not addon.db.profile.swingBar.enableSyncColors end,
 									},
 								},
 							},

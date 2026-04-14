@@ -32,6 +32,13 @@ C.CLASS = {
     DRUID = "DRUID",
 }
 
+C.SPEC = {
+    ARMS = "ARMS",
+    ENHANCEMENT = "ENHANCEMENT",
+    FURY = "FURY",
+    RETRIBUTION = "RETRIBUTION",
+}
+
 -------------------------------------------------------------------------------
 -- Row Setting Values (for per-row feature toggles)
 -------------------------------------------------------------------------------
@@ -495,7 +502,7 @@ C.DEFAULTS = {
             width = 230,
             height = 2,              -- Single weapon bar height (default for most classes)
             classHeight = { HUNTER = 6 },  -- Per-class height overrides
-            specHeight = { RETRIBUTION = 6 },  -- Per-spec height overrides (takes priority over classHeight)
+            specHeight = { [C.SPEC.RETRIBUTION] = 6 },  -- Per-spec height overrides (takes priority over classHeight)
             wandHeight = 2,          -- Single bar height for wand users
             dualWieldHeight = 2,     -- Per-bar height for dual-wield
             dualWieldSpacing = 1,    -- Gap between MH and OH bars
@@ -508,7 +515,7 @@ C.DEFAULTS = {
             safeColor = { r = 0.3, g = 0.9, b = 0.3 },        -- Green
             dangerColor = { r = 0.9, g = 0.2, b = 0.2 },      -- Red
             cautionColor = { r = 0.9, g = 0.8, b = 0.2 },     -- Yellow (Hunter 3-color)
-            syncThreshold = 0.5,     -- Sync threshold (seconds). Enh Shaman: synced=green. Fury Warrior: synced=red (inverted).
+            syncThreshold = 0.5,     -- Sync threshold (seconds). Enh: synced=green. Fury: OH-after-MH within this = red.
             enableSyncColors = true, -- Enhancement/Fury: color bars by sync status
             enableClipZones = true,  -- Hunter: 3-zone bar (green=safe, yellow=Steady clips, red=don't move/Multi clips)
             enableTwistWindow = true, -- Ret Paladin: green zone at end for twist timing

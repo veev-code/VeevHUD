@@ -1,5 +1,13 @@
 # VeevHUD Changelog
 
+## [1.0.201] - 2026-04-14
+
+### Fixed
+- **Fury Warrior: Swing timer sync colors** — The dual-wield swing bar color indicator now correctly accounts for swing *direction*. Previously, it treated any small offset as "synced" (red) regardless of which hand fires first — but what actually matters is whether your off-hand fires right after your main-hand (no time to re-queue Heroic Strike). Bars now show green when there's a comfortable re-queue window and red only when the off-hand fires too soon after the main-hand consumes your queued HS. This also eliminates brief color flicker during swing transitions.
+
+### Changed
+- Spec constants (FURY, ENHANCEMENT, ARMS, RETRIBUTION) are now centralized alongside class constants for consistency.
+
 ## [1.0.200] - 2026-04-11
 
 ### Added
