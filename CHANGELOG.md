@@ -1,5 +1,13 @@
 # VeevHUD Changelog
 
+## [1.0.203] - 2026-04-27
+
+### Changed
+- **Buff Reminders: Click to Cast now off by default** — Click to Cast is now opt-in (Buff Reminders > Behavior). When enabled, reminder icons block right-click camera rotation and cannot reposition during combat — both resolve when combat ends. Click-to-cast is automatically disabled during combat to minimize interference.
+
+### Fixed
+- **Buff Reminders: Ghost tooltips on fading icons** — Hovering over the area where a buff reminder was previously displayed no longer shows a stale tooltip. Tooltips now only appear on actively visible icons.
+
 ## [1.0.202] - 2026-04-27
 
 ### Added

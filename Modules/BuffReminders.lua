@@ -438,8 +438,8 @@ function BuffReminders:CreateFrames(parent)
     -- Register events for immediate response (throttled to once per frame)
     self.Events:RegisterEvent(self, "UNIT_AURA", self.OnUnitAura)
     self.Events:RegisterEvent(self, "GROUP_ROSTER_UPDATE", self.OnGroupChanged)
-    self.Events:RegisterEvent(self, "PLAYER_REGEN_DISABLED", self.OnCombatChanged)
-    self.Events:RegisterEvent(self, "PLAYER_REGEN_ENABLED", self.OnCombatChanged)
+    self.Events:RegisterEvent(self, "PLAYER_REGEN_DISABLED", self.OnCombatStart)
+    self.Events:RegisterEvent(self, "PLAYER_REGEN_ENABLED", self.OnCombatEnd)
     self.Events:RegisterEvent(self, "PLAYER_UPDATE_RESTING", self.OnRestingChanged)
     self.Events:RegisterEvent(self, "SPELLS_CHANGED", self.OnSpellsChanged)
     -- Bag changes drive CREATES_CONSUMABLE reminders (Conjure Mana Gem, Healthstone).
@@ -576,6 +576,9 @@ local function SetupAnimations(frame)
     finishGroup:SetScript("OnFinished", function()
         frame:SetScale(1)
         frame:SetAlpha(0)
+        if GameTooltip:GetOwner() == frame then
+            GameTooltip:Hide()
+        end
         -- frame is the visual child; hide the positioning parent
         local posFrame = frame:GetParent()
         posFrame:Hide()
@@ -678,11 +681,13 @@ function BuffReminders:GetOrCreateIcon(key)
     local textContainer = frame.textContainer
 
     -- Click-to-cast setup
-    visual:RegisterForClicks("AnyUp", "AnyDown")
+    visual:RegisterForClicks("LeftButtonUp", "LeftButtonDown")
     visual:EnableMouse(db.clickToCast)
-    visual:SetAttribute("unit", "player")
+    if not InCombatLockdown() then
+        visual:SetAttribute("unit", "player")
+    end
     visual:SetScript("OnEnter", function(btn)
-        if btn._brCastSpellID then
+        if btn._brCastSpellID and btn._brVisible then
             GameTooltip:SetOwner(btn, "ANCHOR_TOP")
             GameTooltip:SetSpellByID(btn._brCastSpellID)
             GameTooltip:AddLine("Click to cast", 0.5, 0.8, 1.0)
@@ -1570,6 +1575,9 @@ function BuffReminders:UpdateVisibleIcons(alertList)
 
         -- Set click-to-cast spell attribute (secure attributes require out-of-combat)
         if canSetAttributes then
+            if not v:GetAttribute("unit") then
+                v:SetAttribute("unit", "player")
+            end
             local castSpellID
             if alert.key then
                 -- Weapon enchant: only castable for spell-based enchants (not item-based poisons)
@@ -1678,7 +1686,23 @@ function BuffReminders:OnGroupChanged()
     self:ThrottledUpdate()
 end
 
-function BuffReminders:OnCombatChanged()
+function BuffReminders:OnCombatStart()
+    for _, frame in pairs(self.iconPool) do
+        if frame.visual then
+            frame.visual:EnableMouse(false)
+        end
+    end
+    self:ThrottledUpdate()
+end
+
+function BuffReminders:OnCombatEnd()
+    if addon.db.profile.buffReminders.clickToCast then
+        for _, frame in pairs(self.iconPool) do
+            if frame.visual then
+                frame.visual:EnableMouse(true)
+            end
+        end
+    end
     self:ThrottledUpdate()
 end
 

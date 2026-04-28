@@ -4254,7 +4254,7 @@ function Options:BuildBuffRemindersOptions()
 							clickToCast = {
 								type = "toggle",
 								name = "Click to Cast",
-								desc = "Click on a buff reminder icon to cast the missing buff. Hover over an icon to see a tooltip with spell details.",
+								desc = "Click on a buff reminder icon to cast the missing buff. Hover to see spell details.\n\nNote: When enabled, reminder icons block right-click camera rotation in their area, and icons cannot reposition during combat. Both resolve when combat ends. Disabled during combat automatically.",
 								arg = "buffReminders.clickToCast",
 								order = 6,
 							},
