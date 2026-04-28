@@ -101,6 +101,9 @@ function SlashCommands:HandleCommand(msg)
     elseif cmd == "check" then
         self:CheckSpell(args[2])
 
+    elseif cmd == "reminder" or cmd == "reminders" then
+        self:CheckReminders()
+
     elseif cmd == "layout" then
         if addon.Layout and addon.Layout.PrintDebug then
             addon.Layout:PrintDebug()
@@ -125,6 +128,7 @@ function SlashCommands:ShowHelp()
     print("  /vh spec - Show detected spec")
     print("  /vh scan - Force rescan spells")
     print("  /vh check <id> - Diagnose why a spell isn't showing")
+    print("  /vh reminder - Diagnose buff reminders")
     print("  /vh layout - Debug layout system positions")
     print("  /vh log [n] - Show log entries")
     print("  /vh debug - Toggle debug mode")
@@ -440,6 +444,78 @@ function SlashCommands:CheckSpell(spellIDStr)
         for _, buffID in ipairs(spellData.appliesBuff) do
             local buffName = GetSpellInfo(buffID) or "?"
             print(string.format("    Buff %d: %s", buffID, buffName))
+        end
+    end
+end
+
+function SlashCommands:CheckReminders()
+    local br = addon:GetModule("BuffReminders")
+    if not br or not br.initialized then
+        addon.Utils:Print("BuffReminders not initialized.")
+        return
+    end
+
+    local LibSpellDB = addon.LibSpellDB
+    print("|cff00ff00Buff Reminder Diagnostics:|r")
+    print("  Reminders in list: " .. #br.reminders)
+    print("  Visible icons: " .. #br.visibleIcons)
+    print("  In combat: " .. tostring(UnitAffectingCombat("player")))
+    print("  Resting: " .. tostring(IsResting()))
+
+    for _, reminder in ipairs(br.reminders) do
+        local sid = reminder.spellID
+        local name = GetSpellInfo(sid) or tostring(sid)
+        local config = br:GetSpellConfig(sid)
+        if not config then
+            print(string.format("  |cffff0000%s|r (%d): no config (nil defaults)", name, sid))
+        elseif not config.enabled then
+            print(string.format("  |cff888888%s|r (%d): disabled", name, sid))
+        else
+            local groupName = reminder.buffGroup
+            local groupSpells = nil
+            if groupName then
+                local gi = LibSpellDB.BuffGroups[groupName]
+                if gi then groupSpells = gi.spells end
+            end
+
+            -- Find active spell (mirrors ShouldRemind logic)
+            local activeID = sid
+            if groupSpells then
+                local firstKnown
+                for _, gid in ipairs(groupSpells) do
+                    local hr = LibSpellDB:GetHighestKnownRank(gid)
+                    if hr and LibSpellDB:PlayerKnowsSpell(hr) then
+                        if not firstKnown then firstKnown = gid end
+                        if IsUsableSpell(hr) then
+                            activeID = gid
+                            break
+                        end
+                    end
+                end
+                if not activeID or activeID == sid then
+                    activeID = firstKnown or sid
+                end
+            end
+
+            local hr = LibSpellDB:GetHighestKnownRank(activeID)
+            local known = hr and LibSpellDB:PlayerKnowsSpell(hr)
+            local usable, noRes = false, false
+            if hr then usable, noRes = IsUsableSpell(hr) end
+            local buffFound = false
+            if groupSpells then
+                buffFound = br:IsBuffGroupOnUnit("player", groupSpells)
+            else
+                buffFound = br:IsBuffOnUnit("player", sid)
+            end
+
+            local shouldRemind = br:ShouldRemind(reminder)
+            local color = shouldRemind and "|cff00ff00" or "|cffff0000"
+            print(string.format("  %s%s|r (%d): shouldRemind=%s activeID=%d hr=%s known=%s usable=%s noRes=%s buffOn=%s combat=%s",
+                color, name, sid,
+                tostring(shouldRemind and true or false),
+                activeID, tostring(hr), tostring(known),
+                tostring(usable), tostring(noRes),
+                tostring(buffFound), config.combatState or "any"))
         end
     end
 end

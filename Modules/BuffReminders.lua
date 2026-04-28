@@ -147,7 +147,7 @@ function BuffReminders:GetSpellDefaults(spellID)
         local groupInfo = LibSpellDB.BuffGroups[spellData.buffGroup]
         if groupInfo and groupInfo.excludeIfKnown then
             for _, excludeID in ipairs(groupInfo.excludeIfKnown) do
-                if IsSpellKnown(excludeID) then
+                if self.LibSpellDB:PlayerKnowsSpell(excludeID) then
                     defaults.enabled = false
                     break
                 end
@@ -379,7 +379,7 @@ function BuffReminders:BuildReminderList()
         -- Computed once at build time (rebuilds on SPELLS_CHANGED).
         local highestKnownLevel  -- nil when no ranked consumable is known
         for _, cData in pairs(createsConsumable) do
-            if cData.requiredLevel and IsSpellKnown(cData.spellID) then
+            if cData.requiredLevel and self.LibSpellDB:PlayerKnowsSpell(cData.spellID) then
                 highestKnownLevel = math.max(highestKnownLevel or 0, cData.requiredLevel)
             end
         end
@@ -617,7 +617,11 @@ local function AnimAppear(frame)
     v._brVisible = false
     v:SetAlpha(0)
     frame:Show()
-    v:Show()
+    -- visual is a SecureActionButton; Show() is blocked during combat lockdown.
+    -- The visual is never explicitly hidden, so this is defensive only.
+    if not InCombatLockdown() then
+        v:Show()
+    end
     v._brStartGroup:Play()
 end
 
@@ -664,15 +668,30 @@ function BuffReminders:GetOrCreateIcon(key)
     local db = addon.db.profile.buffReminders
     local iconSize = db.iconSize
 
-    -- Create wrapper+visual+textContainer via shared factory
     local buttonName = "VeevHUDBuff" .. self.iconCounter
     self.iconCounter = self.iconCounter + 1
-    local frame = self.Utils:CreateWrapperIcon(self.containerFrame, buttonName, iconSize, iconSize)
+    local frame = self.Utils:CreateWrapperIcon(self.containerFrame, buttonName, iconSize, iconSize, "SecureActionButtonTemplate")
     frame:SetFrameStrata("MEDIUM")
     frame:SetFrameLevel(20)
 
     local visual = frame.visual
     local textContainer = frame.textContainer
+
+    -- Click-to-cast setup
+    visual:RegisterForClicks("AnyUp", "AnyDown")
+    visual:EnableMouse(db.clickToCast)
+    visual:SetAttribute("unit", "player")
+    visual:SetScript("OnEnter", function(btn)
+        if btn._brCastSpellID then
+            GameTooltip:SetOwner(btn, "ANCHOR_TOP")
+            GameTooltip:SetSpellByID(btn._brCastSpellID)
+            GameTooltip:AddLine("Click to cast", 0.5, 0.8, 1.0)
+            GameTooltip:Show()
+        end
+    end)
+    visual:SetScript("OnLeave", function()
+        GameTooltip:Hide()
+    end)
 
     -- Register with Masque if available
     if self.MasqueGroup then
@@ -717,6 +736,16 @@ function BuffReminders:GetOrCreateIcon(key)
 
     self.iconPool[key] = frame
     return frame
+end
+
+function BuffReminders:UpdateClickToCast()
+    if InCombatLockdown() then return end
+    local clickable = addon.db.profile.buffReminders.clickToCast
+    for _, frame in pairs(self.iconPool) do
+        if frame.visual then
+            frame.visual:EnableMouse(clickable)
+        end
+    end
 end
 
 -- Apply full texcoords to all buff reminder icons (no icon zoom — they're alerts, not ability icons).
@@ -946,7 +975,7 @@ function BuffReminders:ShouldRemind(reminder)
     if reminder.buffGroup then
         local groupInfo = self.LibSpellDB.BuffGroups[reminder.buffGroup]
         if groupInfo and groupInfo.talentGate then
-            if not IsSpellKnown(groupInfo.talentGate) then
+            if not self.LibSpellDB:PlayerKnowsSpell(groupInfo.talentGate) then
                 self.Utils:LogDebug("BuffReminders: " .. reminder.buffGroup .. " - talent gate " .. groupInfo.talentGate .. " not known")
                 return false
             end
@@ -978,7 +1007,7 @@ function BuffReminders:ShouldRemind(reminder)
                 local firstKnown = nil
                 for _, gSpellID in ipairs(groupSpells) do
                     local hr = self.LibSpellDB:GetHighestKnownRank(gSpellID)
-                    if hr and IsSpellKnown(hr) then
+                    if hr and self.LibSpellDB:PlayerKnowsSpell(hr) then
                         if not firstKnown then
                             firstKnown = gSpellID
                         end
@@ -1011,7 +1040,7 @@ function BuffReminders:ShouldRemind(reminder)
         self.Utils:LogDebug("BuffReminders: " .. (spellData.name or spellID) .. " - no highest rank found")
         return false
     end
-    if not IsSpellKnown(highestRank) then
+    if not self.LibSpellDB:PlayerKnowsSpell(highestRank) then
         self.Utils:LogDebug("BuffReminders: " .. (spellData.name or spellID) .. " - not known (rank " .. highestRank .. ")")
         return false
     end
@@ -1429,7 +1458,7 @@ function BuffReminders:GetBestSpellForGroup(groupName, defaultSpellID)
                     local at = self.LibSpellDB:GetAuraTarget(gSpellID)
                     if at == "none" then
                         -- "none" = raid-wide version
-                        if IsSpellKnown(self.LibSpellDB:GetHighestKnownRank(gSpellID)) then
+                        if self.LibSpellDB:PlayerKnowsSpell(self.LibSpellDB:GetHighestKnownRank(gSpellID)) then
                             return gSpellID
                         end
                     end
@@ -1439,7 +1468,7 @@ function BuffReminders:GetBestSpellForGroup(groupName, defaultSpellID)
         -- Fall back to single-target version
         for _, gSpellID in ipairs(groupInfo.spells) do
             local hr = self.LibSpellDB:GetHighestKnownRank(gSpellID)
-            if hr and IsSpellKnown(hr) then
+            if hr and self.LibSpellDB:PlayerKnowsSpell(hr) then
                 return gSpellID
             end
         end
@@ -1457,7 +1486,7 @@ function BuffReminders:GetBestSpellForGroup(groupName, defaultSpellID)
                 local cfg = specConfig[gSpellID]
                 if cfg and cfg.priority then
                     local hr = self.LibSpellDB:GetHighestKnownRank(cfg.priority)
-                    if hr and IsSpellKnown(hr) then
+                    if hr and self.LibSpellDB:PlayerKnowsSpell(hr) then
                         prioritySpellID = cfg.priority
                         break
                     end
@@ -1473,7 +1502,7 @@ function BuffReminders:GetBestSpellForGroup(groupName, defaultSpellID)
         -- Otherwise find any uncovered spell; fall back to priority or group default
         for _, gSpellID in ipairs(groupInfo.spells) do
             local hr = self.LibSpellDB:GetHighestKnownRank(gSpellID)
-            if hr and IsSpellKnown(hr) then
+            if hr and self.LibSpellDB:PlayerKnowsSpell(hr) then
                 if not self:IsBuffOnUnit("player", gSpellID) then
                     return gSpellID
                 end
@@ -1516,6 +1545,7 @@ function BuffReminders:UpdateVisibleIcons(alertList)
 
     -- Create/update icons for each alert, keyed so each alert
     -- gets a stable frame that persists across updates
+    local canSetAttributes = not InCombatLockdown()
     for i, alert in ipairs(alertList) do
         local alertKey = alert.key or alert.spellID
         local frame = self:GetOrCreateIcon(alertKey)
@@ -1527,12 +1557,44 @@ function BuffReminders:UpdateVisibleIcons(alertList)
 
         -- Set icon texture: weapon enchant alerts use the weapon's inventory icon,
         -- normal alerts use the spell icon
+        local displaySpellName
         if alert.iconOverride then
             frame.icon:SetTexture(alert.iconOverride)
         else
-            local _, _, spellIcon = GetSpellInfo(alert.displaySpellID)
+            local spellIcon
+            displaySpellName, _, spellIcon = GetSpellInfo(alert.displaySpellID)
             if spellIcon then
                 frame.icon:SetTexture(spellIcon)
+            end
+        end
+
+        -- Set click-to-cast spell attribute (secure attributes require out-of-combat)
+        if canSetAttributes then
+            local castSpellID
+            if alert.key then
+                -- Weapon enchant: only castable for spell-based enchants (not item-based poisons)
+                local groupInfo = alert.reminder and alert.reminder.buffGroup
+                    and self.LibSpellDB.BuffGroups[alert.reminder.buffGroup]
+                if groupInfo and not groupInfo.itemBased then
+                    castSpellID = self.LibSpellDB:GetHighestKnownRank(alert.spellID)
+                end
+            else
+                castSpellID = alert.displaySpellID
+            end
+
+            if castSpellID ~= v._brCastSpellID then
+                if castSpellID then
+                    local castSpellName = (castSpellID == alert.displaySpellID) and displaySpellName or GetSpellInfo(castSpellID)
+                    if castSpellName then
+                        v:SetAttribute("type1", "spell")
+                        v:SetAttribute("spell1", castSpellName)
+                        v._brCastSpellID = castSpellID
+                    end
+                else
+                    v:SetAttribute("type1", nil)
+                    v:SetAttribute("spell1", nil)
+                    v._brCastSpellID = nil
+                end
             end
         end
 
@@ -1725,9 +1787,10 @@ end
 
 function BuffReminders:Refresh()
     if not self.initialized then return end
-    
+
     self:BuildReminderList()
     self:UpdateIconSize()
+    self:UpdateClickToCast()
     self:UpdatePosition()
     self:UpdateAlpha()
 

@@ -4251,6 +4251,13 @@ function Options:BuildBuffRemindersOptions()
 								arg = "buffReminders.slideAnimation",
 								order = 5,
 							},
+							clickToCast = {
+								type = "toggle",
+								name = "Click to Cast",
+								desc = "Click on a buff reminder icon to cast the missing buff. Hover over an icon to see a tooltip with spell details.",
+								arg = "buffReminders.clickToCast",
+								order = 6,
+							},
 						},
 					},
 					soundGroup = {

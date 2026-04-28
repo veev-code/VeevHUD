@@ -554,13 +554,13 @@ end
 --   wrapper.textContainer  — Frame on wrapper (for duration/stacks text)
 --   visual.Icon            — Masque reference to icon texture
 --   visual.NormalTexture   — Masque reference to normal texture
-function Utils:CreateWrapperIcon(parent, buttonName, width, height)
+function Utils:CreateWrapperIcon(parent, buttonName, width, height, template)
     -- Wrapper frame: positioning target (slide/layout operates here)
     local wrapper = CreateFrame("Frame", nil, parent)
     wrapper:SetSize(width, height)
 
     -- Visual frame: Button for Masque, centered so SetScale doesn't shift position
-    local visual = CreateFrame("Button", buttonName, wrapper)
+    local visual = CreateFrame("Button", buttonName, wrapper, template)
     visual:SetSize(width, height)
     visual:SetPoint("CENTER")
     visual:EnableMouse(false)

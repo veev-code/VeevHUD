@@ -1,5 +1,19 @@
 # VeevHUD Changelog
 
+## [1.0.202] - 2026-04-27
+
+### Added
+- **Buff Reminders: Click to Cast** — Buff reminder icons are now clickable. Click a reminder to cast the missing buff directly. Hover to see the spell tooltip. Configurable via Buff Reminders > Behavior > Click to Cast. *(Zeeyaz)*
+- **`/vh reminder` diagnostic** — New slash command that prints detailed buff reminder status for each tracked spell, including known/usable state, buff group resolution, and combat state defaults. Useful for troubleshooting missing reminders.
+
+### Fixed
+- **Buff Reminders: Divine Spirit not appearing** — Fixed an issue where Divine Spirit (and potentially other talent-learned buffs) could silently fail to appear as a reminder. The root cause was twofold: a missing spell rank (Rank 5, ID 25312) in the spell database, and `IsSpellKnown` returning false for talent-learned spells in Anniversary Edition. Buff reminders now use `IsPlayerSpell` as a fallback for reliable talent spell detection.
+
+### LibSpellDB Updates
+- **`PlayerKnowsSpell(spellID)` API** — New function that checks both `IsSpellKnown` and `IsPlayerSpell`, working around an Anniversary Edition quirk where `IsSpellKnown` returns false for talent-learned spells.
+- **Priest: Divine Spirit** — Added missing Rank 5 (spell ID 25312).
+- **Priest: Prayer of Spirit** — Removed incorrect rank (spell ID 32999) that caused false positive spell detection and suppressed the Divine Spirit reminder when Sacred Candles were missing.
+
 ## [1.0.201] - 2026-04-14
 
 ### Fixed
