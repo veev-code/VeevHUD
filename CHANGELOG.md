@@ -1,5 +1,10 @@
 # VeevHUD Changelog
 
+## [1.0.204] - 2026-04-30
+
+### Removed
+- **Buff Reminders: Click to Cast** — Temporarily reverted due to taint issues causing `ADDON_ACTION_BLOCKED` errors on the main HUD frame and buff reminder container during combat. The `SecureActionButtonTemplate` used for clickable reminders spread secure-frame restrictions to parent frames, blocking legitimate `Show()`/`Hide()` calls. This also caused spells to get stuck and become uncastable after the first click. The feature will return in a future release once the taint propagation is resolved. *(Thanks Pekar, Zeeyaz for reporting)*
+
 ## [1.0.201] - 2026-04-14
 
 ### Fixed
