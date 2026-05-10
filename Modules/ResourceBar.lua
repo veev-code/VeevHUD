@@ -20,7 +20,9 @@ addon:RegisterModule("ResourceBar", ResourceBar)
 -- These are the only spells that can be queued without firing UNIT_SPELLCAST_START,
 -- so they're the only ones we need to poll via IsCurrentSpell.
 -- Casting/channeling spells are already tracked by spellID from their events.
-local NEXT_MELEE_SPELLS = {}
+-- Maps each rankID -> base spellID so we can identify which queueable spell is active
+-- (rage highlight uses this to pick the right queue color).
+local NEXT_MELEE_RANKS = {}
 do
     local LibSpellDB = LibStub and LibStub("LibSpellDB-1.0", true)
     if LibSpellDB then
@@ -28,7 +30,7 @@ do
         for spellID in pairs(tagged) do
             local allRanks = LibSpellDB:GetAllRankIDs(spellID)
             for rankID in pairs(allRanks) do
-                NEXT_MELEE_SPELLS[rankID] = true
+                NEXT_MELEE_RANKS[rankID] = spellID
             end
         end
     end
@@ -782,7 +784,7 @@ function ResourceBar:CreateCostOverlay(bar)
     -- Color is set by UpdateCostOverlayColor (called from UpdatePowerType)
 end
 
--- Returns the current resolved bar color (accounts for Innervate override)
+-- Returns the current resolved bar color (accounts for Innervate, rage highlight overrides)
 -- Innervate only highlights the mana bar — for feral druids, the druid mana bar
 -- handles this via UpdateDruidManaBarColor instead.
 function ResourceBar:GetBarColor()
@@ -792,12 +794,69 @@ function ResourceBar:GetBarColor()
        and self.powerType == self.C.POWER_TYPE.MANA then
         local c = db.innervateHighlight.color
         return c.r, c.g, c.b
-    elseif db.powerColor then
+    end
+
+    if db.rageHighlight.enabled and self.powerType == self.C.POWER_TYPE.RAGE then
+        local r, g, b = self:GetRageHighlightColor()
+        if r then return r, g, b end
+    end
+
+    if db.powerColor then
         return self.Utils:GetPowerColor(self.powerType)
-    else
-        local c = db.color
+    end
+    local c = db.color
+    return c.r, c.g, c.b
+end
+
+-- Resolve the queue-override color for a SWING_RESET spell.
+-- Default heuristic: AOE-tagged spells (Cleave) get queueColorAoe, others queueColorDefault.
+-- Per-spell user overrides win over the heuristic.
+function ResourceBar:ResolveQueueColor(spellID)
+    local rh = addon.db.profile.resourceBar.rageHighlight
+    local user = rh.queueColors[spellID]
+    if user then return user.r, user.g, user.b end
+    local lib = addon.LibSpellDB
+    if lib and lib:HasTag(spellID, "AOE") then
+        local c = rh.queueColorAoe
         return c.r, c.g, c.b
     end
+    local c = rh.queueColorDefault
+    return c.r, c.g, c.b
+end
+
+-- Returns r, g, b for the rage highlight (queue wins over threshold), or nil to fall through.
+function ResourceBar:GetRageHighlightColor()
+    local rh = addon.db.profile.resourceBar.rageHighlight
+
+    if rh.queueEnabled and self.queuedRankID then
+        local baseSpellID = NEXT_MELEE_RANKS[self.queuedRankID]
+        if baseSpellID then return self:ResolveQueueColor(baseSpellID) end
+    end
+
+    if rh.thresholdEnabled then
+        local rage = UnitPower("player", self.C.POWER_TYPE.RAGE)
+        local c
+        if rage < rh.lowThreshold then c = rh.lowColor
+        elseif rage < rh.highThreshold then c = rh.midColor
+        else c = rh.highColor end
+        return c.r, c.g, c.b
+    end
+
+    return nil
+end
+
+-- True when bar color depends on per-tick state (rage value or queued spell).
+-- When false, color only changes on power-type / Innervate transitions.
+function ResourceBar:IsDynamicColorActive()
+    local db = addon.db.profile.resourceBar
+    return db.rageHighlight.enabled and self.powerType == self.C.POWER_TYPE.RAGE
+end
+
+-- Refresh derived UI after a state change that affects cost overlay or bar color
+-- (cast/channel start-end, queued ability changes).
+function ResourceBar:RefreshAfterStateChange()
+    self:UpdateCostOverlay()
+    if self:IsDynamicColorActive() then self:UpdateBarColor() end
 end
 
 -- Update overlay color to match the current bar color (darkened)
@@ -817,29 +876,29 @@ end
 function ResourceBar:OnCastStart(event, unit, castGUID, spellID)
     if unit ~= "player" then return end
     self.castingSpellID = spellID
-    self:UpdateCostOverlay()
+    self:RefreshAfterStateChange()
 end
 
 function ResourceBar:OnCastEnd(event, unit)
     if unit ~= "player" then return end
     self.castingSpellID = nil
-    self:UpdateCostOverlay()
+    self:RefreshAfterStateChange()
 end
 
 function ResourceBar:OnChannelStart(event, unit, castGUID, spellID)
     if unit ~= "player" then return end
     self.channelingSpellID = spellID
-    self:UpdateCostOverlay()
+    self:RefreshAfterStateChange()
 end
 
 function ResourceBar:OnChannelEnd(event, unit)
     if unit ~= "player" then return end
     self.channelingSpellID = nil
-    self:UpdateCostOverlay()
+    self:RefreshAfterStateChange()
 end
 
 function ResourceBar:OnCurrentSpellChanged()
-    self:UpdateCostOverlay()
+    self:RefreshAfterStateChange()
 end
 
 -------------------------------------------------------------------------------
@@ -890,19 +949,30 @@ function ResourceBar:GetSpellResourceCost(spellID)
     return 0
 end
 
+-- Poll for a queued "next melee" ability and cache the rankID.
+-- Slam is in SWING_RESET but is a cast — skipped via the castingSpellID guard so
+-- it isn't treated as queued during its cast.
+function ResourceBar:UpdateQueuedSpell()
+    self.queuedRankID = nil
+    if not IsCurrentSpell then return end
+
+    for rankID in pairs(NEXT_MELEE_RANKS) do
+        if IsCurrentSpell(rankID) and rankID ~= self.castingSpellID and rankID ~= self.channelingSpellID then
+            self.queuedRankID = rankID
+            return
+        end
+    end
+end
+
 -- Find queued "next melee" abilities and return their combined cost.
 -- Only SWING_RESET spells (Heroic Strike, Cleave, Maul, etc.) need polling here —
 -- they queue onto the next swing without firing UNIT_SPELLCAST_START, so we don't
 -- get the spellID from an event. All other spells are already captured by
 -- castingSpellID/channelingSpellID via their cast/channel events.
 function ResourceBar:GetQueuedSpellCost()
-    if not IsCurrentSpell then return 0 end
-
-    for rankID in pairs(NEXT_MELEE_SPELLS) do
-        -- Skip spells already counted as casting/channeling (Slam is both SWING_RESET and a cast)
-        if IsCurrentSpell(rankID) and rankID ~= self.castingSpellID and rankID ~= self.channelingSpellID then
-            return self:GetSpellResourceCost(rankID)
-        end
+    self:UpdateQueuedSpell()
+    if self.queuedRankID then
+        return self:GetSpellResourceCost(self.queuedRankID)
     end
     return 0
 end
@@ -1063,6 +1133,10 @@ function ResourceBar:UpdateBar()
         self.text:SetText(self.Utils:FormatBarText(power, maxPower, percent, db.textFormat, db.numberFormat))
     elseif self.text then
         self.text:SetText("")
+    end
+
+    if self:IsDynamicColorActive() then
+        self:UpdateBarColor()
     end
 
     -- Update cost overlay position (power level changed, so the overlay section shifts)

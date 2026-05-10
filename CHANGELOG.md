@@ -1,5 +1,15 @@
 # VeevHUD Changelog
 
+## [1.0.205] - 2026-05-09
+
+### Added
+- **Rage Bar Coloring** (Warriors / Druids) — Resource bar can now recolor based on current rage and queued abilities. Three threshold tiers (low / mid / high, with configurable cutoffs) flag rage cap risk at a glance, and a queue override paints the bar with a per-ability color when a swing-reset ability (Heroic Strike, Cleave, Maul) is loaded onto your next swing. Off by default — enable in Settings > Bars > Resource Bar > Rage Highlight. *(zearp)*
+- **Soulstone Buff Reminder** (Warlocks) — Buff Reminders now alerts when no raid member has an active Soulstone. The reminder respects the item cooldown — once a Soulstone is consumed, the reminder waits out the 15-minute lockout instead of nagging immediately. If you have a Soulstone in your bag but no active buff, the reminder fires even with no Soul Shard reagent (the existing item is enough to apply). Defaults to raid-wide tracking since only one Soulstone can be active at a time. *(ChaosEternal)*
+
+### LibSpellDB Updates
+- New `defaultTrackTarget` spell field for ally-only buffs that prefer raid/party tracking over self.
+- Soulstone tagged `LONG_BUFF` and declares `defaultTrackTarget = "raid"`.
+
 ## [1.0.204] - 2026-04-30
 
 ### Removed

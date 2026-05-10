@@ -31,6 +31,13 @@ local TRACK_TARGET = {
     RAID = "raid",
 }
 
+-- LibSpellDB `defaultTrackTarget` (raw string) → TRACK_TARGET enum
+local DEFAULT_TRACK_TARGET = {
+    raid = TRACK_TARGET.RAID,
+    party = TRACK_TARGET.PARTY,
+    player = TRACK_TARGET.PLAYER,
+}
+
 -- Split mode constants for mixed-target exclusive groups
 local SPLIT_MODE = {
     SELF = "self",   -- Self-target spells (Water Shield, Lightning Shield)
@@ -220,6 +227,13 @@ function BuffReminders:GetSpellDefaults(spellID)
         end
     end
 
+    -- Explicit per-spell default override from LibSpellDB. Used for ally-target
+    -- buffs where player-self tracking is meaningless (e.g., Soulstone — only
+    -- one exists raid-wide, so raid is the only meaningful default).
+    if defaults.groupTrackable and spellData.defaultTrackTarget then
+        defaults.trackTarget = DEFAULT_TRACK_TARGET[spellData.defaultTrackTarget] or defaults.trackTarget
+    end
+
     -- Stacks for charge-based spells
     -- Inner Fire has 20 charges, Water Shield has 3 charges
     -- We don't set a default minStacks - user can configure it
@@ -290,6 +304,7 @@ end
 function BuffReminders:BuildReminderList()
     wipe(self.reminders)
     self._highestConsumable = {}  -- spellID -> true for the highest-known CREATES_CONSUMABLE rank
+    self._buffNameSetCache = nil  -- invalidate on rebuild; spell names may have just become resolvable
     self.hasAllySplit = false
 
     if not self.LibSpellDB then return end
@@ -799,20 +814,50 @@ end
 -- Buff Checking Logic
 -------------------------------------------------------------------------------
 
+-- Build the set of buff names to match for a spell. For spells with appliesBuff
+-- (e.g., Soulstone — cast name "Create Soulstone" differs from buff name
+-- "Soulstone Resurrection"), the set is the union of cast name + every
+-- appliesBuff name. Cached per spellID since the result is deterministic and
+-- this is called up to 40×/tick from CheckBuffOnGroup.
+function BuffReminders:GetBuffNameSet(spellID)
+    local cache = self._buffNameSetCache
+    if not cache then
+        cache = {}
+        self._buffNameSetCache = cache
+    end
+    local nameSet = cache[spellID]
+    if nameSet ~= nil then return nameSet end
+
+    nameSet = {}
+    local castName = GetSpellInfo(spellID)
+    if castName then nameSet[castName] = true end
+
+    local spellData = self.LibSpellDB:GetSpellInfo(spellID)
+    if spellData and spellData.appliesBuff then
+        for _, buffID in ipairs(spellData.appliesBuff) do
+            local buffName = GetSpellInfo(buffID)
+            if buffName then nameSet[buffName] = true end
+        end
+    end
+
+    cache[spellID] = nameSet
+    return nameSet
+end
+
 -- Check if a buff (by name) is present on a unit
 -- playerOnly: if true, only match buffs where source == "player"
 function BuffReminders:IsBuffOnUnit(unit, spellID, playerOnly)
     if not UnitExists(unit) then return false, 0, 0 end
 
-    local spellName = GetSpellInfo(spellID)
-    if not spellName then return false, 0, 0 end
+    local nameSet = self:GetBuffNameSet(spellID)
+    if not next(nameSet) then return false, 0, 0 end
 
     -- Also check all rank names (they share the same name)
     for i = 1, 40 do
         local name, _, count, _, duration, expirationTime, source = UnitBuff(unit, i)
         if not name then break end
 
-        if name == spellName then
+        if nameSet[name] then
             if playerOnly and source ~= "player" then
                 -- Buff exists but not from player, keep searching
             else
@@ -1016,17 +1061,38 @@ function BuffReminders:ShouldRemind(reminder)
         return false
     end
     
-    -- Check if spell is usable (has enough resources, correct form, etc.)
-    local isUsable, notEnoughResources = IsUsableSpell(highestRank)
-    if not isUsable then
-        -- If only lacking resources, optionally still show the reminder
-        local db = addon.db.profile.buffReminders
-        if notEnoughResources and not db.respectResourceCost then
-            -- Spell is known and valid, just can't afford it right now — still remind
-        else
-            self.Utils:LogDebug("BuffReminders: " .. (spellData.name or spellID) .. " - not usable (rank " .. highestRank .. ", noResources=" .. tostring(notEnoughResources) .. ")")
+    -- Item-applied ally buff (e.g., Soulstone): the buff is applied by USING
+    -- the created item, not by the cast itself. Item cooldown gates re-application;
+    -- having the item in bag bypasses the reagent requirement; no item AND no
+    -- reagent means nothing to act on (suppress regardless of respectResourceCost).
+    local hasItemAppliedBuff = spellData.cooldownItemIDs
+        and spellData.appliesBuff
+        and spellData.itemCooldown
+        and self.LibSpellDB:GetAuraTarget(spellID) == "ally"
+
+    local hasItemInBag = false
+    if hasItemAppliedBuff then
+        local cdRemaining = self.LibSpellDB:GetItemCooldown(spellID)
+        if cdRemaining and cdRemaining > 0 then
+            self.Utils:LogDebug("BuffReminders: " .. (spellData.name or spellID) .. " - item on cooldown (" .. string.format("%.1f", cdRemaining) .. "s)")
             return false
         end
+        if self._bagDirty or reminder._cachedItemCount == nil then
+            reminder._cachedItemCount = self.LibSpellDB:GetCreatedItemCount(spellID)
+        end
+        hasItemInBag = (reminder._cachedItemCount or 0) > 0
+    end
+
+    -- Check if spell is usable (has enough resources, correct form, etc.)
+    local isUsable, notEnoughResources = IsUsableSpell(highestRank)
+    local db = addon.db.profile.buffReminders
+    if isUsable or hasItemInBag then
+        -- ready to cast, or have an existing item to apply
+    elseif notEnoughResources and not db.respectResourceCost and not hasItemAppliedBuff then
+        -- known but can't afford right now — still remind (item-applied buffs opt out: nothing to act on)
+    else
+        self.Utils:LogDebug("BuffReminders: " .. (spellData.name or spellID) .. " - not usable (rank " .. highestRank .. ", noResources=" .. tostring(notEnoughResources) .. ")")
+        return false
     end
     
     -- Most LONG_BUFF spells have no cooldown, but some (e.g., Fear Ward) have

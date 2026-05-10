@@ -1652,13 +1652,13 @@ function Options:BuildOptionsTable()
 							},
 							colorSettings = {
 								type = "group",
-								name = "Color",
+								name = "Default Color",
 								inline = true,
 								order = 4,
 								disabled = function() return addon.db and addon.db.profile and not addon.db.profile.resourceBar.enabled end,
 								args = {
-									powerColor = { type = "toggle", name = "Use Resource Color", desc = "Colors the bar based on your resource type — blue for mana, red for rage, yellow for energy. Uncheck to use a custom color instead.", arg = "resourceBar.powerColor", order = 1 },
-									color = { type = "color", name = "Bar Color", desc = "The custom color for the resource bar. Only used when Use Resource Color is unchecked.", hasAlpha = false, get = colorGet, set = colorSet, arg = "resourceBar.color", order = 2, disabled = function() local db = addon.db and addon.db.profile and addon.db.profile.resourceBar; return db and db.powerColor end },
+									powerColor = { type = "toggle", name = "Use Resource Color", desc = "Colors the bar based on your resource type — blue for mana, red for rage, yellow for energy. Uncheck to use a custom color instead.\n\n" .. Dim("Overridden by Innervate Highlight (mana) and Rage Highlight (rage) when those are active."), arg = "resourceBar.powerColor", order = 1 },
+									color = { type = "color", name = "Bar Color", desc = "The custom color for the resource bar. Only used when Use Resource Color is unchecked.\n\n" .. Dim("Overridden by Innervate Highlight (mana) and Rage Highlight (rage) when those are active."), hasAlpha = false, get = colorGet, set = colorSet, arg = "resourceBar.color", order = 2, disabled = function() local db = addon.db and addon.db.profile and addon.db.profile.resourceBar; return db and db.powerColor end },
 								},
 							},
 							innervateHighlight = {
@@ -1673,11 +1673,168 @@ function Options:BuildOptionsTable()
 									color = { type = "color", name = "Color", desc = "The color the resource bar changes to during Innervate.", hasAlpha = false, get = colorGet, set = colorSet, arg = "resourceBar.innervateHighlight.color", order = 2, disabled = function() return not addon.db.profile.resourceBar.innervateHighlight.enabled end },
 								},
 							},
+							rageHighlight = (function()
+								-- Per-spell queue color pickers are built dynamically from SWING_RESET-tagged
+								-- spells for this class (HS/Cleave for warriors, Maul for druids, etc.).
+								local function isRageClass()
+									return addon.playerClass == C.CLASS.WARRIOR or addon.playerClass == C.CLASS.DRUID
+								end
+								local function getQueueColor(spellID)
+									return function()
+										return addon:GetModule("ResourceBar"):ResolveQueueColor(spellID)
+									end
+								end
+								local function setQueueColor(spellID)
+									return function(_, r, g, b)
+										addon.Database:SetOverride("resourceBar.rageHighlight.queueColors." .. spellID, { r = r, g = g, b = b })
+										Options:ApplySettingChange("resourceBar.rageHighlight")
+									end
+								end
+								local function isQueueDisabled()
+									local rh = addon.db.profile.resourceBar.rageHighlight
+									return not rh.enabled or not rh.queueEnabled
+								end
+								local function isThresholdDisabled()
+									local rh = addon.db.profile.resourceBar.rageHighlight
+									return not rh.enabled or not rh.thresholdEnabled
+								end
+								local function isHighlightDisabled()
+									return not addon.db.profile.resourceBar.rageHighlight.enabled
+								end
+
+								local args = {
+									enabled = {
+										type = "toggle",
+										name = "Enabled",
+										desc = "Master toggle for rage bar coloring. When enabled, the bar changes color based on rage thresholds (e.g., flag rage cap risk) and when Heroic Strike or Cleave is queued onto your next swing.",
+										arg = "resourceBar.rageHighlight.enabled",
+										order = 1,
+										width = "full",
+									},
+									-- Threshold tier section
+									thresholdHeader = {
+										type = "header",
+										name = "Rage Thresholds",
+										order = 10,
+									},
+									thresholdEnabled = {
+										type = "toggle",
+										name = "Threshold Coloring",
+										desc = "Recolor the bar based on current rage. Three tiers (low/mid/high) gated by two thresholds.",
+										arg = "resourceBar.rageHighlight.thresholdEnabled",
+										order = 11,
+										width = "full",
+										disabled = isHighlightDisabled,
+									},
+									lowThreshold = {
+										type = "range",
+										name = "Low Threshold",
+										desc = "Below this rage value, the bar uses the Low color. Above it (and below the High threshold), the Mid color.",
+										min = 0, max = 100, step = 5,
+										arg = "resourceBar.rageHighlight.lowThreshold",
+										order = 12,
+										disabled = isThresholdDisabled,
+									},
+									highThreshold = {
+										type = "range",
+										name = "High Threshold",
+										desc = "At or above this rage value, the bar uses the High color (e.g., bright red to flag rage cap risk).",
+										min = 0, max = 100, step = 5,
+										arg = "resourceBar.rageHighlight.highThreshold",
+										order = 13,
+										disabled = isThresholdDisabled,
+									},
+									lowColor = {
+										type = "color",
+										name = "Low Color",
+										desc = "Bar color when rage is below the Low threshold.",
+										hasAlpha = false, get = colorGet, set = colorSet,
+										arg = "resourceBar.rageHighlight.lowColor",
+										order = 14,
+										disabled = isThresholdDisabled,
+									},
+									midColor = {
+										type = "color",
+										name = "Mid Color",
+										desc = "Bar color when rage is between the Low and High thresholds.",
+										hasAlpha = false, get = colorGet, set = colorSet,
+										arg = "resourceBar.rageHighlight.midColor",
+										order = 15,
+										disabled = isThresholdDisabled,
+									},
+									highColor = {
+										type = "color",
+										name = "High Color",
+										desc = "Bar color when rage is at or above the High threshold.",
+										hasAlpha = false, get = colorGet, set = colorSet,
+										arg = "resourceBar.rageHighlight.highColor",
+										order = 16,
+										disabled = isThresholdDisabled,
+									},
+									-- Queue override section
+									queueHeader = {
+										type = "header",
+										name = "Queued Ability Override",
+										order = 20,
+									},
+									queueEnabled = {
+										type = "toggle",
+										name = "Queue Override",
+										desc = "When a swing-reset ability (Heroic Strike, Cleave, Maul) is queued onto your next swing, override the threshold color with a per-ability color.",
+										arg = "resourceBar.rageHighlight.queueEnabled",
+										order = 21,
+										width = "full",
+										disabled = isHighlightDisabled,
+									},
+								}
+
+								-- Per-spell color pickers (only spells the player's class has)
+								-- Skip cast-time spells (Slam) — they don't queue onto the next swing,
+								-- so a queue color picker would never apply.
+								local lib = addon.LibSpellDB
+								if lib then
+									local entries = {}
+									local tagged = lib:GetSpellsByClassAndTag(addon.playerClass, "SWING_RESET")
+									if tagged then
+										for spellID, data in pairs(tagged) do
+											local castTime = select(4, GetSpellInfo(spellID))
+											if not castTime or castTime == 0 then
+												entries[#entries + 1] = { spellID = spellID, name = data.name or tostring(spellID) }
+											end
+										end
+									end
+									table.sort(entries, function(a, b) return a.spellID < b.spellID end)
+									local order = 22
+									for _, e in ipairs(entries) do
+										args["queueColor_" .. e.spellID] = {
+											type = "color",
+											name = e.name,
+											desc = "Bar color when " .. e.name .. " is queued onto your next swing.",
+											hasAlpha = false,
+											get = getQueueColor(e.spellID),
+											set = setQueueColor(e.spellID),
+											order = order,
+											disabled = isQueueDisabled,
+										}
+										order = order + 1
+									end
+								end
+
+								return {
+									type = "group",
+									name = "Rage Highlight",
+									inline = true,
+									order = 6,
+									hidden = function() return not isRageClass() end,
+									disabled = function() return addon.db and addon.db.profile and not addon.db.profile.resourceBar.enabled end,
+									args = args,
+								}
+							end)(),
 							sparkSettings = {
 								type = "group",
 								name = "Spark",
 								inline = true,
-								order = 6,
+								order = 7,
 								disabled = function() return addon.db and addon.db.profile and not addon.db.profile.resourceBar.enabled end,
 								args = {
 									showSpark = { type = "toggle", name = "Enabled", desc = "Shows a bright highlight at the bar's current fill point — the glowing line where the filled and empty portions meet. Adds visual polish.", arg = "resourceBar.showSpark", order = 1 },
@@ -1690,7 +1847,7 @@ function Options:BuildOptionsTable()
 								type = "group",
 								name = "Overlays",
 								inline = true,
-								order = 7,
+								order = 8,
 								disabled = function() return addon.db and addon.db.profile and not addon.db.profile.resourceBar.enabled end,
 								args = {
 									showPredictedCost = { type = "toggle", name = "Predicted Cost", desc = "Shows a darkened section on the resource bar representing the cost of abilities you are currently casting or have queued (e.g., Heroic Strike, Cleave). Gives you a preview of where your resource will be after the ability completes.", arg = "resourceBar.showPredictedCost", order = 1 },

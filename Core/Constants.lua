@@ -377,6 +377,27 @@ C.DEFAULTS = {
                 enabled = true,
                 color = { r = 0.00, g = 0.80, b = 0.90 },
             },
+            -- Rage bar coloring (rage power type only).
+            -- Threshold tiers recolor the bar based on rage amount (e.g., flag rage cap risk).
+            -- Queue override recolors the bar when an HS/Cleave/Maul/Raptor Strike is queued
+            -- onto the next swing (works generically via LibSpellDB SWING_RESET tag).
+            rageHighlight = {
+                enabled = false,  -- Master toggle (default off so existing users aren't surprised)
+                -- Threshold tiers (3 colors / 2 thresholds)
+                thresholdEnabled = true,
+                lowThreshold = 30,    -- < this: low color
+                highThreshold = 70,   -- >= this: high color (between is mid)
+                lowColor =  { r = 0.65, g = 0.35, b = 0.35 },  -- Dusty red — "save it" (rage-themed but quiet)
+                midColor =  { r = 1.00, g = 0.50, b = 0.20 },  -- Warm orange — "useable"
+                highColor = { r = 1.00, g = 0.20, b = 0.20 },  -- Bright red — "spend it, cap risk"
+                -- Queue override (when HS/Cleave/etc. is queued onto next swing)
+                queueEnabled = true,
+                queueColorDefault = { r = 1.00, g = 0.92, b = 0.20 },  -- Bright yellow (matches HS icon)
+                queueColorAoe     = { r = 0.40, g = 1.00, b = 0.50 },  -- Green (matches Cleave icon)
+                -- Sparse per-spell user overrides: [baseSpellID] = {r,g,b}
+                -- UI auto-populates options from SWING_RESET tag at runtime.
+                queueColors = {},
+            },
             -- Predicted cost overlay (darkened section for queued/casting resource cost)
             showPredictedCost = true,
             -- Spark settings
