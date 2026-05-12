@@ -53,6 +53,23 @@ local function HasOffhandWeapon()
     return equipLoc == "INVTYPE_WEAPON" or equipLoc == "INVTYPE_WEAPONOFFHAND"
 end
 
+-- True when a found buff satisfies both configured thresholds (or threshold is unset/0).
+local function BuffMeetsThresholds(remaining, stacks, config)
+    if config.timeRemaining and config.timeRemaining > 0 and remaining < config.timeRemaining then
+        return false
+    end
+    if config.minStacks and config.minStacks > 0 and stacks < config.minStacks then
+        return false
+    end
+    return true
+end
+
+-- True when a group unit should be included in buff checks (alive, online, in range).
+local function IsValidGroupUnit(unit)
+    return UnitExists(unit) and not UnitIsDead(unit) and not UnitIsGhost(unit)
+        and UnitIsConnected(unit) and UnitIsVisible(unit)
+end
+
 -- Active reminders state
 BuffReminders.reminders = {}      -- Array of active reminder configs
 BuffReminders.activeAlerts = {}   -- spellID -> true for currently shown reminders
@@ -1188,22 +1205,8 @@ function BuffReminders:CheckBuffOnPlayer(spellID, groupSpells, config, playerOnl
         self.Utils:LogDebug("BuffReminders: " .. (GetSpellInfo(spellID) or spellID) .. " - buff missing, SHOULD REMIND")
         return true  -- Buff missing entirely
     end
-    
-    -- Check time remaining threshold
-    if config.timeRemaining and config.timeRemaining > 0 then
-        if remaining < config.timeRemaining then
-            return true
-        end
-    end
-    
-    -- Check stack threshold (OR with time remaining)
-    if config.minStacks and config.minStacks > 0 then
-        if stacks < config.minStacks then
-            return true
-        end
-    end
-    
-    return false
+
+    return not BuffMeetsThresholds(remaining, stacks, config)
 end
 
 function BuffReminders:CheckBuffOnGroup(spellID, groupSpells, config, trackTarget)
@@ -1231,46 +1234,49 @@ function BuffReminders:CheckBuffOnGroup(spellID, groupSpells, config, trackTarge
         prefix = "party"
         count = GetNumSubgroupMembers()
     end
-    
+
+    -- Single-target ally buffs (e.g., Soulstone): only one instance of the
+    -- player's own buff can exist, so finding it on ANY visible unit suffices.
+    -- Filter by player source so another caster's buff doesn't suppress ours.
+    if self.LibSpellDB:IsSingleTarget(spellID) and self.LibSpellDB:GetAuraTarget(spellID) == "ally" then
+        local function unitHasOurBuff(unit)
+            local found, remaining, stacks
+            if groupSpells then
+                found, remaining, stacks = self:IsBuffGroupOnUnit(unit, groupSpells, true)
+            else
+                found, remaining, stacks = self:IsBuffOnUnit(unit, spellID, true)
+            end
+            return found and BuffMeetsThresholds(remaining, stacks, config)
+        end
+
+        if unitHasOurBuff("player") then return false end
+        for i = 1, count do
+            local unit = prefix .. i
+            if IsValidGroupUnit(unit) and unitHasOurBuff(unit) then return false end
+        end
+        return true
+    end
+
     -- Always check player too
     local playerMissing = self:CheckBuffOnPlayer(spellID, groupSpells, config)
     if playerMissing then return true end
-    
+
     for i = 1, count do
         local unit = prefix .. i
-        if UnitExists(unit) then
-            -- Skip dead
-            if UnitIsDead(unit) or UnitIsGhost(unit) then
-                -- Skip
-            -- Skip disconnected
-            elseif not UnitIsConnected(unit) then
-                -- Skip
-            -- Skip out of range (UnitIsVisible ~100 yards)
-            elseif not UnitIsVisible(unit) then
-                -- Skip
+        if IsValidGroupUnit(unit) then
+            local found, remaining, stacks
+            if groupSpells then
+                found, remaining, stacks = self:IsBuffGroupOnUnit(unit, groupSpells)
             else
-                local found, remaining, stacks
-                if groupSpells then
-                    found, remaining, stacks = self:IsBuffGroupOnUnit(unit, groupSpells)
-                else
-                    found, remaining, stacks = self:IsBuffOnUnit(unit, spellID)
-                end
-                
-                if not found then
-                    return true  -- At least one group member missing the buff
-                end
-                
-                -- Check thresholds
-                if config.timeRemaining and config.timeRemaining > 0 and remaining < config.timeRemaining then
-                    return true
-                end
-                if config.minStacks and config.minStacks > 0 and stacks < config.minStacks then
-                    return true
-                end
+                found, remaining, stacks = self:IsBuffOnUnit(unit, spellID)
+            end
+
+            if not found or not BuffMeetsThresholds(remaining, stacks, config) then
+                return true  -- At least one group member missing or below threshold
             end
         end
     end
-    
+
     return false
 end
 
@@ -1305,8 +1311,7 @@ function BuffReminders:CheckBuffOnAllies(spellID, groupSpells, config, trackTarg
 
     for i = 1, count do
         local unit = prefix .. i
-        if UnitExists(unit) and not UnitIsDead(unit) and not UnitIsGhost(unit)
-            and UnitIsConnected(unit) and UnitIsVisible(unit) then
+        if IsValidGroupUnit(unit) then
             local found, remaining, stacks
             if groupSpells then
                 found, remaining, stacks = self:IsBuffGroupOnUnit(unit, groupSpells)
@@ -1315,12 +1320,8 @@ function BuffReminders:CheckBuffOnAllies(spellID, groupSpells, config, trackTarg
             end
 
             if found then
-                -- Check thresholds — return remaining/stacks for alert text display
-                if config.timeRemaining and config.timeRemaining > 0 and remaining < config.timeRemaining then
-                    return true, remaining, stacks
-                end
-                if config.minStacks and config.minStacks > 0 and stacks < config.minStacks then
-                    return true, remaining, stacks
+                if not BuffMeetsThresholds(remaining, stacks, config) then
+                    return true, remaining, stacks  -- below threshold (carry for alert text)
                 end
                 return false  -- Buff found on an ally and thresholds OK
             end

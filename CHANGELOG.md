@@ -1,5 +1,10 @@
 # VeevHUD Changelog
 
+## [1.0.206] - 2026-05-11
+
+### Fixed
+- **Soulstone Buff Reminder: false alerts in parties/raids** — After applying a Soulstone in a group, the reminder no longer continues to nag. Soulstone is a single-target buff (only one can be active at a time), but the group check was requiring every member to have it. The reminder now correctly looks for *your* Soulstone on any visible unit. *(Thanks ChaosEternal for reporting)*
+
 ## [1.0.205] - 2026-05-09
 
 ### Added
