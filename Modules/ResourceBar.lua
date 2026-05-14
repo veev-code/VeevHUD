@@ -855,6 +855,8 @@ end
 -- Refresh derived UI after a state change that affects cost overlay or bar color
 -- (cast/channel start-end, queued ability changes).
 function ResourceBar:RefreshAfterStateChange()
+    -- Refresh queue state before consumers (cost overlay, rage-highlight color) read it.
+    self:UpdateQueuedSpell()
     self:UpdateCostOverlay()
     if self:IsDynamicColorActive() then self:UpdateBarColor() end
 end
@@ -964,13 +966,9 @@ function ResourceBar:UpdateQueuedSpell()
     end
 end
 
--- Find queued "next melee" abilities and return their combined cost.
--- Only SWING_RESET spells (Heroic Strike, Cleave, Maul, etc.) need polling here —
--- they queue onto the next swing without firing UNIT_SPELLCAST_START, so we don't
--- get the spellID from an event. All other spells are already captured by
--- castingSpellID/channelingSpellID via their cast/channel events.
+-- Cost of the currently queued "next melee" ability, if any. Pure read —
+-- caller is responsible for refreshing self.queuedRankID via UpdateQueuedSpell.
 function ResourceBar:GetQueuedSpellCost()
-    self:UpdateQueuedSpell()
     if self.queuedRankID then
         return self:GetSpellResourceCost(self.queuedRankID)
     end

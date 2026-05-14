@@ -382,7 +382,7 @@ C.DEFAULTS = {
             -- Queue override recolors the bar when an HS/Cleave/Maul/Raptor Strike is queued
             -- onto the next swing (works generically via LibSpellDB SWING_RESET tag).
             rageHighlight = {
-                enabled = false,  -- Master toggle (default off so existing users aren't surprised)
+                enabled = true,  -- Master toggle
                 -- Threshold tiers (3 colors / 2 thresholds)
                 thresholdEnabled = true,
                 lowThreshold = 30,    -- < this: low color

@@ -1,5 +1,13 @@
 # VeevHUD Changelog
 
+## [1.0.207] - 2026-05-13
+
+### Changed
+- **Rage Bar Coloring is now enabled by default** for Warriors and Druids. Adjust or disable in Settings > Bars > Resource Bar > Rage Highlight.
+
+### Fixed
+- **Queue coloring required "Predicted Cost" to be enabled** — The bar's queue-override color (when Heroic Strike, Cleave, or Maul is loaded onto your next swing) only activated when the Predicted Cost overlay was also on. The two settings are now independent.
+
 ## [1.0.206] - 2026-05-11
 
 ### Fixed
