@@ -109,9 +109,9 @@ Utils.effectiveSpellCache = {}
 function Utils:FindSpellOnActionBar(spellID)
     local LibSpellDB = LibStub and LibStub("LibSpellDB-1.0", true)
     if not LibSpellDB then return nil end
-    
+
     local rankSet = LibSpellDB:GetAllRankIDs(spellID)
-    
+
     -- Scan all action bar slots (1-120 covers all bars)
     for slot = 1, 120 do
         local actionType, id, subType = GetActionInfo(slot)
@@ -121,8 +121,63 @@ function Utils:FindSpellOnActionBar(spellID)
             end
         end
     end
-    
+
     return nil
+end
+
+-- Find an action bar slot for an item-cooldown spell (Soulstone, Healthstone).
+-- Active-CD slot wins; otherwise a type/ID match wins over a texture-only match
+-- (texture catches consumed items whose GetActionInfo no longer reports the ID).
+function Utils:FindActionBarSlotForSpellOrItem(spellID, spellData)
+    local LibSpellDB = LibStub and LibStub("LibSpellDB-1.0", true)
+    if not LibSpellDB then return nil end
+
+    local rankSet = LibSpellDB:GetAllRankIDs(spellID)
+
+    local itemSet
+    if spellData and spellData.cooldownItemIDs then
+        itemSet = {}
+        for _, id in ipairs(spellData.cooldownItemIDs) do
+            itemSet[id] = true
+        end
+    end
+
+    local textures = {}
+    local spellTexture = self:GetSpellTexture(spellID)
+    if spellTexture then textures[spellTexture] = true end
+    if spellData and spellData.cooldownItemIDs then
+        for _, itemID in ipairs(spellData.cooldownItemIDs) do
+            local itemTexture = GetItemIcon(itemID)
+            if itemTexture then textures[itemTexture] = true end
+        end
+    end
+
+    local primaryFallback, textureFallback
+    for slot = 1, 120 do
+        local actionType, id = GetActionInfo(slot)
+        local primaryMatch = (actionType == "spell" and id and rankSet and rankSet[id])
+            or (actionType == "item" and id and itemSet and itemSet[id])
+
+        local textureMatch = false
+        if not primaryMatch and HasAction(slot) then
+            local texture = GetActionTexture(slot)
+            textureMatch = texture and textures[texture] or false
+        end
+
+        if primaryMatch or textureMatch then
+            local start, dur = GetActionCooldown(slot)
+            if start and start > 0 and dur > C.GCD_THRESHOLD then
+                return slot
+            end
+            if primaryMatch then
+                primaryFallback = primaryFallback or slot
+            else
+                textureFallback = textureFallback or slot
+            end
+        end
+    end
+
+    return primaryFallback or textureFallback
 end
 
 -- Ensure the cache invalidation event frame is set up (lazy initialization)

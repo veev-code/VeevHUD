@@ -179,14 +179,11 @@ function BuffReminders:GetSpellDefaults(spellID)
         end
     end
     
-    -- Determine combat state default:
-    -- Purgeable + long duration (>= 5 min): default OOC
-    --   Rationale: expensive buffs like Fort/MOTW shouldn't nag mid-combat
-    -- Purgeable + short duration (< 5 min): default ANY
-    --   Rationale: cheap, frequent-refresh buffs (Battle Shout, etc.) need
-    --   constant uptime and the reminder must work even in combat
-    -- Non-purgeable: default ANY
-    if IsSpellPurgeable(spellData) and spellData.duration and spellData.duration >= 300 then
+    -- OOC default for long buffs (5+ min) that are purgeable or LONG_BUFF-tagged.
+    -- Short purgeable buffs (Battle Shout etc.) need in-combat reminders. Hunter
+    -- aspects are LONG_BUFF but duration-less, so the gate keeps them on ANY.
+    local hasLongDuration = spellData.duration and spellData.duration >= 300
+    if hasLongDuration and (IsSpellPurgeable(spellData) or LibSpellDB:HasTag(spellID, "LONG_BUFF")) then
         defaults.combatState = COMBAT_STATE.OOC
     end
 
@@ -831,6 +828,44 @@ end
 -- Buff Checking Logic
 -------------------------------------------------------------------------------
 
+-- Soulstone/Healthstone-style cooldown lookup. Item-bag fallback to action-bar
+-- slot so we still see the CD after the item is consumed.
+function BuffReminders:GetItemBasedCooldown(reminder, spellID, spellData)
+    local cdRemaining = self.LibSpellDB:GetItemCooldown(spellID)
+    if cdRemaining and cdRemaining > 0 then
+        return cdRemaining
+    end
+
+    local now = GetTime()
+    local slot = reminder._actionBarSlot
+    if slot then
+        local start, dur = GetActionCooldown(slot)
+        if start and start > 0 and dur > C.GCD_THRESHOLD then
+            local remaining = (start + dur) - now
+            if remaining > 0 then
+                return remaining
+            end
+        end
+    end
+
+    if not slot or not reminder._actionBarSlotNextScan or now >= reminder._actionBarSlotNextScan then
+        local newSlot = self.Utils:FindActionBarSlotForSpellOrItem(spellID, spellData)
+        reminder._actionBarSlotNextScan = now + 5
+        if newSlot and newSlot ~= slot then
+            reminder._actionBarSlot = newSlot
+            local start, dur = GetActionCooldown(newSlot)
+            if start and start > 0 and dur > C.GCD_THRESHOLD then
+                local remaining = (start + dur) - now
+                if remaining > 0 then
+                    return remaining
+                end
+            end
+        end
+    end
+
+    return 0
+end
+
 -- Build the set of buff names to match for a spell. For spells with appliesBuff
 -- (e.g., Soulstone — cast name "Create Soulstone" differs from buff name
 -- "Soulstone Resurrection"), the set is the union of cast name + every
@@ -971,7 +1006,11 @@ function BuffReminders:ShouldRemind(reminder)
     local spellID = reminder.spellID
     local spellData = reminder.spellData
     local config = self:GetSpellConfig(spellID)
-    
+
+    -- Clear per-tick stash so an early return below doesn't leave stale state
+    -- for OnUpdate to consume.
+    reminder._cdRemaining = nil
+
     if not config or not config.enabled then
         return false
     end
@@ -1078,10 +1117,10 @@ function BuffReminders:ShouldRemind(reminder)
         return false
     end
     
-    -- Item-applied ally buff (e.g., Soulstone): the buff is applied by USING
-    -- the created item, not by the cast itself. Item cooldown gates re-application;
-    -- having the item in bag bypasses the reagent requirement; no item AND no
-    -- reagent means nothing to act on (suppress regardless of respectResourceCost).
+    -- Item-applied ally buff (Soulstone): UnitBuff source can be unreliable for
+    -- item-applied auras, so gate on the use-cooldown instead. For these spells
+    -- the item-CD duration equals the buff duration, so cdRemaining == buff
+    -- remaining and the user's timeRemaining threshold still applies.
     local hasItemAppliedBuff = spellData.cooldownItemIDs
         and spellData.appliesBuff
         and spellData.itemCooldown
@@ -1089,15 +1128,19 @@ function BuffReminders:ShouldRemind(reminder)
 
     local hasItemInBag = false
     if hasItemAppliedBuff then
-        local cdRemaining = self.LibSpellDB:GetItemCooldown(spellID)
-        if cdRemaining and cdRemaining > 0 then
-            self.Utils:LogDebug("BuffReminders: " .. (spellData.name or spellID) .. " - item on cooldown (" .. string.format("%.1f", cdRemaining) .. "s)")
+        local cdRemaining = self:GetItemBasedCooldown(reminder, spellID, spellData)
+        local threshold = (config.timeRemaining and config.timeRemaining > 0) and config.timeRemaining or 0
+        if cdRemaining > threshold then
+            self.Utils:LogDebug("BuffReminders: " .. (spellData.name or spellID) .. " - on cooldown (" .. string.format("%.1f", cdRemaining) .. "s > threshold " .. threshold .. ")")
             return false
         end
         if self._bagDirty or reminder._cachedItemCount == nil then
             reminder._cachedItemCount = self.LibSpellDB:GetCreatedItemCount(spellID)
         end
         hasItemInBag = (reminder._cachedItemCount or 0) > 0
+        if threshold > 0 and cdRemaining > 0 then
+            reminder._cdRemaining = cdRemaining
+        end
     end
 
     -- Check if spell is usable (has enough resources, correct form, etc.)
@@ -1437,7 +1480,11 @@ function BuffReminders:OnUpdate()
                     local showStacks = config.minStacks and config.minStacks > 0
                     if showTime or showStacks then
                         local found, remaining, stacks
-                        if reminder.splitMode == SPLIT_MODE.ALLY then
+                        if reminder._cdRemaining then
+                            -- Soulstone-style: CD remaining == buff remaining
+                            remaining = reminder._cdRemaining
+                            found = true
+                        elseif reminder.splitMode == SPLIT_MODE.ALLY then
                             -- Use data stashed by CheckBuffOnAllies (avoids double scan)
                             remaining = reminder._allyRemaining
                             stacks = reminder._allyStacks
@@ -1453,10 +1500,10 @@ function BuffReminders:OnUpdate()
                             found, remaining, stacks = self:IsBuffOnUnit("player", spellID)
                         end
                         if found then
-                            if showTime and remaining < config.timeRemaining then
+                            if showTime and remaining and remaining < config.timeRemaining then
                                 alertRemaining = remaining
                             end
-                            if showStacks and stacks < config.minStacks then
+                            if showStacks and stacks and stacks < config.minStacks then
                                 alertStacks = stacks
                             end
                         end

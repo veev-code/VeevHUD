@@ -1,5 +1,14 @@
 # VeevHUD Changelog
 
+## [1.0.208] - 2026-05-16
+
+### Fixed
+- **Soulstone Buff Reminder: false alert while buff is up** — The reminder could keep firing after applying a Soulstone because item-applied buffs don't reliably report you as the source, so the source-filtered buff scan rejected your own buff. The check now gates on the Soulstone use-cooldown — queried from your action bar slot even after the item is consumed — which directly reflects whether a Soulstone is active. The configured "Remind when X seconds remaining" threshold is still honored. *(Thanks ChaosEternal for reporting)*
+- **Soulstone icon: phantom cooldown after death and rez** — If you died and accepted the Soulstone resurrection (consuming the buff early), a stale 30-minute cooldown could linger on the icon even though the real cooldown had cleared. The icon now drops its cached cooldown as soon as the action bar reports no active CD and the buff is no longer tracked. *(Thanks Seifer for reporting)*
+
+### Changed
+- **Soulstone Buff Reminder defaults to "Out of Combat"** — Matches other long-duration buffs (Fortitude, Mark of the Wild). Change it to "Any" in Settings > Buff Reminders > Soulstone if you want the reminder in combat too. Existing custom configurations are preserved.
+
 ## [1.0.207] - 2026-05-13
 
 ### Changed

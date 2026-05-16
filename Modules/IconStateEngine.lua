@@ -23,14 +23,9 @@ local UnitAffectingCombat = UnitAffectingCombat
 local IsResting = IsResting
 local IsUsableSpell = IsUsableSpell
 local IsCurrentSpell = IsCurrentSpell
-local GetActionInfo = GetActionInfo
 local GetActionCooldown = GetActionCooldown
 local GetItemCount = GetItemCount
 local UnitGUID = UnitGUID
-local HasAction = HasAction
-local GetActionTexture = GetActionTexture
-local GetItemIcon = GetItemIcon
-local GetSpellTexture = GetSpellTexture
 
 local IconStateEngine = {}
 addon:RegisterModule("IconStateEngine", IconStateEngine)
@@ -75,77 +70,6 @@ end
 
 function IconStateEngine:RecordDodge(targetGUID, expirationTime)
     self.dodgeWindows[targetGUID] = expirationTime
-end
-
--------------------------------------------------------------------------------
--- Action bar cooldown fallback for item-based cooldowns (e.g., Soulstone)
--- GetItemCooldown() fails when the item is consumed. GetActionCooldown()
--- works like the native action bar: it returns the cooldown even without
--- the item in bags, and survives /reload.
--------------------------------------------------------------------------------
-
-local function FindActionBarSlotForSpell(spellID, spellData)
-    local LibSpellDB = addon.LibSpellDB
-    if not LibSpellDB then return nil end
-
-    local rankSet = LibSpellDB:GetAllRankIDs(spellID)
-
-    -- Build item set for matching item-type action bar slots
-    local itemSet
-    if spellData and spellData.cooldownItemIDs then
-        itemSet = {}
-        for _, id in ipairs(spellData.cooldownItemIDs) do
-            itemSet[id] = true
-        end
-    end
-
-    -- Pass 1: Match by GetActionInfo type + ID.
-    -- Prefer the slot with an active cooldown (the spell "Create Soulstone" has no
-    -- cooldown, but the item does — if both are on the bar, pick the right one).
-    local fallbackSlot
-    for slot = 1, 120 do
-        local actionType, id = GetActionInfo(slot)
-        local isMatch = false
-        if actionType == "spell" and id and rankSet and rankSet[id] then
-            isMatch = true
-        elseif actionType == "item" and id and itemSet and itemSet[id] then
-            isMatch = true
-        end
-        if isMatch then
-            local start, dur = GetActionCooldown(slot)
-            if start and start > 0 and dur > 1.5 then
-                return slot  -- Has active cooldown — this is the one we want
-            end
-            fallbackSlot = fallbackSlot or slot
-        end
-    end
-
-    -- Pass 2: Match by icon texture (handles consumed items where GetActionInfo
-    -- may not return the expected type/id, but the slot still has the icon + cooldown).
-    -- Check both the spell icon and the item icons since they may differ.
-    local textures = {}
-    local spellTexture = GetSpellTexture(spellID)
-    if spellTexture then textures[spellTexture] = true end
-    if spellData and spellData.cooldownItemIDs then
-        for _, itemID in ipairs(spellData.cooldownItemIDs) do
-            local itemTexture = GetItemIcon(itemID)
-            if itemTexture then textures[itemTexture] = true end
-        end
-    end
-    for slot = 1, 120 do
-        if HasAction(slot) then
-            local texture = GetActionTexture(slot)
-            if texture and textures[texture] then
-                local start, dur = GetActionCooldown(slot)
-                if start and start > 0 and dur > 1.5 then
-                    return slot
-                end
-                fallbackSlot = fallbackSlot or slot
-            end
-        end
-    end
-
-    return fallbackSlot
 end
 
 -------------------------------------------------------------------------------
@@ -572,7 +496,7 @@ function IconStateEngine:_ComputeCooldownState(frame, db, s)
             end
 
             if not foundCooldown and (not frame.actionBarSlotNextScan or now >= frame.actionBarSlotNextScan) then
-                local newSlot = FindActionBarSlotForSpell(spellID, spellData)
+                local newSlot = self.Utils:FindActionBarSlotForSpellOrItem(spellID, spellData)
                 if newSlot then
                     frame.actionBarSlot = newSlot
                     local start, dur = GetActionCooldown(newSlot)
@@ -590,6 +514,14 @@ function IconStateEngine:_ComputeCooldownState(frame, db, s)
                 end
                 frame.actionBarSlotNextScan = now + 1
             end
+        end
+
+        -- A consumed-item synthetic CD has no natural end signal when the buff
+        -- ends early (death+rez); without this clear the cached 1800s lingers.
+        if not foundCooldown and not s.auraActive and frame.itemCdStart then
+            frame.itemCdStart = nil
+            frame.itemCdDuration = nil
+            self._itemCdPersist[spellID] = nil
         end
 
         -- Populate cache from active aura timing
