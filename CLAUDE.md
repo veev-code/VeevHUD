@@ -1,6 +1,6 @@
 # VeevHUD - Addon Context
 
-VeevHUD is a lightweight, WeakAuras-inspired heads-up display addon for World of Warcraft (TBC Classic / Anniversary Edition). It tracks cooldowns, buffs, debuffs, DoTs, procs, and resources with zero configuration required.
+VeevHUD is a lightweight, WeakAuras-inspired heads-up display addon for World of Warcraft (Classic Era and TBC / Anniversary Edition). It tracks cooldowns, buffs, debuffs, DoTs, procs, and resources with zero configuration required.
 
 ## Key Features
 
@@ -323,6 +323,7 @@ LibStub, CallbackHandler-1.0, AceAddon-3.0, AceEvent-3.0, AceHook-3.0, AceConsol
 - `scan` / `rescan` — Force SpellTracker rescan
 - `spec` — Show detected spec
 - `spells` — List tracked spells
+- `invalid` — Log client-pruned (wrong-version) spells to `VeevHUDLog.invalidSpells` for multi-version data audit (no debug mode needed; `/reload` to flush)
 - `cd <id/name>` — Debug spell cooldown
 - `icon <id>` — Debug icon state
 - `usable <id/name>` — Debug IsUsableSpell

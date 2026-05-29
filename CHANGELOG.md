@@ -1,5 +1,14 @@
 # VeevHUD Changelog
 
+## [1.0.209] - 2026-05-29
+
+### Added
+- **Classic Era support** — VeevHUD now runs on Classic Era (1.15) realms in addition to TBC Anniversary. The correct spells load automatically for whichever version you're playing — no setup, no separate download.
+
+### LibSpellDB Updates
+- Spell database now covers both Classic Era and TBC; spells that don't exist on your client are filtered out automatically.
+- Corrected spells whose IDs differ between Classic Era and TBC — Ice Block, Cold Snap, the feral druid core abilities (Shred / Claw / Rake / Faerie Fire), and Warrior Death Wish / Sweeping Strikes — so they track the right ability on each version.
+
 ## [1.0.208] - 2026-05-16
 
 ### Fixed

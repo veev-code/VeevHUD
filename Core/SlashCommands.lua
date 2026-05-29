@@ -73,6 +73,32 @@ function SlashCommands:HandleCommand(msg)
             addon.Utils:ClearLog()
         end
 
+    elseif cmd == "invalid" then
+        local lib = LibStub and LibStub:GetLibrary("LibSpellDB-1.0", true)
+        local invalid = lib and lib.GetInvalidSpells and lib:GetInvalidSpells()
+        if not invalid then
+            addon.Utils:Print("LibSpellDB not available.")
+            return
+        end
+        local list = {}
+        for spellID, label in pairs(invalid) do
+            list[#list + 1] = ("[%d] %s"):format(spellID, type(label) == "string" and label or "")
+        end
+        table.sort(list)
+        -- Write straight to the SavedVariable so capture works regardless of debug mode.
+        local mismatches = {}
+        local mm = lib.GetNameMismatches and lib:GetNameMismatches()
+        if mm then
+            for mid, label in pairs(mm) do
+                mismatches[#mismatches + 1] = ("[%d] %s"):format(mid, label)
+            end
+            table.sort(mismatches)
+        end
+        VeevHUDLog = VeevHUDLog or {}
+        VeevHUDLog.invalidSpells = { gameVersion = lib:GetGameVersion(), count = #list, list = list }
+        VeevHUDLog.nameMismatches = { count = #mismatches, list = mismatches }
+        addon.Utils:Print(("Logged %d pruned + %d reused-ID mismatch(es) to VeevHUDLog (%s). /reload, then share the file."):format(#list, #mismatches, lib:GetGameVersion()))
+
     elseif cmd == "scan" or cmd == "rescan" then
         local tracker = addon:GetModule("SpellTracker")
         if tracker then

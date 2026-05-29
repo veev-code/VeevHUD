@@ -96,7 +96,7 @@ Access settings via **/vh** in chat, or **ESC → Options → AddOns → VeevHUD
 
 ## Current Status
 
-VeevHUD currently supports only **TBC Anniversary**. The addon was deliberately designed to be extensible: it pulls spell data from [LibSpellDB](https://www.curseforge.com/wow/addons/libspelldb), so future versions can support additional Classic-era releases by providing a spell database for that version — the HUD engine remains the same.
+VeevHUD supports both **Classic Era** and **TBC Anniversary**. It pulls all spell data from [LibSpellDB](https://www.curseforge.com/wow/addons/libspelldb), so the same HUD engine works across both — the right spells simply load for whichever version you're playing. Support for future Classic-era releases is just a matter of extending the database.
 
 Note: Due to recent addon restrictions in Retail (addons can no longer read most in-combat information), a Retail version is unlikely without substantial changes by Blizzard.
 
