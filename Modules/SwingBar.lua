@@ -27,10 +27,10 @@
        - Ret Paladin: Single MH bar. Neutral -> Yellow (prep Command) -> Green (cast Blood).
          Red override when twist is impossible (GCD lockout or Command not prepped).
        - Enhancement Shaman: Dual MH+OH bars. Entire bar green (synced) or red (desynced).
-       - Fury Warrior: Dual MH+OH bars. Green when OH fires well before/after MH
-         (safe HS re-queue window), red when OH fires right after MH (no time to re-queue).
-       - Arms Warrior: Single MH bar. Neutral only (fill itself signals timing).
-       - Prot Warrior: Single MH bar. Neutral only.
+       - Warrior (dual-wielding, any spec): Dual MH+OH bars. Green when OH fires
+         well before/after MH (safe HS re-queue window), red when OH fires right
+         after MH (no time to re-queue).
+       - Warrior (2H/shield): Single MH bar. Neutral only (fill itself signals timing).
        - Rogue (all): Single or dual bar. Neutral only.
        - Prot/Holy Paladin: Single MH bar. Neutral only.
        - Mage/Priest/Warlock: Single bar. Mutually exclusive melee/wand (most recent shown).
@@ -237,9 +237,12 @@ function SwingBar:UpdateSpecFeatures()
     local class = addon.playerClass
     local spec = addon.playerSpec
 
+    -- Warriors: any spec — the HS queue mechanic applies to any dual-wield
+    -- build (e.g. dual-wield Arms), not just Fury. Actual dual-wield state is
+    -- gated by hasOffHand at the consumption sites.
     self.isDualWieldSync = (class == C.CLASS.SHAMAN and spec == C.SPEC.ENHANCEMENT)
-                        or (class == C.CLASS.WARRIOR and spec == C.SPEC.FURY)
-    self.useDirectionalSync = (class == C.CLASS.WARRIOR and spec == C.SPEC.FURY)
+                        or (class == C.CLASS.WARRIOR)
+    self.useDirectionalSync = (class == C.CLASS.WARRIOR)
 
     CallStrategy(self, "OnUpdateSpecFeatures")
 end
@@ -580,7 +583,7 @@ function SwingBar:GetFillColor(progress, isOffHand)
         local period = math_max(self.mainSpeed, self.offSpeed)
         if period > 0 then
             if self.useDirectionalSync then
-                -- Fury Warriors: direction-aware.
+                -- Warriors (any dual-wield spec): direction-aware.
                 -- HS queue removes OH miss penalty, but only while HS is queued.
                 -- MH fire consumes the queued HS — the danger is OH firing right AFTER MH
                 -- (no time to re-queue HS). OH firing before MH is always safe (HS still queued).

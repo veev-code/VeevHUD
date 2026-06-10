@@ -31,7 +31,12 @@
     R4. Reactive abilities always re-trigger
         Reactive abilities (Execute, Overpower, etc.) always use "always" mode
         regardless of the Re-trigger row setting. They re-glow every time they
-        become usable.
+        become usable. Dodge-reactive procs (Overpower) go further: the glow is
+        level-triggered, showing the entire time the dodge window is usable
+        (dodgeWindowUsable: can afford + current lockout ends before the window
+        expires) rather than firing on usability edges. Re-procs that refresh
+        an active window produce no usability transition, so edge detection
+        alone would miss them.
 
     R5. Once-mode behavior
         When Re-trigger is disabled for a row, the glow plays only once per

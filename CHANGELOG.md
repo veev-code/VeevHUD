@@ -1,5 +1,13 @@
 # VeevHUD Changelog
 
+## [1.0.210] - 2026-06-10
+
+### Fixed
+- **Overpower glow missing on re-procs** — The proc glow now stays lit the entire time the dodge window is usable, exactly matching the icon's lit-up countdown (it still respects rage cost and whether the GCD or Overpower's own cooldown leaves time to use it). Previously the glow was a brief one-shot flash on the first dodge, and a re-proc — the target dodging again while a window was already active or Overpower was on cooldown — often showed no glow at all.
+
+### Changed
+- **Swing Bar: HS sync colors for all dual-wielding Warriors** — The Heroic Strike re-queue coloring (green = time to re-queue HS, red = off-hand fires too soon after main-hand) now activates for any Warrior who is dual-wielding — including dual-wield Arms builds — instead of requiring Fury spec. The sync color settings appear for all Warrior specs in Settings > Bars > Swing Bar.
+
 ## [1.0.209] - 2026-05-29
 
 ### Added

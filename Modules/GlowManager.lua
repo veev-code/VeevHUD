@@ -443,6 +443,15 @@ function GlowManager:UpdateReadyGlow(frame, spellID, remaining, duration, isUsab
         frame.readyGlowExpires = nil
     end
 
+    -- Dodge-reactive level trigger: glow continuously while the dodge window
+    -- is usable (dodgeWindowUsable = canAfford + lockout ends before window
+    -- expires), mirroring the lit-up countdown state. The edge conditions
+    -- above can't cover re-procs — a second dodge refreshes the window
+    -- without a usability transition, so no edge ever fires.
+    if dodgeGlowOverride then
+        showReadyGlow = true
+    end
+
     -- Update stored state for next frame
     frame.wasOnRealCooldown = isOnRealCooldown
     frame.wasUsable = isUsable

@@ -427,8 +427,9 @@ function Options:BuildOptionsTable()
 	end
 
 	local function isDualWieldSyncSpec()
+		-- Warriors: any spec — HS sync colors apply whenever dual-wielding
 		return (addon.playerClass == C.CLASS.SHAMAN and addon.playerSpec == C.SPEC.ENHANCEMENT)
-			or (addon.playerClass == C.CLASS.WARRIOR and addon.playerSpec == C.SPEC.FURY)
+			or addon.playerClass == C.CLASS.WARRIOR
 	end
 
 	local function isRetPaladin()
@@ -2224,12 +2225,11 @@ function Options:BuildOptionsTable()
 											return Dim("Tracks your melee swing timer — a bar that fills up as your next auto-attack approaches. Auto-hides between pulls.") .. "\n"
 										end
 									elseif class == C.CLASS.WARRIOR then
-										if spec == C.SPEC.FURY then
-											return Dim("Two bars track your main-hand and off-hand swing timers. When Heroic Strike is queued, your off-hand's dual-wield miss penalty is removed — but MH fire consumes the queued HS. Bars turn red when your off-hand fires right after your main-hand (no time to re-queue HS), and green when there's a comfortable gap. Use a desync macro if they drift together.") .. "\n"
-										elseif spec == C.SPEC.ARMS then
-											return Dim("Tracks your melee swing timer. Slam resets this timer, so for maximum DPS you want to Slam right after a swing lands (when the bar reaches the end and resets). This avoids losing auto-attack time to the Slam cast.") .. "\n"
+										local dwText = "When dual-wielding, two bars track your main-hand and off-hand swing timers. When Heroic Strike is queued, your off-hand's dual-wield miss penalty is removed — but MH fire consumes the queued HS. Bars turn red when your off-hand fires right after your main-hand (no time to re-queue HS), and green when there's a comfortable gap. Use a desync macro if they drift together."
+										if spec == C.SPEC.ARMS then
+											return Dim("Tracks your melee swing timer. Slam resets this timer, so for maximum DPS you want to Slam right after a swing lands (when the bar reaches the end and resets). This avoids losing auto-attack time to the Slam cast.\n\n" .. dwText) .. "\n"
 										else
-											return Dim("Tracks your melee swing timer — a bar that fills up as your next auto-attack approaches. Auto-hides between pulls.") .. "\n"
+											return Dim("Tracks your melee swing timer — a bar that fills up as your next auto-attack approaches. Auto-hides between pulls.\n\n" .. dwText) .. "\n"
 										end
 									elseif class == C.CLASS.MAGE or class == C.CLASS.PRIEST or class == C.CLASS.WARLOCK then
 										return Dim("Tracks your auto-attack timer for wanding or melee. Only appears while actively attacking and auto-hides when you stop.") .. "\n"
@@ -2243,7 +2243,7 @@ function Options:BuildOptionsTable()
 								order = 0,
 								fontSize = "medium",
 							},
-							enabled = { type = "toggle", name = "Enabled", desc = "Shows a weapon swing timer bar that fills as your next auto-attack approaches. Includes class-specific colored zones: Hunter shot clipping, Ret Paladin seal twisting, Enhancement/Fury dual-wield sync. Auto-hides when not actively swinging.", arg = "swingBar.enabled", order = 1 },
+							enabled = { type = "toggle", name = "Enabled", desc = "Shows a weapon swing timer bar that fills as your next auto-attack approaches. Includes class-specific colored zones: Hunter shot clipping, Ret Paladin seal twisting, Enhancement/Warrior dual-wield sync. Auto-hides when not actively swinging.", arg = "swingBar.enabled", order = 1 },
 							layout = {
 								type = "group",
 								name = "Layout",
