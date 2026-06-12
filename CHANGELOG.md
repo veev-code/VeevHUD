@@ -1,5 +1,10 @@
 # VeevHUD Changelog
 
+## [1.0.213] - 2026-06-11
+
+### Changed
+- **Aura Tracker frame reuse re-enabled** — Re-landed 1.0.211's memory optimization with the wrong-icon bug fixed (Masque-skinned icons compounded their zoom crop on every weapon swap).
+
 ## [1.0.212] - 2026-06-11
 
 ### Fixed
