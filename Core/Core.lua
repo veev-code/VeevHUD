@@ -14,6 +14,21 @@ addon.version = nil  -- Set in ADDON_LOADED when API is available
 -- Module registry
 addon.modules = {}
 
+-- Deterministic module lifecycle order, shared by InitializeModules and
+-- OnProfileChanged. pairs() iteration order is undefined, and lifecycle
+-- methods have real dependencies: SpellTracker before AuraState (aura
+-- mappings read tracked spells), and the icon trackers before CooldownIcons
+-- (RebuildAllRows consumes their runtime data). Modules not listed are
+-- handled by a catch-all pass afterward.
+local MODULE_ORDER = {
+    "SpellTracker", "AuraState", "SpellAssignment", "IconStateEngine",
+    "IconFrameFactory", "IconRenderer", "GlowManager",
+    "TrinketTracker", "ConsumableTracker", "TotemTracker", "StanceTracker",
+    "CooldownIcons",
+    "AuraTracker", "BuffReminders",
+    "ResourceBar", "HealthBar", "PetHealthBar", "ComboPoints", "SwingBar",
+}
+
 -- Libraries
 addon.LibSpellDB = nil  -- Set on load
 
@@ -24,23 +39,22 @@ addon.LibSpellDB = nil  -- Set on load
 local frame = CreateFrame("Frame")
 frame:RegisterEvent("ADDON_LOADED")
 frame:RegisterEvent("PLAYER_LOGIN")
-frame:RegisterEvent("PLAYER_LOGOUT")
 frame:RegisterEvent("PLAYER_REGEN_DISABLED")  -- Entering combat
 frame:RegisterEvent("PLAYER_REGEN_ENABLED")   -- Leaving combat
 frame:RegisterEvent("UI_SCALE_CHANGED")       -- Player changed UI scale in settings
+frame:RegisterEvent("DISPLAY_SIZE_CHANGED")   -- Resolution/window changes move UIParent's scale without UI_SCALE_CHANGED
 
 frame:SetScript("OnEvent", function(self, event, arg1)
     if event == "ADDON_LOADED" and arg1 == ADDON_NAME then
+        self:UnregisterEvent("ADDON_LOADED")
         addon:OnAddonLoaded()
     elseif event == "PLAYER_LOGIN" then
         addon:OnPlayerLogin()
-    elseif event == "PLAYER_LOGOUT" then
-        addon:OnPlayerLogout()
     elseif event == "PLAYER_REGEN_DISABLED" or event == "PLAYER_REGEN_ENABLED" then
         -- Combat state changed, update HUD visibility/alpha immediately
         addon:UpdateVisibility()
-    elseif event == "UI_SCALE_CHANGED" then
-        -- Reapply HUD scale to compensate for new UI scale
+    elseif event == "UI_SCALE_CHANGED" or event == "DISPLAY_SIZE_CHANGED" then
+        -- Reapply HUD scale to compensate for new effective UI scale
         addon:UpdateHUDScale()
     end
 end)
@@ -49,7 +63,7 @@ function addon:OnAddonLoaded()
     -- Set version from TOC metadata (API available now)
     -- Handle different API names across WoW versions
     local getMetadata = GetAddOnMetadata or (C_AddOns and C_AddOns.GetAddOnMetadata)
-    self.version = getMetadata and getMetadata(ADDON_NAME, "Version") or "1.0.5"
+    self.version = getMetadata and getMetadata(ADDON_NAME, "Version") or "unknown"
     self.Constants.VERSION = self.version
     
     -- Initialize saved variables with defaults (AceDB + legacy migration)
@@ -119,15 +133,9 @@ function addon:OnProfileChanged()
         self.TextureManager:RefreshAllTextures()
     end
 
-    -- Refresh modules in deterministic order.
-    -- SpellTracker must run before CooldownIcons (rebuilds tracked spell list).
-    local moduleOrder = {
-        "SpellTracker", "AuraState", "SpellAssignment", "IconStateEngine",
-        "IconFrameFactory", "CooldownIcons",
-        "AuraTracker", "BuffReminders", "TotemTracker", "StanceTracker",
-        "ResourceBar", "HealthBar", "ComboPoints", "SwingBar",
-    }
-    for _, name in ipairs(moduleOrder) do
+    -- Refresh modules in deterministic order (see MODULE_ORDER — trackers
+    -- must refresh before CooldownIcons so RebuildAllRows sees fresh data).
+    for _, name in ipairs(MODULE_ORDER) do
         local module = self.modules[name]
         if module and module.Refresh then
             local success, err = pcall(module.Refresh, module)
@@ -140,7 +148,7 @@ function addon:OnProfileChanged()
     end
     -- Catch any modules not in the explicit list (future-proofing)
     for name, module in pairs(self.modules) do
-        if module.Refresh and not tContains(moduleOrder, name) then
+        if module.Refresh and not tContains(MODULE_ORDER, name) then
             local success, err = pcall(module.Refresh, module)
             if not success then
                 if self.Utils and self.Utils.LogError then
@@ -215,10 +223,6 @@ function addon:OnPlayerLogin()
     
     -- Run any pending versioned migrations
     self.Migrations:Run()
-end
-
-function addon:OnPlayerLogout()
-    -- Save any pending data
 end
 
 -------------------------------------------------------------------------------
@@ -401,17 +405,39 @@ function addon:RegisterModule(name, module)
     module.name = name
 end
 
+-- Icon providers: modules that inject sentinel-ID icons into CooldownIcons
+-- rows (trinkets, totems, stance indicator, consumables). Each provider
+-- registers from its Initialize (MODULE_ORDER runs providers before
+-- CooldownIcons); CooldownIcons dispatches injection/setup/update through
+-- the list instead of hardcoding every tracker at four call sites.
+-- Provider shape: { name, order, module, IsSentinel(id), Setup(frame, id,
+-- rowConfig, rowIndex), Update(frame, db) -> wantsTick, ShouldInject()? }
+addon.iconProviders = {}
+function addon:RegisterIconProvider(provider)
+    table.insert(self.iconProviders, provider)
+end
+
 function addon:GetModule(name)
     return self.modules[name]
 end
 
 function addon:InitializeModules()
-    for name, module in pairs(self.modules) do
-        if module.Initialize then
+    local function initOne(name, module)
+        if module and module.Initialize then
             local success, err = pcall(module.Initialize, module)
             if not success then
                 self.Utils:Print("|cffff0000Error initializing module " .. name .. ":|r " .. tostring(err))
             end
+        end
+    end
+
+    -- Deterministic order first (same list as Refresh), then any stragglers
+    for _, name in ipairs(MODULE_ORDER) do
+        initOne(name, self.modules[name])
+    end
+    for name, module in pairs(self.modules) do
+        if not tContains(MODULE_ORDER, name) then
+            initOne(name, module)
         end
     end
 end

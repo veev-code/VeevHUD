@@ -33,6 +33,9 @@ function AuraTracker:Initialize()
     -- Icon frames
     self.icons = {}
     self.iconCounter = 0
+    -- Pool of discarded icon frames for reuse (frames can't be GC'd, and
+    -- their Masque registrations persist — see RebuildFrames)
+    self._iconPool = {}
 
     -- Load LibSpellDB for proc data
     self.LibSpellDB = LibStub and LibStub("LibSpellDB-1.0", true)
@@ -227,15 +230,19 @@ function AuraTracker:RebuildFrames()
     -- Stop update ticker
     self.Events:UnregisterUpdate(self)
 
-    -- Clean up existing frames
+    -- Return existing frames to the pool for reuse — frames can't be
+    -- garbage-collected and their Masque registrations persist, so
+    -- recreating from scratch on every weapon swap would leak both.
     for _, frame in ipairs(self.icons or {}) do
         if frame.glowActive then
             self:HideProcGlow(frame)
+            frame.glowActive = false
         end
         if self.Animations then
-            self.Animations:StopScalePunch(frame)
+            self.Animations:StopScalePunch(frame.visual or frame)
         end
         frame:Hide()
+        table.insert(self._iconPool, frame)
     end
     self.icons = {}
 
@@ -363,10 +370,38 @@ end
 function AuraTracker:CreateProcIcon(parent, procData, index, size, iconWidth, iconHeight, spacing, db)
     local xOffset = (index - 1) * (iconWidth + spacing) - (parent:GetWidth() / 2) + (iconWidth / 2)
 
-    -- Create wrapper+visual+textContainer via shared factory
-    local buttonName = "VeevHUDAura" .. self.iconCounter
-    self.iconCounter = self.iconCounter + 1
-    local frame = self.Utils:CreateWrapperIcon(parent, buttonName, iconWidth, iconHeight)
+    -- Reuse a pooled frame when available — child widgets and Masque
+    -- registration already exist, so only reset state and re-parent.
+    local frame = table.remove(self._iconPool)
+    local isReused = frame ~= nil
+    local buttonName
+
+    if isReused then
+        frame:SetParent(parent)
+        frame:ClearAllPoints()
+        frame:SetSize(iconWidth, iconHeight)
+        frame.visual:SetSize(iconWidth, iconHeight)
+        frame.icon:SetSize(iconWidth, iconHeight)
+        -- Clear runtime state left over from the previous assignment
+        frame.wasInactive = nil
+        frame.lastStart = nil
+        frame.lastDuration = nil
+        frame.lastExpirationTime = nil
+        frame._activationTime = nil
+        frame._needsProcAnim = nil
+        frame.glowActive = false
+        frame.reactiveWindowStart = nil
+        frame.reactiveWindowExpires = nil
+        frame.text:SetText("")
+        frame.stacks:SetText("")
+        frame.cooldown:Hide()
+        frame:Show()
+    else
+        -- Create wrapper+visual+textContainer via shared factory
+        buttonName = "VeevHUDAura" .. self.iconCounter
+        self.iconCounter = self.iconCounter + 1
+        frame = self.Utils:CreateWrapperIcon(parent, buttonName, iconWidth, iconHeight)
+    end
     frame:SetPoint("CENTER", parent, "CENTER", xOffset, 0)
 
     local visual = frame.visual
@@ -386,27 +421,30 @@ function AuraTracker:CreateProcIcon(parent, procData, index, size, iconWidth, ic
     -- Backdrop glow (soft radial halo behind icon) - on wrapper, BACKGROUND layer
     -- Created if intensity > 0 (intensity of 0 effectively disables it)
     local glowIntensity = db.backdropGlowIntensity
-    if glowIntensity > 0 then
+    if glowIntensity > 0 and not frame.backdropGlow then
         local backdropGlow = self.Utils:CreateTexture(frame, nil, "BACKGROUND", nil, -1)
-        local glowWidth = iconWidth * db.backdropGlowSize
-        local glowHeight = iconHeight * db.backdropGlowSize
-        backdropGlow:SetSize(glowWidth, glowHeight)
         backdropGlow:SetPoint("CENTER", frame, "CENTER", 0, 0)
         backdropGlow:SetTexture("Interface\\BUTTONS\\UI-ActionButton-Border")
         backdropGlow:SetBlendMode("ADD")
+        frame.backdropGlow = backdropGlow
+    end
+    if frame.backdropGlow then
+        local backdropGlow = frame.backdropGlow
+        backdropGlow:SetSize(iconWidth * db.backdropGlowSize, iconHeight * db.backdropGlowSize)
         local glowColor = db.backdropGlowColor
         backdropGlow:SetVertexColor(glowColor[1], glowColor[2], glowColor[3], glowIntensity)
         backdropGlow:Hide()
-        frame.backdropGlow = backdropGlow
     end
 
     -- Border (BACKGROUND layer on visual - below icon so icon covers it when scaling)
-    local border = self.Utils:CreateTexture(visual, nil, "BACKGROUND")
-    border:SetTexture([[Interface\Buttons\WHITE8X8]])
-    border:SetVertexColor(0, 0, 0, 1)
-    border:SetPoint("TOPLEFT", -1, 1)
-    border:SetPoint("BOTTOMRIGHT", 1, -1)
-    frame.border = border
+    if not frame.border then
+        local border = self.Utils:CreateTexture(visual, nil, "BACKGROUND")
+        border:SetTexture([[Interface\Buttons\WHITE8X8]])
+        border:SetVertexColor(0, 0, 0, 1)
+        border:SetPoint("TOPLEFT", -1, 1)
+        border:SetPoint("BOTTOMRIGHT", 1, -1)
+        frame.border = border
+    end
 
     -- Texcoords are set by ApplyIconTexCoords() after all icons are created
 
@@ -431,50 +469,59 @@ function AuraTracker:CreateProcIcon(parent, procData, index, size, iconWidth, ic
     -- Duration text (center) — on textContainer (unaffected by visual's scale)
     local textContainer = frame.textContainer
     local durationFontSize = math.max(10, math.floor(size * 0.38))
-    local text = textContainer:CreateFontString(nil, "OVERLAY", nil, 7)
-    self.Utils:ApplyFontOutline(text, addon:GetFont(), durationFontSize, db)
-    text:SetPoint("CENTER", textContainer, "CENTER", 0, 0)
-    text:SetTextColor(addon.db.profile.appearance.textColor.r, addon.db.profile.appearance.textColor.g, addon.db.profile.appearance.textColor.b)
-    frame.text = text
+    if not frame.text then
+        local text = textContainer:CreateFontString(nil, "OVERLAY", nil, 7)
+        text:SetPoint("CENTER", textContainer, "CENTER", 0, 0)
+        frame.text = text
+    end
+    self.Utils:ApplyFontOutline(frame.text, addon:GetFont(), durationFontSize, db)
+    frame.text:SetTextColor(addon.db.profile.appearance.textColor.r, addon.db.profile.appearance.textColor.g, addon.db.profile.appearance.textColor.b)
 
     -- Stack count (top right corner) — on textContainer
     local stacksFontSize = math.max(10, math.floor(size * 0.26))
-    local stacks = textContainer:CreateFontString(nil, "OVERLAY", nil, 7)
-    self.Utils:ApplyFontOutline(stacks, addon:GetFont(), stacksFontSize, db)
-    stacks:SetPoint("TOPRIGHT", textContainer, "TOPRIGHT", 4, 4)
-    stacks:SetJustifyH("RIGHT")
-    stacks:SetJustifyV("TOP")
-    stacks:SetTextColor(addon.db.profile.appearance.textColor.r, addon.db.profile.appearance.textColor.g, addon.db.profile.appearance.textColor.b)
-    frame.stacks = stacks
+    if not frame.stacks then
+        local stacks = textContainer:CreateFontString(nil, "OVERLAY", nil, 7)
+        stacks:SetPoint("TOPRIGHT", textContainer, "TOPRIGHT", 4, 4)
+        stacks:SetJustifyH("RIGHT")
+        stacks:SetJustifyV("TOP")
+        frame.stacks = stacks
+    end
+    self.Utils:ApplyFontOutline(frame.stacks, addon:GetFont(), stacksFontSize, db)
+    frame.stacks:SetTextColor(addon.db.profile.appearance.textColor.r, addon.db.profile.appearance.textColor.g, addon.db.profile.appearance.textColor.b)
 
     -- Cooldown spiral for duration (on visual, so it scales with punch)
-    local cooldown = CreateFrame("Cooldown", buttonName .. "Cooldown", visual, "CooldownFrameTemplate")
-    cooldown:SetAllPoints(icon)
-    cooldown:SetDrawEdge(false)
-    cooldown:SetDrawBling(false)
-    cooldown:SetDrawSwipe(true)
-    cooldown:SetSwipeColor(0, 0, 0, 0.8)
-    cooldown:SetReverse(true)
-    cooldown:Hide()
-    frame.cooldown = cooldown
-    frame.Cooldown = cooldown  -- Masque reference
+    if not frame.cooldown then
+        local cooldown = CreateFrame("Cooldown", buttonName .. "Cooldown", visual, "CooldownFrameTemplate")
+        cooldown:SetAllPoints(icon)
+        cooldown:SetDrawEdge(false)
+        cooldown:SetDrawBling(false)
+        cooldown:SetDrawSwipe(true)
+        cooldown:SetSwipeColor(0, 0, 0, 0.8)
+        cooldown:SetReverse(true)
+        cooldown:Hide()
+        frame.cooldown = cooldown
+        frame.Cooldown = cooldown  -- Masque reference
 
-    -- Hide external cooldown text (OmniCC, ElvUI) - we use our own
-    self:ConfigureCooldownText(cooldown)
+        -- Hide external cooldown text (OmniCC, ElvUI) - we use our own
+        self:ConfigureCooldownText(cooldown)
+    end
 
     -- Raise textContainer above the cooldown spiral (CooldownFrameTemplate pushes levels)
     textContainer:SetFrameLevel(visual:GetFrameLevel() + 10)
 
-    -- Register with Masque if available (register the visual Button)
+    -- Register with Masque if available (register the visual Button).
+    -- Reused frames are already registered — re-adding would leak buttons.
     if self.MasqueGroup then
-        self.MasqueGroup:AddButton(visual, {
-            Icon = icon,
-            Cooldown = cooldown,
-            Normal = visual.NormalTexture,
-        })
+        if not isReused then
+            self.MasqueGroup:AddButton(visual, {
+                Icon = icon,
+                Cooldown = frame.cooldown,
+                Normal = visual.NormalTexture,
+            })
+        end
         -- Hide manual border — Masque provides its own
-        border:Hide()
-    else
+        frame.border:Hide()
+    elseif not isReused then
         -- Apply built-in Classic Enhanced style when Masque is not installed
         addon.IconStyling:Apply(visual, size, addon.db.profile.auraTracker.iconAspectRatio)
     end

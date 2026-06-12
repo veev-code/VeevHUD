@@ -70,6 +70,9 @@ local textOutlineSortingInherit = {
 	C.TEXT_OUTLINE.NONE,
 }
 
+-- Classes with mana (used by the Mana Ticker visibility check)
+local manaTickerClasses = { MAGE = true, PRIEST = true, WARLOCK = true, PALADIN = true, DRUID = true, SHAMAN = true, HUNTER = true }
+
 Options.isConfigOpen = false
 Options._registered = false
 
@@ -244,6 +247,14 @@ function Options:ApplySettingChange(path)
 		end
 		return
 	end
+	if path:match("^petHealthBar%.") then
+		local m = addon:GetModule("PetHealthBar")
+		SafeCall(m and m.Refresh, m)
+		if path:match("height") or path:match("enabled") then
+			self:RefreshAllBarPositions()
+		end
+		return
+	end
 	if path:match("^comboPoints%.") then
 		local m = addon:GetModule("ComboPoints")
 		SafeCall(m and m.Refresh, m)
@@ -331,6 +342,11 @@ function Options:ApplySettingChange(path)
 			local auraTracker = addon:GetModule("AuraTracker")
 			SafeCall(auraTracker and auraTracker.Refresh, auraTracker)
 		end
+		return
+	end
+
+	-- Sound settings are read at playback time — no module refresh needed
+	if path:match("^sound%.") then
 		return
 	end
 
@@ -710,7 +726,9 @@ function Options:BuildOptionsTable()
 						g[kA], g[kB] = g[kB], g[kA]
 						o[p - 1], o[p] = o[p], o[p - 1]
 					end
-					addon.Layout:Refresh()
+					-- ForceRefresh: the Layout dirty-check ignores element order, so
+					-- equal-gap swaps would no-op visually with a plain Refresh
+					addon.Layout:ForceRefresh()
 					rebuildLayoutArgs()
 					LibStub("AceConfigRegistry-3.0"):NotifyChange(ADDON_NAME)
 				end,
@@ -748,7 +766,9 @@ function Options:BuildOptionsTable()
 						g[kA], g[kB] = g[kB], g[kA]
 						o[p], o[p + 1] = o[p + 1], o[p]
 					end
-					addon.Layout:Refresh()
+					-- ForceRefresh: the Layout dirty-check ignores element order, so
+					-- equal-gap swaps would no-op visually with a plain Refresh
+					addon.Layout:ForceRefresh()
 					rebuildLayoutArgs()
 					LibStub("AceConfigRegistry-3.0"):NotifyChange(ADDON_NAME)
 				end,
@@ -787,6 +807,7 @@ function Options:BuildOptionsTable()
 	end
 
 	rebuildLayoutArgs()
+	self._rebuildLayoutArgs = rebuildLayoutArgs
 
 	---------------------------------------------------------------------------
 
@@ -1578,7 +1599,7 @@ function Options:BuildOptionsTable()
 								type = "group",
 								name = "Item Counts",
 								inline = true,
-								order = 3,
+								order = 4,
 								args = {
 									showReagentCount = {
 										type = "toggle",
@@ -1901,8 +1922,7 @@ function Options:BuildOptionsTable()
 					name = "Mana Ticker",
 					order = 5,
 					hidden = function()
-						local mc = { MAGE = true, PRIEST = true, WARLOCK = true, PALADIN = true, DRUID = true, SHAMAN = true, HUNTER = true }
-						return not mc[addon.playerClass]
+						return not manaTickerClasses[addon.playerClass]
 					end,
 						args = {
 							enabled = { type = "toggle", name = "Enabled", desc = "Shows a moving spark on the resource bar indicating when your next mana tick will arrive. Mana regenerates in periodic ticks, and casting at the wrong time can delay your next tick — this indicator helps you cast at the optimal moment.", arg = "resourceBar.manaTicker.enabled", order = 1, disabled = function() return addon.db and addon.db.profile and not addon.db.profile.resourceBar.enabled end },
@@ -3444,6 +3464,7 @@ function Options:BuildCustomAurasArgs()
 				self._customAuraStatus = Green("Added:") .. " " .. iconString .. resolvedName
 			end
 			self:RebuildCustomAuraEntries()
+			self:RebuildRecentBuffEntries(true)
 
 			-- Rebuild tracker frames to pick up the new aura
 			local tracker = addon:GetModule("AuraTracker")
@@ -3481,7 +3502,8 @@ function Options:BuildCustomAurasArgs()
 	self._customEntriesArgs = args["entries"].args
 	self:RebuildCustomAuraEntries()
 
-	-- Recently seen buffs section (rebuilds on every render pass via hidden callback)
+	-- Recently seen buffs section (hidden callback runs on every render pass;
+	-- RebuildRecentBuffEntries dirty-checks so unchanged data is a no-op)
 	args["recentBuffs"] = {
 		type = "group",
 		name = "Recently Seen Buffs",
@@ -3537,6 +3559,11 @@ function Options:RebuildCustomAuraEntries()
 			filterSpellID = resolvedID or 0
 		end
 
+		-- Name-only auras that never resolve to a spell ID would all write config
+		-- under key 0 (which the runtime never reads) — disable their per-aura controls
+		local unresolved = not filterSpellID or filterSpellID == 0
+		local unresolvedNote = unresolved and " (unavailable for name-only auras that don't resolve to a spell ID)" or ""
+
 		local entryKey = "custom_" .. i
 		entriesArgs[entryKey] = {
 			type = "group",
@@ -3547,7 +3574,8 @@ function Options:RebuildCustomAuraEntries()
 				glow = {
 					type = "toggle",
 					name = "Glow",
-					desc = "Show the glowing border and backdrop halo when this aura is active.",
+					desc = "Show the glowing border and backdrop halo when this aura is active." .. unresolvedNote,
+					disabled = unresolved,
 					get = function()
 						if not filterSpellID then return true end
 						return addon:IsAuraGlowEnabled(filterSpellID)
@@ -3564,6 +3592,8 @@ function Options:RebuildCustomAuraEntries()
 				source = {
 					type = "select",
 					name = "",
+					desc = unresolved and "Unavailable for name-only auras that don't resolve to a spell ID." or nil,
+					disabled = unresolved,
 					values = auraSourceFilterValues,
 					get = function() return addon:GetAuraSourceFilter(filterSpellID, "custom") end,
 					set = function(_, value)
@@ -3574,7 +3604,8 @@ function Options:RebuildCustomAuraEntries()
 					width = 0.45,
 				},
 				sound = SoundDropdown({
-					desc = "Sound to play when this aura activates. 'None' uses the global default.",
+					desc = "Sound to play when this aura activates. 'None' uses the global default." .. unresolvedNote,
+					disabled = unresolved,
 					get = function()
 						if not filterSpellID then return "None" end
 						return addon:GetAuraSound(filterSpellID) or "None"
@@ -3589,7 +3620,8 @@ function Options:RebuildCustomAuraEntries()
 				soundRefresh = {
 					type = "toggle",
 					name = "Refresh",
-					desc = "Also play the sound when this aura refreshes.",
+					desc = "Also play the sound when this aura refreshes." .. unresolvedNote,
+					disabled = unresolved,
 					get = function()
 						if not filterSpellID then return false end
 						return addon:GetAuraSoundOnRefresh(filterSpellID)
@@ -3615,9 +3647,12 @@ function Options:RebuildCustomAuraEntries()
 							addon:SetAuraSound(filterSpellID, nil)
 							addon:SetAuraSoundOnRefresh(filterSpellID, addon.db.profile.auraTracker.soundOnRefresh)
 						end
+						-- Resolve at click time — the build-time upvalue can point at a
+						-- previous profile's table after a profile switch
+						local customAuras = addon.db.profile.auraTracker.customAuras
 						table.remove(customAuras, i)
 						self:RebuildCustomAuraEntries()
-						self:RebuildRecentBuffEntries()
+						self:RebuildRecentBuffEntries(true)
 						local tracker = addon:GetModule("AuraTracker")
 						if tracker then tracker:RebuildFrames() end
 						local AceConfigRegistry = LibStub and LibStub("AceConfigRegistry-3.0", true)
@@ -3631,14 +3666,31 @@ function Options:RebuildCustomAuraEntries()
 	end
 end
 
--- Rebuild the recently seen buffs list
-function Options:RebuildRecentBuffEntries()
+-- Rebuild the recently seen buffs list.
+-- Runs on every AceConfigDialog render via the recentBuffs hidden callback, so it
+-- early-returns unless recentPlayerBuffs actually changed since the last build.
+-- Pass force=true when the tracked sets change (aura added/removed, profile switch).
+function Options:RebuildRecentBuffEntries(force)
 	local recentArgs = self._recentBuffsArgs
 	if not recentArgs then return end
 
+	-- Dirty check: snapshot entry count + newest lastSeen
+	local recentBuffs = addon.Utils and addon.Utils.recentPlayerBuffs
+	local count, newest = 0, 0
+	if recentBuffs then
+		for _, data in pairs(recentBuffs) do
+			count = count + 1
+			if data.lastSeen and data.lastSeen > newest then
+				newest = data.lastSeen
+			end
+		end
+	end
+	local snapshot = count .. ":" .. newest
+	if not force and snapshot == self._recentBuffsSnapshot then return end
+	self._recentBuffsSnapshot = snapshot
+
 	wipe(recentArgs)
 
-	local recentBuffs = addon.Utils and addon.Utils.recentPlayerBuffs
 	if not recentBuffs or not next(recentBuffs) then
 		recentArgs["empty"] = {
 			type = "description",
@@ -3735,7 +3787,7 @@ function Options:RebuildRecentBuffEntries()
 				end
 				table.insert(auras, { id = capturedSpellID })
 				self:RebuildCustomAuraEntries()
-				self:RebuildRecentBuffEntries()
+				self:RebuildRecentBuffEntries(true)
 				local tr = addon:GetModule("AuraTracker")
 				if tr then tr:RebuildFrames() end
 				local AceConfigRegistry = LibStub and LibStub("AceConfigRegistry-3.0", true)
@@ -4504,6 +4556,9 @@ function Options:Refresh()
 	self:RebuildBuffReminderSpellArgs()
 	self:RebuildReadyGlowSoundOverrideArgs()
 	self:RebuildConsumableEntries()
+	self:RebuildCustomAuraEntries()
+	self:RebuildRecentBuffEntries(true)
+	self:RebuildLayoutArgs()
 end
 
 function Options:BuildReadyGlowSoundOverrideArgs()
@@ -4570,7 +4625,11 @@ function Options:BuildReadyGlowSoundOverrideArgs()
 		end
 	end
 
-	self._readyGlowSoundArgs = overrideArgs
+	-- Capture only on first build — this must keep pointing at the table AceConfig
+	-- registered, since rebuilds refill that table in place
+	if not self._readyGlowSoundArgs then
+		self._readyGlowSoundArgs = overrideArgs
+	end
 	return overrideArgs
 end
 
@@ -4579,10 +4638,12 @@ function Options:RebuildReadyGlowSoundOverrideArgs()
 	if not argsTable then return end
 
 	local newArgs = self:BuildReadyGlowSoundOverrideArgs()
+	local desc = argsTable._desc  -- added at the soundsTab registration site; preserve across the wipe
 	wipe(argsTable)
 	for k, v in pairs(newArgs) do
 		argsTable[k] = v
 	end
+	argsTable._desc = desc
 
 	local AceConfigRegistry = LibStub and LibStub("AceConfigRegistry-3.0", true)
 	if AceConfigRegistry then
@@ -4601,6 +4662,18 @@ function Options:RebuildBuffReminderSpellArgs()
 	for k, v in pairs(newArgs) do
 		argsTable[k] = v
 	end
+
+	local AceConfigRegistry = LibStub and LibStub("AceConfigRegistry-3.0", true)
+	if AceConfigRegistry then
+		AceConfigRegistry:NotifyChange("VeevHUD")
+	end
+end
+
+-- Rebuild the Layout tab element order args in-place (called on profile change,
+-- so Up/Down closures don't act on stale indexes against the new profile's order)
+function Options:RebuildLayoutArgs()
+	if not self._rebuildLayoutArgs then return end
+	self._rebuildLayoutArgs()
 
 	local AceConfigRegistry = LibStub and LibStub("AceConfigRegistry-3.0", true)
 	if AceConfigRegistry then

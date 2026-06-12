@@ -29,7 +29,7 @@ addon:RegisterModule("IconRenderer", IconRenderer)
 local animatedFrames = {}
 local animDriverFrame = CreateFrame("Frame")
 animDriverFrame:Hide()  -- Start hidden; shown when frames are registered
-animDriverFrame:SetScript("OnUpdate", function()
+animDriverFrame:SetScript("OnUpdate", function(_, elapsed)
     local smooth = addon.db.profile.animations.smoothBars
     local hasActive = false
     for frame in pairs(animatedFrames) do
@@ -39,8 +39,9 @@ animDriverFrame:SetScript("OnUpdate", function()
         else
             local converged
             if smooth then
-                -- 0.02/frame at 60fps gives a slow, visible fill (~2s to converge)
-                frame.resourceCurrent, converged = addon.Utils:SmoothBarValue(frame.resourceCurrent, target, 0.02)
+                -- Elapsed-scaled lerp (~1.2/sec ≙ 0.02/frame at 60fps) so the
+                -- fill speed is identical at any frame rate
+                frame.resourceCurrent, converged = addon.Utils:SmoothBarValue(frame.resourceCurrent, target, math.min(1, elapsed * 1.2))
             else
                 frame.resourceCurrent = target
                 converged = true
@@ -215,21 +216,25 @@ function IconRenderer:ApplyIconVisuals(frame, state, db)
             frame.cooldown:Show()
         else
             frame.cooldown:SetAlpha(1)
-            if not frame._wasRealCooldown then
+            if frame._wasRealCooldown then
+                -- Real cooldown just ended: let the native spiral finish its
+                -- final frame (bling) this tick; clear on the next pass.
+                frame._wasRealCooldown = nil
+            elseif frame.lastCdStart then
                 frame.cooldown:SetCooldown(0, 0)
+                frame.lastCdStart = nil
+                frame.lastCdDuration = nil
             end
-            frame.lastCdStart = nil
-            frame.lastCdDuration = nil
-            frame._wasRealCooldown = nil
         end
     else
         frame.cooldown:SetAlpha(1)
-        if not frame._wasRealCooldown then
+        if frame._wasRealCooldown then
+            frame._wasRealCooldown = nil
+        elseif frame.lastCdStart then
             frame.cooldown:SetCooldown(0, 0)
+            frame.lastCdStart = nil
+            frame.lastCdDuration = nil
         end
-        frame.lastCdStart = nil
-        frame.lastCdDuration = nil
-        frame._wasRealCooldown = nil
     end
 
     -------------------------------------------------------------------
@@ -238,23 +243,28 @@ function IconRenderer:ApplyIconVisuals(frame, state, db)
     local showTextForRow = addon.Database:IsRowSettingEnabled(db.showCooldownTextOn, rowIndex)
     local textColor = addon.db.profile.appearance.textColor
 
+    -- Pick the value to display, then re-format only when the displayed
+    -- tenth changes — this runs per icon per tick and string.format allocates
+    local textValue
     if showPrediction and predictionRemaining > 0 and showTextForRow then
-        frame.text:SetText(self.Utils:FormatCooldown(predictionRemaining))
-        frame.text:SetTextColor(textColor.r, textColor.g, textColor.b)
+        textValue = predictionRemaining
     elseif gcdContinueText and cdRemaining > 0 and showTextForRow then
-        frame.text:SetText(self.Utils:FormatCooldown(cdRemaining))
-        frame.text:SetTextColor(textColor.r, textColor.g, textColor.b)
+        textValue = cdRemaining
     elseif showAuraActive and auraRemaining > 0 and showTextForRow then
-        frame.text:SetText(self.Utils:FormatCooldown(auraRemaining))
-        frame.text:SetTextColor(textColor.r, textColor.g, textColor.b)
-    elseif showText and showTextForRow and cdRemaining > 0 then
-        if db.useOwnCooldownText then
-            frame.text:SetText(self.Utils:FormatCooldown(cdRemaining))
+        textValue = auraRemaining
+    elseif showText and showTextForRow and cdRemaining > 0 and db.useOwnCooldownText then
+        textValue = cdRemaining
+    end
+
+    if textValue then
+        local bucket = math.floor(textValue * 10)
+        if frame._textBucket ~= bucket then
+            frame._textBucket = bucket
+            frame.text:SetText(self.Utils:FormatCooldown(textValue))
             frame.text:SetTextColor(textColor.r, textColor.g, textColor.b)
-        else
-            frame.text:SetText("")
         end
-    else
+    elseif frame._textBucket then
+        frame._textBucket = nil
         frame.text:SetText("")
     end
 
@@ -280,7 +290,9 @@ function IconRenderer:ApplyIconVisuals(frame, state, db)
                 local dimDelay = castFeedbackPlaying and 0.08 or 0
 
                 if dimDelay > 0 then
-                    frame._dimTimer = C_Timer.After(dimDelay, function()
+                    -- NewTimer (not After): After returns nothing, so the
+                    -- handle would be nil and the Cancel() guards dead
+                    frame._dimTimer = C_Timer.NewTimer(dimDelay, function()
                         if frame and frame:IsShown() then
                             self.Animations:TransitionAlpha(frame, alpha, 6)
                         end
@@ -371,9 +383,7 @@ function IconRenderer:UpdateResourceDisplay(frame, _, _, hasResourceCost, resour
     -- 3. We don't have enough resources (resourcePercent < 1)
     -- 4. Resource display is enabled for this row
     -- 5. If on cooldown, only show if resourceShowDuringCooldown is enabled
-    local inCombat = UnitAffectingCombat("player")
-    local isResting = IsResting()
-    local showUsability = inCombat or not isResting
+    local showUsability = self.Utils:ShouldShowUsabilityIndicators()
 
     local showResource = showUsability and hasResourceCost and resourcePercent < 1 and enabledForRow
     if showResource and isOnActualCooldown and not db.resourceShowDuringCooldown then

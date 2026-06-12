@@ -43,7 +43,12 @@ local function GetLog()
     if not IsDebugMode() then
         return nil
     end
-    VeevHUDLog = VeevHUDLog or { entries = {}, session = 0 }
+    -- Heal partial structures: /vh invalid creates a bare VeevHUDLog table
+    -- without `entries`, and a profile with debugMode persisted true can hit
+    -- Log() before StartNewSession runs
+    VeevHUDLog = VeevHUDLog or {}
+    VeevHUDLog.entries = VeevHUDLog.entries or {}
+    VeevHUDLog.session = VeevHUDLog.session or 0
     return VeevHUDLog
 end
 
@@ -51,8 +56,14 @@ end
 function Utils:Log(level, ...)
     local log = GetLog()
     if not log then return end  -- Debug mode off, skip logging
-    
-    local message = table.concat({...}, " ")
+
+    -- Stringify defensively: table.concat errors on booleans/tables/nil
+    -- holes, and this sits inside the error-reporting path itself
+    local parts = {}
+    for i = 1, select("#", ...) do
+        parts[i] = tostring(select(i, ...))
+    end
+    local message = table.concat(parts, " ")
     local timestamp = date("%H:%M:%S")
     
     local entry = {

@@ -72,22 +72,15 @@ local migrations = {
             local profile = db.profile
             if not profile then return end
 
-            -- 1. Add 4th row (Auxiliary) if rows only has 3 entries
-            if profile.rows and #profile.rows == 3 then
-                profile.rows[4] = {
-                    name = "Auxiliary",
-                    tags = {},
-                    maxIcons = 24,
-                    enabled = true,
-                    iconSize = 36,
-                    flowLayout = false,
-                    iconsPerRow = 6,
-                }
-
-                -- Copy icon size from old totemBar config if user customized it
-                if profile.totemBar and profile.totemBar.iconSize then
-                    profile.rows[4].iconSize = profile.totemBar.iconSize
-                end
+            -- 1. Carry a customized totem bar icon size into the new Auxiliary
+            -- row. NOTE: rows[4] itself always exists by the time migrations
+            -- run — AceDB copyDefaults backfills integer keys at profile load,
+            -- so the old "#rows == 3 then create rows[4]" structural check
+            -- never fired and silently dropped this carry-over. Structural
+            -- "table has N entries" checks are invalid post-defaults-merge.
+            if profile.totemBar and profile.totemBar.iconSize
+                and profile.rows and profile.rows[4] then
+                profile.rows[4].iconSize = profile.totemBar.iconSize
             end
 
             -- 2. Replace "totemBar" with "auxiliaryRow" in layout.elementOrder
@@ -241,10 +234,21 @@ function Migrations:Initialize()
 
     -- Per-profile migration tracking: ensures each character's profile gets
     -- migrated even if a different character logged in first and bumped the
-    -- global dataVersion. Profile version defaults to global version on first
-    -- encounter (no need to re-run migrations already completed globally).
+    -- global dataVersion. A profile seen for the first time is seeded by
+    -- inspecting its RAW SavedVariables: an empty raw profile is genuinely
+    -- new (nothing to migrate → CURRENT), while one with stored deviations
+    -- predates versioning and must run all data migrations (they are
+    -- idempotent by convention). Seeding from the GLOBAL version here was
+    -- wrong — a dormant profile silently skipped every migration another
+    -- character had already bumped the global version past.
     if db.profile._dataVersion == nil then
-        db.profile._dataVersion = db.global.dataVersion
+        local profileKey = db:GetCurrentProfile()
+        local rawProfile = db.sv and db.sv.profiles and db.sv.profiles[profileKey]
+        if rawProfile and next(rawProfile) ~= nil then
+            db.profile._dataVersion = 0
+        else
+            db.profile._dataVersion = CURRENT_VERSION
+        end
     end
 
     self.pendingPopups = {}
@@ -258,9 +262,6 @@ function Migrations:Run()
     local db = addon.db
     if not db or not db.global then return end
 
-    -- Skip for brand new users (haven't dismissed welcome popup yet)
-    if not db.global.welcomeShown then return end
-
     -- Determine which migrations this profile still needs.
     -- Profile version may lag behind global version if a different character
     -- logged in first and bumped the global version.
@@ -270,7 +271,11 @@ function Migrations:Run()
 
     if startVersion >= CURRENT_VERSION then return end
 
-    -- Run all migrations above the lowest pending version
+    -- Run all migrations above the lowest pending version.
+    -- A failed migration stops the version bump at its predecessor so it is
+    -- retried next login instead of being silently marked complete.
+    local completedVersion = startVersion
+    local anyFailure = false
     for v = startVersion + 1, CURRENT_VERSION do
         local migration = migrations[v]
         if migration then
@@ -278,12 +283,15 @@ function Migrations:Run()
             if migration.run and v > profileVersion then
                 local ok, err = pcall(migration.run, db)
                 if not ok then
+                    anyFailure = true
                     addon.Utils:LogError("Migration v" .. v .. " failed:", err)
                 end
             end
 
-            -- Popup: only show once per account (use global version as gate)
-            if migration.popup and v > globalVersion then
+            -- Popup: only show once per account (use global version as gate).
+            -- Suppressed for brand-new users who haven't dismissed the welcome
+            -- popup yet — but ONLY the popups; data migrations must still run.
+            if migration.popup and v > globalVersion and db.global.welcomeShown then
                 local shouldShow = true
                 local extraData = nil
                 if migration.check then
@@ -297,11 +305,14 @@ function Migrations:Run()
                 end
             end
         end
+        if not anyFailure then
+            completedVersion = v
+        end
     end
 
-    -- Mark versions as done
-    db.global.dataVersion = CURRENT_VERSION
-    db.profile._dataVersion = CURRENT_VERSION
+    -- Mark the successfully completed prefix as done
+    db.global.dataVersion = math.max(globalVersion, completedVersion)
+    db.profile._dataVersion = math.max(profileVersion, completedVersion)
 
     -- Show queued popups after a delay (same timing as old system)
     if #self.pendingPopups > 0 then

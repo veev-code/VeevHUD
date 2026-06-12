@@ -24,7 +24,6 @@ ACE3_MODULES=(
     AceEvent-3.0
     AceGUI-3.0
     AceHook-3.0
-    AceLocale-3.0
 )
 
 # Libraries that need subdirectory extraction from their repo

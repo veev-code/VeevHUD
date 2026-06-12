@@ -145,12 +145,35 @@ function TotemTracker:Initialize()
     -- CLEU UNIT_DIED/UNIT_DESTROYED/UNIT_DISSIPATES do NOT fire for totems in TBC Anniversary.
     self.Events:RegisterEvent(self, "PLAYER_TOTEM_UPDATE", self.OnPlayerTotemUpdate)
 
+    -- Seed state from the totem API after load — CLEU-only tracking misses
+    -- totems that were placed before a /reload.
+    self.Events:RegisterEvent(self, "PLAYER_ENTERING_WORLD", self.OnPlayerEnteringWorld)
+
     -- Periodic cleanup for expired totems
     self.cleanupTicker = C_Timer.NewTicker(1, function()
         self:CleanupExpired()
     end)
 
     self.playerGUID = UnitGUID("player")
+
+    -- Register as an icon provider — CooldownIcons dispatches sentinel-icon
+    -- injection/setup/update through this interface. Initialize's shaman
+    -- early-return means non-shamans never register (no gate needed).
+    addon:RegisterIconProvider({
+        name = "TotemTracker",
+        order = 20,
+        module = self,
+        IsSentinel = function(id) return self:IsTotemSentinel(id) end,
+        Setup = function(frame, spellID, rowConfig, rowIndex)
+            self:SetupTotemIcon(frame, spellID, rowConfig, rowIndex)
+        end,
+        Update = function(frame, db)
+            self:UpdateTotemIconState(frame, db)
+            -- Needs periodic refresh while countdown text is showing
+            local text = frame.text and frame.text:GetText()
+            return text and text ~= ""
+        end,
+    })
 
     self.Utils:LogDebug("TotemTracker initialized")
 end
@@ -253,6 +276,9 @@ function TotemTracker:OnSpellSummon(subEvent, data)
     local state = self.elementState[element]
     if not state then return end
 
+    -- Row contents only change on the never-cast -> used transition
+    local wasNeverUsed = (state.lastUsed == nil)
+
     -- Set active state (use rank-specific duration when available, e.g. Searing Totem)
     local duration
     if self.LibSpellDB and self.LibSpellDB.GetSpellDuration then
@@ -274,8 +300,11 @@ function TotemTracker:OnSpellSummon(subEvent, data)
 
     self.Utils:LogInfo("TotemTracker: Totem placed", totemInfo.name, element, duration .. "s")
 
-    -- Trigger CooldownIcons rebuild so never-cast slots appear
-    self:NotifyCooldownIcons()
+    -- Trigger CooldownIcons rebuild so never-cast slots appear (already-used
+    -- slots are rendered in place — no rebuild needed)
+    if wasNeverUsed then
+        self:NotifyCooldownIcons()
+    end
 end
 
 function TotemTracker:OnSpellCastSuccess(subEvent, data)
@@ -304,6 +333,67 @@ function TotemTracker:OnPlayerTotemUpdate(event, slot)
         state.active = nil
         self.Utils:LogInfo("TotemTracker: Totem destroyed (PLAYER_TOTEM_UPDATE) for", element)
     end
+end
+
+function TotemTracker:OnPlayerEnteringWorld()
+    if self:SeedFromTotemAPI() then
+        self:NotifyCooldownIcons()
+    end
+end
+
+-------------------------------------------------------------------------------
+-- API Seeding
+-------------------------------------------------------------------------------
+
+--- Seed element state from the GetTotemInfo API. State is otherwise CLEU-only,
+--- so totems placed before a /reload would show as never-cast.
+--- Returns true if any element state was seeded.
+function TotemTracker:SeedFromTotemAPI()
+    local now = GetTime()
+    local seeded = false
+
+    for slot, element in ipairs(ELEMENT_ORDER) do
+        local state = self.elementState[element]
+        local haveTotem, totemName, startTime, duration, totemIcon = GetTotemInfo(slot)
+
+        if state and not state.active and haveTotem and duration and duration > 0 then
+            local expiration = (startTime or now) + duration
+            if expiration > now then
+                -- Resolve spellID/icon by matching totemName against known totem
+                -- spell names (GetTotemInfo may append a rank suffix, so also
+                -- accept a full-name prefix match, e.g. "Searing Totem IV")
+                local matchedID, matchedInfo
+                if totemName then
+                    for canonicalID, info in pairs(self.totemSpells) do
+                        if info.element == element and info.name
+                            and totemName:sub(1, #info.name) == info.name then
+                            matchedID = canonicalID
+                            matchedInfo = info
+                            break
+                        end
+                    end
+                end
+
+                state.active = {
+                    spellID = matchedID,
+                    expiration = expiration,
+                    duration = duration,
+                    -- Fallback icon for unresolved spellIDs (rendered directly)
+                    icon = (matchedInfo and matchedInfo.icon) or totemIcon,
+                }
+                state.lastUsed = {
+                    spellID = matchedID,
+                    name = (matchedInfo and matchedInfo.name) or totemName,
+                    icon = (matchedInfo and matchedInfo.icon) or totemIcon,
+                }
+                seeded = true
+
+                self.Utils:LogInfo("TotemTracker: Seeded", state.lastUsed.name or "?", element, "from totem API")
+            end
+        end
+    end
+
+    return seeded
 end
 
 -------------------------------------------------------------------------------
@@ -549,14 +639,16 @@ function TotemTracker:UpdateTotemIconState(frame, db)
     if state.active and state.active.expiration > now then
         -- ACTIVE STATE: full-color icon with duration countdown
         local active = state.active
-        local totemInfo = self.totemSpells[active.spellID]
-        if not totemInfo then return end
+        local totemInfo = active.spellID and self.totemSpells[active.spellID]
+        if not totemInfo and not active.icon then return end
 
-        -- Update icon texture (may change if a different totem was placed)
-        frame.icon:SetTexture(totemInfo.icon)
+        -- Update icon texture (may change if a different totem was placed).
+        -- API-seeded states may carry their own icon when the spellID
+        -- couldn't be resolved from the totem name.
+        frame.icon:SetTexture(totemInfo and totemInfo.icon or active.icon)
 
-        -- Range check: dim if out of range
-        local inRange = self:IsInRange(totemInfo, activeBuffs)
+        -- Range check: dim if out of range (requires DB info for the buff list)
+        local inRange = totemInfo and self:IsInRange(totemInfo, activeBuffs)
         local alpha = (inRange == false) and EXPIRED_ALPHA or db.readyAlpha
 
         -- Duration tracking

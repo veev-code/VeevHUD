@@ -53,11 +53,25 @@ function ConsumableTracker:Initialize()
     -- Register events
     self.Events:RegisterEvent(self, "PLAYER_ENTERING_WORLD", self.OnPlayerEnteringWorld)
 
-    self.Utils:LogInfo("ConsumableTracker initialized")
-end
+    -- Register as an icon provider — CooldownIcons dispatches sentinel-icon
+    -- injection/setup/update through this interface
+    addon:RegisterIconProvider({
+        name = "ConsumableTracker",
+        order = 40,
+        module = self,
+        IsSentinel = function(id) return self:IsConsumableSentinel(id) end,
+        Setup = function(frame, spellID, rowConfig, rowIndex)
+            self:SetupConsumableIcon(frame, spellID, rowConfig, rowIndex)
+        end,
+        Update = function(frame, db)
+            self:UpdateConsumableIconState(frame, db)
+            -- Needs periodic refresh while countdown text is showing
+            local text = frame.text and frame.text:GetText()
+            return text and text ~= ""
+        end,
+    })
 
-function ConsumableTracker:Enable()
-    self:LoadAllConsumables()
+    self.Utils:LogInfo("ConsumableTracker initialized")
 end
 
 function ConsumableTracker:Refresh()
@@ -68,10 +82,22 @@ end
 -- Consumable Management
 -------------------------------------------------------------------------------
 
---- Get the configured items list for the current spec (creates if missing).
+-- Shared empty result for specs with no configured items. Read-only by
+-- contract — vivifying per-spec tables on read littered SavedVariables with
+-- empty entries for every spec the character ever passed through.
+local EMPTY_ITEMS = {}
+
+--- Get the configured items list for the current spec (read-only; may be empty).
 function ConsumableTracker:GetConfiguredItems()
     local specKey = addon.Database:GetSpecKey()
-    if not specKey then return {} end
+    local items = addon.db.profile.consumableTracker.items
+    return items[specKey] or EMPTY_ITEMS
+end
+
+--- Get (creating if missing) the mutable configured items list for the spec.
+-- Only mutation paths (add/remove) may vivify the per-spec table.
+function ConsumableTracker:GetOrCreateConfiguredItems()
+    local specKey = addon.Database:GetSpecKey()
     local items = addon.db.profile.consumableTracker.items
     if not items[specKey] then
         items[specKey] = {}
@@ -113,8 +139,8 @@ function ConsumableTracker:LoadConsumable(itemID)
     }
 
     -- Retry if item data wasn't cached yet
-    if not itemName and C_Item and C_Item.RequestLoadItemData then
-        C_Item.RequestLoadItemData(itemID)
+    if not itemName and C_Item and C_Item.RequestLoadItemDataByID then
+        C_Item.RequestLoadItemDataByID(itemID)
         C_Timer.After(1, function()
             if self.consumables[itemID] then
                 local name, _, _, _, _, _, _, _, _, icon = GetItemInfo(itemID)
@@ -133,8 +159,10 @@ end
 function ConsumableTracker:AddConsumable(itemID)
     if not itemID then return end
 
-    -- Check for duplicates
-    local configured = self:GetConfiguredItems()
+    -- Check for duplicates (mutable accessor: this is the one path allowed
+    -- to vivify the per-spec table — never insert into the shared read-only
+    -- empty result from GetConfiguredItems)
+    local configured = self:GetOrCreateConfiguredItems()
     for _, entry in ipairs(configured) do
         if entry.itemID == itemID then return end
     end
@@ -158,10 +186,13 @@ function ConsumableTracker:RemoveConsumable(itemID)
     -- Remove runtime data
     self.consumables[itemID] = nil
 
-    -- Clean up spellConfig entries for this sentinel
+    -- Clean up spellConfig entries for this sentinel.
+    -- spellConfig itself can be nil: clearing the last override cascade-nils
+    -- the whole table (Database:SetSpellConfigOverride), and AceDB only
+    -- re-copies defaults at profile load.
     local sentinelID = self.C.CONSUMABLE_SENTINEL_BASE + itemID
     local specKey = addon.Database:GetSpecKey()
-    if specKey then
+    if specKey and addon.db.profile.spellConfig then
         local spellCfg = addon.db.profile.spellConfig[specKey]
         if spellCfg then
             spellCfg[sentinelID] = nil
@@ -374,6 +405,14 @@ function ConsumableTracker:InjectRowEntries(iconsByRow, rowConfigs, spellCfg, sp
     for _, entry in ipairs(configured) do
         local itemID = entry.itemID
         local consumableData = self.consumables[itemID]
+        -- Lazy-load: spec switches mid-session reach here with items the
+        -- runtime never loaded (LoadAllConsumables only runs at PEW/Refresh
+        -- for the spec active at the time). Load on first sight so the new
+        -- spec's consumables appear without a loading screen.
+        if not consumableData and itemID then
+            self:LoadConsumable(itemID)
+            consumableData = self.consumables[itemID]
+        end
         if consumableData then
             local sentinelID = consumableData.sentinelID
             local cfg = spellCfg[sentinelID] or {}

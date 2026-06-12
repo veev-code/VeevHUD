@@ -45,7 +45,9 @@ function PetHealthBar:OnPlayerEnteringWorld()
     self:CheckPetStatus()
 end
 
-function PetHealthBar:OnUnitPet()
+function PetHealthBar:OnUnitPet(event, unit)
+    -- UNIT_PET fires for every group member's pet change; only ours matters
+    if unit ~= "player" then return end
     self:CheckPetStatus()
 end
 
@@ -158,15 +160,9 @@ function PetHealthBar:CreateFrames(parent)
         bar:Hide()
     end
 
-    -- Smooth animation support
-    local animDb = addon.db.profile.animations
-    if animDb.smoothBars then
-        self.targetValue = 1
-        self.currentValue = 1
-        self.bar:SetScript("OnUpdate", function()
-            self:SmoothUpdate()
-        end)
-    end
+    -- Smooth animation support (re-evaluated from Refresh so toggling the
+    -- setting mid-session attaches/detaches the driver)
+    self.Utils:ApplySmoothBarDriver(self.bar, addon.db.profile.animations.smoothBars)
 
     -- Initial update
     self:CheckPetStatus()
@@ -258,12 +254,7 @@ function PetHealthBar:UpdateBar()
 
     local db = addon.db.profile.petHealthBar
 
-    local animDb = addon.db.profile.animations
-    if animDb.smoothBars then
-        self.targetValue = percent
-    else
-        self.bar:SetValue(percent)
-    end
+    self.Utils:SetBarValueSmooth(self.bar, percent)
 
     if self.text and db.textFormat and db.textFormat ~= self.C.TEXT_FORMAT.NONE then
         self.text:SetText(self.Utils:FormatBarText(health, maxHealth, percent, db.textFormat, db.numberFormat))
@@ -271,16 +262,6 @@ function PetHealthBar:UpdateBar()
 
     -- Update heal prediction overlay
     self:UpdateOverlays()
-end
-
-function PetHealthBar:SmoothUpdate()
-    if not self.bar or not self.targetValue then return end
-
-    local animDb = addon.db.profile.animations
-    if not animDb.smoothBars then return end
-
-    self.currentValue = self.Utils:SmoothBarValue(self.currentValue, self.targetValue)
-    self.bar:SetValue(self.currentValue)
 end
 
 -------------------------------------------------------------------------------
@@ -354,6 +335,9 @@ function PetHealthBar:Refresh()
         elseif self.text then
             self.text:Hide()
         end
+
+        -- Attach/detach the smooth-fill driver to match the current setting
+        self.Utils:ApplySmoothBarDriver(self.bar, addon.db.profile.animations.smoothBars)
     end
 
     self:CheckPetStatus()

@@ -145,20 +145,21 @@ function CooldownIcons:Initialize()
     -- Cache spell assignment module reference (spell-to-row logic)
     self.spellAssignment = addon:GetModule("SpellAssignment")
 
+    -- Cache aura state module reference (target context + aura queries)
+    self.auraState = addon:GetModule("AuraState")
+
     -- Cache icon frame factory reference (frame construction)
     self.iconFactory = addon:GetModule("IconFrameFactory")
 
-    -- Cache trinket tracker reference (delegation for trinket icons)
-    self.trinketTracker = addon:GetModule("TrinketTracker")
-
-    -- Cache totem tracker reference (delegation for totem element slots)
+    -- Cache totem tracker reference (RebuildAllRows context + totem aura suppression)
     self.totemTracker = addon:GetModule("TotemTracker")
 
-    -- Cache stance tracker reference (delegation for stance/form indicator)
-    self.stanceTracker = addon:GetModule("StanceTracker")
-
-    -- Cache consumable tracker reference (delegation for consumable icons)
-    self.consumableTracker = addon:GetModule("ConsumableTracker")
+    -- Icon providers (trinkets, totems, stance, consumables) registered
+    -- themselves during their Initialize, which MODULE_ORDER runs before
+    -- ours. All sentinel-icon dispatch goes through this sorted list —
+    -- adding a new sentinel type is one registration, not a 4-site edit.
+    self.iconProviders = addon.iconProviders
+    table.sort(self.iconProviders, function(a, b) return a.order < b.order end)
 
     -- Initialize Masque support if available
     self:InitializeMasque()
@@ -181,6 +182,11 @@ function CooldownIcons:Initialize()
 
     -- Subscribe to overlay state changes from GlowManager (decoupled via addon event bus)
     self.Events:RegisterAddonEvent(self, "OVERLAY_STATE_CHANGED", function()
+        self:UpdateAllIcons()
+    end)
+
+    -- Subscribe to aura state changes from AuraState (decoupled via addon event bus)
+    self.Events:RegisterAddonEvent(self, "AURA_STATE_CHANGED", function()
         self:UpdateAllIcons()
     end)
 
@@ -338,8 +344,8 @@ function CooldownIcons:OnSpellCastSucceeded(event, unit, castGUID, spellID)
     local frame = self:FindIconFrameBySpellID(spellID)
 
     -- Fallback: on-use trinket spell IDs don't match sentinel IDs
-    if not frame and self.trinketTracker then
-        frame = self.trinketTracker:FindFrameByOnUseSpellID(spellID)
+    if not frame then
+        frame = self:FindIconFrameByOnUseSpellID(spellID)
     end
 
     if frame then
@@ -359,6 +365,8 @@ function CooldownIcons:OnSpellCastSucceeded(event, unit, castGUID, spellID)
             local now = GetTime()
             frame.timedEffectStart = now
             frame.timedEffectExpires = now + frame.timedEffectDuration
+            -- A countdown just started: wake the gated ticker to render it
+            self._hasActiveTimers = true
         end
     end
 
@@ -378,8 +386,9 @@ end
 -- so a grey mob kill during an active window will incorrectly refresh the timer. There is no API
 -- to distinguish "kill yielded xp/honor" from "kill didn't", so this is the best we can do.
 function CooldownIcons:OnReactiveWindowEvent(subEvent, data)
-    if data.sourceGUID ~= UnitGUID("player") then return end
+    if data.sourceGUID ~= addon.playerGUID then return end
 
+    local windowStarted = false
     for _, row in ipairs(self.rows or {}) do
         for _, frame in ipairs(row.icons or {}) do
             if frame.reactiveWindowEvent == subEvent and frame.reactiveWindow then
@@ -387,9 +396,15 @@ function CooldownIcons:OnReactiveWindowEvent(subEvent, data)
                 if self.stateEngine:IsSpellUsable(actualSpellID) then
                     frame.reactiveWindowStart = GetTime()
                     frame.reactiveWindowExpires = GetTime() + frame.reactiveWindow
+                    windowStarted = true
                 end
             end
         end
+    end
+
+    -- A countdown just started: make sure the gated ticker is awake to render it
+    if windowStarted then
+        self._hasActiveTimers = true
     end
 end
 
@@ -398,18 +413,10 @@ end
 -- This enables a stance-independent ready glow so the player knows to swap stance and use Overpower.
 -- Target-specific: WW dodged by off-target → tab to that target → glow appears.
 function CooldownIcons:OnCombatMissEvent(subEvent, data)
-    if data.sourceGUID ~= UnitGUID("player") then return end
+    if data.sourceGUID ~= addon.playerGUID then return end
 
-    -- Extract missType from CLEU (position varies by event type)
-    -- Events.lua only parses up to spellSchool (position 14), so we use select()
-    local missType
-    if subEvent == "SWING_MISSED" then
-        -- SWING_MISSED: missType is at position 12 (after 11 standard CLEU fields)
-        missType = select(12, CombatLogGetCurrentEventInfo())
-    else
-        -- SPELL_MISSED: missType is at position 15 (12=spellID, 13=name, 14=school, 15=missType)
-        missType = select(15, CombatLogGetCurrentEventInfo())
-    end
+    -- missType is the first suffix argument for both SWING_MISSED and SPELL_MISSED
+    local missType = data.s1
 
     if missType ~= "DODGE" then return end
 
@@ -541,6 +548,22 @@ function CooldownIcons:FindIconFrameBySpellID(spellID)
     return nil
 end
 
+--- Find an icon frame by its trinket on-use spell ID (cast feedback routing).
+-- Owned here (not in TrinketTracker) — iterating row/icon internals is this
+-- module's business.
+function CooldownIcons:FindIconFrameByOnUseSpellID(spellID)
+    for _, rowFrame in ipairs(self.rows or {}) do
+        if rowFrame.icons then
+            for _, iconFrame in ipairs(rowFrame.icons) do
+                if iconFrame.onUseSpellID and iconFrame.onUseSpellID == spellID then
+                    return iconFrame
+                end
+            end
+        end
+    end
+    return nil
+end
+
 --- Find an icon frame by sentinel spell ID (used for trinket proc pop animation).
 function CooldownIcons:FindIconFrameBySentinel(sentinelID)
     for _, rowFrame in ipairs(self.rows or {}) do
@@ -622,55 +645,58 @@ function CooldownIcons:CreateRowFrames()
     
     self.Utils:LogInfo("CooldownIcons: Creating", #rowConfigs, "row frames")
 
+    -- Row frames are created for ALL configured rows, including disabled ones
+    -- (they stay hidden with zero layout height). A row disabled at startup
+    -- must still get a frame so self.rows stays dense — ipairs traversals
+    -- (Refresh, font updates, swap handlers, ...) would otherwise stop at the
+    -- hole — and so the row can be re-enabled live from Options.
     for rowIndex, rowConfig in ipairs(rowConfigs) do
-        if rowConfig.enabled then
-            -- Use per-row settings or fall back to global
-            local rowIconSize = rowConfig.iconSize or iconDb.iconSize
-            -- Use explicit nil check since 0 is a valid spacing value
-            local rowIconSpacing = rowConfig.iconSpacing
-            if rowIconSpacing == nil then
-                rowIconSpacing = iconDb.iconSpacing
-            end
-
-            -- Get width/height based on aspect ratio (per-row override or global fallback)
-            local rowAspectRatio = rowConfig.iconAspectRatio or iconDb.iconAspectRatio
-            local rowIconWidth, rowIconHeight = self.Utils:GetIconDimensions(rowIconSize, rowAspectRatio)
-
-            self.Utils:LogInfo("Row", rowIndex, rowConfig.name, "iconSize:", rowIconSize, "iconWidth:", rowIconWidth, "maxIcons:", rowConfig.maxIcons)
-
-            local rowFrame = CreateFrame("Frame", nil, self.container)
-            rowFrame:SetSize(rowConfig.maxIcons * (rowIconWidth + rowIconSpacing), rowIconHeight)
-            rowFrame:SetPoint("TOP", addon.hudFrame, "CENTER", 0, 0)  -- Placeholder; Layout will position
-            rowFrame:EnableMouse(false)  -- Click-through
-            rowFrame.iconSize = rowIconSize
-            rowFrame.iconWidth = rowIconWidth
-            rowFrame.iconHeight = rowIconHeight
-            rowFrame.iconSpacing = rowIconSpacing
-            rowFrame.iconsPerRow = rowConfig.iconsPerRow or rowConfig.maxIcons
-            rowFrame.flowLayout = rowConfig.flowLayout
-
-            rowFrame.config = rowConfig
-            rowFrame.icons = {}
-
-            -- Pre-create icon frames for this row
-            local rowMasqueGroup = self.MasqueGroups[rowIndex]
-            for i = 1, rowConfig.maxIcons do
-                local icon = self.iconFactory:CreateIconFrame(rowFrame, i, rowIconSize)
-                if rowMasqueGroup then
-                    self.iconFactory:RegisterWithMasque(icon, rowMasqueGroup)
-                else
-                    self.iconFactory:ApplyFallbackStyle(icon, rowIconSize, rowAspectRatio)
-                end
-                icon:Hide()
-                rowFrame.icons[i] = icon
-            end
-
-            -- Create slide animator for dynamic sort animations (shared driver, composes with punch)
-            rowFrame.slideAnimator = self.Animations:CreateSlideAnimator(rowFrame, 20)
-
-            self.rows[rowIndex] = rowFrame
-            self.iconsByRow[rowIndex] = {}
+        -- Use per-row settings or fall back to global
+        local rowIconSize = rowConfig.iconSize or iconDb.iconSize
+        -- Use explicit nil check since 0 is a valid spacing value
+        local rowIconSpacing = rowConfig.iconSpacing
+        if rowIconSpacing == nil then
+            rowIconSpacing = iconDb.iconSpacing
         end
+
+        -- Get width/height based on aspect ratio (per-row override or global fallback)
+        local rowAspectRatio = rowConfig.iconAspectRatio or iconDb.iconAspectRatio
+        local rowIconWidth, rowIconHeight = self.Utils:GetIconDimensions(rowIconSize, rowAspectRatio)
+
+        self.Utils:LogInfo("Row", rowIndex, rowConfig.name, "iconSize:", rowIconSize, "iconWidth:", rowIconWidth, "maxIcons:", rowConfig.maxIcons)
+
+        local rowFrame = CreateFrame("Frame", nil, self.container)
+        rowFrame:SetSize(rowConfig.maxIcons * (rowIconWidth + rowIconSpacing), rowIconHeight)
+        rowFrame:SetPoint("TOP", addon.hudFrame, "CENTER", 0, 0)  -- Placeholder; Layout will position
+        rowFrame:EnableMouse(false)  -- Click-through
+        rowFrame.iconSize = rowIconSize
+        rowFrame.iconWidth = rowIconWidth
+        rowFrame.iconHeight = rowIconHeight
+        rowFrame.iconSpacing = rowIconSpacing
+        rowFrame.iconsPerRow = rowConfig.iconsPerRow or rowConfig.maxIcons
+        rowFrame.flowLayout = rowConfig.flowLayout
+
+        rowFrame.config = rowConfig
+        rowFrame.icons = {}
+
+        -- Pre-create icon frames for this row
+        local rowMasqueGroup = self.MasqueGroups[rowIndex]
+        for i = 1, rowConfig.maxIcons do
+            local icon = self.iconFactory:CreateIconFrame(rowFrame, i, rowIconSize)
+            if rowMasqueGroup then
+                self.iconFactory:RegisterWithMasque(icon, rowMasqueGroup)
+            else
+                self.iconFactory:ApplyFallbackStyle(icon, rowIconSize, rowAspectRatio)
+            end
+            icon:Hide()
+            rowFrame.icons[i] = icon
+        end
+
+        -- Create slide animator for dynamic sort animations (shared driver, composes with punch)
+        rowFrame.slideAnimator = self.Animations:CreateSlideAnimator(rowFrame, 20)
+
+        self.rows[rowIndex] = rowFrame
+        self.iconsByRow[rowIndex] = {}
     end
 
     -- Register each icon row with the Layout system
@@ -801,6 +827,10 @@ function CooldownIcons:RebuildAllRows()
         return
     end
 
+    -- Invalidate the per-frame update memo: assignments are about to change,
+    -- so the next UpdateAllIcons must run even if one already ran this frame.
+    self._lastUpdateTime = nil
+
     -- Reset dynamic sort animation state before rebuilding
     self:ResetDynamicSortPositions()
 
@@ -824,22 +854,18 @@ function CooldownIcons:RebuildAllRows()
     self.iconsByRow = iconsByRow
     self.spellAssignments = spellAssignments
 
-    -- Inject sentinel entries (trinkets, totems, stance indicator).
-    -- All are injected after AssignAllSpells sorts, so re-sort is needed
-    -- for customOrder overrides like user-configured position to apply.
-    if self.trinketTracker then
-        self.trinketTracker:InjectRowEntries(self.iconsByRow, rowConfigs, spellCfg, self.spellAssignments)
+    -- Inject sentinel entries via the icon-provider registry (trinkets,
+    -- totems, stance indicator, consumables). All are injected after
+    -- AssignAllSpells sorts, so a re-sort is needed for customOrder
+    -- overrides like user-configured position to apply.
+    local injected = false
+    for _, provider in ipairs(self.iconProviders) do
+        if not provider.ShouldInject or provider.ShouldInject() then
+            provider.module:InjectRowEntries(self.iconsByRow, rowConfigs, spellCfg, self.spellAssignments)
+            injected = true
+        end
     end
-    if self.totemTracker and addon.playerClass == "SHAMAN" then
-        self.totemTracker:InjectRowEntries(self.iconsByRow, rowConfigs, spellCfg, self.spellAssignments)
-    end
-    if self.stanceTracker then
-        self.stanceTracker:InjectRowEntries(self.iconsByRow, rowConfigs, spellCfg, self.spellAssignments)
-    end
-    if self.consumableTracker then
-        self.consumableTracker:InjectRowEntries(self.iconsByRow, rowConfigs, spellCfg, self.spellAssignments)
-    end
-    if self.trinketTracker or (self.totemTracker and addon.playerClass == "SHAMAN") or self.stanceTracker or self.consumableTracker then
+    if injected then
         self.spellAssignment:_SortRowSpells(self.iconsByRow)
     end
 
@@ -1053,11 +1079,11 @@ end
 --   StanceTracker    (SetupStanceIcon)  — stance identity (isStanceIndicator)
 --
 -- NOT reset (intentionally):
---   frame.resourceOnUpdate — HookScript sentinel; hook persists and self-guards
 --   Structural children (icon, cooldown, text, charges, stacks) — created once by IconFrameFactory
 --   Slide positions (_slideCurrentX, _slideTargetX) — reset by ResetDynamicSortPositions()
 function CooldownIcons:ResetIconState(frame)
-    -- Identity / routing (prevents stale isTrinket/isTotemSlot delegation)
+    -- Identity / routing (prevents stale provider delegation)
+    frame._iconProvider = nil
     frame.isTrinket = false
     frame.trinketSlotID = nil
     frame.onUseSpellID = nil
@@ -1109,6 +1135,7 @@ function CooldownIcons:ResetIconState(frame)
     frame.readyGlowShown = nil
     frame.readyGlowExpires = nil
     frame.readyGlowActive = false
+    frame.readyGlowSoundPlayed = nil
     frame.wasOnRealCooldown = nil
     frame.wasUsable = nil
     frame.lastCooldownDuration = nil
@@ -1121,6 +1148,8 @@ function CooldownIcons:ResetIconState(frame)
     frame.lastCdDuration = nil
     frame._wasRealCooldown = nil
     frame._lastCastFeedbackTime = nil
+    frame._textBucket = nil
+    if frame.text then frame.text:SetText("") end
     frame.iconAlpha = nil
     if frame._dimTimer then
         frame._dimTimer:Cancel()
@@ -1158,28 +1187,14 @@ function CooldownIcons:SetupIcon(frame, spellID, actualSpellID, spellData, rowCo
     -- Reset all runtime state from previous spell assignment
     self:ResetIconState(frame)
 
-    -- Trinket icons: delegate setup to TrinketTracker
-    if self.trinketTracker and self.trinketTracker:IsTrinketSentinel(spellID) then
-        self.trinketTracker:SetupTrinketIcon(frame, spellID, rowConfig, rowIndex)
-        return
-    end
-
-    -- Totem element slots: delegate setup to TotemTracker
-    if self.totemTracker and self.totemTracker:IsTotemSentinel(spellID) then
-        self.totemTracker:SetupTotemIcon(frame, spellID, rowConfig, rowIndex)
-        return
-    end
-
-    -- Consumable icons: delegate setup to ConsumableTracker
-    if self.consumableTracker and self.consumableTracker:IsConsumableSentinel(spellID) then
-        self.consumableTracker:SetupConsumableIcon(frame, spellID, rowConfig, rowIndex)
-        return
-    end
-
-    -- Stance indicator: delegate setup to StanceTracker
-    if self.stanceTracker and self.stanceTracker:IsStanceSentinel(spellID) then
-        self.stanceTracker:SetupStanceIcon(frame, spellID, rowConfig, rowIndex)
-        return
+    -- Sentinel icons (trinkets, totems, stance, consumables): delegate setup
+    -- to the owning provider and remember it for per-tick update dispatch
+    for _, provider in ipairs(self.iconProviders) do
+        if provider.IsSentinel(spellID) then
+            frame._iconProvider = provider
+            provider.Setup(frame, spellID, rowConfig, rowIndex)
+            return
+        end
     end
 
     -- If the player previously used a different spell from this shared CD group
@@ -1293,17 +1308,32 @@ end
 -- The 0.05s ticker calls this; event handlers call UpdateAllIcons() directly.
 function CooldownIcons:OnUpdateTick()
     if not self._hasActiveTimers then return end
+    -- Skip the full pipeline while the HUD is hidden (flight paths, hidden
+    -- out of combat). Events still call UpdateAllIcons directly, and the
+    -- next tick after re-show resumes normal updates.
+    if addon.hudFrame and not addon.hudFrame:IsVisible() then return end
     self:UpdateAllIcons()
 end
 
 function CooldownIcons:UpdateAllIcons()
     if not self.rows then return end
 
-    self.stateEngine:SetTime(GetTime())
+    -- Coalesce to one full recompute per frame: cooldown/usability/power
+    -- events, aura notifications, and the ticker can all request an update in
+    -- the same frame (GetTime() is frame-constant). When skipping, force the
+    -- ticker back on so state changed by this caller is recomputed next tick.
+    local now = GetTime()
+    if self._lastUpdateTime == now then
+        self._hasActiveTimers = true
+        return
+    end
+    self._lastUpdateTime = now
+
+    self.stateEngine:SetTime(now)
     local db = addon.db.profile.icons
 
     -- Cache target context once for all aura checks this cycle
-    local auraTracker = addon:GetModule("AuraState")
+    local auraTracker = self.auraState
     if auraTracker and auraTracker.CacheTargetContext then
         auraTracker:CacheTargetContext()
     end
@@ -1485,40 +1515,11 @@ function CooldownIcons:ResetDynamicSortPositions()
 end
 
 function CooldownIcons:UpdateIconState(frame, db)
-    -- Trinket icons: delegate entirely to TrinketTracker
-    if frame.isTrinket then
-        if self.trinketTracker then
-            self.trinketTracker:UpdateTrinketIconState(frame, db)
-        end
-        -- Trinkets need periodic refresh when displaying countdown text
-        local text = frame.text and frame.text:GetText()
-        return text and text ~= ""
-    end
-
-    -- Totem element slots: delegate entirely to TotemTracker
-    if frame.isTotemSlot then
-        if self.totemTracker then
-            self.totemTracker:UpdateTotemIconState(frame, db)
-        end
-        local text = frame.text and frame.text:GetText()
-        return text and text ~= ""
-    end
-
-    -- Stance indicator: delegate entirely to StanceTracker
-    if frame.isStanceIndicator then
-        if self.stanceTracker then
-            self.stanceTracker:UpdateStanceIconState(frame, db)
-        end
-        return false  -- No countdown text
-    end
-
-    -- Consumable icons: delegate entirely to ConsumableTracker
-    if frame.isConsumable then
-        if self.consumableTracker then
-            self.consumableTracker:UpdateConsumableIconState(frame, db)
-        end
-        local text = frame.text and frame.text:GetText()
-        return text and text ~= ""
+    -- Sentinel icons: delegate entirely to the owning provider, which
+    -- returns whether the icon needs periodic ticker refresh
+    local provider = frame._iconProvider
+    if provider then
+        return provider.Update(frame, db)
     end
 
     if not frame.spellID then return end

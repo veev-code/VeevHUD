@@ -47,6 +47,11 @@ end
 function Paladin:OnUpdateSpecFeatures(sb)
     sb.hasTwistWindow = (addon.playerClass == C.CLASS.PALADIN and addon.playerSpec == C.SPEC.RETRIBUTION)
 
+    -- Resolve the GCD reference spell to a rank this character actually knows.
+    -- GetSpellCooldown returns 0s for unknown spell IDs, which would silently
+    -- disable the "twist impossible: GCD overruns swing" red state.
+    sb.gcdSpellID = addon.Utils:GetEffectiveSpellID(GCD_SPELL_ID) or GCD_SPELL_ID
+
     -- Resolve localized Seal of Command name (once) for twist prep detection
     if sb.hasTwistWindow and not sb.commandSealName then
         sb.commandSealName = GetSpellInfo(SEAL_OF_COMMAND_ID)
@@ -117,7 +122,7 @@ function Paladin:OnPostTimerUpdate(sb)
     if not sb.hasTwistWindow or sb.mainTimer <= 0 then return end
 
     -- GCD remaining via reference spell (Seal of Righteousness, no real cooldown)
-    local start, duration = GetSpellCooldown(GCD_SPELL_ID)
+    local start, duration = GetSpellCooldown(sb.gcdSpellID or GCD_SPELL_ID)
     if start and start > 0 and duration > 0 and duration <= GCD_DURATION then
         sb.gcdRemaining = math_max(0, (start + duration) - GetTime())
     else

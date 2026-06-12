@@ -92,9 +92,16 @@ function SpellTracker:OnSpecSwitched()
 end
 
 function SpellTracker:OnSpellsChanged()
-    self.Utils:LogDebug("SpellTracker: Spells changed")
-    self:InvalidateSpellbookCache()
-    self:FullRescan()
+    -- SPELLS_CHANGED fires in bursts (login, stance changes) — debounce so a
+    -- burst triggers a single rescan instead of one per event.
+    if self._rescanPending then return end
+    self._rescanPending = true
+    C_Timer.After(0.2, function()
+        self._rescanPending = nil
+        self.Utils:LogDebug("SpellTracker: Spells changed")
+        self:InvalidateSpellbookCache()
+        self:FullRescan()
+    end)
 end
 
 -------------------------------------------------------------------------------

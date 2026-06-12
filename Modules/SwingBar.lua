@@ -89,8 +89,6 @@ local GetTime = GetTime
 local UnitAttackSpeed = UnitAttackSpeed
 local UnitRangedDamage = UnitRangedDamage
 local UnitGUID = UnitGUID
-local CombatLogGetCurrentEventInfo = CombatLogGetCurrentEventInfo
-local select = select
 local math_abs = math.abs
 local math_max = math.max
 local C = addon.Constants
@@ -142,17 +140,14 @@ local SPARK_OVERFLOW = 6
 -- Melee state
 SwingBar.mainTimer = 0
 SwingBar.mainSpeed = 0
-SwingBar.prevMainSpeed = 0
 SwingBar.offTimer = 0
 SwingBar.offSpeed = 0
-SwingBar.prevOffSpeed = 0
 SwingBar.hasOffHand = false
 SwingBar.extraAttacksPending = 0
 
 -- Ranged state (Hunter + Wand)
 SwingBar.rangedTimer = 0
 SwingBar.rangedSpeed = 0
-SwingBar.prevRangedSpeed = 0
 SwingBar.autoRepeatActive = false
 SwingBar.feignPenalty = 0          -- Written by Hunter strategy; read in speed calc (harmless 0 default)
 SwingBar.hasteAccum = 0            -- Accumulator for throttled haste checks
@@ -254,6 +249,14 @@ end
 function SwingBar:OnPlayerEnteringWorld()
     self:UpdateSpecFeatures()
     self:UpdateWeaponSpeeds()
+    -- Seed the equipped-weapon snapshot so the first UNIT_INVENTORY_CHANGED
+    -- isn't misread as a swap, and drop any extra-attack guard left over from
+    -- before the loading screen (a granted extra attack that never landed
+    -- would silently swallow the first swing of the next fight).
+    self._equippedMH = GetInventoryItemID("player", 16)
+    self._equippedOH = GetInventoryItemID("player", 17)
+    self._equippedRanged = GetInventoryItemID("player", 18)
+    self.extraAttacksPending = 0
     CallStrategy(self, "OnPlayerEnteringWorld")
 end
 
@@ -267,7 +270,6 @@ function SwingBar:UpdateWeaponSpeeds()
     if self.isRanged or self.isWand then
         local speed = UnitRangedDamage("player")
         if speed and speed > 0 then
-            self.prevRangedSpeed = self.rangedSpeed
             self.rangedSpeed = speed + self.feignPenalty
         end
     end
@@ -276,11 +278,9 @@ function SwingBar:UpdateWeaponSpeeds()
     if not self.isRanged or meleeWeaving or self.isWand then
         local mainSpeed, offSpeed = UnitAttackSpeed("player")
         if mainSpeed and mainSpeed > 0 then
-            self.prevMainSpeed = self.mainSpeed
             self.mainSpeed = mainSpeed
         end
         if offSpeed and offSpeed > 0 then
-            self.prevOffSpeed = self.offSpeed
             self.offSpeed = offSpeed
             self.hasOffHand = true
         else
@@ -367,15 +367,17 @@ end
 function SwingBar:OnSwingDamage(subEvent, data)
     if data.sourceGUID ~= self.playerGUID then return end
 
-    -- Extra attack guard: if an extra attack (Windfury, Sword Spec) just fired,
-    -- don't reset the timer for the extra attack's SWING_DAMAGE
-    if self.extraAttacksPending > 0 then
+    -- isOffHand is the 10th suffix argument of SWING_DAMAGE
+    local isOffHand = data.s10
+
+    -- Extra attack guard: extra attacks (Windfury, Sword Spec) are always
+    -- main-hand swings. Read the hand FIRST — a regular off-hand swing
+    -- landing between the proc and the extra swing must not consume the
+    -- guard (that would desync the OH bar and let the extra swing reset MH).
+    if not isOffHand and self.extraAttacksPending > 0 then
         self.extraAttacksPending = self.extraAttacksPending - 1
         return
     end
-
-    -- Determine MH or OH from CLEU field position 21
-    local isOffHand = select(21, CombatLogGetCurrentEventInfo())
 
     self:UpdateWeaponSpeeds()
 
@@ -392,17 +394,18 @@ function SwingBar:OnSwingDamage(subEvent, data)
 end
 
 function SwingBar:OnSwingMissed(subEvent, data)
-    -- SWING_MISSED: missType at position 12, isOffHand at position 13
-    local missType = select(12, CombatLogGetCurrentEventInfo())
+    -- SWING_MISSED suffix: s1 = missType, s2 = isOffHand
+    local missType = data.s1
 
     -- Case 1: Player's swing missed → reset swing timer
     if data.sourceGUID == self.playerGUID then
-        if self.extraAttacksPending > 0 then
+        local isOffHand = data.s2
+
+        -- Extra attacks are always main-hand; see OnSwingDamage
+        if not isOffHand and self.extraAttacksPending > 0 then
             self.extraAttacksPending = self.extraAttacksPending - 1
             return
         end
-
-        local isOffHand = select(13, CombatLogGetCurrentEventInfo())
 
         self:UpdateWeaponSpeeds()
 
@@ -460,8 +463,10 @@ end
 
 function SwingBar:OnExtraAttacks(subEvent, data)
     if data.sourceGUID ~= self.playerGUID then return end
-    -- Increment pending counter so subsequent extra attack SWING_DAMAGEs don't reset the timer
-    local amount = select(16, CombatLogGetCurrentEventInfo()) or 1
+    -- Increment pending counter so subsequent extra attack SWING_DAMAGEs don't
+    -- reset the timer. amount is the first suffix argument (multi-attack procs
+    -- like Ironfoe grant more than one).
+    local amount = data.s1 or 1
     self.extraAttacksPending = self.extraAttacksPending + amount
 end
 
@@ -513,7 +518,30 @@ end
 function SwingBar:OnInventoryChanged(event, unit)
     if unit ~= "player" then return end
     CallStrategy(self, "OnInventoryChanged")
+
+    -- Detect actual weapon swaps (UNIT_INVENTORY_CHANGED also fires for bags,
+    -- armor, etc.). Swapping a weapon resets that hand's swing in-game —
+    -- without this, the old timer keeps counting scaled to the new weapon's
+    -- speed, and syncing self.*Speed below defeats CheckHasteChange's rescale.
+    local mh = GetInventoryItemID("player", 16)
+    local oh = GetInventoryItemID("player", 17)
+    local ranged = GetInventoryItemID("player", 18)
+    local mhChanged = mh ~= self._equippedMH
+    local ohChanged = oh ~= self._equippedOH
+    local rangedChanged = ranged ~= self._equippedRanged
+    self._equippedMH, self._equippedOH, self._equippedRanged = mh, oh, ranged
+
     self:UpdateWeaponSpeeds()
+
+    if mhChanged and self.mainTimer > 0 and self.mainSpeed > 0 then
+        self.mainTimer = self.mainSpeed
+    end
+    if ohChanged and self.offTimer > 0 then
+        self.offTimer = self.offSpeed > 0 and self.offSpeed or 0
+    end
+    if rangedChanged and self.rangedTimer > 0 and self.rangedSpeed > 0 then
+        self.rangedTimer = self.rangedSpeed
+    end
 end
 
 -------------------------------------------------------------------------------
@@ -657,10 +685,23 @@ end
 
 function SwingBar:HideBar()
     self.isVisible = false
+    -- Timers only decay while the container's OnUpdate runs; zero them so a
+    -- re-engage doesn't resume from frozen stale values on the inactive hand
+    self.mainTimer = 0
+    self.offTimer = 0
+    self.rangedTimer = 0
     if self.container then
         self.container:Hide()
     end
     addon.Layout:Refresh()
+end
+
+-- Force a container re-layout, bypassing UpdateContainerSize's change memo.
+-- Public so strategies can request it (e.g. Hunter melee-weaving toggles)
+-- without poking the private memo field directly.
+function SwingBar:ForceContainerResize()
+    self.lastDualState = nil
+    self:UpdateContainerSize()
 end
 
 -------------------------------------------------------------------------------
@@ -773,16 +814,16 @@ function SwingBar:CreateBarFrame(barType, parent, db)
         bar.gradient = gradient
     end
 
-    -- Spark texture
-    if db.showSpark then
-        local spark = self.Utils:CreateTexture(bar, nil, "OVERLAY")
-        spark:SetTexture([[Interface\CastingBar\UI-CastingBar-Spark]])
-        spark:SetBlendMode("ADD")
-        spark:SetSize(db.sparkWidth, height + SPARK_OVERFLOW)
-        spark:SetPoint("CENTER", bar, "LEFT", 0, 0)
-        spark:SetAlpha(0.9)
-        bar.spark = spark
-    end
+    -- Spark texture. Created unconditionally — the showSpark setting is
+    -- applied at display time (UpdateBars), so toggling it mid-session works
+    -- in both directions without a /reload.
+    local spark = self.Utils:CreateTexture(bar, nil, "OVERLAY")
+    spark:SetTexture([[Interface\CastingBar\UI-CastingBar-Spark]])
+    spark:SetBlendMode("ADD")
+    spark:SetSize(db.sparkWidth, height + SPARK_OVERFLOW)
+    spark:SetPoint("CENTER", bar, "LEFT", 0, 0)
+    spark:SetAlpha(0.9)
+    bar.spark = spark
 
     -- Optional timer text
     local textContainer = CreateFrame("Frame", nil, bar)
@@ -959,22 +1000,29 @@ function SwingBar:UpdateBars(dt)
             local c = self:GetFillColor(progress, false)
             self.mainBar:SetStatusBarColor(c.r, c.g, c.b)
 
-            -- Spark position
+            -- Spark position (showSpark applied here so toggling works live)
             if self.mainBar.spark then
                 local barWidth = self.mainBar:GetWidth()
                 self.mainBar.spark:SetPoint("CENTER", self.mainBar, "LEFT", barWidth * progress, 0)
-                self.mainBar.spark:SetShown(progress > 0 and progress < 1)
+                self.mainBar.spark:SetShown(db.showSpark and progress > 0 and progress < 1)
             end
 
-            -- Text
+            -- Text (re-format only when the displayed tenth changes — this
+            -- runs every frame and string.format allocates)
             if db.showText and timer > 0 then
-                self.mainBar.text:SetText(self.Utils:FormatCooldown(timer))
-            else
+                local bucket = math.floor(timer * 10)
+                if self.mainBar._textBucket ~= bucket then
+                    self.mainBar._textBucket = bucket
+                    self.mainBar.text:SetText(self.Utils:FormatCooldown(timer))
+                end
+            elseif self.mainBar._textBucket then
+                self.mainBar._textBucket = nil
                 self.mainBar.text:SetText("")
             end
         else
             self.mainBar:SetValue(0)
             self.mainBar.text:SetText("")
+            self.mainBar._textBucket = nil
             if self.mainBar.spark then
                 self.mainBar.spark:Hide()
             end
@@ -1019,18 +1067,24 @@ function SwingBar:UpdateBars(dt)
             if self.offBar.spark then
                 local barWidth = self.offBar:GetWidth()
                 self.offBar.spark:SetPoint("CENTER", self.offBar, "LEFT", barWidth * progress, 0)
-                self.offBar.spark:SetShown(progress > 0 and progress < 1)
+                self.offBar.spark:SetShown(db.showSpark and progress > 0 and progress < 1)
             end
 
-            -- Text
+            -- Text (see main bar: re-format only on displayed-tenth change)
             if db.showText and offTimer > 0 then
-                self.offBar.text:SetText(self.Utils:FormatCooldown(offTimer))
-            else
+                local bucket = math.floor(offTimer * 10)
+                if self.offBar._textBucket ~= bucket then
+                    self.offBar._textBucket = bucket
+                    self.offBar.text:SetText(self.Utils:FormatCooldown(offTimer))
+                end
+            elseif self.offBar._textBucket then
+                self.offBar._textBucket = nil
                 self.offBar.text:SetText("")
             end
         else
             self.offBar:SetValue(0)
             self.offBar.text:SetText("")
+            self.offBar._textBucket = nil
             if self.offBar.spark then
                 self.offBar.spark:Hide()
             end
@@ -1056,8 +1110,7 @@ function SwingBar:Refresh()
     if self.container then
         if db.enabled then
             -- Force bar dimensions update
-            self.lastDualState = nil
-            self:UpdateContainerSize()
+            self:ForceContainerResize()
 
             -- Update spark visibility
             if self.mainBar and self.mainBar.spark then

@@ -53,6 +53,8 @@ SpellsOptions.dragState = nil
 SpellsOptions.ghostFrame = nil
 SpellsOptions.dropIndicator = nil
 SpellsOptions.spellEntries = {}  -- All spell entry frames for drop detection
+SpellsOptions._entryPool = {}    -- Reusable spell entry frames (WoW never garbage-collects frames)
+SpellsOptions._headerPool = {}   -- Reusable row header frames
 
 -------------------------------------------------------------------------------
 -- Initialization
@@ -98,6 +100,9 @@ function SpellsOptions:CreateDialog()
         SpellsOptions._lastCenterX, SpellsOptions._lastCenterY = self:GetCenter()
     end)
     dialog:Hide()
+
+    -- Allow ESC to close the dialog
+    tinsert(UISpecialFrames, "VeevHUDSpellConfigDialog")
 
     if dialog.TitleText then
         dialog.TitleText:SetText("VeevHUD - Spell Configuration")
@@ -334,21 +339,31 @@ end
 -------------------------------------------------------------------------------
 
 function SpellsOptions:SetSpellOverride(spellID, field, value)
+    self:SetSpellOverrideRaw(spellID, field, value)
+    self:ApplyPendingSpellChanges()
+end
+
+-- Write an override without rescanning. Use in loops that change many spells at
+-- once, then call ApplyPendingSpellChanges() exactly once at the end.
+function SpellsOptions:SetSpellOverrideRaw(spellID, field, value)
     -- Get default value to compare - if value matches default, clear the override
     local defaultValue = self:GetDefaultValue(spellID, field)
-    
+
     if value == defaultValue then
         value = nil
     end
-    
+
     addon:SetSpellConfigOverride(spellID, field, value)
-    
+end
+
+-- Rescan and reposition after one or more spell overrides changed
+function SpellsOptions:ApplyPendingSpellChanges()
     -- Trigger refresh
     local spellTracker = addon:GetModule("SpellTracker")
     if spellTracker then
         spellTracker:FullRescan()
     end
-    
+
     -- Force reposition rows after spell changes
     -- (delayed slightly to ensure all icon updates are complete)
     C_Timer.After(0.05, function()
@@ -484,21 +499,24 @@ function SpellsOptions:RefreshSpellList()
     if self.subtitleText then
         self.subtitleText:SetText(addon:FormatSpecLabel(specKey) or ("Current spec: " .. addon:FormatSpecKey(specKey)))
     end
-    
-    -- Clear existing content (children/frames)
-    for _, child in ipairs({self.scrollChild:GetChildren()}) do
-        child:Hide()
-        child:SetParent(nil)
+
+    -- Return active entry/header frames to their pools for reuse
+    -- (WoW never garbage-collects frames, so recreating them every refresh leaks)
+    for _, frame in ipairs(self.spellEntries) do
+        frame:Hide()
+        if frame.isRowHeader then
+            table.insert(self._headerPool, frame)
+        else
+            table.insert(self._entryPool, frame)
+        end
     end
-    
-    -- Clear existing fontstrings/regions (they aren't children)
-    for _, region in ipairs({self.scrollChild:GetRegions()}) do
-        region:Hide()
-        region:SetParent(nil)
-    end
-    
     wipe(self.spellEntries)
-    
+
+    -- Hide the persistent info texts; re-shown below when applicable
+    if self._druidInfoText then self._druidInfoText:Hide() end
+    if self._noSpellsText then self._noSpellsText:Hide() end
+    if self._availDescText then self._availDescText:Hide() end
+
     -- Get spell data organized by row
     local rowSpells = self:GetEffectiveSpellList()
     
@@ -512,23 +530,35 @@ function SpellsOptions:RefreshSpellList()
     local yOffset = 0
     local rowConfigs = addon.db.profile.rows
 
-    -- Druid-specific explanation
+    -- Druid-specific explanation (persistent fontstring, reused across refreshes)
     if addon.playerClass == "DRUID" then
-        local druidInfo = self.scrollChild:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+        local druidInfo = self._druidInfoText
+        if not druidInfo then
+            druidInfo = self.scrollChild:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+            druidInfo:SetWidth(460)
+            druidInfo:SetJustifyH("LEFT")
+            druidInfo:SetText("|cff888888Druid: Cat Form and Bear Form abilities are filtered by your current form — Cat abilities hide in Bear Form and vice versa. In caster or travel form, your last Cat/Bear form is remembered. Click the form label (Cat/Bear/Any) next to any spell to override this.|r")
+            self._druidInfoText = druidInfo
+        end
+        druidInfo:ClearAllPoints()
         druidInfo:SetPoint("TOPLEFT", self.scrollChild, "TOPLEFT", 10, yOffset)
-        druidInfo:SetWidth(460)
-        druidInfo:SetJustifyH("LEFT")
-        druidInfo:SetText("|cff888888Druid: Cat Form and Bear Form abilities are filtered by your current form — Cat abilities hide in Bear Form and vice versa. In caster or travel form, your last Cat/Bear form is remembered. Click the form label (Cat/Bear/Any) next to any spell to override this.|r")
+        druidInfo:Show()
         local infoHeight = druidInfo:GetStringHeight() + 8
         yOffset = yOffset - infoHeight
     end
 
     if totalSpells == 0 then
-        -- Show message when no spells are found
-        local noSpellsMsg = self.scrollChild:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+        -- Show message when no spells are found (persistent fontstring)
+        local noSpellsMsg = self._noSpellsText
+        if not noSpellsMsg then
+            noSpellsMsg = self.scrollChild:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+            noSpellsMsg:SetText("|cff888888No spells found for this spec.|r\n\nMake sure you're logged in and have abilities learned.")
+            noSpellsMsg:SetJustifyH("LEFT")
+            self._noSpellsText = noSpellsMsg
+        end
+        noSpellsMsg:ClearAllPoints()
         noSpellsMsg:SetPoint("TOPLEFT", self.scrollChild, "TOPLEFT", 0, yOffset)
-        noSpellsMsg:SetText("|cff888888No spells found for this spec.|r\n\nMake sure you're logged in and have abilities learned.")
-        noSpellsMsg:SetJustifyH("LEFT")
+        noSpellsMsg:Show()
         yOffset = yOffset - 60
     else
         -- Display rows in visual order (matching default HUD layout: Aux above Primary)
@@ -557,12 +587,18 @@ function SpellsOptions:RefreshSpellList()
             yOffset = yOffset - 12  -- Extra gap before available section
             yOffset = self:CreateRowHeader(AVAILABLE_ROW_INDEX, "Available", yOffset)
             
-            -- Add description
-            local availDesc = self.scrollChild:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+            -- Add description (persistent fontstring, reused across refreshes)
+            local availDesc = self._availDescText
+            if not availDesc then
+                availDesc = self.scrollChild:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+                availDesc:SetText("|cff888888Spells you know but aren't tracked. Drag to a row above to enable.|r")
+                availDesc:SetWidth(450)
+                availDesc:SetJustifyH("LEFT")
+                self._availDescText = availDesc
+            end
+            availDesc:ClearAllPoints()
             availDesc:SetPoint("TOPLEFT", self.scrollChild, "TOPLEFT", 10, yOffset)
-            availDesc:SetText("|cff888888Spells you know but aren't tracked. Drag to a row above to enable.|r")
-            availDesc:SetWidth(450)
-            availDesc:SetJustifyH("LEFT")
+            availDesc:Show()
             yOffset = yOffset - 16
             
             for i, spellInfo in ipairs(availableSpells) do
@@ -998,66 +1034,66 @@ end
 -------------------------------------------------------------------------------
 
 function SpellsOptions:CreateRowHeader(rowIndex, name, yOffset)
-    local frame = CreateFrame("Frame", nil, self.scrollChild)
+    -- Acquire from pool (frames are never garbage-collected, so reuse them)
+    local frame = table.remove(self._headerPool)
+    if not frame then
+        frame = CreateFrame("Frame", nil, self.scrollChild)
+        frame:SetSize(500, ROW_HEADER_HEIGHT)
+        frame.isRowHeader = true
+
+        -- Left separator line
+        local leftLine = frame:CreateTexture(nil, "ARTWORK")
+        leftLine:SetHeight(1)
+        leftLine:SetPoint("LEFT", 0, 0)
+        leftLine:SetPoint("RIGHT", frame, "LEFT", 60, 0)
+        leftLine:SetColorTexture(0.6, 0.5, 0.2, 0.8)
+
+        -- Header text
+        local header = frame:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+        header:SetPoint("LEFT", leftLine, "RIGHT", 8, 0)
+        header:SetTextColor(1, 0.82, 0)
+        frame.headerText = header
+
+        -- Right separator line
+        local rightLine = frame:CreateTexture(nil, "ARTWORK")
+        rightLine:SetHeight(1)
+        rightLine:SetPoint("LEFT", header, "RIGHT", 8, 0)
+        rightLine:SetPoint("RIGHT", frame, "RIGHT", 0, 0)
+        rightLine:SetColorTexture(0.6, 0.5, 0.2, 0.8)
+
+        -- Highlight for drag hover
+        frame.highlight = frame:CreateTexture(nil, "BACKGROUND")
+        frame.highlight:SetAllPoints()
+        frame.highlight:SetColorTexture(1, 0.82, 0, 0.1)
+    end
+
+    frame:ClearAllPoints()
     frame:SetPoint("TOPLEFT", self.scrollChild, "TOPLEFT", 0, yOffset)
-    frame:SetSize(500, ROW_HEADER_HEIGHT)
     frame.rowIndex = rowIndex
-    frame.isRowHeader = true
-    
-    -- Left separator line
-    local leftLine = frame:CreateTexture(nil, "ARTWORK")
-    leftLine:SetHeight(1)
-    leftLine:SetPoint("LEFT", 0, 0)
-    leftLine:SetPoint("RIGHT", frame, "LEFT", 60, 0)
-    leftLine:SetColorTexture(0.6, 0.5, 0.2, 0.8)
-    
-    -- Header text
-    local header = frame:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-    header:SetPoint("LEFT", leftLine, "RIGHT", 8, 0)
-    header:SetText(name or "Row " .. rowIndex)
-    header:SetTextColor(1, 0.82, 0)
-    
-    -- Right separator line
-    local rightLine = frame:CreateTexture(nil, "ARTWORK")
-    rightLine:SetHeight(1)
-    rightLine:SetPoint("LEFT", header, "RIGHT", 8, 0)
-    rightLine:SetPoint("RIGHT", frame, "RIGHT", 0, 0)
-    rightLine:SetColorTexture(0.6, 0.5, 0.2, 0.8)
-    
-    -- Highlight for drag hover
-    frame.highlight = frame:CreateTexture(nil, "BACKGROUND")
-    frame.highlight:SetAllPoints()
-    frame.highlight:SetColorTexture(1, 0.82, 0, 0.1)
+    frame.headerText:SetText(name or "Row " .. rowIndex)
     frame.highlight:Hide()
-    
     frame:Show()  -- Explicitly show
-    
+
     -- Store for drag detection
     table.insert(self.spellEntries, frame)
-    
+
     return yOffset - ROW_HEADER_HEIGHT
 end
 
-function SpellsOptions:CreateSpellEntry(spellInfo, rowIndex, index, yOffset)
+-- Build the static skeleton of a spell entry frame. Created once, then pooled and
+-- reused — everything that depends on the specific spell is (re)set in CreateSpellEntry.
+function SpellsOptions:CreateSpellEntryFrame()
     local frame = CreateFrame("Frame", nil, self.scrollChild)
-    frame:SetPoint("TOPLEFT", self.scrollChild, "TOPLEFT", 10, yOffset)
     frame:SetSize(480, SPELL_ENTRY_HEIGHT)
     frame:EnableMouse(true)
-    frame:Show()  -- Explicitly show
-    
-    -- Store spell info
-    frame.spellID = spellInfo.spellID
-    frame.spellInfo = spellInfo
-    frame.rowIndex = rowIndex
-    frame.index = index
     frame.isSpellEntry = true
-    
+
     -- Background (for hover/selection)
     frame.bg = frame:CreateTexture(nil, "BACKGROUND")
     frame.bg:SetAllPoints()
     frame.bg:SetColorTexture(0.1, 0.1, 0.1, 0.3)
     frame.bg:Hide()
-    
+
     -- Drop indicator highlight
     frame.dropHighlight = frame:CreateTexture(nil, "OVERLAY")
     frame.dropHighlight:SetPoint("TOPLEFT", 0, 2)
@@ -1065,11 +1101,103 @@ function SpellsOptions:CreateSpellEntry(spellInfo, rowIndex, index, yOffset)
     frame.dropHighlight:SetHeight(2)
     frame.dropHighlight:SetColorTexture(0.3, 0.6, 1, 1)
     frame.dropHighlight:Hide()
-    
+
     -- Icon
     local icon = frame:CreateTexture(nil, "ARTWORK")
     icon:SetPoint("LEFT", 0, 0)
     icon:SetSize(ICON_SIZE, ICON_SIZE)
+    frame.icon = icon
+
+    -- Name
+    local name = frame:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+    name:SetPoint("LEFT", icon, "RIGHT", 8, 0)
+    name:SetWidth(200)
+    name:SetJustifyH("LEFT")
+    frame.nameText = name
+
+    -- Checkbox (enable/disable); OnClick is bound per-spell in CreateSpellEntry
+    local checkbox = CreateFrame("CheckButton", nil, frame, "InterfaceOptionsCheckButtonTemplate")
+    checkbox:SetPoint("LEFT", name, "RIGHT", 8, 0)
+    checkbox.Text:SetText("")  -- No text on checkbox
+    frame.checkbox = checkbox
+
+    -- Druid form selector (all druid specs — form filtering applies to all druids);
+    -- per-spell state and scripts are bound in CreateSpellEntry
+    local dragAnchor = checkbox  -- Default: drag handle anchors to checkbox
+    if addon.playerClass == "DRUID" then
+        local formBtn = CreateFrame("Button", nil, frame)
+        formBtn:SetPoint("LEFT", checkbox, "RIGHT", 4, 0)
+        formBtn:SetSize(36, 20)
+
+        local formText = formBtn:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+        formText:SetPoint("CENTER")
+        formBtn.text = formText
+
+        frame.formBtn = formBtn
+        dragAnchor = formBtn  -- Drag handle anchors to form button instead
+    end
+
+    -- Drag handle (use simple :: symbol that renders in all fonts)
+    local dragHandle = CreateFrame("Button", nil, frame)
+    dragHandle:SetPoint("LEFT", dragAnchor, "RIGHT", 8, 0)
+    dragHandle:SetSize(20, 20)
+
+    local dragText = dragHandle:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+    dragText:SetPoint("CENTER")
+    dragText:SetText("::") -- Simple drag handle indicator
+    dragText:SetTextColor(0.6, 0.6, 0.6)
+
+    dragHandle:SetScript("OnEnter", function(self)
+        dragText:SetTextColor(1, 1, 1)
+        frame.bg:Show()
+    end)
+    dragHandle:SetScript("OnLeave", function(self)
+        dragText:SetTextColor(0.6, 0.6, 0.6)
+        frame.bg:Hide()
+    end)
+
+    -- Drag functionality (reads the frame's current spellInfo, so bound once)
+    dragHandle:RegisterForDrag("LeftButton")
+    dragHandle:SetScript("OnDragStart", function()
+        SpellsOptions:StartDrag(frame)
+    end)
+    dragHandle:SetScript("OnDragStop", function()
+        SpellsOptions:EndDrag()
+    end)
+    frame.dragHandle = dragHandle
+
+    frame:SetScript("OnLeave", function(self)
+        self.bg:Hide()
+        GameTooltip:Hide()
+    end)
+
+    return frame
+end
+
+function SpellsOptions:CreateSpellEntry(spellInfo, rowIndex, index, yOffset)
+    -- Acquire from pool (frames are never garbage-collected, so reuse them)
+    local frame = table.remove(self._entryPool)
+    if not frame then
+        frame = self:CreateSpellEntryFrame()
+    end
+
+    frame:ClearAllPoints()
+    frame:SetPoint("TOPLEFT", self.scrollChild, "TOPLEFT", 10, yOffset)
+    frame:SetAlpha(1)  -- May have been dimmed as a drag source
+    frame:Show()  -- Explicitly show
+
+    -- Store spell info
+    frame.spellID = spellInfo.spellID
+    frame.spellInfo = spellInfo
+    frame.rowIndex = rowIndex
+    frame.index = index
+
+    -- Reset transient visuals from a previous use
+    frame.bg:Hide()
+    frame.dropHighlight:Hide()
+
+    -- Icon
+    local icon = frame.icon
     local spellName, _, spellIcon
     if spellInfo.isTrinket or spellInfo.isTotemSlot or spellInfo.isStanceIndicator or spellInfo.isConsumable then
         spellName = spellInfo.spellData.name
@@ -1078,8 +1206,7 @@ function SpellsOptions:CreateSpellEntry(spellInfo, rowIndex, index, yOffset)
         spellName, _, spellIcon = GetSpellInfo(spellInfo.spellID)
     end
     icon:SetTexture(spellIcon or "Interface\\Icons\\INV_Misc_QuestionMark")
-    frame.icon = icon
-    
+
     -- Name (use group description for group entries)
     local nameText
     if spellInfo.isExclusiveGroup and spellInfo.exclusiveGroupDescription then
@@ -1094,39 +1221,37 @@ function SpellsOptions:CreateSpellEntry(spellInfo, rowIndex, index, yOffset)
         nameText = spellName or ("Spell " .. spellInfo.spellID)
     end
 
-    local name = frame:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
-    name:SetPoint("LEFT", icon, "RIGHT", 8, 0)
+    local name = frame.nameText
     name:SetText(nameText)
-    name:SetWidth(200)
-    name:SetJustifyH("LEFT")
-    frame.nameText = name
-    
-    -- Grey out if disabled
-    if not spellInfo.enabled then
+
+    -- Grey out if disabled (reset both ways — the frame may be reused)
+    if spellInfo.enabled then
+        icon:SetDesaturated(false)
+        icon:SetAlpha(1)
+        name:SetTextColor(1, 1, 1)
+    else
         icon:SetDesaturated(true)
         icon:SetAlpha(0.5)
         name:SetTextColor(0.5, 0.5, 0.5)
     end
-    
+
     -- Checkbox (enable/disable)
-    local checkbox = CreateFrame("CheckButton", nil, frame, "InterfaceOptionsCheckButtonTemplate")
-    checkbox:SetPoint("LEFT", name, "RIGHT", 8, 0)
+    local checkbox = frame.checkbox
     checkbox:SetChecked(spellInfo.enabled)
-    checkbox.Text:SetText("")  -- No text on checkbox
-    
+
     checkbox:SetScript("OnClick", function(self)
         local enabled = self:GetChecked()
 
         if spellInfo.isExclusiveGroup then
             -- Toggle ALL group members at once
             for _, memberID in ipairs(spellInfo.exclusiveGroupMembers) do
-                SpellsOptions:SetSpellOverride(memberID, "enabled", enabled)
+                SpellsOptions:SetSpellOverrideRaw(memberID, "enabled", enabled)
             end
         elseif spellInfo.isSharedCDGroup then
             -- Only toggle the tracked spell (others aren't spec-relevant)
-            SpellsOptions:SetSpellOverride(spellInfo.sharedCDTrackedSpellID, "enabled", enabled)
+            SpellsOptions:SetSpellOverrideRaw(spellInfo.sharedCDTrackedSpellID, "enabled", enabled)
         else
-            SpellsOptions:SetSpellOverride(spellInfo.spellID, "enabled", enabled)
+            SpellsOptions:SetSpellOverrideRaw(spellInfo.spellID, "enabled", enabled)
         end
 
         -- If enabling a spell from the Available section, move it to its default row
@@ -1151,29 +1276,30 @@ function SpellsOptions:CreateSpellEntry(spellInfo, rowIndex, index, yOffset)
                         if cooldownIcons and cooldownIcons.GetDefaultRowForSpell then
                             memberRow = cooldownIcons:GetDefaultRowForSpell(memberID) or defaultRow
                         end
-                        SpellsOptions:SetSpellOverride(memberID, "rowIndex", memberRow)
+                        SpellsOptions:SetSpellOverrideRaw(memberID, "rowIndex", memberRow)
                     end
                 end
             elseif spellInfo.isSharedCDGroup then
                 local trackedCfg = addon:GetSpellConfigForSpell(spellInfo.sharedCDTrackedSpellID)
                 if trackedCfg.rowIndex == nil or trackedCfg.rowIndex == AVAILABLE_ROW_INDEX then
-                    SpellsOptions:SetSpellOverride(spellInfo.sharedCDTrackedSpellID, "rowIndex", defaultRow)
+                    SpellsOptions:SetSpellOverrideRaw(spellInfo.sharedCDTrackedSpellID, "rowIndex", defaultRow)
                 end
             else
                 local cfg = addon:GetSpellConfigForSpell(spellInfo.spellID)
                 if cfg.rowIndex == nil or cfg.rowIndex == AVAILABLE_ROW_INDEX then
-                    SpellsOptions:SetSpellOverride(spellInfo.spellID, "rowIndex", defaultRow)
+                    SpellsOptions:SetSpellOverrideRaw(spellInfo.spellID, "rowIndex", defaultRow)
                 end
             end
         end
 
+        -- Rescan/reposition once for all the overrides written above
+        SpellsOptions:ApplyPendingSpellChanges()
+
         SpellsOptions:RefreshSpellList()
     end)
-    frame.checkbox = checkbox
 
-    -- Druid form selector (all druid specs — form filtering applies to all druids)
-    local dragAnchor = checkbox  -- Default: drag handle anchors to checkbox
-    if addon.playerClass == "DRUID" then
+    -- Druid form selector (per-spell state — rebound on every acquire)
+    if frame.formBtn then
         local LibSpellDB = addon.LibSpellDB
         local sid = spellInfo.spellID
 
@@ -1190,12 +1316,8 @@ function SpellsOptions:CreateSpellEntry(spellInfo, rowIndex, index, yOffset)
         -- Cycle order
         local cycleOrder = { "CAT", "BEAR", "ANY" }
 
-        local formBtn = CreateFrame("Button", nil, frame)
-        formBtn:SetPoint("LEFT", checkbox, "RIGHT", 4, 0)
-        formBtn:SetSize(36, 20)
-
-        local formText = formBtn:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-        formText:SetPoint("CENTER")
+        local formBtn = frame.formBtn
+        local formText = formBtn.text
 
         -- Get current override
         local cfg = addon:GetSpellConfigForSpell(sid)
@@ -1259,41 +1381,9 @@ function SpellsOptions:CreateSpellEntry(spellInfo, rowIndex, index, yOffset)
         formBtn:SetScript("OnLeave", function()
             GameTooltip:Hide()
         end)
-
-        frame.formBtn = formBtn
-        dragAnchor = formBtn  -- Drag handle anchors to form button instead
     end
 
-    -- Drag handle (use simple :: symbol that renders in all fonts)
-    local dragHandle = CreateFrame("Button", nil, frame)
-    dragHandle:SetPoint("LEFT", dragAnchor, "RIGHT", 8, 0)
-    dragHandle:SetSize(20, 20)
-    
-    local dragText = dragHandle:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-    dragText:SetPoint("CENTER")
-    dragText:SetText("::") -- Simple drag handle indicator
-    dragText:SetTextColor(0.6, 0.6, 0.6)
-    
-    dragHandle:SetScript("OnEnter", function(self)
-        dragText:SetTextColor(1, 1, 1)
-        frame.bg:Show()
-    end)
-    dragHandle:SetScript("OnLeave", function(self)
-        dragText:SetTextColor(0.6, 0.6, 0.6)
-        frame.bg:Hide()
-    end)
-    
-    -- Drag functionality
-    dragHandle:RegisterForDrag("LeftButton")
-    dragHandle:SetScript("OnDragStart", function()
-        SpellsOptions:StartDrag(frame)
-    end)
-    dragHandle:SetScript("OnDragStop", function()
-        SpellsOptions:EndDrag()
-    end)
-    frame.dragHandle = dragHandle
-    
-    -- Hover effects
+    -- Hover effects (tooltip depends on the spell — rebound on every acquire)
     frame:SetScript("OnEnter", function(self)
         self.bg:Show()
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
@@ -1324,14 +1414,10 @@ function SpellsOptions:CreateSpellEntry(spellInfo, rowIndex, index, yOffset)
         end
         GameTooltip:Show()
     end)
-    frame:SetScript("OnLeave", function(self)
-        self.bg:Hide()
-        GameTooltip:Hide()
-    end)
-    
+
     -- Store for drag detection
     table.insert(self.spellEntries, frame)
-    
+
     return yOffset - SPELL_ENTRY_HEIGHT
 end
 
@@ -1384,10 +1470,17 @@ function SpellsOptions:StartDrag(frame)
         sourceIndex = frame.index,
     }
     
-    -- Setup ghost frame
-    local spellName, _, spellIcon = GetSpellInfo(frame.spellID)
+    -- Setup ghost frame (sentinel entries aren't real spells — resolve from spellData)
+    local info = frame.spellInfo
+    local spellName, _, spellIcon
+    if info.isTrinket or info.isTotemSlot or info.isStanceIndicator or info.isConsumable then
+        spellName = info.spellData.name
+        spellIcon = info.spellData.icon
+    else
+        spellName, _, spellIcon = GetSpellInfo(frame.spellID)
+    end
     self.ghostFrame.icon:SetTexture(spellIcon)
-    if frame.spellInfo.isExclusiveGroup or frame.spellInfo.isSharedCDGroup then
+    if info.isExclusiveGroup or info.isSharedCDGroup then
         self.ghostFrame.name:SetText(frame.nameText:GetText() or "Group")
     else
         self.ghostFrame.name:SetText(spellName or "Unknown")
@@ -1540,38 +1633,38 @@ function SpellsOptions:EndDrag()
         if sourceRow == AVAILABLE_ROW_INDEX and newRow ~= AVAILABLE_ROW_INDEX then
             if isExclGroup then
                 for _, memberID in ipairs(exclMembers) do
-                    self:SetSpellOverride(memberID, "enabled", true)
-                    self:SetSpellOverride(memberID, "rowIndex", nil)  -- Clear AVAILABLE_ROW_INDEX
+                    self:SetSpellOverrideRaw(memberID, "enabled", true)
+                    self:SetSpellOverrideRaw(memberID, "rowIndex", nil)  -- Clear AVAILABLE_ROW_INDEX
                 end
             elseif isSharedCD then
-                self:SetSpellOverride(sharedCDTarget, "enabled", true)
-                self:SetSpellOverride(sharedCDTarget, "rowIndex", nil)
+                self:SetSpellOverrideRaw(sharedCDTarget, "enabled", true)
+                self:SetSpellOverrideRaw(sharedCDTarget, "rowIndex", nil)
             else
-                self:SetSpellOverride(spellID, "enabled", true)
+                self:SetSpellOverrideRaw(spellID, "enabled", true)
             end
-            self:SetSpellOverride(isSharedCD and sharedCDTarget or spellID, "rowIndex", newRow)
+            self:SetSpellOverrideRaw(isSharedCD and sharedCDTarget or spellID, "rowIndex", newRow)
         -- If dragging to Available section, disable the spell
         elseif newRow == AVAILABLE_ROW_INDEX and sourceRow ~= AVAILABLE_ROW_INDEX then
             if isExclGroup then
                 for _, memberID in ipairs(exclMembers) do
-                    self:SetSpellOverride(memberID, "enabled", false)
-                    self:SetSpellOverride(memberID, "rowIndex", AVAILABLE_ROW_INDEX)
+                    self:SetSpellOverrideRaw(memberID, "enabled", false)
+                    self:SetSpellOverrideRaw(memberID, "rowIndex", AVAILABLE_ROW_INDEX)
                 end
             elseif isSharedCD then
-                self:SetSpellOverride(sharedCDTarget, "enabled", false)
-                self:SetSpellOverride(sharedCDTarget, "rowIndex", AVAILABLE_ROW_INDEX)
+                self:SetSpellOverrideRaw(sharedCDTarget, "enabled", false)
+                self:SetSpellOverrideRaw(sharedCDTarget, "rowIndex", AVAILABLE_ROW_INDEX)
             else
-                self:SetSpellOverride(spellID, "enabled", false)
-                self:SetSpellOverride(spellID, "rowIndex", AVAILABLE_ROW_INDEX)
+                self:SetSpellOverrideRaw(spellID, "enabled", false)
+                self:SetSpellOverrideRaw(spellID, "rowIndex", AVAILABLE_ROW_INDEX)
             end
         -- Row changed within main rows
         elseif rowChanged then
             if isExclGroup then
                 for _, memberID in ipairs(exclMembers) do
-                    self:SetSpellOverride(memberID, "rowIndex", newRow)
+                    self:SetSpellOverrideRaw(memberID, "rowIndex", newRow)
                 end
             else
-                self:SetSpellOverride(isSharedCD and sharedCDTarget or spellID, "rowIndex", newRow)
+                self:SetSpellOverrideRaw(isSharedCD and sharedCDTarget or spellID, "rowIndex", newRow)
             end
         end
         
@@ -1635,9 +1728,12 @@ function SpellsOptions:EndDrag()
             -- Assign sequential order values to ALL spells (1, 2, 3, ...)
             -- This ensures every spell has an explicit order, eliminating defaultOrder inconsistencies
             for i, spell in ipairs(finalOrder) do
-                self:SetSpellOverride(spell.spellID, "order", i)
+                self:SetSpellOverrideRaw(spell.spellID, "order", i)
             end
         end
+
+        -- Rescan/reposition once for all the overrides written above
+        self:ApplyPendingSpellChanges()
     end
     
     self.dragState = nil

@@ -132,16 +132,9 @@ function HealthBar:CreatePlayerBar(parent)
     -- Initial update
     self:UpdatePlayerBar()
 
-    -- Smooth updates (uses global animation setting)
-    -- Frame OnUpdate for frame-rate synced smooth animation
-    local animDb = addon.db.profile.animations
-    if animDb.smoothBars then
-        self.playerTargetValue = 1
-        self.playerCurrentValue = 1
-        self.playerBar:SetScript("OnUpdate", function()
-            self:SmoothUpdatePlayer()
-        end)
-    end
+    -- Smooth updates (uses global animation setting). Re-evaluated from
+    -- Refresh so toggling the setting mid-session attaches/detaches the driver.
+    self.Utils:ApplySmoothBarDriver(self.playerBar, addon.db.profile.animations.smoothBars)
 end
 
 function HealthBar:CreateBorder(bar)
@@ -249,12 +242,7 @@ function HealthBar:UpdatePlayerBar()
 
     local db = addon.db.profile.healthBar
 
-    local animDb = addon.db.profile.animations
-    if animDb.smoothBars then
-        self.playerTargetValue = percent
-    else
-        self.playerBar:SetValue(percent)
-    end
+    self.Utils:SetBarValueSmooth(self.playerBar, percent)
 
     if self.playerText and db.textFormat and db.textFormat ~= self.C.TEXT_FORMAT.NONE then
         self.playerText:SetText(self.Utils:FormatBarText(health, maxHealth, percent, db.textFormat, db.numberFormat))
@@ -262,17 +250,6 @@ function HealthBar:UpdatePlayerBar()
 
     -- Update heal prediction overlay (position depends on health %)
     self:UpdateOverlays()
-end
-
-function HealthBar:SmoothUpdatePlayer()
-    if not self.playerBar or not self.playerTargetValue then return end
-    
-    -- Check if smoothing is still enabled (user may have disabled it)
-    local animDb = addon.db.profile.animations
-    if not animDb.smoothBars then return end
-
-    self.playerCurrentValue = self.Utils:SmoothBarValue(self.playerCurrentValue, self.playerTargetValue)
-    self.playerBar:SetValue(self.playerCurrentValue)
 end
 
 -------------------------------------------------------------------------------
@@ -354,6 +331,9 @@ function HealthBar:Refresh()
         end
         -- Update heal prediction color to match bar color
         self:UpdateHealPredictionColor()
+
+        -- Attach/detach the smooth-fill driver to match the current setting
+        self.Utils:ApplySmoothBarDriver(self.playerBar, addon.db.profile.animations.smoothBars)
     end
     
     self:UpdatePlayerBar()

@@ -72,7 +72,6 @@ end
 
 -- Active reminders state
 BuffReminders.reminders = {}      -- Array of active reminder configs
-BuffReminders.activeAlerts = {}   -- spellID -> true for currently shown reminders
 BuffReminders.iconPool = {}       -- Recycled icon frames
 BuffReminders.visibleIcons = {}   -- Currently visible icon frames
 BuffReminders.containerFrame = nil
@@ -292,7 +291,6 @@ function BuffReminders:Initialize()
     self.iconFactory = addon:GetModule("IconFrameFactory")
     self.LibSpellDB = addon.LibSpellDB
     self.playerClass = addon.playerClass
-    self.playerGUID = UnitGUID("player")
 
     -- Initialize Masque support if available
     local MSQ = LibStub and LibStub("Masque", true)
@@ -898,30 +896,24 @@ end
 
 -- Check if a buff (by name) is present on a unit
 -- playerOnly: if true, only match buffs where source == "player"
+-- Uses the shared GUID-keyed aura cache (invalidated on UNIT_AURA) instead of
+-- raw 40-slot UnitBuff scans — this runs per member x per group-spell per tick.
 function BuffReminders:IsBuffOnUnit(unit, spellID, playerOnly)
     if not UnitExists(unit) then return false, 0, 0 end
 
     local nameSet = self:GetBuffNameSet(spellID)
     if not next(nameSet) then return false, 0, 0 end
 
-    -- Also check all rank names (they share the same name)
-    for i = 1, 40 do
-        local name, _, count, _, duration, expirationTime, source = UnitBuff(unit, i)
-        if not name then break end
-
-        if nameSet[name] then
-            if playerOnly and source ~= "player" then
-                -- Buff exists but not from player, keep searching
-            else
-                local remaining = 0
-                if expirationTime and expirationTime > 0 then
-                    remaining = expirationTime - GetTime()
-                elseif duration == 0 then
-                    remaining = 999999  -- Permanent buff
-                end
-                return true, remaining, count or 0
-            end
+    -- Matches by name, so all ranks (which share the same name) are covered
+    local aura = self.Utils:FindCachedBuffByNames(unit, nameSet, playerOnly)
+    if aura then
+        local remaining = 0
+        if aura.expirationTime and aura.expirationTime > 0 then
+            remaining = aura.expirationTime - GetTime()
+        elseif aura.duration == 0 then
+            remaining = 999999  -- Permanent buff
         end
+        return true, remaining, aura.count or 0
     end
 
     return false, 0, 0
@@ -958,12 +950,16 @@ function BuffReminders:CheckWeaponEnchants(config)
     local hasOHWeapon = HasOffhandWeapon()
     local result = { needsMH = false, needsOH = false, mhRemaining = nil, ohRemaining = nil }
 
-    self.Utils:LogDebug("BuffReminders: CheckWeaponEnchants -"
-        .. " hasMH=" .. tostring(hasMH)
-        .. " mhExp=" .. tostring(mhExp)
-        .. " hasOH=" .. tostring(hasOH)
-        .. " ohExp=" .. tostring(ohExp)
-        .. " hasOHWeapon=" .. tostring(hasOHWeapon))
+    -- Gate on debugMode before LogDebug: this runs every tick and the
+    -- concatenation would otherwise build garbage strings unconditionally
+    if addon.db.profile.debugMode then
+        self.Utils:LogDebug("BuffReminders: CheckWeaponEnchants -"
+            .. " hasMH=" .. tostring(hasMH)
+            .. " mhExp=" .. tostring(mhExp)
+            .. " hasOH=" .. tostring(hasOH)
+            .. " ohExp=" .. tostring(ohExp)
+            .. " hasOHWeapon=" .. tostring(hasOHWeapon))
+    end
 
     -- MH missing enchant
     if checkMH and not hasMH then
@@ -993,9 +989,11 @@ function BuffReminders:CheckWeaponEnchants(config)
         end
     end
 
-    self.Utils:LogDebug("BuffReminders: CheckWeaponEnchants result -"
-        .. " needsMH=" .. tostring(result.needsMH)
-        .. " needsOH=" .. tostring(result.needsOH))
+    if addon.db.profile.debugMode then
+        self.Utils:LogDebug("BuffReminders: CheckWeaponEnchants result -"
+            .. " needsMH=" .. tostring(result.needsMH)
+            .. " needsOH=" .. tostring(result.needsOH))
+    end
 
     if not result.needsMH and not result.needsOH then return nil end
     return result
@@ -1016,12 +1014,18 @@ function BuffReminders:ShouldRemind(reminder)
     end
     
     -- Check combat state
+    -- (LogDebug calls are gated on debugMode: these paths run every tick and
+    -- the string concatenation would otherwise build garbage unconditionally)
     local inCombat = UnitAffectingCombat("player")
     if config.combatState == COMBAT_STATE.COMBAT and not inCombat then
-        self.Utils:LogDebug("BuffReminders: " .. (spellData.name or spellID) .. " - skipped (requires combat)")
+        if addon.db.profile.debugMode then
+            self.Utils:LogDebug("BuffReminders: " .. (spellData.name or spellID) .. " - skipped (requires combat)")
+        end
         return false
     elseif config.combatState == COMBAT_STATE.OOC and inCombat then
-        self.Utils:LogDebug("BuffReminders: " .. (spellData.name or spellID) .. " - skipped (requires OOC)")
+        if addon.db.profile.debugMode then
+            self.Utils:LogDebug("BuffReminders: " .. (spellData.name or spellID) .. " - skipped (requires OOC)")
+        end
         return false
     end
     
@@ -1131,7 +1135,9 @@ function BuffReminders:ShouldRemind(reminder)
         local cdRemaining = self:GetItemBasedCooldown(reminder, spellID, spellData)
         local threshold = (config.timeRemaining and config.timeRemaining > 0) and config.timeRemaining or 0
         if cdRemaining > threshold then
-            self.Utils:LogDebug("BuffReminders: " .. (spellData.name or spellID) .. " - on cooldown (" .. string.format("%.1f", cdRemaining) .. "s > threshold " .. threshold .. ")")
+            if addon.db.profile.debugMode then
+                self.Utils:LogDebug("BuffReminders: " .. (spellData.name or spellID) .. " - on cooldown (" .. string.format("%.1f", cdRemaining) .. "s > threshold " .. threshold .. ")")
+            end
             return false
         end
         if self._bagDirty or reminder._cachedItemCount == nil then
@@ -1423,7 +1429,6 @@ function BuffReminders:OnUpdate()
     end
     
     -- Check each reminder
-    local newAlerts = {}
     local alertList = {}
     
     for _, reminder in ipairs(self.reminders) do
@@ -1435,7 +1440,6 @@ function BuffReminders:OnUpdate()
                 -- Weapon enchant: separate alerts per hand with weapon icons
                 if shouldRemind.needsMH then
                     local mhIcon = GetInventoryItemTexture("player", 16)  -- INVSLOT_MAINHAND
-                    newAlerts["weaponMH"] = true
                     table.insert(alertList, {
                         spellID = spellID,
                         key = "weaponMH",
@@ -1446,7 +1450,6 @@ function BuffReminders:OnUpdate()
                 end
                 if shouldRemind.needsOH then
                     local ohIcon = GetInventoryItemTexture("player", 17)  -- INVSLOT_OFFHAND
-                    newAlerts["weaponOH"] = true
                     table.insert(alertList, {
                         spellID = spellID,
                         key = "weaponOH",
@@ -1457,8 +1460,6 @@ function BuffReminders:OnUpdate()
                 end
             else
                 -- Normal buff reminder
-                newAlerts[spellID] = true
-
                 -- Determine which spell icon to show
                 local displaySpellID = spellID
 
@@ -1523,7 +1524,6 @@ function BuffReminders:OnUpdate()
     
     -- Update visible icons
     self:UpdateVisibleIcons(alertList)
-    self.activeAlerts = newAlerts
     self._bagDirty = false
 end
 

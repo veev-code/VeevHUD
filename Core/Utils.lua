@@ -390,6 +390,63 @@ end
 
 -- Smooth bar update using lerp
 -- Returns: newCurrentValue, hasReachedTarget
+-------------------------------------------------------------------------------
+-- Smooth Status Bar Driver (shared by HealthBar / PetHealthBar)
+-------------------------------------------------------------------------------
+
+-- Attach or detach a smoothing OnUpdate driver on a status bar, based on the
+-- current animations.smoothBars setting. Must be called at frame creation AND
+-- from Refresh: a driver attached only at creation freezes the bar forever if
+-- smoothing is enabled mid-session (updates write targets nobody consumes),
+-- and one never detached burns an OnUpdate doing nothing when disabled.
+function Utils:ApplySmoothBarDriver(bar, enabled)
+    if not bar then return end
+    if enabled then
+        if not bar._smoothDriverActive then
+            bar._smoothDriverActive = true
+            -- Seed from the live value so the fill doesn't jump on attach
+            bar._smoothCurrent = bar:GetValue()
+            bar._smoothTarget = bar._smoothCurrent
+            bar:SetScript("OnUpdate", function(b, elapsed)
+                local target = b._smoothTarget
+                if not target then return end
+                -- elapsed*18 ≙ the legacy 0.3/frame at 60fps, frame-rate independent
+                b._smoothCurrent = Utils:SmoothBarValue(b._smoothCurrent or target, target, math.min(1, elapsed * 18))
+                b:SetValue(b._smoothCurrent)
+            end)
+        end
+    elseif bar._smoothDriverActive then
+        bar._smoothDriverActive = nil
+        bar:SetScript("OnUpdate", nil)
+        -- Snap to the last requested target so the bar isn't left mid-lerp
+        if bar._smoothTarget then
+            bar:SetValue(bar._smoothTarget)
+        end
+    end
+end
+
+-- Set a bar's value, routing through the smooth driver when it is attached.
+function Utils:SetBarValueSmooth(bar, value)
+    if bar._smoothDriverActive then
+        bar._smoothTarget = value
+    else
+        bar:SetValue(value)
+    end
+end
+
+-- "Show usability indicators" gate (in combat, or out of a rested area),
+-- memoized per frame: it's read per icon per update tick from both the state
+-- engine and the renderer, and GetTime() is constant within a frame.
+local usabilityMemoTime, usabilityMemoValue
+function Utils:ShouldShowUsabilityIndicators()
+    local now = GetTime()
+    if usabilityMemoTime ~= now then
+        usabilityMemoTime = now
+        usabilityMemoValue = UnitAffectingCombat("player") or not IsResting()
+    end
+    return usabilityMemoValue
+end
+
 function Utils:SmoothBarValue(currentValue, targetValue, speed)
     speed = speed or 0.3
     local diff = targetValue - currentValue
@@ -400,14 +457,6 @@ function Utils:SmoothBarValue(currentValue, targetValue, speed)
     end
 end
 
--------------------------------------------------------------------------------
--- Cooldown Dim State (shared by CooldownIcons and TrinketTracker)
--------------------------------------------------------------------------------
-
--- Determine alpha and desaturation for an icon that is on cooldown.
--- When the ready glow is active (almost ready), lifts dim and desaturation
--- so the glow and icon brighten together as a cohesive "almost ready" signal.
--- Returns: alpha, desaturate
 -------------------------------------------------------------------------------
 -- LibCustomGlow Utilities (shared glow management)
 -------------------------------------------------------------------------------

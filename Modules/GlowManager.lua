@@ -101,9 +101,13 @@ function GlowManager:UpdateIconGlow(frame, showGlow, isAuraActive, isPermanentBu
         local glowType = isPermanentBuff and "permanent" or (isAuraActive and "aura" or "normal")
         local iconAlpha = frame.iconAlpha or 1
 
-        -- Check if glow is already showing with correct type AND same alpha
-        -- We need to refresh the glow if alpha changed
-        if frame.glowActive and frame.glowType == glowType and frame.glowAlpha == iconAlpha then
+        -- Check if glow is already showing with correct type AND same alpha.
+        -- Alpha only matters for styles that bake it into their colors (aura
+        -- pixel glow, permanent glow); the "normal" proc overlay doesn't use
+        -- it, and alpha-keyed refresh restarted its intro animation on every
+        -- state-alpha change.
+        if frame.glowActive and frame.glowType == glowType
+            and (glowType == "normal" or frame.glowAlpha == iconAlpha) then
             return
         end
 
@@ -238,11 +242,6 @@ function GlowManager:ShowAuraGlow(frame)
     for _, tex in pairs(frame.pixelGlow) do
         tex:Show()
     end
-
-    -- Hide old auraGlow if exists
-    if frame.auraGlow then
-        frame.auraGlow:Hide()
-    end
 end
 
 -------------------------------------------------------------------------------
@@ -263,11 +262,6 @@ function GlowManager:HideGlow(frame)
         for _, tex in pairs(frame.pixelGlow) do
             tex:Hide()
         end
-    end
-
-    -- Hide old auraGlow if exists
-    if frame.auraGlow then
-        frame.auraGlow:Hide()
     end
 
     -- Hide permanent buff glow

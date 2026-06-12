@@ -1,5 +1,35 @@
 # VeevHUD Changelog
 
+## [1.0.211] - 2026-06-11
+
+Maintenance release: a full top-to-bottom audit of the addon, with dozens of bug fixes and substantial performance work. No new features — everything should simply work better.
+
+### Fixed
+- **Hunter swing bar** — Failed auto shots (out of range / line of sight) now correctly delay the timer, and Aimed Shot resets it, so the clip zones stay accurate through cast-time shots. Weapon-speed parsing also works on clients that display decimals with a comma (frFR/deDE).
+- **Swing bar** — Swapping weapons mid-swing now resets that hand's timer instead of leaving a stale countdown scaled to the new weapon; off-hand swings no longer desync the bars after Windfury / Sword Specialization extra attacks (and multi-attack procs like Ironfoe count correctly); the Show Spark option now applies immediately in both directions; re-engaging after the bar auto-hid no longer briefly shows frozen stale timers.
+- **Trinkets** — Proc internal-cooldown timers survive zone changes and settings refreshes; procs are matched by buff name as well as ID (ICD tracking now works when Anniversary buff IDs differ from the database); a proc that refreshes its still-active buff restarts the ICD; trinkets no longer occasionally show as untrackable until /reload when item data loads slowly at login.
+- **Totems** — Active totems are restored after a /reload instead of showing as never-cast.
+- **Health / Pet Health bars** — No longer freeze permanently if "Smooth Bar Animation" is turned on mid-session; smoothing speed is now identical at any frame rate.
+- **Disabled icon rows** — Disabling a row (e.g. Primary) no longer silently breaks settings refresh, font updates, icon swaps, and range indicators for the remaining rows after a /reload, and rows can be re-enabled live without reloading.
+- **Keybind text** — Abilities bound through macros now show their keybind, and ElvUI users with custom bar paging no longer see the wrong key.
+- **Mana/energy tick accuracy** — Drinking a potion, Life Tap, or a mana gem no longer shifts the tick timer (predictions could sit up to 2 seconds off until the next real tick); a real tick landing right after an Insightful Earthstorm Diamond proc is no longer swallowed; the 5-second-rule tracker stays accurate for druids in forms; energy predictions after stealth/form changes wait for a confirmed tick instead of trusting a made-up anchor.
+- **Raid buff tracking** — Buffs you cast on raid members outside your own party now show their real duration instead of an estimate.
+- **Re-targeting accuracy** — Tabbing back to a mob whose buffs/debuffs changed while untargeted (with nameplates off) no longer shows stale aura state.
+- **Reactive timers** — Victory Rush's kill window and Flamestrike/Consecration-style countdowns now always render immediately instead of occasionally waiting for the next combat event.
+- **Settings window** — The Layout tab's move buttons work reliably after profile switches (and reorders apply immediately); the ready-glow Sounds tab no longer goes stale after repeated edits; Custom Aura lists follow profile switches and Delete acts on the active profile; per-aura settings that can't apply to unresolved name-only auras are now disabled instead of silently doing nothing; removing a consumable no longer errors after resetting spell config; ESC closes the Spell Config and welcome windows; dragging trinket/totem/consumable entries shows the proper name and icon.
+- **Settings migrations** — Profiles that sat unused while another character updated the addon no longer skip data migrations; a failed migration retries next login instead of being marked complete; a customized totem-bar icon size now carries into the Auxiliary row as intended.
+- Smaller fixes: the pet health bar no longer reacts to other players' pet changes, stance dancing no longer triggers needless layout work, selecting the already-active profile no longer runs a full refresh, and switching display resolution rescales the HUD correctly.
+
+### Performance
+- Significantly less CPU and memory churn in combat: icon updates are coalesced to once per frame (event-heavy fights previously triggered several full recomputes per frame), all icon updates pause while the HUD is hidden (e.g. flight paths), and the hottest update paths no longer allocate memory every tick.
+- Buff Reminders now read from the shared aura cache instead of rescanning every group member's buffs each second.
+- The Spell Configuration window and Aura Tracker reuse their frames instead of leaking memory on every refresh and weapon swap, and drag-and-drop in the config window applies in one pass instead of a full rescan per spell moved.
+
+### LibSpellDB Updates
+- Item-cooldown queries (Soulstone, Healthstone, conjured items) work again on Anniversary clients — the primary API path had been silently returning nothing, leaving only the action-bar fallbacks.
+- Library version selection is fixed, so a newer copy of the spell database always wins when multiple installed addons embed it.
+- Polymorph: Pig/Turtle are no longer treated as Polymorph's "highest rank"; removed WotLK-era rank IDs from Commanding Shout and Sap.
+
 ## [1.0.210] - 2026-06-10
 
 ### Fixed

@@ -30,8 +30,11 @@ function Utils:GetSpellCooldown(spellID)
         start, duration, enabled = GetSpellCooldown(spellID)
     end
 
-    -- If no cooldown found by ID, try by spell name (some abilities need this)
-    if (not start or start == 0) and GetSpellInfo then
+    -- If the ID query returned nothing at all, retry by spell name (rare API
+    -- gap for a few abilities). start == 0 is the normal "ready" answer and
+    -- must NOT trigger the fallback — that would pay GetSpellInfo plus a
+    -- second GetSpellCooldown for every ready spell on every update tick.
+    if start == nil and GetSpellInfo then
         local spellName = GetSpellInfo(spellID)
         if spellName then
             local nameStart, nameDuration, nameEnabled = GetSpellCooldown(spellName)
@@ -242,8 +245,21 @@ end
 -- Spell Power Info
 -------------------------------------------------------------------------------
 
+-- Static power color tables. GetSpellPowerInfo runs per icon per update tick,
+-- so colors are resolved once per power type and reused. Returned tables are
+-- read-only by contract.
+local POWER_COLOR_FALLBACK = {
+    [0] = {0, 0.5, 1},      -- Mana
+    [1] = {1, 0, 0},        -- Rage
+    [2] = {1, 0.5, 0.25},   -- Focus
+    [3] = {1, 1, 0},        -- Energy
+    [6] = {0, 0.82, 1},     -- Runic Power
+}
+local POWER_COLOR_DEFAULT = {1, 1, 1}
+local powerColorCache = {}  -- powerType -> {r, g, b} resolved from PowerBarColor
+
 -- Get spell power cost and current power
--- Returns: cost, currentPower, maxPower, powerType, powerColor
+-- Returns: cost, currentPower, maxPower, powerType, powerColor (read-only table)
 function Utils:GetSpellPowerInfo(spellID)
     local cost = 0
     local powerType = nil
@@ -269,25 +285,19 @@ function Utils:GetSpellPowerInfo(spellID)
     local currentPower = UnitPower("player", powerType) or 0
     local maxPower = UnitPowerMax("player", powerType) or 1
     
-    -- Get power color
-    local powerColor = {1, 1, 1}  -- Default white
-    local powerInfo = PowerBarColor[powerType]
-    if powerInfo then
-        powerColor = {powerInfo.r or 1, powerInfo.g or 1, powerInfo.b or 1}
-    else
-        -- Fallback colors for common power types
-        if powerType == 0 then      -- Mana
-            powerColor = {0, 0.5, 1}
-        elseif powerType == 1 then  -- Rage
-            powerColor = {1, 0, 0}
-        elseif powerType == 2 then  -- Focus
-            powerColor = {1, 0.5, 0.25}
-        elseif powerType == 3 then  -- Energy
-            powerColor = {1, 1, 0}
-        elseif powerType == 6 then  -- Runic Power
-            powerColor = {0, 0.82, 1}
+    -- Get power color (cached per power type; PowerBarColor is static)
+    local powerColor = powerType ~= nil and powerColorCache[powerType]
+    if not powerColor then
+        local powerInfo = PowerBarColor[powerType]
+        if powerInfo then
+            powerColor = {powerInfo.r or 1, powerInfo.g or 1, powerInfo.b or 1}
+        else
+            powerColor = POWER_COLOR_FALLBACK[powerType] or POWER_COLOR_DEFAULT
+        end
+        if powerType ~= nil then
+            powerColorCache[powerType] = powerColor
         end
     end
-    
+
     return cost, currentPower, maxPower, powerType, powerColor
 end

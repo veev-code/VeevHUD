@@ -291,6 +291,7 @@ C.LAYOUT_ELEMENTS = {
 C.DEFAULTS = {
     profile = {
         enabled = true,
+        debugMode = false,
 
         -- Global appearance settings
         appearance = {

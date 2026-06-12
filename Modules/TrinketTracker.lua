@@ -29,7 +29,6 @@ local GetItemSpell = GetItemSpell
 local GetItemInfo = GetItemInfo
 local GetSpellInfo = GetSpellInfo
 local UnitBuff = UnitBuff
-local UnitGUID = UnitGUID
 local GetTime = GetTime
 
 -------------------------------------------------------------------------------
@@ -45,20 +44,38 @@ function TrinketTracker:Initialize()
     -- Tracked trinket data per slot (nil if empty/untrackable)
     self.slots = {}
 
+    -- Per-slot guard flags for cold-item-cache rescan retries
+    self.scanRetryPending = {}
+
     -- Register events
     self.Events:RegisterEvent(self, "PLAYER_EQUIPMENT_CHANGED", self.OnEquipmentChanged)
     self.Events:RegisterEvent(self, "PLAYER_ENTERING_WORLD", self.OnPlayerEnteringWorld)
 
-    -- Register CLEU for ICD tracking (proc buff applied to player)
+    -- Register CLEU for ICD tracking (proc buff applied/refreshed on player).
+    -- REFRESH matters: a proc landing while its buff is still active must
+    -- restart the ICD.
     self.Events:RegisterCLEU(self, "SPELL_AURA_APPLIED", self.OnAuraApplied)
+    self.Events:RegisterCLEU(self, "SPELL_AURA_REFRESH", self.OnAuraApplied)
+
+    -- Register as an icon provider — CooldownIcons dispatches sentinel-icon
+    -- injection/setup/update through this interface
+    addon:RegisterIconProvider({
+        name = "TrinketTracker",
+        order = 10,
+        module = self,
+        IsSentinel = function(id) return self:IsTrinketSentinel(id) end,
+        Setup = function(frame, spellID, rowConfig, rowIndex)
+            self:SetupTrinketIcon(frame, spellID, rowConfig, rowIndex)
+        end,
+        Update = function(frame, db)
+            self:UpdateTrinketIconState(frame, db)
+            -- Needs periodic refresh while countdown text is showing
+            local text = frame.text and frame.text:GetText()
+            return text and text ~= ""
+        end,
+    })
 
     self.Utils:LogInfo("TrinketTracker initialized")
-end
-
-function TrinketTracker:Enable()
-    -- Initial scan of both trinket slots
-    self:ScanSlot(TRINKET_SLOT_1)
-    self:ScanSlot(TRINKET_SLOT_2)
 end
 
 function TrinketTracker:Refresh()
@@ -73,6 +90,10 @@ end
 
 --- Scan a trinket slot and classify the equipped trinket.
 function TrinketTracker:ScanSlot(slotID)
+    local prev = self.slots[slotID]
+    local retryWasPending = self.scanRetryPending[slotID]
+    self.scanRetryPending[slotID] = nil
+
     local itemID = GetInventoryItemID("player", slotID)
     if not itemID then
         self.slots[slotID] = nil
@@ -82,6 +103,21 @@ function TrinketTracker:ScanSlot(slotID)
     local sentinelID = (slotID == TRINKET_SLOT_1) and self.C.TRINKET_SLOT_13 or self.C.TRINKET_SLOT_14
     local icon = GetInventoryItemTexture("player", slotID)
     local itemName = GetItemInfo(itemID)
+
+    -- Cold item cache: GetItemInfo/GetItemSpell may return nil before the item
+    -- data loads, misclassifying the trinket as a stat-stick below. Request the
+    -- data and schedule one retry (guarded so retries don't stack).
+    if not itemName then
+        if C_Item and C_Item.RequestLoadItemDataByID then
+            C_Item.RequestLoadItemDataByID(itemID)
+        end
+        if not retryWasPending then
+            self.scanRetryPending[slotID] = true
+            C_Timer.After(1, function()
+                self:ScanSlot(slotID)
+            end)
+        end
+    end
 
     -- Detect on-use via GetItemSpell
     local onUseSpellName, onUseSpellID = GetItemSpell(itemID)
@@ -120,8 +156,8 @@ function TrinketTracker:ScanSlot(slotID)
         icd = hasProc and trinketData.icd or nil,
         onUseBuffID = trinketData and trinketData.onUseBuffID or nil,
         onTarget = hasProc and trinketData.onTarget or false,
-        -- Runtime state
-        lastProcTime = 0,
+        -- Runtime state (preserve a running ICD when rescanning the same trinket)
+        lastProcTime = (prev and prev.itemID == itemID) and prev.lastProcTime or 0,
     }
 
     self.Utils:LogInfo("TrinketTracker: Slot", slotID, "=",
@@ -161,11 +197,14 @@ end
 
 function TrinketTracker:OnAuraApplied(subEvent, cleuData)
     -- Only care about buffs on the player
-    if cleuData.destGUID ~= UnitGUID("player") then return end
+    if cleuData.destGUID ~= addon.playerGUID then return end
 
     local spellID = cleuData.spellID
     for _, slotData in pairs(self.slots) do
-        if slotData and slotData.procBuffID and slotData.procBuffID == spellID then
+        -- Match by buff ID, with name fallback — Anniversary Edition buff IDs
+        -- can differ from the DB (see project lesson on Inspiration)
+        if slotData and slotData.procBuffID and (slotData.procBuffID == spellID
+            or (slotData.procBuffName and cleuData.spellName == slotData.procBuffName)) then
             slotData.lastProcTime = GetTime()
 
             -- Play pop animation on proc trigger
@@ -272,21 +311,9 @@ end
 --- Find the icon frame for an on-use trinket spell ID.
 -- UNIT_SPELLCAST_SUCCEEDED fires with the on-use spell ID (not sentinel),
 -- so CooldownIcons:FindIconFrameBySpellID won't match. This provides the fallback.
-function TrinketTracker:FindFrameByOnUseSpellID(spellID)
-    local cooldownIcons = addon:GetModule("CooldownIcons")
-    if not cooldownIcons or not cooldownIcons.rows then return nil end
-
-    for _, rowFrame in ipairs(cooldownIcons.rows) do
-        if rowFrame.icons then
-            for _, iconFrame in ipairs(rowFrame.icons) do
-                if iconFrame.onUseSpellID and iconFrame.onUseSpellID == spellID then
-                    return iconFrame
-                end
-            end
-        end
-    end
-    return nil
-end
+-- NOTE: frame lookup by on-use spell ID lives in
+-- CooldownIcons:FindIconFrameByOnUseSpellID — iterating row/icon internals
+-- is that module's business, not this tracker's.
 
 -------------------------------------------------------------------------------
 -- Icon Setup (called by CooldownIcons:SetupIcon delegation)

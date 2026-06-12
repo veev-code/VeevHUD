@@ -39,10 +39,9 @@ end
 
 -- Calculate individual bar width based on total width setting
 function ComboPoints:GetBarWidth()
-    local comboDb = addon.db and addon.db.profile and addon.db.profile.comboPoints
-    
-    local totalWidth = comboDb and comboDb.width
-    local spacing = comboDb and comboDb.barSpacing
+    local comboDb = addon.db.profile.comboPoints
+    local totalWidth = comboDb.width
+    local spacing = comboDb.barSpacing
     local numBars = self.C.MAX_COMBO_POINTS
     
     -- totalWidth = numBars * barWidth + (numBars - 1) * spacing
@@ -62,11 +61,11 @@ function ComboPoints:GetLayoutHeight()
         return 0
     end
     
-    local db = addon.db and addon.db.profile and addon.db.profile.comboPoints
-    if not db or not db.enabled then
+    local db = addon.db.profile.comboPoints
+    if not db.enabled then
         return 0
     end
-    
+
     if not self.container or not self.container:IsShown() then
         return 0
     end
@@ -141,10 +140,14 @@ function ComboPoints:OnTargetChanged()
 end
 
 function ComboPoints:OnShapeshiftChange()
-    -- Druid changed form - update visibility
+    -- Only druid form changes can alter combo point visibility — warrior
+    -- stances and rogue stealth fire this event too and were paying a full
+    -- layout reflow per stance dance
+    if addon.playerClass ~= C.CLASS.DRUID then return end
+
     self:UpdateVisibility()
     self:UpdateComboPoints(false)  -- Form change, no animation
-    
+
     -- Notify layout system to reposition all elements
     addon.Layout:Refresh()
 end
@@ -209,8 +212,7 @@ function ComboPoints:CreateComboPointBar(parent, index, db, barWidth)
     bar.bg = bg
 
     -- Fill texture (shown when point is active)
-    local cpDb = addon.db and addon.db.profile and addon.db.profile.comboPoints
-    local color = (cpDb and cpDb.color) or self.C.COMBO_POINT_COLOR
+    local color = db.color
     local fill = self.Utils:CreateTexture(bar, nil, "ARTWORK")
     fill:SetAllPoints()
     fill:SetTexture(barTexture)
@@ -261,9 +263,9 @@ function ComboPoints:UpdateVisibility()
     if not self.container then return end
     
     local shouldShow = self:UsesComboPoints()
-    local db = addon.db and addon.db.profile and addon.db.profile.comboPoints
-    
-    if shouldShow and db and db.enabled then
+    local db = addon.db.profile.comboPoints
+
+    if shouldShow and db.enabled then
         self.container:Show()
     else
         self.container:Hide()
@@ -322,9 +324,8 @@ end
 -------------------------------------------------------------------------------
 
 function ComboPoints:Refresh()
-    local db = addon.db and addon.db.profile and addon.db.profile.comboPoints
-    if not db then return end
-    
+    local db = addon.db.profile.comboPoints
+
     -- Create frames if they don't exist and we should have them
     if not self.container and db.enabled and addon.hudFrame then
         self:CreateFrames(addon.hudFrame)
@@ -343,7 +344,7 @@ function ComboPoints:Refresh()
         local startX = -totalWidth / 2 + barWidth / 2
         
         -- Update fill color and texture
-        local color = (db.color) or self.C.COMBO_POINT_COLOR
+        local color = db.color
         local barTexture = addon:GetBarTexture()
         
         for i, bar in ipairs(self.bars) do

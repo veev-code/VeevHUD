@@ -111,21 +111,32 @@ end
 -- Returns true if the macro's primary spell matches the target spellID
 local function MacroContainsSpell(macroIndex, targetSpellID)
     if not macroIndex or not targetSpellID then return false end
-    
-    -- GetMacroSpell returns the spell name and ID of the spell the macro icon represents
-    local spellName, _, spellID = GetMacroSpell(macroIndex)
-    if spellID and spellID == targetSpellID then
-        return true
-    end
-    
-    -- Also check by spell name (for rank-less matching)
-    if spellName then
+
+    -- GetMacroSpell's signature differs by client: modern Classic returns
+    -- just the spellID; legacy clients returned (name, rank, spellID).
+    -- The old 3-return destructure put a number in the name slot and nil in
+    -- the ID slot, so macro keybinds never matched.
+    local first, _, third = GetMacroSpell(macroIndex)
+    local macroSpellID = type(first) == "number" and first or third
+
+    if macroSpellID then
+        if macroSpellID == targetSpellID then
+            return true
+        end
+        -- Rank-insensitive match by name
+        local macroName = GetSpellInfo(macroSpellID)
         local targetName = GetSpellInfo(targetSpellID)
-        if targetName and spellName == targetName then
+        if macroName and targetName and macroName == targetName then
+            return true
+        end
+    elseif type(first) == "string" then
+        -- Legacy shape without a usable ID: match by name
+        local targetName = GetSpellInfo(targetSpellID)
+        if targetName and first == targetName then
             return true
         end
     end
-    
+
     return false
 end
 
@@ -225,6 +236,14 @@ local function GetElvUIKeybind(slot)
     
     local btn = _G["ElvUI_Bar" .. bar .. "Button" .. button]
     if btn then
+        -- ElvUI's bar→action-page mapping is configurable, so the
+        -- name-derived button may hold a DIFFERENT action slot — trusting it
+        -- blindly would display the wrong keybind. Only use it when its
+        -- action matches; otherwise fall through to the generic button scan.
+        local btnAction = btn._state_action or btn.action
+        if btnAction and btnAction ~= slot then
+            return nil
+        end
         -- ElvUI stores binding info on the button
         local binding = btn.bindstring or btn.keyBoundTarget
         if binding then
@@ -241,10 +260,10 @@ end
 -- Classic action bar slot layout:
 --   Slots 1-12:   Main Action Bar (page 1) - ACTIONBUTTON1-12
 --   Slots 13-24:  Main Action Bar (page 2) - ACTIONBUTTON1-12 (same bindings, different page)
---   Slots 25-36:  Bottom Left Bar - MULTIACTIONBAR3BUTTON1-12
---   Slots 37-48:  Bottom Right Bar - MULTIACTIONBAR4BUTTON1-12
---   Slots 49-60:  Right Bar 1 - MULTIACTIONBAR2BUTTON1-12
---   Slots 61-72:  Right Bar 2 - MULTIACTIONBAR1BUTTON1-12
+--   Slots 25-36:  Right Bar (MultiBarRight) - MULTIACTIONBAR3BUTTON1-12
+--   Slots 37-48:  Right Bar 2 (MultiBarLeft) - MULTIACTIONBAR4BUTTON1-12
+--   Slots 49-60:  Bottom Right Bar (MultiBarBottomRight) - MULTIACTIONBAR2BUTTON1-12
+--   Slots 61-72:  Bottom Left Bar (MultiBarBottomLeft) - MULTIACTIONBAR1BUTTON1-12
 --   Slots 73-120: Additional pages (7-10), use ACTIONBUTTON with page switching
 local function GetDefaultUIKeybind(slot)
     local bindingName

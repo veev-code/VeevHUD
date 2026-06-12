@@ -114,16 +114,20 @@ function ResourcePrediction:GetTimeUntilEnergyAffordable(needed, spellID)
     -- Add timing buffer to ensure last tick registers before prediction ends
     result = result + PREDICTION_BUFFER
 
-    -- Debug logging (deduplicated)
-    local spellName = spellID and C_Spell.GetSpellName(spellID) or "?"
-    local logKey = string.format("%d_%d_%d", currentEnergy, needed, ticksNeeded)
-    if self.lastEnergyPredLogKeys[spellID] ~= logKey then
-        self.lastEnergyPredLogKeys[spellID] = logKey
-        local TickTracker = addon.TickTracker
-        local lastTickTime = TickTracker and TickTracker.lastEnergyTickTime or 0
-        local timeSinceTick = lastTickTime > 0 and (GetTime() - lastTickTime) or -1
-        DebugLog("EPRED", "[%s] energy=%d, need=%d, ticks=%d, nextTick=%.2fs, sinceLastTick=%.3fs -> %.2fs",
-            spellName, currentEnergy, needed, ticksNeeded, timeUntilNextTick, timeSinceTick, result)
+    -- Debug logging (deduplicated). The whole block is gated on debugMode —
+    -- this runs per unaffordable icon per update tick, and building the
+    -- spellName/logKey strings eagerly was steady garbage with debug off.
+    if addon.db.profile.debugMode then
+        local spellName = spellID and C_Spell and C_Spell.GetSpellName and C_Spell.GetSpellName(spellID) or "?"
+        local logKey = string.format("%d_%d_%d", currentEnergy, needed, ticksNeeded)
+        if self.lastEnergyPredLogKeys[spellID] ~= logKey then
+            self.lastEnergyPredLogKeys[spellID] = logKey
+            local TickTracker = addon.TickTracker
+            local lastTickTime = TickTracker and TickTracker.lastEnergyTickTime or 0
+            local timeSinceTick = lastTickTime > 0 and (GetTime() - lastTickTime) or -1
+            DebugLog("EPRED", "[%s] energy=%d, need=%d, ticks=%d, nextTick=%.2fs, sinceLastTick=%.3fs -> %.2fs",
+                spellName, currentEnergy, needed, ticksNeeded, timeUntilNextTick, timeSinceTick, result)
+        end
     end
 
     return result
@@ -204,6 +208,11 @@ function ResourcePrediction:RecordManaSample()
         -- These arrive via SPELL_ENERGIZE and are not natural ticks
         local externalGain = FSR and FSR:GetPendingExternalGain() or 0
         local gained = rawGained - externalGain
+        if externalGain > 0 then
+            -- Observed: expire next frame so a following real tick isn't
+            -- also discounted (one missed tick per proc otherwise)
+            FSR:ConsumePendingExternalGain()
+        end
 
         if gained <= 0 then
             -- The entire mana increase was from external sources, not a tick
@@ -266,14 +275,13 @@ function ResourcePrediction:RecordManaSample()
                     gained, percentGain * 100, self.prevSampleMana, self.lastSampleMana)
             end
         elseif percentGain > self.manaSpikeThreshold then
-            -- Large spike (potion, life tap) - update tick time but don't record amount
-            self.lastManaTickTime = now
-            -- Sync with TickTracker if available
-            local TickTracker = addon.TickTracker
-            if TickTracker then
-                TickTracker:SyncManaTickTime(now)
-            end
-            DebugLog("TICK", "+%d mana (%.1f%%) - SPIKE ignored (>%.0f%% threshold)", 
+            -- Large spike (potion, life tap, mana gem): filtered entirely.
+            -- These do NOT reset the server's 2s regen cycle, so the tick
+            -- anchor must not move (re-anchoring here shifted the ticker and
+            -- predictions by up to 2s and pushed the wrong anchor into
+            -- TickTracker via SyncManaTickTime — TickTracker's own filter
+            -- has always handled this case correctly).
+            DebugLog("TICK", "+%d mana (%.1f%%) - SPIKE ignored (>%.0f%% threshold)",
                 gained, percentGain * 100, self.manaSpikeThreshold * 100)
         elseif percentGain < minTickPercent then
             DebugLog("TICK", "+%d mana (%.1f%%) - TOO SMALL (<%.1f%% threshold)", 
@@ -359,6 +367,9 @@ function ResourcePrediction:GetTimeUntilNextManaTick()
     local FSR = addon.FiveSecondRule
     local externalGain = FSR and FSR:GetPendingExternalGain() or 0
     manaGain = manaGain - externalGain
+    if externalGain > 0 and manaGain ~= 0 then
+        FSR:ConsumePendingExternalGain()
+    end
 
     if manaGain >= minTickDetect and self.lastPredictionMana > 0 then
         -- A tick just happened! The next tick is ~2s away, not imminent
@@ -404,7 +415,11 @@ end
 -- Returns: timeUntilAffordable
 function ResourcePrediction:GetTimeUntilManaAffordable(needed, maxPower, spellID)
     local TickTracker = addon.TickTracker
-    local spellName = spellID and C_Spell.GetSpellName(spellID) or "Unknown"
+    -- Debug-only data resolved only when debug mode is on — this function
+    -- runs per unaffordable icon per update tick, and the name lookup plus
+    -- logKey string.format calls were steady garbage with debug off
+    local debugMode = addon.db.profile.debugMode
+    local spellName = debugMode and (spellID and C_Spell and C_Spell.GetSpellName and C_Spell.GetSpellName(spellID) or "Unknown") or nil
     
     -- Get observed rates for in-5SR and out-of-5SR
     -- These are intelligently calculated from actual mana gains
@@ -435,12 +450,14 @@ function ResourcePrediction:GetTimeUntilManaAffordable(needed, maxPower, spellID
         
         local ticksNeeded = math.ceil(needed / estimatedPerTick)
         local result = timeUntilFirstTick + (ticksNeeded - 1) * C.TICK_RATE + PREDICTION_BUFFER
-        
-        local logKey = string.format("%d_%d_nodata", needed, ticksNeeded)
-        if self.lastPredLogKeys[spellID] ~= logKey then
-            self.lastPredLogKeys[spellID] = logKey
-            DebugLog("PRED", "[%s] Need %d, NO RATE DATA, fallback=%.0f/tick, ticks=%d -> %.1fs",
-                spellName, needed, estimatedPerTick, ticksNeeded, result)
+
+        if debugMode then
+            local logKey = string.format("%d_%d_nodata", needed, ticksNeeded)
+            if self.lastPredLogKeys[spellID] ~= logKey then
+                self.lastPredLogKeys[spellID] = logKey
+                DebugLog("PRED", "[%s] Need %d, NO RATE DATA, fallback=%.0f/tick, ticks=%d -> %.1fs",
+                    spellName, needed, estimatedPerTick, ticksNeeded, result)
+            end
         end
         return result
     end
@@ -480,12 +497,14 @@ function ResourcePrediction:GetTimeUntilManaAffordable(needed, maxPower, spellID
             -- so actual ticks always meet or exceed the predicted rate
             local ticksNeeded = math.ceil(needed / rateIn5SR)
             local result = timeUntilNextTick + (ticksNeeded - 1) * C.TICK_RATE + PREDICTION_BUFFER
-            
-            local logKey = string.format("%d_%d_in5sr", needed, ticksNeeded)
-            if self.lastPredLogKeys[spellID] ~= logKey then
-                self.lastPredLogKeys[spellID] = logKey
-                DebugLog("PRED", "[%s] Need %d, IN5SR rate=%.0f, ticks=%d -> %.1fs (all within 5SR)",
-                    spellName, needed, rateIn5SR, ticksNeeded, result)
+
+            if debugMode then
+                local logKey = string.format("%d_%d_in5sr", needed, ticksNeeded)
+                if self.lastPredLogKeys[spellID] ~= logKey then
+                    self.lastPredLogKeys[spellID] = logKey
+                    DebugLog("PRED", "[%s] Need %d, IN5SR rate=%.0f, ticks=%d -> %.1fs (all within 5SR)",
+                        spellName, needed, rateIn5SR, ticksNeeded, result)
+                end
             end
             return result
         end
@@ -502,40 +521,53 @@ function ResourcePrediction:GetTimeUntilManaAffordable(needed, maxPower, spellID
     -- First full tick at timeUntilFirstFullTick, then additional ticks every 2s
     local result = timeUntilFirstFullTick + (ticksAfter5SR - 1) * C.TICK_RATE + PREDICTION_BUFFER
     
-    -- Logging
-    local logKey
-    if in5SR then
-        if ticksDuring5SR > 0 then
-            logKey = string.format("%d_%d_%d_hybrid", needed, ticksDuring5SR, ticksAfter5SR)
-            if self.lastPredLogKeys[spellID] ~= logKey then
-                self.lastPredLogKeys[spellID] = logKey
-                DebugLog("PRED", "[%s] Need %d, IN5SR: %d ticks @%.0f = %.0f mana, then %d ticks @%.0f -> %.1fs",
-                    spellName, needed, ticksDuring5SR, rateIn5SR, manaGainedIn5SR, 
-                    ticksAfter5SR, rateOut5SR, result)
+    -- Logging (debug mode only — see note at top of function)
+    if debugMode then
+        local logKey
+        if in5SR then
+            if ticksDuring5SR > 0 then
+                logKey = string.format("%d_%d_%d_hybrid", needed, ticksDuring5SR, ticksAfter5SR)
+                if self.lastPredLogKeys[spellID] ~= logKey then
+                    self.lastPredLogKeys[spellID] = logKey
+                    DebugLog("PRED", "[%s] Need %d, IN5SR: %d ticks @%.0f = %.0f mana, then %d ticks @%.0f -> %.1fs",
+                        spellName, needed, ticksDuring5SR, rateIn5SR, manaGainedIn5SR,
+                        ticksAfter5SR, rateOut5SR, result)
+                end
+            else
+                logKey = string.format("%d_%d_after5sr", needed, ticksAfter5SR)
+                if self.lastPredLogKeys[spellID] ~= logKey then
+                    self.lastPredLogKeys[spellID] = logKey
+                    DebugLog("PRED", "[%s] Need %d, IN5SR (0 regen), wait for 5SR end, %d ticks @%.0f -> %.1fs",
+                        spellName, needed, ticksAfter5SR, rateOut5SR, result)
+                end
             end
         else
-            logKey = string.format("%d_%d_after5sr", needed, ticksAfter5SR)
+            logKey = string.format("%d_%d_out5sr", needed, ticksAfter5SR)
             if self.lastPredLogKeys[spellID] ~= logKey then
                 self.lastPredLogKeys[spellID] = logKey
-                DebugLog("PRED", "[%s] Need %d, IN5SR (0 regen), wait for 5SR end, %d ticks @%.0f -> %.1fs",
+                DebugLog("PRED", "[%s] Need %d, OUT5SR, %d ticks @%.0f -> %.1fs",
                     spellName, needed, ticksAfter5SR, rateOut5SR, result)
             end
         end
-    else
-        logKey = string.format("%d_%d_out5sr", needed, ticksAfter5SR)
-        if self.lastPredLogKeys[spellID] ~= logKey then
-            self.lastPredLogKeys[spellID] = logKey
-            DebugLog("PRED", "[%s] Need %d, OUT5SR, %d ticks @%.0f -> %.1fs",
-                spellName, needed, ticksAfter5SR, rateOut5SR, result)
-        end
     end
-    
+
     return result
 end
 
 -------------------------------------------------------------------------------
 -- Main API
 -------------------------------------------------------------------------------
+
+-- Reset per-session sample state that can't be trusted across loading screens
+-- (called by TickTracker:InitFormTracking on PLAYER_ENTERING_WORLD). Without
+-- this, the first post-load sample can see a large delta (drank during the
+-- load, zoned) and fire a false SYNC/ESYNC with a bogus anchor.
+function ResourcePrediction:ResetSampleState()
+    self.lastPredictionMana = 0
+    self.lastPredictionEnergy = 0
+    self.lastSampleMana = 0
+    self.prevSampleMana = 0
+end
 
 -- Calculate time until player can afford a spell
 -- Uses tick-aware calculation for energy, observed rate for mana
@@ -565,13 +597,16 @@ function ResourcePrediction:GetTimeUntilAffordable(spellID)
     
     -- Mana: observed rate (adapts to player's regen)
     if powerType == C.POWER_TYPE.MANA then
-        -- Log spell info for debugging (only when prediction is needed)
-        local spellName = C_Spell.GetSpellName(spellID) or tostring(spellID)
-        local logKey = string.format("%d_%d", cost, currentPower)
-        if self.lastCostLogKeys[spellID] ~= logKey then
-            self.lastCostLogKeys[spellID] = logKey
-            DebugLog("COST", "[%s] Cost=%d, Current=%d, Need=%d", 
-                spellName, cost, currentPower, needed)
+        -- Log spell info for debugging (debug mode only — string building in
+        -- this per-icon-per-tick path is steady garbage otherwise)
+        if addon.db.profile.debugMode then
+            local spellName = C_Spell and C_Spell.GetSpellName and C_Spell.GetSpellName(spellID) or tostring(spellID)
+            local logKey = string.format("%d_%d", cost, currentPower)
+            if self.lastCostLogKeys[spellID] ~= logKey then
+                self.lastCostLogKeys[spellID] = logKey
+                DebugLog("COST", "[%s] Cost=%d, Current=%d, Need=%d",
+                    spellName, cost, currentPower, needed)
+            end
         end
         return self:GetTimeUntilManaAffordable(needed, maxPower, spellID)
     end

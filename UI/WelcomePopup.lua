@@ -27,7 +27,10 @@ function WelcomePopup:CreateDialog()
     dialog:SetScript("OnDragStart", dialog.StartMoving)
     dialog:SetScript("OnDragStop", dialog.StopMovingOrSizing)
     dialog:Hide()
-    
+
+    -- Allow ESC to close the dialog
+    tinsert(UISpecialFrames, "VeevHUDWelcomeDialog")
+
     -- Title (centered in the title bar area)
     local title = dialog:CreateFontString(nil, "OVERLAY", "GameFontHighlightLarge")
     title:SetPoint("TOP", 0, -6)

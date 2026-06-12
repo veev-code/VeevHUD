@@ -27,7 +27,10 @@ Utils.buffCache = {}
 Utils.debuffCache = {}
 Utils.buffCacheByName = {}
 Utils.debuffCacheByName = {}
-Utils.auraCacheValid = {}  -- auraCacheValid[guid] = true for buffs, auraCacheValid[guid.."_debuff"] for debuffs
+-- Separate validity tables (not guid.."_debuff" keys) — invalidation runs on
+-- every UNIT_AURA, and per-event string concatenation is needless GC churn
+Utils.buffCacheValid = {}
+Utils.debuffCacheValid = {}
 Utils.recentPlayerBuffs = {}  -- [spellID] = { name, icon, lastSeen } — session-only, for Custom Auras UI
 
 local RECENT_BUFF_CAP = 50
@@ -36,8 +39,8 @@ local RECENT_BUFF_CAP = 50
 function Utils:PopulateBuffCache(unit)
     local guid = UnitGUID(unit)
     if not guid then return end
-    
-    if self.auraCacheValid[guid] then return end
+
+    if self.buffCacheValid[guid] then return end
     
     self.buffCache[guid] = {}
     self.buffCacheByName[guid] = {}
@@ -69,7 +72,7 @@ function Utils:PopulateBuffCache(unit)
         end
     end
     
-    self.auraCacheValid[guid] = true
+    self.buffCacheValid[guid] = true
 
     -- Record player buffs for the "Recently Seen" list in Custom Auras UI
     if unit == "player" then
@@ -121,9 +124,8 @@ end
 function Utils:PopulateDebuffCache(unit)
     local guid = UnitGUID(unit)
     if not guid then return end
-    
-    local cacheKey = guid .. "_debuff"
-    if self.auraCacheValid[cacheKey] then return end
+
+    if self.debuffCacheValid[guid] then return end
     
     self.debuffCache[guid] = {}
     self.debuffCacheByName[guid] = {}
@@ -155,14 +157,14 @@ function Utils:PopulateDebuffCache(unit)
         end
     end
     
-    self.auraCacheValid[cacheKey] = true
+    self.debuffCacheValid[guid] = true
 end
 
 -- Invalidate aura cache for a unit (by GUID)
 function Utils:InvalidateAuraCacheByGUID(guid)
     if not guid then return end
-    self.auraCacheValid[guid] = nil
-    self.auraCacheValid[guid .. "_debuff"] = nil
+    self.buffCacheValid[guid] = nil
+    self.debuffCacheValid[guid] = nil
     self.buffCache[guid] = nil
     self.debuffCache[guid] = nil
     self.buffCacheByName[guid] = nil
@@ -181,7 +183,8 @@ function Utils:InvalidateAllAuraCaches()
     wipe(self.debuffCache)
     wipe(self.buffCacheByName)
     wipe(self.debuffCacheByName)
-    wipe(self.auraCacheValid)
+    wipe(self.buffCacheValid)
+    wipe(self.debuffCacheValid)
 end
 
 -- Get cached buff by spell ID (populates cache if needed)
@@ -234,6 +237,28 @@ function Utils:GetCachedDebuff(unit, spellID, spellName)
     return nil
 end
 
+-- Find a cached buff on a unit matching any name in nameSet (set of name -> true).
+-- playerOnly: if true, only match buffs where source == "player".
+-- Returns: auraData table or nil
+function Utils:FindCachedBuffByNames(unit, nameSet, playerOnly)
+    self:EnsureAuraCacheInitialized()
+    self:PopulateBuffCache(unit)
+
+    local guid = UnitGUID(unit)
+    if not guid then return nil end
+
+    local nameCache = self.buffCacheByName[guid]
+    if not nameCache then return nil end
+
+    for name, auraData in pairs(nameCache) do
+        if nameSet[name] and (not playerOnly or auraData.source == "player") then
+            return auraData
+        end
+    end
+
+    return nil
+end
+
 -- Ensure aura cache event frame is set up (lazy initialization)
 function Utils:EnsureAuraCacheInitialized()
     if self.auraCacheFrame then return end
@@ -242,16 +267,27 @@ function Utils:EnsureAuraCacheInitialized()
     frame:RegisterEvent("UNIT_AURA")
     frame:RegisterEvent("PLAYER_TARGET_CHANGED")
     frame:RegisterEvent("PLAYER_ENTERING_WORLD")
-    
+    frame:RegisterEvent("PLAYER_REGEN_ENABLED")
+
     frame:SetScript("OnEvent", function(eventFrame, event, unit, ...)
         if event == "UNIT_AURA" then
             -- Invalidate by GUID - handles all unit tokens including volatile ones
             local guid = UnitGUID(unit)
             Utils:InvalidateAuraCacheByGUID(guid)
         elseif event == "PLAYER_TARGET_CHANGED" then
-            -- No need to explicitly invalidate target/targettarget
-            -- GUID-based caching handles this automatically
+            -- Force a fresh scan of the newly acquired target: its auras may
+            -- have changed while no unit token observed it (UNIT_AURA only
+            -- fires for active tokens — with nameplates off, an off-target
+            -- mob's cached state can silently go stale).
+            local guid = UnitGUID("target")
+            if guid then
+                Utils:InvalidateAuraCacheByGUID(guid)
+            end
         elseif event == "PLAYER_ENTERING_WORLD" then
+            Utils:InvalidateAllAuraCaches()
+        elseif event == "PLAYER_REGEN_ENABLED" then
+            -- Leaving combat: drop everything. Entries for mobs we'll never
+            -- see again would otherwise accumulate until a loading screen.
             Utils:InvalidateAllAuraCaches()
         end
     end)

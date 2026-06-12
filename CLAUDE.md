@@ -79,7 +79,6 @@ VeevHUD is a lightweight, WeakAuras-inspired heads-up display addon for World of
 - `Templates.xml` — UI frame templates
 
 ### Other
-- `Locales/enUS.lua` — English localization strings
 - `Media/Statusbar_Clean.blp` — Bundled status bar texture
 - `Fonts/Expressway-Bold.ttf` — Bundled font
 - `Libs/embeds.xml` — Library loader (only tracked file in `Libs/`; library source fetched by `.pkgmeta` externals)
@@ -94,13 +93,15 @@ local Module = {}
 Module.addon = addon
 addon:RegisterModule("ModuleName", Module)
 
--- Modules implement these lifecycle methods:
-function Module:Initialize()    -- Setup, register events
+-- Modules implement these lifecycle methods (all optional):
+function Module:Initialize()    -- Setup, register events (PLAYER_LOGIN)
 function Module:CreateFrames()  -- Create UI elements
-function Module:Enable()        -- Start tracking
-function Module:Disable()       -- Stop tracking
-function Module:Refresh()       -- Rebuild after config change
+function Module:Refresh()       -- Rebuild after config/profile change
 ```
+
+`Initialize` and `Refresh` run in the deterministic `MODULE_ORDER` defined in
+`Core/Core.lua` (SpellTracker first, icon trackers before CooldownIcons),
+with a catch-all pass for unlisted modules. There is no Enable/Disable phase.
 
 Retrieve modules with `addon:GetModule("ModuleName")`.
 
@@ -115,10 +116,16 @@ addon.Events:RegisterUpdate(owner, interval, callback)  -- Throttled ticker
 
 Single `eventFrame` for all events. CLEU events are parsed and dispatched by sub-event name. Update tickers use `C_Timer.NewTicker`.
 
+**Callback contract:** all callbacks are invoked as `callback(owner, event, ...)`. Method references absorb `owner` as `self`; anonymous closures MUST declare a leading `owner` parameter.
+
 CLEU callbacks receive `(owner, subEvent, cleuEventData)` where `cleuEventData` is a reusable table:
 ```lua
-{ timestamp, sourceGUID, sourceName, sourceFlags, destGUID, destName, destFlags, spellID, spellName, spellSchool }
+{ timestamp, sourceGUID, sourceName, sourceFlags, destGUID, destName, destFlags, spellID, spellName, spellSchool,
+  s1..s10 }  -- suffix arguments, aligned to the sub-event's suffix start
 ```
+Suffix args are positioned relative to the sub-event's suffix (never hand-count absolute CLEU positions): SWING_DAMAGE `s1=amount … s10=isOffHand`; SWING_MISSED `s1=missType, s2=isOffHand`; SPELL_MISSED `s1=missType`; SPELL_EXTRA_ATTACKS `s1=amount`; SPELL_ENERGIZE `s1=amount, s3=powerType` (modern shape).
+
+There is also an internal addon event bus: `RegisterAddonEvent(owner, name, cb)` (deduped per owner) / `FireAddonEvent(name, ...)`. Current events: `OVERLAY_STATE_CHANGED` (GlowManager), `COOLDOWN_READY` (GlowManager → CooldownPulse), `AURA_STATE_CHANGED` (AuraState → CooldownIcons).
 
 ### Layout System (`Core/Layout.lua`)
 
@@ -221,7 +228,7 @@ addon.Utils:IsSpellOnRealCooldown(spellID) -- Convenience: fetches cooldown + ch
 addon.Utils:IsSpellOnGCD(spellID)
 addon.Utils:IsSpellOffCooldown(spellID)
 addon.Utils:GetEffectiveSpellID(spellID) -- Action bar rank or highest known rank
-addon.Utils:GetSpellPowerInfo(spellID)   -- Returns {cost, currentPower, maxPower, powerType, powerColor}
+addon.Utils:GetSpellPowerInfo(spellID)   -- Returns 5 values: cost, currentPower, maxPower, powerType, powerColor (powerColor is a shared read-only {r,g,b} array)
 addon.Utils:GetSpellTexture(spellID)
 addon.Utils:FindSpellOnActionBar(spellID) -- Finds actual rank on action bar
 ```
@@ -242,7 +249,7 @@ addon.Utils:FindSpellOnActionBar(spellID) -- Finds actual rank on action bar
 - `C.TRINKET_SLOT_13` (9999913), `C.TRINKET_SLOT_14` (9999914) — Sentinel spell IDs for trinket slots. Used as numeric keys in `spellConfig` without colliding with real spell IDs.
 
 ### Timing Constants
-- `C.GCD_THRESHOLD` (1.5s), `C.TICK_RATE` (2.0s)
+- `C.GCD_THRESHOLD` (2.0s — covers wand "GCDs"; abilities are classified as real cooldowns only above this), `C.TICK_RATE` (2.0s)
 - `C.ENERGY_PER_TICK`, `C.ENERGY_PER_TICK_ADRENALINE`
 - `C.FIVE_SECOND_RULE_DURATION` (5.0s)
 - `C.READY_GLOW_THRESHOLD` (0.5s), `C.MANA_SPIKE_THRESHOLD` (0.10)
@@ -305,7 +312,9 @@ All libraries are fetched via `.pkgmeta` externals at release time (by `BigWigsM
 **Local dev workflow:** Run `bash Tools/fetch-libs.sh` to populate `Libs/`, test in-game, then release in the same session to ensure version consistency.
 
 ### Libraries (`Libs/`)
-LibStub, CallbackHandler-1.0, AceAddon-3.0, AceEvent-3.0, AceHook-3.0, AceConsole-3.0, AceLocale-3.0, AceDB-3.0, AceDBOptions-3.0, AceGUI-3.0, AceConfig-3.0, AceGUI-3.0-SharedMediaWidgets, LibDualSpec-1.0, LibSharedMedia-3.0, LibCustomGlow-1.0, LibSpellDB
+LibStub, CallbackHandler-1.0, AceAddon-3.0, AceEvent-3.0, AceHook-3.0, AceConsole-3.0, AceDB-3.0, AceDBOptions-3.0, AceGUI-3.0, AceConfig-3.0, AceGUI-3.0-SharedMediaWidgets, LibDualSpec-1.0, LibSharedMedia-3.0, LibCustomGlow-1.0, LibSpellDB
+
+Note: there is no localization layer — all user-facing strings are English literals by design (a previous AceLocale scaffold was removed as dead code in the 2026-06 audit).
 
 ### Optional
 - `Masque` — Icon skinning (optional)

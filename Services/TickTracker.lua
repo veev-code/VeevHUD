@@ -11,7 +11,9 @@
     
     1. Energy regenerates in "ticks" every 2 seconds (20 energy per tick normally)
     2. For rogues: tick timer is continuous and never resets
-    3. For druids: entering Cat Form RESETS the tick timer (powershifting mechanic)
+    3. For druids: the tick cycle is CONTINUOUS across form changes (confirmed
+       via debug logs in 1.0.67) — entering Cat Form does NOT reset the timer;
+       phantom ticks are caught up for time spent out of form instead
     4. We detect ticks by observing energy increases
     5. "Phantom tick" tracking keeps timing accurate when at full energy
     6. Real ticks always resync our tracking when observed
@@ -116,7 +118,6 @@ end
 -- Mana tick tracking  
 TickTracker.lastManaTickTime = 0
 TickTracker.lastSampleMana = 0
-TickTracker.prevSampleMana = 0  -- For detecting passive vs active regen
 TickTracker.hasConfirmedManaTick = false  -- True after we've observed at least one real mana tick
 
 -- Mana spike filtering (potions, life tap, etc.)
@@ -263,12 +264,15 @@ end
 function TickTracker:GetTimeUntilNextEnergyTick()
     local currentEnergy = UnitPower("player", C.POWER_TYPE.ENERGY)
     local maxEnergy = UnitPowerMax("player", C.POWER_TYPE.ENERGY)
-    
+
     if currentEnergy >= maxEnergy then
         return 0
     end
-    
-    if self.lastEnergyTickTime > 0 then
+
+    -- Only trust the anchor once a real tick has been observed — an
+    -- unconfirmed anchor (e.g. seeded at an arbitrary visibility change)
+    -- would skew predictions by up to a full tick
+    if self.hasConfirmedTick and self.lastEnergyTickTime > 0 then
         local timeSinceTick = GetTime() - self.lastEnergyTickTime
         local timeUntilTick = C.TICK_RATE - timeSinceTick
         
@@ -302,6 +306,11 @@ function TickTracker:RecordManaSample()
         local FSR = addon.FiveSecondRule
         local externalGain = FSR and FSR:GetPendingExternalGain() or 0
         local gained = rawGained - externalGain
+        if externalGain > 0 then
+            -- The proc's mana has been observed in this increase; expire it
+            -- (next frame) so a following real tick isn't also discounted
+            FSR:ConsumePendingExternalGain()
+        end
 
         if gained <= 0 then
             -- Entire increase was from external sources, not a tick
@@ -309,7 +318,6 @@ function TickTracker:RecordManaSample()
                 TickLog("MANA EXTERNAL +%d filtered (IED/potion: %d), mana=%d/%d",
                     rawGained, externalGain, currentMana, maxMana)
             end
-            self.prevSampleMana = self.lastSampleMana
             self.lastSampleMana = currentMana
             return
         end
@@ -374,8 +382,7 @@ function TickTracker:RecordManaSample()
         end
     end
     
-    -- Shift samples for next iteration
-    self.prevSampleMana = self.lastSampleMana
+    -- Shift sample for next iteration
     self.lastSampleMana = currentMana
 end
 
@@ -620,24 +627,39 @@ function TickTracker:SyncManaTickTime(time)
     self.hasConfirmedManaTick = true  -- If ResourcePrediction detected a tick, we have confirmed data
 end
 
+-- Re-sync the energy sample baseline without fabricating a tick anchor.
+-- Used when the energy ticker becomes visible (stealth/form changes) so the
+-- next observed gain isn't misread against a stale baseline.
+function TickTracker:ResetEnergySample()
+    self.lastSampleEnergy = UnitPower("player", C.POWER_TYPE.ENERGY)
+end
+
 -- Initialize/reset tracking (call this on PLAYER_ENTERING_WORLD)
 -- Resets tick confirmation since we can't trust timing across loading screens
 function TickTracker:InitFormTracking()
     self.lastKnownForm = C.GetDruidForm()
-    
+
     -- Reset energy tick state
     self.hasConfirmedTick = false  -- Reset confirmation - need to observe a real tick
     self.lastEnergyTickTime = 0    -- Clear stale tick time
     self.lastSampleEnergy = 0      -- Clear stale energy sample
-    
+
     -- Reset mana tick state
     self.hasConfirmedManaTick = false  -- Reset confirmation - need to observe a real tick
     self.lastManaTickTime = 0          -- Clear stale tick time
     self.lastSampleMana = 0            -- Clear stale mana sample
-    self.prevSampleMana = 0
     self.fullTickPinnedLogged = false  -- Clear log spam flag
     self.earliestPredictedFullTick = 0 -- Clear prediction tracking
     self.predictionAnchorTime = 0
-    
+
+    -- ResourcePrediction's sample state is equally untrustworthy across
+    -- loading screens — without this reset, the first post-load sample can
+    -- see a large delta (drank during the load), fire a false SYNC/ESYNC,
+    -- and immediately re-confirm a bogus anchor.
+    local RP = addon.ResourcePrediction
+    if RP and RP.ResetSampleState then
+        RP:ResetSampleState()
+    end
+
     TickLog("INIT tracking reset, current form=%s, waiting for confirmed ticks", tostring(self.lastKnownForm))
 end

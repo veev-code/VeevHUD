@@ -40,13 +40,27 @@ function FiveSecondRule:Initialize()
         self.eventFrame = CreateFrame("Frame")
     end
     
+    self.playerGUID = UnitGUID("player")
+
     self.eventFrame:RegisterEvent("UNIT_SPELLCAST_SUCCEEDED")
-    self.eventFrame:SetScript("OnEvent", function(_, event, unit, _, spellID)
+    -- Keep the mana sample fresh independently of which module drives
+    -- per-frame sampling. Without this, lastSampleMana goes stale whenever
+    -- per-frame sampling isn't running (e.g. shifted druids — the main bar's
+    -- power type isn't MANA, so ResourceBar stops calling UpdateManaSample)
+    -- and 5SR detection silently misses mana spends.
+    self.eventFrame:RegisterEvent("UNIT_POWER_UPDATE")
+    self.eventFrame:SetScript("OnEvent", function(_, event, unit, arg2, spellID)
         if event == "UNIT_SPELLCAST_SUCCEEDED" and unit == "player" then
             FiveSecondRule:OnSpellCastSucceeded(spellID)
+        elseif event == "UNIT_POWER_UPDATE" and unit == "player" and arg2 == "MANA" then
+            local currentMana = UnitPower("player", C.POWER_TYPE.MANA)
+            if currentMana < FiveSecondRule.lastSampleMana then
+                FiveSecondRule.lastManaCastTime = GetTime()
+            end
+            FiveSecondRule.lastSampleMana = currentMana
         end
     end)
-    
+
     -- Initialize mana tracking
     self.lastSampleMana = UnitPower("player", C.POWER_TYPE.MANA)
 
@@ -54,13 +68,12 @@ function FiveSecondRule:Initialize()
     -- so tick detectors can filter them out
     if addon.Events then
         addon.Events:RegisterCLEU(self, "SPELL_ENERGIZE", function(self, subEvent, data)
-            if data.destGUID ~= UnitGUID("player") then return end
-            -- Extract suffix args: amount and powerType from end of CLEU data
-            local info = {CombatLogGetCurrentEventInfo()}
-            local n = #info
-            local amount = info[n - 3] or 0
-            local powerType = info[n - 1]
-            if powerType == 0 then  -- POWER_TYPE_MANA
+            if data.destGUID ~= self.playerGUID then return end
+            -- Suffix shape differs by client: modern = (amount, overEnergize,
+            -- powerType, alternatePowerType), legacy = (amount, powerType)
+            local amount = data.s1 or 0
+            local powerType = data.s3 ~= nil and data.s3 or data.s2
+            if powerType == 0 then  -- mana
                 local now = GetTime()
                 -- Reset if previous gain has expired, otherwise accumulate
                 if now - self.pendingExternalGainTime > 0.5 then
@@ -69,6 +82,7 @@ function FiveSecondRule:Initialize()
                     self.pendingExternalGain = self.pendingExternalGain + amount
                 end
                 self.pendingExternalGainTime = now
+                self.pendingExternalConsumedAt = nil
             end
         end)
     end
@@ -79,10 +93,11 @@ end
 function FiveSecondRule:OnSpellCastSucceeded(spellID)
     -- Only trigger 5SR if mana ACTUALLY decreased (handles free casts from procs)
     local currentMana = UnitPower("player", C.POWER_TYPE.MANA)
-    
+
     if currentMana < self.lastSampleMana then
         self.lastManaCastTime = GetTime()
     end
+    self.lastSampleMana = currentMana
 end
 
 -- Call this periodically to keep mana sample updated
@@ -116,12 +131,28 @@ end
 
 -- Get pending external mana gain (from SPELL_ENERGIZE events like IED procs)
 -- Returns the accumulated amount if recent (within 0.5s), otherwise 0
--- Tick detectors should subtract this from observed mana increases
+-- Tick detectors should subtract this from observed mana increases, then call
+-- ConsumePendingExternalGain once the gain has been matched against an
+-- observed increase.
 function FiveSecondRule:GetPendingExternalGain()
+    -- Expired by consumption in an EARLIER frame (GetTime is frame-constant,
+    -- so both tick detectors sampling in the same OnUpdate still see it)
+    if self.pendingExternalConsumedAt and GetTime() > self.pendingExternalConsumedAt then
+        return 0
+    end
     if self.pendingExternalGainTime > 0 and (GetTime() - self.pendingExternalGainTime) <= 0.5 then
         return self.pendingExternalGain
     end
     return 0
+end
+
+-- Consume the pending external gain after a tick detector has matched it
+-- against an observed mana increase. Without this, a REAL tick landing within
+-- the 0.5s window after a proc computed (gained - pending) <= 0 and was
+-- silently dropped — one missed tick per proc. Expiry is deferred to the next
+-- frame so the other detector (same OnUpdate pass) still sees the amount.
+function FiveSecondRule:ConsumePendingExternalGain()
+    self.pendingExternalConsumedAt = GetTime()
 end
 
 -- Get time remaining in the 5-second rule (0 if outside)

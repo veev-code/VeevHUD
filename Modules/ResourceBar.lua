@@ -23,30 +23,40 @@ addon:RegisterModule("ResourceBar", ResourceBar)
 -- Maps each rankID -> base spellID so we can identify which queueable spell is active
 -- (rage highlight uses this to pick the right queue color).
 local NEXT_MELEE_RANKS = {}
-do
-    local LibSpellDB = LibStub and LibStub("LibSpellDB-1.0", true)
-    if LibSpellDB then
-        local tagged = LibSpellDB:GetSpellsByTag("SWING_RESET")
-        for spellID in pairs(tagged) do
-            local allRanks = LibSpellDB:GetAllRankIDs(spellID)
-            for rankID in pairs(allRanks) do
-                NEXT_MELEE_RANKS[rankID] = spellID
-            end
-        end
-    end
-end
 
 -- Resolve Innervate spell ID + name from LibSpellDB (tagged IMPORTANT_EXTERNAL + RESOURCE)
 local innervateSpellID, innervateName
-do
+
+-- Built at Initialize time: addon.playerClass isn't known at file scope, and
+-- the queueable-spell poll should only cover the player's own class — polling
+-- IsCurrentSpell over every class's SWING_RESET ranks was ~25 wasted C calls
+-- per cast event.
+local function BuildSpellLookups()
     local LibSpellDB = LibStub and LibStub("LibSpellDB-1.0", true)
-    if LibSpellDB then
-        local spells = LibSpellDB:GetSpellsByAllTags({"IMPORTANT_EXTERNAL", "RESOURCE"})
-        for id, data in pairs(spells) do
+    if not LibSpellDB then return end
+
+    wipe(NEXT_MELEE_RANKS)
+    local tagged = LibSpellDB:GetSpellsByClassAndTag(addon.playerClass, "SWING_RESET")
+    for spellID in pairs(tagged) do
+        local allRanks = LibSpellDB:GetAllRankIDs(spellID)
+        for rankID in pairs(allRanks) do
+            NEXT_MELEE_RANKS[rankID] = spellID
+        end
+    end
+
+    local spells = LibSpellDB:GetSpellsByAllTags({"IMPORTANT_EXTERNAL", "RESOURCE"})
+    local count = 0
+    for id, data in pairs(spells) do
+        count = count + 1
+        if count == 1 then
             innervateSpellID = id
             innervateName = data.name or GetSpellInfo(id)
-            break
         end
+    end
+    if count > 1 then
+        -- The highlight is single-spell by design; pairs() order would pick
+        -- one nondeterministically. Surface it instead of guessing silently.
+        addon.Utils:LogError("ResourceBar: expected one IMPORTANT_EXTERNAL+RESOURCE spell, found", count, "- highlighting only", innervateName)
     end
 end
 
@@ -58,6 +68,9 @@ function ResourceBar:Initialize()
     self.Events = addon.Events
     self.Utils = addon.Utils
     self.C = addon.Constants
+
+    -- Build class-filtered LibSpellDB lookups (needs addon.playerClass)
+    BuildSpellLookups()
 
     -- Register with layout system
     addon.Layout:RegisterElement("resourceBar", self)
@@ -255,7 +268,11 @@ function ResourceBar:RegisterUpdateIfNeeded()
     local energyTickerEnabled = tickerDb and tickerDb.enabled
     local manaTickerEnabled = manaTickerDb and manaTickerDb.enabled
     local needsEnergyTicker = energyTickerEnabled and isEnergy
+    -- The druid mana bar only needs ticker updates when its own ticker option
+    -- is on (default off) — otherwise a shifted druid runs UpdateManaTicker
+    -- every frame just to hide the spark and return
     local druidManaBarVisible = self.manaBar and self.manaBar:IsShown()
+        and addon.db.profile.resourceBar.druidManaBar.showManaTicker
     local needsManaTicker = manaTickerEnabled and (isMana or druidManaBarVisible)
 
     -- Also need updates for mana rate tracking when prediction mode is enabled
@@ -1083,14 +1100,14 @@ function ResourceBar:UpdateTickerVisibility()
         end
     end
 
-    -- Initialize energy tracking when becoming visible
+    -- Re-sync the sample baseline when becoming visible so the next observed
+    -- gain isn't misread against a stale value. Deliberately does NOT seed a
+    -- tick anchor — "the moment visibility changed" is not a tick, and
+    -- predictions must wait for a confirmed real tick (hasConfirmedTick).
     if shouldShow then
         local TickTracker = addon.TickTracker
         if TickTracker then
-            TickTracker.lastSampleEnergy = UnitPower("player", self.C.POWER_TYPE.ENERGY)
-            if TickTracker.lastEnergyTickTime == 0 then
-                TickTracker.lastEnergyTickTime = GetTime()
-            end
+            TickTracker:ResetEnergySample()
         end
     end
 

@@ -18,6 +18,10 @@ local callbacks = {}
 
 -------------------------------------------------------------------------------
 -- Event Registration
+--
+-- CALLBACK CONTRACT: callbacks are invoked as callback(owner, event, ...).
+-- Method references (self.OnFoo) absorb `owner` as their implicit self;
+-- anonymous closures MUST declare a leading owner parameter.
 -------------------------------------------------------------------------------
 
 function Events:RegisterEvent(owner, eventName, callback)
@@ -48,21 +52,6 @@ function Events:UnregisterEvent(owner, eventName)
 end
 
 -------------------------------------------------------------------------------
--- Event Dispatch
--------------------------------------------------------------------------------
-
-eventFrame:SetScript("OnEvent", function(self, event, ...)
-    if callbacks[event] then
-        for owner, callback in pairs(callbacks[event]) do
-            local success, err = pcall(callback, owner, event, ...)
-            if not success then
-                addon.Utils:Debug("Event error [" .. event .. "]: " .. tostring(err))
-            end
-        end
-    end
-end)
-
--------------------------------------------------------------------------------
 -- Combat Log Event Handling (CLEU)
 -------------------------------------------------------------------------------
 
@@ -70,6 +59,22 @@ local cleuCallbacks = {}
 local cleuRegistered = false
 -- Reusable table for CLEU event data (avoids allocation per event)
 local cleuEventData = {}
+
+-- CLEU prefix → position of the first suffix argument.
+-- Base fields are 1-11. SWING has no prefix params; SPELL_*/RANGE_* add
+-- spellID/spellName/spellSchool (12-14); ENVIRONMENTAL adds environmentalType (12).
+local CLEU_SUFFIX_START = setmetatable({}, { __index = function(t, subEvent)
+    local start
+    if subEvent:find("^SWING_") then
+        start = 12
+    elseif subEvent:find("^ENVIRONMENTAL_") then
+        start = 13
+    else
+        start = 15 -- SPELL_*, SPELL_PERIODIC_*, SPELL_BUILDING_*, RANGE_*
+    end
+    rawset(t, subEvent, start)
+    return start
+end })
 
 function Events:RegisterCLEU(owner, subEvent, callback)
     if not cleuCallbacks[subEvent] then
@@ -104,6 +109,18 @@ eventFrame:SetScript("OnEvent", function(self, event, ...)
             cleuEventData.spellName = spellName
             cleuEventData.spellSchool = spellSchool
 
+            -- Suffix arguments, aligned to the sub-event's suffix start so
+            -- handlers never hand-count absolute CLEU positions. Meaning is
+            -- suffix-specific, e.g.:
+            --   SWING_DAMAGE:        s1=amount .. s10=isOffHand
+            --   SWING_MISSED:        s1=missType, s2=isOffHand
+            --   SPELL_MISSED:        s1=missType
+            --   SPELL_EXTRA_ATTACKS: s1=amount
+            --   SPELL_ENERGIZE:      s1=amount, s2=overEnergize, s3=powerType
+            cleuEventData.s1, cleuEventData.s2, cleuEventData.s3, cleuEventData.s4,
+            cleuEventData.s5, cleuEventData.s6, cleuEventData.s7, cleuEventData.s8,
+            cleuEventData.s9, cleuEventData.s10 = select(CLEU_SUFFIX_START[subEvent], CombatLogGetCurrentEventInfo())
+
             for owner, callback in pairs(cleuCallbacks[subEvent]) do
                 local success, err = pcall(callback, owner, subEvent, cleuEventData)
                 if not success then
@@ -130,6 +147,14 @@ local addonCallbacks = {} -- eventName -> { {owner, callback}, ... }
 function Events:RegisterAddonEvent(owner, eventName, callback)
     if not addonCallbacks[eventName] then
         addonCallbacks[eventName] = {}
+    end
+    -- Replace any existing registration for this owner — prevents double-fire
+    -- if a module re-registers across Refresh/lifecycle cycles
+    for _, entry in ipairs(addonCallbacks[eventName]) do
+        if entry.owner == owner then
+            entry.callback = callback
+            return
+        end
     end
     table.insert(addonCallbacks[eventName], { owner = owner, callback = callback })
 end

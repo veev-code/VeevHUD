@@ -82,11 +82,28 @@ function StanceTracker:Initialize()
 
     -- Register for stance/form changes
     self.Events:RegisterEvent(self, "UPDATE_SHAPESHIFT_FORM", self.OnShapeshiftChange)
-    self.Events:RegisterEvent(self, "UPDATE_SHAPESHIFT_FORMS", self.OnShapeshiftChange)
+    self.Events:RegisterEvent(self, "UPDATE_SHAPESHIFT_FORMS", self.OnShapeshiftFormsChanged)
     self.Events:RegisterEvent(self, "PLAYER_ENTERING_WORLD", self.OnShapeshiftChange)
 
     -- Read initial state
     self:UpdateCurrentStance()
+
+    -- Register as an icon provider — CooldownIcons dispatches sentinel-icon
+    -- injection/setup/update through this interface. Initialize's class
+    -- early-return means unsupported classes never register.
+    addon:RegisterIconProvider({
+        name = "StanceTracker",
+        order = 30,
+        module = self,
+        IsSentinel = function(id) return self:IsStanceSentinel(id) end,
+        Setup = function(frame, spellID, rowConfig, rowIndex)
+            self:SetupStanceIcon(frame, spellID, rowConfig, rowIndex)
+        end,
+        Update = function(frame, db)
+            self:UpdateStanceIconState(frame, db)
+            return false  -- No countdown text
+        end,
+    })
 
     self.Utils:LogDebug("StanceTracker initialized for", self.playerClass)
 end
@@ -97,10 +114,19 @@ end
 
 function StanceTracker:OnShapeshiftChange()
     local changed = self:UpdateCurrentStance()
-    if changed then
+    -- Only rebuild rows when the indicator is actually injected — it's hidden
+    -- by default, and stance dancing shouldn't trigger rebuilds while hidden
+    if changed and self:IsIndicatorInjected() then
         -- Rebuild icons so the stance icon texture updates
         self:NotifyCooldownIcons()
     end
+end
+
+-- Form count changes (learning a new stance/form) alter injection eligibility,
+-- so always rebuild regardless of indicator visibility.
+function StanceTracker:OnShapeshiftFormsChanged()
+    self:UpdateCurrentStance()
+    self:NotifyCooldownIcons()
 end
 
 -------------------------------------------------------------------------------
@@ -160,6 +186,16 @@ function StanceTracker:IsActive()
     if not spellCfg then return true end
     local cfg = spellCfg[self.C.STANCE_INDICATOR]
     return not cfg or cfg.enabled ~= false
+end
+
+--- Returns true when the stance indicator is currently injected into a row.
+--- Mirrors the InjectRowEntries gate: hidden by default, shown only when
+--- explicitly enabled in Spell Config.
+function StanceTracker:IsIndicatorInjected()
+    if not self.C then return false end
+    local spellCfg = addon:GetSpellConfig()
+    local cfg = spellCfg and spellCfg[self.C.STANCE_INDICATOR]
+    return (cfg and cfg.enabled) == true
 end
 
 --- Get the sentinel ID
@@ -261,16 +297,12 @@ function StanceTracker:UpdateStanceIconState(frame, db)
     local renderer = addon:GetModule("IconRenderer")
     local glowManager = addon:GetModule("GlowManager")
 
-    -- Refresh current stance (cheap API call)
-    local formIndex = GetShapeshiftForm() or 0
-
-    if formIndex > 0 and formIndex <= (GetNumShapeshiftForms() or 0) then
+    -- Use the event-maintained stance cache instead of re-querying the
+    -- shapeshift APIs every tick (UPDATE_SHAPESHIFT_FORM/FORMS and
+    -- PLAYER_ENTERING_WORLD keep it fresh via UpdateCurrentStance)
+    if self.currentFormIndex > 0 and self.currentIcon then
         -- ACTIVE STATE: full-color icon of current stance
-        local icon, _, _, spellID = GetShapeshiftFormInfo(formIndex)
-        -- Use spell-specific icon when available (druid stance bar returns generic textures)
-        local resolvedIcon = (spellID and GetSpellTexture(spellID)) or icon
-
-        frame.icon:SetTexture(resolvedIcon or self.defaultIcon)
+        frame.icon:SetTexture(self.currentIcon)
         frame.actionableTime = 0  -- No sorting relevance
 
         if renderer then

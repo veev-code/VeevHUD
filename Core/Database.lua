@@ -41,7 +41,10 @@ function Database:Initialize()
 
     -- Hook profile change events so the HUD refreshes when profiles/specializations switch.
     -- These use AceDB's standard callback mechanism (CallbackHandler dispatch).
-    addon.db.RegisterCallback(addon, "OnNewProfile", "OnProfileChanged")
+    -- OnNewProfile is deliberately NOT registered: AceDB fires it lazily on
+    -- first access of a not-yet-existing profile, which happens INSIDE the
+    -- OnProfileChanged refresh already in flight — wiring it to the full
+    -- handler made the refresh re-enter itself.
     addon.db.RegisterCallback(addon, "OnProfileChanged", "OnProfileChanged")
     addon.db.RegisterCallback(addon, "OnProfileCopied", "OnProfileChanged")
     addon.db.RegisterCallback(addon, "OnProfileReset", "OnProfileChanged")
@@ -55,17 +58,25 @@ function Database:Initialize()
         local original = addon.db[methodName]
         if not original then return end
         addon.db[methodName] = function(self, ...)
+            local before = self:GetCurrentProfile()
             addon._profileCallbackFired = false
             local ok, err = pcall(original, self, ...)
             if not ok then
-                -- Suppress the known CallbackHandler Fire error; re-raise anything else
-                if not err:find("'Fire'") then
+                -- Suppress the known CallbackHandler Fire error; re-raise
+                -- anything else (errors may be non-string objects)
+                if type(err) ~= "string" or not err:find("'Fire'") then
                     error(err, 2)
                 end
             end
-            -- Only call manually if the AceDB callback didn't fire
-            -- (this is the CallbackHandler Fire bug the safety net exists for)
-            if not addon._profileCallbackFired then
+            -- Only call manually if the AceDB callback didn't fire — except
+            -- for SetProfile's legitimate no-op: AceDB early-returns without
+            -- firing callbacks when the requested profile is already active,
+            -- and the old code ran a full HUD refresh for that non-change.
+            -- ResetProfile/CopyProfile keep the unconditional fallback (their
+            -- names don't change, so a name check can't detect the Fire bug).
+            local legitimateNoOp = ok and methodName == "SetProfile"
+                and self:GetCurrentProfile() == before
+            if not addon._profileCallbackFired and not legitimateNoOp then
                 addon:OnProfileChanged()
             end
         end
@@ -181,11 +192,25 @@ function Database:GetSettingValue(path)
     return self:GetValueAtPath(profile, path)
 end
 
+-- Shallow value comparison that handles table-valued settings (colors,
+-- anchors): reference equality would report every table path as overridden.
+local function SettingValuesEqual(a, b)
+    if a == b then return true end
+    if type(a) ~= "table" or type(b) ~= "table" then return false end
+    for k, v in pairs(a) do
+        if b[k] ~= v then return false end
+    end
+    for k, v in pairs(b) do
+        if a[k] ~= v then return false end
+    end
+    return true
+end
+
 -- Check if a setting path is overridden by user
 function Database:IsSettingOverridden(path)
     local currentValue = self:GetSettingValue(path)
     local defaultValue = self:GetDefaultValue(path)
-    return currentValue ~= defaultValue
+    return not SettingValuesEqual(currentValue, defaultValue)
 end
 
 -- Check if a row-based setting is enabled for a specific row index
@@ -722,6 +747,19 @@ function Database:ClearOverride(path)
     -- directly into the profile table (no metatable fallback).
     -- AceDB's removeDefaults() handles sparseness at save time.
     local defaultValue = self:GetDefaultValue(path)
+    -- Table defaults must be deep-copied: writing the Constants.DEFAULTS
+    -- table reference into the live profile would let later in-place edits
+    -- corrupt the shared defaults for every profile.
+    if type(defaultValue) == "table" then
+        local function deepCopy(src)
+            local dst = {}
+            for k, v in pairs(src) do
+                dst[k] = type(v) == "table" and deepCopy(v) or v
+            end
+            return dst
+        end
+        defaultValue = deepCopy(defaultValue)
+    end
     self:SetValueAtPath(addon.db.profile, path, defaultValue)
 end
 

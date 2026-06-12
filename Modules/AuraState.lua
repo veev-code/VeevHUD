@@ -117,6 +117,7 @@ function AuraState:BuildAuraMappings()
     if not spellTracker then return end
 
     wipe(self._triggeredAuraIDsCache)
+    wipe(self._auraClassCache)
     wipe(self.auraToSpellMap)
     wipe(self.spellToAuraMap)
     wipe(self.rankToBaseMap)
@@ -702,10 +703,9 @@ function AuraState:OnPlayerTotemUpdate(event, slot)
     if not elementTag then return end
 
     local trackedSpellID = self.totemElementToSpell[elementTag]
+    if not trackedSpellID then return end  -- Not tracking any totem for this element
 
     local haveTotem, totemName, startTime, duration = GetTotemInfo(slot)
-
-    if not trackedSpellID then return end  -- Not tracking any totem for this element
 
     if not haveTotem or duration == 0 then
         -- Totem is gone — clear tracking
@@ -919,11 +919,8 @@ function AuraState:CleanupExpiredAuras()
     end
 
     if changed then
-        -- Update UI
-        local cooldownIcons = addon:GetModule("CooldownIcons")
-        if cooldownIcons then
-            cooldownIcons:UpdateAllIcons()
-        end
+        -- Update UI (decoupled via addon event bus)
+        addon.Events:FireAddonEvent("AURA_STATE_CHANGED")
     end
 end
 
@@ -931,36 +928,65 @@ end
 -- Unit/Aura Helpers
 -------------------------------------------------------------------------------
 
+-- Precomputed unit token arrays. GetUnitFromGUID runs per aura event;
+-- building "party"..i / "nameplate"..i strings there is steady GC churn.
+local PARTY_UNITS, PARTY_TARGET_UNITS = {}, {}
+for i = 1, 4 do
+    PARTY_UNITS[i] = "party" .. i
+    PARTY_TARGET_UNITS[i] = "party" .. i .. "target"
+end
+local RAID_UNITS = {}
+for i = 1, 40 do
+    RAID_UNITS[i] = "raid" .. i
+end
+local NAMEPLATE_UNITS = {}
+for i = 1, 40 do
+    NAMEPLATE_UNITS[i] = "nameplate" .. i
+end
+local ARENA_UNITS = {}
+for i = 1, 5 do
+    ARENA_UNITS[i] = "arena" .. i
+end
+
 -- Get unit token from GUID
 function AuraState:GetUnitFromGUID(guid)
     if not guid then return nil end
-    
+
     -- Check common units
-    if guid == UnitGUID("player") then return "player" end
+    if guid == self.playerGUID then return "player" end
     if guid == UnitGUID("target") then return "target" end
     if guid == UnitGUID("targettarget") then return "targettarget" end
     if guid == UnitGUID("focus") then return "focus" end
     if guid == UnitGUID("pet") then return "pet" end
-    
-    -- Check party/raid
-    for i = 1, 4 do
-        if guid == UnitGUID("party" .. i) then return "party" .. i end
-        if guid == UnitGUID("party" .. i .. "target") then return "party" .. i .. "target" end
+
+    -- Check group members. In a raid, raidN tokens cover every member
+    -- (party1-4 only cover the player's subgroup — without the raid scan,
+    -- buffs on members outside it could never be live-scanned).
+    if IsInRaid() then
+        for i = 1, GetNumGroupMembers() do
+            local unit = RAID_UNITS[i]
+            if unit and guid == UnitGUID(unit) then return unit end
+        end
+    else
+        for i = 1, 4 do
+            if guid == UnitGUID(PARTY_UNITS[i]) then return PARTY_UNITS[i] end
+            if guid == UnitGUID(PARTY_TARGET_UNITS[i]) then return PARTY_TARGET_UNITS[i] end
+        end
     end
-    
+
     -- Check nameplates
     for i = 1, 40 do
-        local unit = "nameplate" .. i
+        local unit = NAMEPLATE_UNITS[i]
         if UnitExists(unit) and guid == UnitGUID(unit) then
             return unit
         end
     end
-    
+
     -- Check arena (if applicable)
     for i = 1, 5 do
-        if guid == UnitGUID("arena" .. i) then return "arena" .. i end
+        if guid == UnitGUID(ARENA_UNITS[i]) then return ARENA_UNITS[i] end
     end
-    
+
     return nil
 end
 
@@ -1316,11 +1342,29 @@ function AuraState:CacheTargetContext()
     end
 end
 
+-- Cached aura classification (static per aura ID; wiped on BuildAuraMappings).
+-- GetRelevantTargetGUIDForAura runs per aura ID per icon per update tick —
+-- without this cache each call re-derives ~7 LibSpellDB lookups.
+AuraState._auraClassCache = {}
+
 -- Get relevant target GUID for a specific AURA (using aura-specific tags)
 -- Returns: relevantGUID, shouldCheckAllTargets
 -- shouldCheckAllTargets: true for CC, single-target spells, and non-rotational helpful buffs
 function AuraState:GetRelevantTargetGUIDForAura(auraSpellID)
-    local isHelpful, isSelfOnly, isCC, isRotational, _, isSingleTarget = self:GetAuraTypeForAuraID(auraSpellID)
+    local cached = self._auraClassCache[auraSpellID]
+    if not cached then
+        local isHelpful, isSelfOnly, isCC, isRotational, _, isSingleTarget = self:GetAuraTypeForAuraID(auraSpellID)
+        cached = {
+            isHelpful = isHelpful,
+            isSelfOnly = isSelfOnly,
+            isCC = isCC,
+            isRotational = isRotational,
+            isSingleTarget = isSingleTarget,
+        }
+        self._auraClassCache[auraSpellID] = cached
+    end
+    local isHelpful, isSelfOnly, isCC, isRotational, isSingleTarget =
+        cached.isHelpful, cached.isSelfOnly, cached.isCC, cached.isRotational, cached.isSingleTarget
     local playerGUID = self.playerGUID
 
     -- CC spells track across all targets - return nil to signal this
@@ -1388,105 +1432,49 @@ function AuraState:GetRelevantTargetGUIDForAura(auraSpellID)
 end
 
 -- Check if a spell's aura is currently active (legacy API - uses source spell ID)
--- Uses same smart target resolution as GetAuraRemaining for consistency
+-- Uses the same smart target resolution as GetAuraState for consistency
 function AuraState:IsAuraActive(spellID)
     return self:IsAuraActiveForSourceSpell(spellID)
 end
 
 -- Get aura priority for sorting (higher = more important)
 -- CC_HARD > CC_SOFT > other auras, then by array order
+-- The tag-derived tier is static per aura ID and cached alongside the
+-- classification cache (this runs per aura ID per icon per update tick).
 function AuraState:GetAuraPriority(auraSpellID, arrayIndex)
     local basePriority = 1000 - (arrayIndex or 0)  -- Array order as tiebreaker
-    
-    if self.LibSpellDB and self.LibSpellDB.GetAuraInfo then
-        local auraInfo = self.LibSpellDB:GetAuraInfo(auraSpellID)
-        if auraInfo and auraInfo.tags then
-            for _, tag in ipairs(auraInfo.tags) do
-                if tag == "CC_HARD" then
-                    return 3000 + basePriority  -- Highest priority
-                elseif tag == "CC_SOFT" or tag == "ROOT" then
-                    return 2000 + basePriority  -- Medium priority
-                end
-            end
-        end
-    end
-    
-    return basePriority  -- Default priority (DOTs, buffs, etc.)
-end
 
--- Get the remaining duration for a SOURCE spell (checks all its triggered auras)
--- Priority: CC_HARD > CC_SOFT > array order. Among same priority, uses longest duration.
-function AuraState:GetAuraRemaining(sourceSpellID)
-    local auraIDs = self:GetTriggeredAuraIDs(sourceSpellID)
-    local now = GetTime()
-    
-    -- Collect all active auras with their priority and remaining time
-    local activeAuras = {}
-    
-    for arrayIndex, auraID in ipairs(auraIDs) do
-        local targets = self.activeAuras[auraID]
-        if targets then
-            -- Get targeting logic for THIS specific aura
-            local relevantGUID, checkAllTargets = self:GetRelevantTargetGUIDForAura(auraID)
-            local priority = self:GetAuraPriority(auraID, arrayIndex)
-            
-            if checkAllTargets then
-                -- CC or non-rotational helpful spells: check all targets, use longest remaining
-                for targetGUID, auraData in pairs(targets) do
-                    local expiration = type(auraData) == "table" and auraData.expiration or auraData
-                    local remaining = expiration - now
-                    if remaining > 0 then
-                        table.insert(activeAuras, {
-                            priority = priority,
-                            remaining = remaining,
-                            duration = type(auraData) == "table" and auraData.duration or 0,
-                            stacks = type(auraData) == "table" and auraData.stacks or 0,
-                        })
-                    end
-                end
-            else
-                -- Rotational spells: check only relevant target for this aura
-                if relevantGUID and targets[relevantGUID] then
-                    local auraData = targets[relevantGUID]
-                    local expiration = type(auraData) == "table" and auraData.expiration or auraData
-                    local remaining = expiration - now
-                    if remaining > 0 then
-                        table.insert(activeAuras, {
-                            priority = priority,
-                            remaining = remaining,
-                            duration = type(auraData) == "table" and auraData.duration or 0,
-                            stacks = type(auraData) == "table" and auraData.stacks or 0,
-                        })
+    local cached = self._auraClassCache[auraSpellID]
+    local tier = cached and cached.priorityTier
+    if tier == nil then
+        tier = 0
+        if self.LibSpellDB and self.LibSpellDB.GetAuraInfo then
+            local auraInfo = self.LibSpellDB:GetAuraInfo(auraSpellID)
+            if auraInfo and auraInfo.tags then
+                for _, tag in ipairs(auraInfo.tags) do
+                    if tag == "CC_HARD" then
+                        tier = 3000  -- Highest priority
+                        break
+                    elseif tag == "CC_SOFT" or tag == "ROOT" then
+                        tier = 2000  -- Medium priority
+                        break
                     end
                 end
             end
         end
-    end
-    
-    -- No active auras
-    if #activeAuras == 0 then
-        return 0, 0, 0
-    end
-    
-    -- Sort by priority (desc), then by remaining time (desc)
-    table.sort(activeAuras, function(a, b)
-        if a.priority ~= b.priority then
-            return a.priority > b.priority
+        if cached then
+            cached.priorityTier = tier
         end
-        return a.remaining > b.remaining
-    end)
-    
-    -- Return the highest priority aura's info
-    local best = activeAuras[1]
-    return best.remaining, best.duration, best.stacks
+    end
+
+    return tier + basePriority
 end
 
--- Notify that an aura changed (for icon updates)
+-- Notify that an aura changed (for icon updates).
+-- Decoupled via the addon event bus — AuraState has no knowledge of which
+-- modules render aura state (CooldownIcons subscribes in its Initialize).
 function AuraState:NotifyAuraChange(spellID, isActive)
-    local cooldownIcons = addon:GetModule("CooldownIcons")
-    if cooldownIcons then
-        cooldownIcons:UpdateAllIcons()
-    end
+    addon.Events:FireAddonEvent("AURA_STATE_CHANGED", spellID, isActive)
 end
 
 -- Rebuild mappings when tracked spells change

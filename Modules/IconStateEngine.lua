@@ -45,6 +45,28 @@ IconStateEngine._itemCdPersist = {}
 -- Cached GetTime() value, set once per tick via SetTime()
 IconStateEngine.now = 0
 
+-- Session-static spell name/icon memos. GetSpellInfo runs per icon per update
+-- tick in the buff/lockout paths; names and icons never change mid-session.
+local spellNameCache = {}
+local function GetCachedSpellName(spellID)
+    local name = spellNameCache[spellID]
+    if name == nil then
+        name = GetSpellInfo(spellID) or false
+        spellNameCache[spellID] = name
+    end
+    return name or nil
+end
+
+local spellIconCache = {}
+local function GetCachedSpellIcon(spellID)
+    local icon = spellIconCache[spellID]
+    if icon == nil then
+        icon = select(3, GetSpellInfo(spellID)) or false
+        spellIconCache[spellID] = icon
+    end
+    return icon or nil
+end
+
 function IconStateEngine:Initialize()
     self.Utils = addon.Utils
     self.C = addon.Constants
@@ -64,6 +86,39 @@ function IconStateEngine:SetTime(now)
     self.now = now
 end
 
+-- Resolve which unit a target-context spell would land on: friendly target →
+-- them; enemy target → friendly targettarget when enabled, else self; no
+-- target → self. Memoized per update cycle (identical for every icon in one
+-- pass — previously re-derived per icon in two duplicated blocks).
+function IconStateEngine:_GetTargetContextUnit()
+    if self._tcuTime == self.now then
+        return self._tcuUnit
+    end
+
+    local unit = "player"
+    local db = addon.db.profile.icons
+    local useTargettarget = db.auraTargettargetSupport
+
+    local targetExists = UnitExists("target")
+    local targetIsEnemy = targetExists and UnitCanAttack("player", "target")
+    local targetIsFriend = targetExists and UnitIsFriend("player", "target")
+
+    if targetIsFriend then
+        -- Targeting an ally - the spell lands on them
+        unit = "target"
+    elseif targetIsEnemy then
+        -- Targeting an enemy (including neutral mobs) - check targettarget if friendly (and enabled), else self
+        if useTargettarget and UnitExists("targettarget") and UnitIsFriend("player", "targettarget") then
+            unit = "targettarget"
+        end
+    end
+    -- No target or neutral: self
+
+    self._tcuTime = self.now
+    self._tcuUnit = unit
+    return unit
+end
+
 -------------------------------------------------------------------------------
 -- Public API: Dodge Window Management
 -------------------------------------------------------------------------------
@@ -80,7 +135,7 @@ end
 -- Check if a buff is active on the player (for shared CD abilities like Reck/Retal/SWall)
 -- Returns: isActive, remaining, duration, stacks
 function IconStateEngine:GetPlayerBuff(spellID)
-    local spellName = GetSpellInfo(spellID)
+    local spellName = GetCachedSpellName(spellID)
     local aura = self.Utils:GetCachedBuff("player", spellID, spellName)
 
     if aura then
@@ -109,35 +164,17 @@ end
 --
 -- Returns: isActive, remaining, duration, stacks
 function IconStateEngine:GetRelevantBuff(spellID, checkSelfOnly, spellData)
-    -- Determine which unit to check
+    -- Determine which unit to check (shared, per-cycle-memoized resolution)
     local unit = "player"
-
     if not checkSelfOnly then
-        local db = addon.db.profile.icons
-        local useTargettarget = db.auraTargettargetSupport
-
-        local targetExists = UnitExists("target")
-        local targetIsEnemy = targetExists and UnitCanAttack("player", "target")
-        local targetIsFriend = targetExists and UnitIsFriend("player", "target")
-
-        if targetIsFriend then
-            -- Targeting an ally - check them for the buff
-            unit = "target"
-        elseif targetIsEnemy then
-            -- Targeting an enemy (including neutral mobs) - check targettarget if friendly (and enabled), else self
-            if useTargettarget and UnitExists("targettarget") and UnitIsFriend("player", "targettarget") then
-                unit = "targettarget"
-            end
-            -- else: fallback to self (already set)
-        end
-        -- No target or neutral: fallback to self (already set)
+        unit = self:_GetTargetContextUnit()
     end
 
     -- If spell has appliesBuff (buff IDs differ from cast spell, e.g., Soulstone),
     -- check those buff IDs on the unit instead of the cast spell name
     if spellData and spellData.appliesBuff then
         for _, buffID in ipairs(spellData.appliesBuff) do
-            local buffName = GetSpellInfo(buffID)
+            local buffName = GetCachedSpellName(buffID)
             if buffName then
                 local aura = self.Utils:GetCachedBuff(unit, buffID, buffName)
                 local src = aura and aura.source
@@ -154,7 +191,7 @@ function IconStateEngine:GetRelevantBuff(spellID, checkSelfOnly, spellData)
         return false, 0, 0, 0
     end
 
-    local spellName = GetSpellInfo(spellID)
+    local spellName = GetCachedSpellName(spellID)
     if not spellName then return false, 0, 0, 0 end
 
     local aura = self.Utils:GetCachedBuff(unit, spellID, spellName)
@@ -180,27 +217,13 @@ end
 function IconStateEngine:GetTargetLockoutDebuff(debuffSpellID, isSelfOnly)
     if not debuffSpellID then return false, 0, 0, 0 end
 
-    local debuffName = GetSpellInfo(debuffSpellID)
+    local debuffName = GetCachedSpellName(debuffSpellID)
     if not debuffName then return false, 0, 0, 0 end
 
-    -- Determine which unit to check using the same logic as helpful effects
+    -- Determine which unit to check (same shared resolution as helpful effects)
     local unit = "player"
-
     if not isSelfOnly then
-        local db = addon.db.profile.icons
-        local useTargettarget = db.auraTargettargetSupport
-
-        local targetExists = UnitExists("target")
-        local targetIsEnemy = targetExists and UnitCanAttack("player", "target")
-        local targetIsFriend = targetExists and UnitIsFriend("player", "target")
-
-        if targetIsFriend then
-            unit = "target"
-        elseif targetIsEnemy then
-            if useTargettarget and UnitExists("targettarget") and UnitIsFriend("player", "targettarget") then
-                unit = "targettarget"
-            end
-        end
+        unit = self:_GetTargetContextUnit()
     end
 
     -- Check target-context unit (the unit the spell would actually land on)
@@ -682,7 +705,7 @@ function IconStateEngine:_ComputeCooldownState(frame, db, s)
                     s.auraActive = true
                     s.auraRemaining = tlRemaining
                     s.auraDuration = tlDuration
-                    s.lockoutTexture = select(3, GetSpellInfo(spellData.targetLockoutDebuff))
+                    s.lockoutTexture = GetCachedSpellIcon(spellData.targetLockoutDebuff)
                 end
             end
             if not s.isPermanentBuffActive then
@@ -915,10 +938,9 @@ function IconStateEngine:_ComputeVisualFlags(frame, db, s)
     local dimOnCooldown = self.Database:IsRowSettingEnabled(db.dimOnCooldown, rowIndex)
     local showGCDForThisRow = self.Database:IsRowSettingEnabled(db.showGCDOn, rowIndex)
 
-    -- Usability indicators (suppressed when resting + out of combat)
-    local inCombat = UnitAffectingCombat("player")
-    local isResting = IsResting()
-    local showUsabilityIndicators = inCombat or not isResting
+    -- Usability indicators (suppressed when resting + out of combat).
+    -- Frame-memoized — also read by IconRenderer for the resource display.
+    local showUsabilityIndicators = self.Utils:ShouldShowUsabilityIndicators()
 
     -- Aura suppression for cooldownPriority spells
     local suppressAura = s.hasCooldownPriority and (s.isOnActualCooldown or s.hasResourceCost)

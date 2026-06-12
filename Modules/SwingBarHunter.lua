@@ -62,7 +62,9 @@ local function UpdateRangedBaseSpeed(sb)
     if not baseSpeedTooltip then
         baseSpeedTooltip = CreateFrame("GameTooltip", "VeevHUDBaseSpeedTip", nil, "GameTooltipTemplate")
         baseSpeedTooltip:SetOwner(WorldFrame, "ANCHOR_NONE")
-        SPEED_PATTERN = SPEED .. " (%d%.%d%d)"
+        -- Accept both "." and "," decimal separators — frFR/deDE render
+        -- weapon speed as e.g. "3,80" and the dot-only pattern never matched
+        SPEED_PATTERN = SPEED .. " (%d+[%.,]%d+)"
     end
 
     baseSpeedTooltip:ClearLines()
@@ -75,7 +77,7 @@ local function UpdateRangedBaseSpeed(sb)
         if text then
             local match = text:match(SPEED_PATTERN)
             if match then
-                speed = tonumber(match)
+                speed = tonumber((match:gsub(",", ".", 1)))
                 break
             end
         end
@@ -172,8 +174,10 @@ function Hunter:OnInitialize(sb)
     sb.moveStopTime = nil
     sb.knowsSteadyShot = false
 
-    -- Register hunter-specific events
-    sb.Events:RegisterEvent(sb, "UNIT_SPELLCAST_FAILED_QUIET", function(event, unit, castGUID, spellID)
+    -- Register hunter-specific events.
+    -- NOTE: Events.lua invokes callbacks as callback(owner, event, ...) — the
+    -- leading owner parameter is required on anonymous closures.
+    sb.Events:RegisterEvent(sb, "UNIT_SPELLCAST_FAILED_QUIET", function(owner, event, unit, castGUID, spellID)
         OnSpellCastFailedQuiet(sb, event, unit, castGUID, spellID)
     end)
 
@@ -225,6 +229,19 @@ function Hunter:OnSpellCastSucceeded(sb, spellID)
         if sb.rangedSpeed > 0 then
             sb.rangedTimer = sb.rangedSpeed
             sb.lastShotTime = now
+            sb:OnSwingEvent()
+        end
+        return true
+    end
+
+    -- Cast-time shots that reset the auto-shot swing (Aimed Shot — tagged
+    -- RANGED_RESET in LibSpellDB). Without this, the clip zones display a
+    -- stale timer during and after the cast until the next real Auto Shot.
+    if addon.LibSpellDB and addon.LibSpellDB:HasTag(spellID, "RANGED_RESET") then
+        sb:UpdateWeaponSpeeds()
+        if sb.rangedSpeed > 0 then
+            sb.rangedTimer = sb.rangedSpeed
+            sb.lastShotTime = GetTime()
             sb:OnSwingEvent()
         end
         return true
@@ -340,8 +357,7 @@ end
 function Hunter:OnAutoRepeatStart(sb)
     if not addon.db.profile.swingBar.enableMeleeWeaving then
         sb.isRanged = true
-        sb.lastDualState = nil
-        sb:UpdateContainerSize()
+        sb:ForceContainerResize()
         addon.Layout:Refresh()
     end
 end
@@ -350,9 +366,8 @@ function Hunter:OnAutoRepeatStop(sb)
     sb.wasMoving = false
     if not addon.db.profile.swingBar.enableMeleeWeaving then
         sb.isRanged = false
-        sb.lastDualState = nil
         sb:UpdateWeaponSpeeds()
-        sb:UpdateContainerSize()
+        sb:ForceContainerResize()
         addon.Layout:Refresh()
     end
 end
