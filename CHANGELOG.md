@@ -1,5 +1,10 @@
 # VeevHUD Changelog
 
+## [1.0.212] - 2026-06-11
+
+### Fixed
+- **Aura Tracker showing the wrong icons** — Reverted 1.0.211's Aura Tracker frame-reuse optimization, which could display the wrong icon on aura icons after the tracker rebuilt (weapon swaps, settings changes). Aura icons now always show the correct texture again.
+
 ## [1.0.211] - 2026-06-11
 
 Maintenance release: a full top-to-bottom audit of the addon, with dozens of bug fixes and substantial performance work. No new features — everything should simply work better.
