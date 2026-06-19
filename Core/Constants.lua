@@ -299,6 +299,7 @@ C.DEFAULTS = {
             statusbarTexture = "Clean",  -- Statusbar texture name (registered with LibSharedMedia)
             showGradient = true,  -- Gradient overlay on all status bars (health, resource, combo points, ticker)
             textColor = { r = 1.0, g = 0.906, b = 0.745 },  -- Warm cream/gold for cooldown/stack/duration text
+            procWindowTextColor = { r = 0.4, g = 1.0, b = 0.4 },  -- Bright green for reactive proc-window "act now" countdowns (e.g. Overpower)
             textOutline = "OUTLINE",  -- Global text outline style (OUTLINE, SHADOW, BOTH, NONE)
         },
 

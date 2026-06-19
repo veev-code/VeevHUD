@@ -241,7 +241,7 @@ function IconRenderer:ApplyIconVisuals(frame, state, db)
     -- Text display
     -------------------------------------------------------------------
     local showTextForRow = addon.Database:IsRowSettingEnabled(db.showCooldownTextOn, rowIndex)
-    local textColor = addon.db.profile.appearance.textColor
+    local appearance = addon.db.profile.appearance
 
     -- Pick the value to display, then re-format only when the displayed
     -- tenth changes — this runs per icon per tick and string.format allocates
@@ -256,15 +256,24 @@ function IconRenderer:ApplyIconVisuals(frame, state, db)
         textValue = cdRemaining
     end
 
+    -- Reactive proc-window countdowns (e.g. Overpower's "act within X") use a
+    -- distinct green so they're never mistaken for the cooldown number. The color
+    -- must repaint when the proc state flips even if the displayed tenth is
+    -- unchanged, so it's part of the dirty check below.
+    local isProcWindowText = state.isProcWindow and showAuraActive
+    local textColor = isProcWindowText and appearance.procWindowTextColor or appearance.textColor
+
     if textValue then
         local bucket = math.floor(textValue * 10)
-        if frame._textBucket ~= bucket then
+        if frame._textBucket ~= bucket or frame._textProc ~= isProcWindowText then
             frame._textBucket = bucket
+            frame._textProc = isProcWindowText
             frame.text:SetText(self.Utils:FormatCooldown(textValue))
             frame.text:SetTextColor(textColor.r, textColor.g, textColor.b)
         end
     elseif frame._textBucket then
         frame._textBucket = nil
+        frame._textProc = nil
         frame.text:SetText("")
     end
 

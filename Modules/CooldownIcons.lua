@@ -1549,6 +1549,7 @@ function CooldownIcons:UpdateIconState(frame, db)
 
     -- 1. Apply rendering (spiral, text, alpha, desat, stacks, charges)
     visualState.showAuraActive = s.showAuraActive
+    visualState.isProcWindow = s.isProcWindow
     visualState.auraRemaining = s.auraDisplayRemaining
     visualState.auraDuration = s.auraDisplayDuration
     visualState.stackCount = s.stackCount
@@ -1579,10 +1580,10 @@ function CooldownIcons:UpdateIconState(frame, db)
     self.glowManager:UpdateCooldownPulse(frame, s.spellID, s.remaining, s.duration)
 
     -- 5. Ready glow (proc-style glow when ability becomes usable)
-    -- Dodge-reactive procs (Overpower) bypass the aura-active suppression so
-    -- the big proc-overlay glow still draws attention while the countdown
-    -- spiral displays. IconStateEngine suppresses the aura-border glow in
-    -- this case to avoid doubling up (see _ComputeVisualFlags).
+    -- Dodge-reactive procs (Overpower) keep the proc-overlay glow the whole time
+    -- the window is usable — including while the green window countdown shows. The
+    -- `or s.dodgeWindowUsable` bypasses the aura-active suppression that would
+    -- otherwise drop the glow when the synthetic window aura is active.
     if not s.showAuraActive or s.dodgeWindowUsable then
         self.glowManager:UpdateReadyGlow(frame, s.spellID, s.remaining, s.duration, s.isUsable, s.isReactive, db, s.lockoutIsLimitingFactor, s.canAfford, s.predictionIsLimitingFactor, s.predictionRemaining, s.dodgeWindowUsable)
     else
@@ -1609,6 +1610,7 @@ function CooldownIcons:UpdateIconState(frame, db)
     -- (cooldown spiral, prediction spiral, timed aura counting down, or resource fill active)
     return s.showSpinner or s.showPredictionSpiral
         or (s.showAuraActive and s.auraDisplayRemaining and s.auraDisplayRemaining > 0)
+        or s.dodgeWindowUsable
         or (s.hasResourceCost and not s.canAfford)
 end
 

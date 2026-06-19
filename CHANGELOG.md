@@ -1,5 +1,10 @@
 # VeevHUD Changelog
 
+## [1.0.214] - 2026-06-19
+
+### Changed
+- **Overpower: proc window vs. cooldown is now unmistakable** — After a target dodges, Overpower's "seconds to act" countdown shows in a distinct green, so it's never confused with the ability's cooldown number. The timer is also cooldown-aware: if a dodge lands while Overpower is still on its own cooldown, the cooldown counts down in the normal color and flips to the green window the instant it becomes castable. And when no dodge proc is active, the cooldown number is hidden entirely — Overpower can't be used without a dodge anyway, so the icon just shows a quiet recharge spiral until the next proc. The dodge proc glow still signals usability throughout.
+
 ## [1.0.213] - 2026-06-11
 
 ### Changed

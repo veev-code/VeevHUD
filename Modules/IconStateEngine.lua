@@ -329,11 +329,12 @@ end
 -- before it expires. Target A→B→A is handled implicitly because dodgeWindows
 -- is keyed by destGUID — the entry for A still carries its original expiry.
 --
--- dodgeWindowUsable is the single flag consumed by both the visual-flag
--- synthetic aura injection and the ready-glow override. It turns off as soon
--- as the current spell lockout (own CD or GCD) would outlast the window, so
--- the glow + countdown hide together when you no longer have time to stance
--- dance into the cast.
+-- dodgeWindowUsable gates the proc-overlay glow and (off the ability's own real
+-- cooldown) the green window countdown surfaced in _ComputeVisualFlags. It turns
+-- off the moment the current lockout (own CD or GCD) would outlast the window,
+-- so the glow hides as soon as you no longer have time to stance dance into the
+-- cast. dodgeWindowRemaining is the seconds left in the window — shown to the
+-- player (green) so they can budget GCDs / rage before swapping stance.
 -------------------------------------------------------------------------------
 
 function IconStateEngine:_ComputeDodgeWindowState(frame, s)
@@ -899,6 +900,7 @@ function IconStateEngine:_ComputeVisualFlags(frame, db, s)
     s.showText = false
     s.showGlow = false
     s.showAuraActive = false
+    s.isProcWindow = false
     s.auraDisplayRemaining = 0
     s.auraDisplayDuration = 0
 
@@ -912,14 +914,18 @@ function IconStateEngine:_ComputeVisualFlags(frame, db, s)
         end
     end
 
-    -- Dodge-reactive window: inject synthetic aura data so the icon shows a
-    -- spiral + text countdown while the proc is usable (e.g. Overpower after
-    -- target dodges). Suppressed once the current lockout would outlast the
-    -- window — see _ComputeDodgeWindowState.
-    if s.dodgeWindowUsable then
+    -- Dodge-reactive window (e.g. Overpower): surface the proc-window countdown
+    -- as a synthetic aura so the player can budget GCDs / rage before stance
+    -- dancing — but ONLY while the ability is off its own real cooldown. While
+    -- on cooldown the cream cooldown number shows instead (you can't cast yet);
+    -- the moment it clears, this green window number takes over and means
+    -- "castable now — act within X". isProcWindow flags it for the distinct
+    -- green color (IconRenderer) and the aura-border glow suppression below.
+    if s.dodgeWindowUsable and not s.isOnActualCooldown then
         s.auraActive = true
         s.auraRemaining = s.dodgeWindowRemaining
         s.auraDuration = frame.dodgeReactive
+        s.isProcWindow = true
     end
 
     -- Timed effect: inject synthetic aura data (Flamestrike, Distract, Consecration)
@@ -955,11 +961,10 @@ function IconStateEngine:_ComputeVisualFlags(frame, db, s)
         s.showSpinner = true
         s.showText = true
 
-        -- Dodge-reactive procs rely on the big proc-overlay glow as the
-        -- attention-grabber. Suppress the subtle aura-border glow here so
-        -- UpdateReadyGlow (called with dodgeGlowOverride at the render site)
-        -- isn't fighting the aura pixel border for visual space.
-        if s.dodgeWindowUsable then
+        -- Proc-window countdown (Overpower) relies on the big proc-overlay glow
+        -- (added at the render site via dodgeGlowOverride). Suppress the subtle
+        -- aura-border glow here so the two don't fight for the icon's edge.
+        if s.isProcWindow then
             s.showGlow = false
         end
 
@@ -1023,6 +1028,31 @@ function IconStateEngine:_ComputeVisualFlags(frame, db, s)
             if showUsabilityIndicators and not s.isUsable and db.desaturateNoResources then
                 s.desaturate = true
             end
+        end
+    end
+
+    -- Dodge-reactive proc reachable in time (Overpower): force the icon to read
+    -- as live — bright and not desaturated — even while it's still on its own
+    -- cooldown (cream number) or stance-blocked (IsUsable=false). The glow plus
+    -- the cream→green number flip carry the meaning.
+    if s.dodgeWindowUsable then
+        s.alpha = db.readyAlpha
+        s.desaturate = false
+    end
+
+    -- Dodge-reactive abilities (Overpower): the bare cooldown isn't actionable —
+    -- being off cooldown doesn't make it castable without a dodge proc. The
+    -- cooldown number is never the right display for these icons: it's the green
+    -- window (proc reachable, off CD), the cream pending number via s.showText
+    -- (proc reachable, on CD), or nothing. So always clear the GCD-continuation
+    -- flag — it re-shows the cooldown number for a GCD after a resource
+    -- prediction resolves and bypasses s.showText in the renderer, flickering a
+    -- cream number with no proc (or over an active green window). And when no
+    -- proc is live, drop s.showText too so only the quiet recharge spiral remains.
+    if frame.dodgeReactive then
+        frame.gcdContinueText = nil
+        if not s.dodgeWindowUsable then
+            s.showText = false
         end
     end
 
