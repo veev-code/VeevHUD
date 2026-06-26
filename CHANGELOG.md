@@ -1,5 +1,10 @@
 # VeevHUD Changelog
 
+## [1.0.217] - 2026-06-25
+
+### LibSpellDB Updates
+- **Season of Discovery skill-book abilities** — Abilities learned from SoD skill books (the ones taught by items rather than runes) now show on the HUD: Shamanistic Rage, Avenging Wrath, Seal of Martyrdom, Commanding Shout, Shadowfiend, Aspect of the Viper/Falcon, Fel Armor, Redirect, Totemic Projection, and more across seven classes.
+
 ## [1.0.216] - 2026-06-25
 
 ### LibSpellDB Updates
