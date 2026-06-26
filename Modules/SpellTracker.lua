@@ -36,6 +36,16 @@ function SpellTracker:Initialize()
     self.Events:RegisterEvent(self, "ACTIVE_TALENT_GROUP_CHANGED", self.OnSpecSwitched)
     self.Events:RegisterEvent(self, "PLAYER_TALENT_UPDATE", self.OnTalentsChanged)
 
+    -- Season of Discovery: rune engraving grants/removes abilities (Lava Burst,
+    -- Earth Shield, etc.). RUNE_UPDATED fires on engrave; PLAYER_EQUIPMENT_CHANGED
+    -- catches swapping to a differently-engraved item (which RUNE_UPDATED misses).
+    -- C_Engraving exists only on Classic Era / SoD clients (nil on TBC/Anniversary),
+    -- so this is a no-op everywhere else.
+    if C_Engraving and C_Engraving.IsEngravingEnabled and C_Engraving.IsEngravingEnabled() then
+        self.Events:RegisterEvent(self, "RUNE_UPDATED", self.OnSpellsChanged)
+        self.Events:RegisterEvent(self, "PLAYER_EQUIPMENT_CHANGED", self.OnSpellsChanged)
+    end
+
     self.Utils:LogInfo("SpellTracker initialized")
 end
 
@@ -114,6 +124,9 @@ function SpellTracker:FullRescan()
         self.Utils:LogError("LibSpellDB not available")
         return
     end
+
+    -- Refresh the set of currently-equipped SoD rune abilities before filtering.
+    self:RefreshActiveRunes()
 
     local playerClass = addon.playerClass
     local playerSpec = LibSpellDB:GetPlayerSpec()
@@ -373,6 +386,14 @@ function SpellTracker:IsSpellKnown(spellID, spellData)
 end
 
 function SpellTracker:CheckSpellKnown(spellID)
+    -- SoD runes: an ability granted by a rune on currently-equipped gear is usable
+    -- now. Checked first because some engraved abilities are passive-component
+    -- spells that IsSpellKnown returns false for, and this set already reflects
+    -- equipped-only state (built in RefreshActiveRunes).
+    if self.activeRuneSpells and self.activeRuneSpells[spellID] then
+        return true
+    end
+
     -- Method 1: IsSpellKnown (most reliable)
     if IsSpellKnown and IsSpellKnown(spellID) then
         return true
@@ -415,6 +436,32 @@ function SpellTracker:CheckSpellKnown(spellID)
     end
 
     return false
+end
+
+-- Build a set of spell IDs granted by runes engraved on currently-equipped gear
+-- (Season of Discovery). nil on non-SoD clients (C_Engraving absent / disabled).
+-- Gives "usable now" semantics: a rune ability is only included while its engraved
+-- item is equipped, which is exactly when the spell is castable.
+function SpellTracker:RefreshActiveRunes()
+    self.activeRuneSpells = nil
+    if not (C_Engraving and C_Engraving.IsEngravingEnabled and C_Engraving.IsEngravingEnabled()) then
+        return
+    end
+    if C_Engraving.RefreshRunesList then
+        C_Engraving.RefreshRunesList()
+    end
+    local active = {}
+    -- Iterate equipment slots (INVSLOT_HEAD..INVSLOT_TABARD); non-engravable slots
+    -- return nil. GetRuneForEquipmentSlot reflects the item currently equipped.
+    for slot = 1, 19 do
+        local rune = C_Engraving.GetRuneForEquipmentSlot(slot)
+        if rune and rune.learnedAbilitySpellIDs then
+            for _, sid in ipairs(rune.learnedAbilitySpellIDs) do
+                active[sid] = true
+            end
+        end
+    end
+    self.activeRuneSpells = active
 end
 
 -- Build a cache of all spells in the player's spellbook

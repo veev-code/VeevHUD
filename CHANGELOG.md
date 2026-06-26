@@ -1,5 +1,14 @@
 # VeevHUD Changelog
 
+## [1.0.215] - 2026-06-25
+
+### Added
+- **Season of Discovery support** — Rune-engraved abilities and procs now appear on the HUD for SoD characters. VeevHUD detects which runes you have engraved and updates the moment you engrave or swap one, so your rune abilities track automatically with no setup. *(Tækker)*
+
+### LibSpellDB Updates
+- Full Season of Discovery rune coverage — 118 rune abilities across all nine classes (Lava Burst, Earth Shield, Lava Lash, Chaos Bolt, Penance, Mutilate, and more) plus 28 rune procs (Maelstrom Weapon, Hot Streak, Eclipse, Blood Surge, Surge of Light, and more) shown in the Aura Tracker.
+- Classic Era / SoD characters no longer see phantom duplicate icons of abilities that also exist in TBC (such as Earth Shield and Water Shield).
+
 ## [1.0.214] - 2026-06-19
 
 ### Changed
