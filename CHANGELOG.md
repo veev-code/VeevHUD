@@ -1,5 +1,10 @@
 # VeevHUD Changelog
 
+## [1.0.216] - 2026-06-25
+
+### LibSpellDB Updates
+- **Buff Reminders now recognize Season of Discovery shields and armor** — SoD shamans using the Water Shield or Earth Shield rune, and SoD mages using Molten Armor, now get a correct missing-buff reminder. Previously the reminder only knew the TBC/Classic versions, so a character relying solely on a rune shield or armor got no reminder.
+
 ## [1.0.215] - 2026-06-25
 
 ### Added
