@@ -118,6 +118,12 @@ function TextureManager:RefreshAllTextures()
     if comboPoints and comboPoints.Refresh then
         comboPoints:Refresh()
     end
+
+    -- Aura Tracker bars also use the shared bar texture + gradient setting
+    local auraTracker = addon:GetModule("AuraTracker")
+    if auraTracker and auraTracker.Refresh then
+        auraTracker:Refresh()
+    end
 end
 
 -------------------------------------------------------------------------------

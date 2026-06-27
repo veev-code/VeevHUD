@@ -37,6 +37,13 @@ function AuraTracker:Initialize()
     -- their Masque registrations persist — see RebuildFrames)
     self._iconPool = {}
 
+    -- Bar frames (auras whose per-aura display mode is "bar"): a vertical
+    -- timer-bar stack rendered below the icon row. Pooled like icons.
+    self.bars = {}
+    self._barPool = {}
+    self._lastBarZoneHeight = nil
+    self._barOnUpdate = false
+
     -- Load LibSpellDB for proc data
     self.LibSpellDB = LibStub and LibStub("LibSpellDB-1.0", true)
 
@@ -246,6 +253,15 @@ function AuraTracker:RebuildFrames()
     end
     self.icons = {}
 
+    -- Return bar frames to their pool
+    for _, bar in ipairs(self.bars or {}) do
+        bar:Hide()
+        table.insert(self._barPool, bar)
+    end
+    self.bars = {}
+    self._lastBarZoneHeight = nil
+    self._barOnUpdate = false  -- old container's OnUpdate is dropped with it
+
     if self.slideAnimator then
         self.slideAnimator:Stop()
         self.slideAnimator = nil
@@ -253,6 +269,11 @@ function AuraTracker:RebuildFrames()
     if self.container then
         self.container:Hide()
         self.container = nil
+    end
+    if self.barContainer then
+        self.barContainer:SetScript("OnUpdate", nil)
+        self.barContainer:Hide()
+        self.barContainer = nil
     end
 
     self.allAuras = nil
@@ -276,6 +297,32 @@ end
 -- Layout System Integration
 -------------------------------------------------------------------------------
 
+-- Vertical gap between the icon row and the bar stack (when both are present)
+local ZONE_GAP = 2
+
+-- Height reserved for the icon row (0 when no auras are in icon mode).
+-- Reserved at full icon height even when no icons are currently active, so the
+-- row doesn't reflow as auras come and go.
+function AuraTracker:GetIconZoneHeight()
+    if not self.icons or #self.icons == 0 then return 0 end
+    local db = addon.db.profile.auraTracker
+    local _, iconHeight = self.Utils:GetIconDimensions(db.iconSize, db.iconAspectRatio)
+    return iconHeight
+end
+
+-- Height of the bar stack — dynamic, only currently-shown bars take space
+-- (like a conventional buff-bar list).
+function AuraTracker:GetBarZoneHeight()
+    if not self.bars or #self.bars == 0 then return 0 end
+    local barsDb = addon.db.profile.auraTracker.bars
+    local count = 0
+    for _, bar in ipairs(self.bars) do
+        if bar:IsShown() then count = count + 1 end
+    end
+    if count == 0 then return 0 end
+    return count * barsDb.height + (count - 1) * barsDb.spacing
+end
+
 -- Returns the height this element needs in the layout stack
 function AuraTracker:GetLayoutHeight()
     local db = addon.db and addon.db.profile and addon.db.profile.auraTracker
@@ -285,20 +332,39 @@ function AuraTracker:GetLayoutHeight()
     if not self.container then
         return 0
     end
-    
-    -- Return the icon height (using aspect ratio if configured)
-    local iconSize = db.iconSize
-    local aspectRatio = db.iconAspectRatio
-    local _, iconHeight = self.Utils:GetIconDimensions(iconSize, aspectRatio)
-    return iconHeight
+
+    local iconH = self:GetIconZoneHeight()
+    local barH = self:GetBarZoneHeight()
+    if iconH > 0 and barH > 0 then
+        return iconH + ZONE_GAP + barH
+    end
+    return iconH + barH
 end
 
--- Position this element at the given Y offset (center of element)
-function AuraTracker:SetLayoutPosition(centerY)
+-- Position this element at the given Y offset. Anchors from the top edge so the
+-- icon row occupies the top zone and the bar stack hangs directly beneath it.
+function AuraTracker:SetLayoutPosition(centerY, topY)
     if not self.container then return end
-    
+
+    -- Layout always passes topY; fall back to deriving it if ever called with
+    -- only centerY (keeps the element from collapsing to the wrong spot).
+    if not topY then
+        topY = centerY + self:GetLayoutHeight() / 2
+    end
+
+    local parent = self.container:GetParent()
+
+    -- Icon row: top edge at topY
     self.container:ClearAllPoints()
-    self.container:SetPoint("CENTER", self.container:GetParent(), "CENTER", 0, centerY)
+    self.container:SetPoint("TOP", parent, "CENTER", 0, topY)
+
+    -- Bar stack: below the icon row (plus the zone gap when icons are present)
+    if self.barContainer then
+        local iconH = self:GetIconZoneHeight()
+        local barTopY = topY - (iconH > 0 and (iconH + ZONE_GAP) or 0)
+        self.barContainer:ClearAllPoints()
+        self.barContainer:SetPoint("TOP", self.barContainer:GetParent(), "CENTER", 0, barTopY)
+    end
 end
 
 -------------------------------------------------------------------------------
@@ -320,27 +386,49 @@ function AuraTracker:CreateFrames(parent)
     -- Store for later reference
     self.allAuras = allAuras
 
+    -- Partition auras into icon-mode and bar-mode (per-aura display mode)
+    local iconAuras, barAuras = {}, {}
+    for _, procData in ipairs(allAuras) do
+        if addon:GetAuraDisplayMode(procData.spellID) == C.AURA_DISPLAY_MODE.BAR then
+            table.insert(barAuras, procData)
+        else
+            table.insert(iconAuras, procData)
+        end
+    end
+
     -- Get width/height based on aspect ratio (needed for sizing)
     local iconSize = db.iconSize
     local aspectRatio = db.iconAspectRatio
     local iconWidth, iconHeight = self.Utils:GetIconDimensions(iconSize, aspectRatio)
-    
-    -- Container frame (position will be set by layout system)
+
+    -- Icon row container (position will be set by layout system)
     local container = CreateFrame("Frame", nil, parent)
     container:SetPoint("CENTER", parent, "CENTER", 0, 0)  -- Temporary, layout will reposition
     container:EnableMouse(false)  -- Click-through
     self.container = container
     self.slideAnimator = self.Animations:CreateSlideAnimator(container, 12)
 
-    -- Create icon frames for each proc
+    -- Create icon frames (auras in icon mode)
     local spacing = db.iconSpacing
-    local totalWidth = (#allAuras * iconWidth) + ((#allAuras - 1) * spacing)
-    
-    container:SetSize(totalWidth, iconHeight)
-    
-    for i, procData in ipairs(allAuras) do
+    local iconCount = #iconAuras
+    local totalWidth = (iconCount * iconWidth) + (math.max(0, iconCount - 1) * spacing)
+
+    container:SetSize(math.max(1, totalWidth), iconHeight)
+
+    for i, procData in ipairs(iconAuras) do
         local frame = self:CreateProcIcon(container, procData, i, iconSize, iconWidth, iconHeight, spacing, db)
         self.icons[i] = frame
+    end
+
+    -- Bar stack container (positioned by layout system, below the icon row)
+    local barContainer = CreateFrame("Frame", nil, parent)
+    barContainer:SetPoint("CENTER", parent, "CENTER", 0, 0)  -- Temporary, layout will reposition
+    barContainer:EnableMouse(false)  -- Click-through
+    self.barContainer = barContainer
+
+    for i, procData in ipairs(barAuras) do
+        local bar = self:CreateAuraBar(barContainer, procData, i, db)
+        self.bars[i] = bar
     end
 
     -- Masque must re-apply its base skin BEFORE texcoords are composited:
@@ -554,19 +642,19 @@ end
 
 function AuraTracker:UpdateAllProcs()
     if not self.icons then return end
-    
+
     local db = addon.db.profile.auraTracker
     if not db then return end
-    
+
     for _, frame in ipairs(self.icons) do
         self:UpdateProcIcon(frame, db)
     end
-    
+
     -- Reposition visible icons to remove gaps
     if not db.showInactiveIcons then
         self:RepositionIcons()
     end
-    
+
     -- Play queued proc animations (after repositioning so scale doesn't corrupt offsets)
     for _, frame in ipairs(self.icons) do
         if frame._needsProcAnim then
@@ -574,41 +662,44 @@ function AuraTracker:UpdateAllProcs()
             frame._needsProcAnim = nil
         end
     end
+
+    -- Update and lay out the bar stack (auras in bar display mode)
+    if self.bars and #self.bars > 0 then
+        for _, bar in ipairs(self.bars) do
+            self:UpdateAuraBar(bar, db)
+        end
+        self:RepositionBars()
+    end
 end
 
-function AuraTracker:UpdateProcIcon(frame, db)
-    if not frame or not frame.procData then return end
-    
+-- Compute an aura's current state from the game APIs. Shared by both the icon
+-- renderer (UpdateProcIcon) and the bar renderer (UpdateAuraBar) so detection
+-- logic — reactive windows, on-target/on-ally lookups, source filtering — lives
+-- in exactly one place. Mutates the frame's reactive-window bookkeeping fields.
+-- Returns a per-frame reused table: { enabled, active, name, count, duration,
+-- expirationTime, remaining }.
+function AuraTracker:ComputeAuraState(frame)
+    local st = frame._auraState
+    if not st then
+        st = {}
+        frame._auraState = st
+    end
+    wipe(st)
+
     local procData = frame.procData
     local spellID = procData.spellID
-    
-    -- Check if this proc is disabled in config
+
+    -- Disabled in config
     if not addon:IsAuraEnabled(spellID) then
-        frame:Hide()
-        frame.wasInactive = true
-        frame.text:SetText("")
-        frame.stacks:SetText("")
-        frame.cooldown:Hide()
-        frame.lastStart = nil
-        frame.lastDuration = nil
-        frame.lastExpirationTime = nil
-        frame._activationTime = nil
         frame.reactiveWindowStart = nil
         frame.reactiveWindowExpires = nil
         frame.reactiveWindowWasUsable = false
-        if frame.backdropGlow then frame.backdropGlow:Hide() end
-        if frame.glowActive then
-            self:HideProcGlow(frame)
-            frame.glowActive = false
-        end
-        if self.Animations and frame.visual then
-            self.Animations:StopScalePunch(frame.visual)
-        end
-        self:ResetIconPosition(frame)
-        return
+        st.enabled = false
+        st.active = false
+        return st
     end
-    
-    -- Check if aura is active (buff on player, debuff on target, or buff on ally)
+    st.enabled = true
+
     local name, icon, count, debuffType, duration, expirationTime, source, isStealable,
           nameplateShowPersonal, spellId
 
@@ -638,7 +729,6 @@ function AuraTracker:UpdateProcIcon(frame, db)
 
         frame.reactiveWindowWasUsable = isUsable
 
-        -- Set locals for the display code below
         if frame.reactiveWindowExpires then
             local rwRemaining = frame.reactiveWindowExpires - now
             if rwRemaining > 0 then
@@ -672,14 +762,61 @@ function AuraTracker:UpdateProcIcon(frame, db)
         end
     end
 
-    local isActive = name ~= nil
+    local active = name ~= nil
     local remaining = 0
-
-    if isActive and expirationTime and expirationTime > 0 then
+    if active and expirationTime and expirationTime > 0 then
         remaining = expirationTime - GetTime()
         if remaining < 0 then remaining = 0 end
     end
-    
+
+    st.active = active
+    st.name = name
+    st.count = count
+    st.duration = duration
+    st.expirationTime = expirationTime
+    st.remaining = remaining
+    return st
+end
+
+function AuraTracker:UpdateProcIcon(frame, db)
+    if not frame or not frame.procData then return end
+
+    local state = self:ComputeAuraState(frame)
+
+    -- Disabled in config: hide and reset
+    if not state.enabled then
+        frame:Hide()
+        frame.wasInactive = true
+        frame.text:SetText("")
+        frame.stacks:SetText("")
+        frame.cooldown:Hide()
+        frame.lastStart = nil
+        frame.lastDuration = nil
+        frame.lastExpirationTime = nil
+        frame._activationTime = nil
+        frame.reactiveWindowStart = nil
+        frame.reactiveWindowExpires = nil
+        frame.reactiveWindowWasUsable = false
+        if frame.backdropGlow then frame.backdropGlow:Hide() end
+        if frame.glowActive then
+            self:HideProcGlow(frame)
+            frame.glowActive = false
+        end
+        if self.Animations and frame.visual then
+            self.Animations:StopScalePunch(frame.visual)
+        end
+        self:ResetIconPosition(frame)
+        return
+    end
+
+    local spellID = frame.procData.spellID
+    local isActive = state.active
+    local name = state.name
+    local count = state.count
+    local duration = state.duration
+    local expirationTime = state.expirationTime
+    local remaining = state.remaining
+
     if isActive then
         -- ACTIVE STATE: Full color, glow, duration
         local wasHidden = not frame:IsShown() or frame.wasInactive
@@ -847,6 +984,377 @@ function AuraTracker:ResetIconPosition(frame)
     end
 end
 
+-------------------------------------------------------------------------------
+-- Bar Rendering (auras in "bar" display mode)
+--
+-- A vertical stack of timer bars below the icon row. Each bar shows a small
+-- spell icon, the aura name, a depleting fill, and remaining-time text. Bars
+-- reuse the same detection path as icons (ComputeAuraState), so reactive
+-- windows, source filters, stacks, sounds, and sort order all carry over.
+-------------------------------------------------------------------------------
+
+-- Create (or reuse from the pool) a single timer-bar frame for an aura.
+function AuraTracker:CreateAuraBar(parent, procData, index, db)
+    local barsDb = db.bars
+
+    local frame = table.remove(self._barPool)
+    local isReused = frame ~= nil
+
+    if not isReused then
+        frame = CreateFrame("Frame", nil, parent)
+        frame:EnableMouse(false)  -- Click-through
+
+        -- Icon block — a separate, self-bordered square at the left edge (NOT
+        -- part of the status bar, so the depleting fill never runs under it).
+        local iconHolder = CreateFrame("Frame", nil, frame)
+        iconHolder:EnableMouse(false)
+        frame.iconHolder = iconHolder
+        frame.icon = self.Utils:CreateTexture(iconHolder, nil, "ARTWORK")
+        frame.icon:SetAllPoints(iconHolder)
+        frame.iconBorder = self.Utils:CreateBarBorder(iconHolder)
+
+        -- Status bar (to the right of the icon block)
+        local bar = self.Utils:CreateStatusBar(frame, barsDb.width, barsDb.height)
+        frame.bar = bar
+        frame.border = self.Utils:CreateBarBorder(bar)
+
+        -- Gradient sheen (same as the health/resource bars)
+        frame.gradient = self.Utils:CreateBarGradient(bar)
+
+        -- Name (left) and time (right) text on the bar
+        local nameText = bar:CreateFontString(nil, "OVERLAY", nil, 2)
+        nameText:SetJustifyH("LEFT")
+        nameText:SetJustifyV("MIDDLE")
+        nameText:SetWordWrap(false)
+        frame.nameText = nameText
+
+        local timeText = bar:CreateFontString(nil, "OVERLAY", nil, 2)
+        timeText:SetJustifyH("RIGHT")
+        timeText:SetJustifyV("MIDDLE")
+        frame.timeText = timeText
+
+        -- Stack count (bottom-right corner of the icon)
+        local stacks = iconHolder:CreateFontString(nil, "OVERLAY", nil, 3)
+        stacks:SetJustifyH("RIGHT")
+        stacks:SetJustifyV("BOTTOM")
+        frame.stacks = stacks
+
+        -- Spark at the fill edge
+        local spark = self.Utils:CreateTexture(bar, nil, "OVERLAY", nil, 2)
+        spark:SetTexture([[Interface\CastingBar\UI-CastingBar-Spark]])
+        spark:SetBlendMode("ADD")
+        spark:SetAlpha(0.9)
+        frame.spark = spark
+    else
+        frame:SetParent(parent)
+        frame:ClearAllPoints()
+        frame:Show()
+    end
+
+    -- Reset runtime state
+    frame.procData = procData
+    frame.spellID = procData.spellID
+    frame.reactiveWindow = procData.reactiveWindow
+    frame.reactiveWindowWasUsable = false
+    frame.reactiveWindowStart = nil
+    frame.reactiveWindowExpires = nil
+    frame._activationTime = nil
+    frame.lastExpirationTime = nil
+    frame._barExpiration = nil
+    frame._barDuration = nil
+
+    -- Resolve icon texture (same precedence as icon mode:
+    -- LibSpellDB override > GetSpellInfo > equipped item)
+    local spellName, _, spellIcon = GetSpellInfo(procData.spellID)
+    local displayIcon = self.LibSpellDB and self.LibSpellDB:GetSpellIcon(procData.spellID) or spellIcon
+    if procData.requiredItemIDs then
+        for _, itemID in ipairs(procData.requiredItemIDs) do
+            if IsEquippedItem(itemID) then
+                displayIcon = GetItemIcon(itemID) or displayIcon
+                break
+            end
+        end
+    end
+    frame.icon:SetTexture(displayIcon or "Interface\\Icons\\INV_Misc_QuestionMark")
+    frame.spellName = spellName or procData.name
+
+    self:StyleAuraBar(frame, db)
+
+    frame:Hide()  -- shown by UpdateAuraBar when active
+    return frame
+end
+
+-- Gap between the icon block and the status bar (each carries a 1px border)
+local BAR_ICON_GAP = 3
+
+-- Apply size/texture/font/layout settings to a bar frame. Called on create and
+-- on Refresh so bar config changes (width, height, fonts, toggles) take effect.
+-- `bars.width` is the TOTAL widget width (icon block + gap + status bar); the
+-- bar portion is whatever remains after the icon.
+function AuraTracker:StyleAuraBar(frame, db)
+    local barsDb = db.bars
+    local totalWidth = barsDb.width
+    local height = barsDb.height
+    local iconOffset = barsDb.showIcon and (height + BAR_ICON_GAP) or 0
+    local barWidth = math.max(1, totalWidth - iconOffset)
+
+    frame:SetSize(totalWidth, height)
+
+    -- Icon block (left). Always anchored so the stack-count text has a stable
+    -- reference; shown/hidden (with its border) per config.
+    frame.iconHolder:ClearAllPoints()
+    frame.iconHolder:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, 0)
+    frame.iconHolder:SetSize(height, height)
+    frame.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)  -- trim the default icon border
+    frame.iconHolder:SetShown(barsDb.showIcon)
+
+    -- Status bar (right of the icon block) — the fill lives here only
+    local barTexture = addon:GetBarTexture()
+    frame.bar:ClearAllPoints()
+    frame.bar:SetPoint("TOPLEFT", frame, "TOPLEFT", iconOffset, 0)
+    frame.bar:SetSize(barWidth, height)
+    frame.bar:SetStatusBarTexture(barTexture)
+    self.Utils:DisablePixelSnap(frame.bar:GetStatusBarTexture())
+    if frame.bar.bg then
+        frame.bar.bg:SetTexture(barTexture)
+    end
+
+    -- Gradient sheen tracks the (resizable) fill texture; toggled with the global setting
+    if frame.gradient then
+        frame.gradient:SetAllPoints(frame.bar:GetStatusBarTexture())
+        frame.gradient:SetShown(addon.db.profile.appearance.showGradient)
+    end
+
+    local fontPath = addon:GetFont()
+    local tc = addon.db.profile.appearance.textColor
+
+    -- Time text (right), name text (left, up to the time text)
+    self.Utils:ApplyFontOutline(frame.timeText, fontPath, barsDb.textSize, barsDb)
+    frame.timeText:SetTextColor(tc.r, tc.g, tc.b)
+    frame.timeText:ClearAllPoints()
+    frame.timeText:SetPoint("RIGHT", frame.bar, "RIGHT", -4, 0)
+
+    self.Utils:ApplyFontOutline(frame.nameText, fontPath, barsDb.textSize, barsDb)
+    frame.nameText:SetTextColor(tc.r, tc.g, tc.b)
+    frame.nameText:ClearAllPoints()
+    frame.nameText:SetPoint("LEFT", frame.bar, "LEFT", 4, 0)
+    frame.nameText:SetPoint("RIGHT", frame.timeText, "LEFT", -2, 0)
+
+    -- Stacks (small, over the icon corner)
+    self.Utils:ApplyFontOutline(frame.stacks, fontPath, math.max(9, barsDb.textSize - 2), barsDb)
+    frame.stacks:SetTextColor(tc.r, tc.g, tc.b)
+    frame.stacks:ClearAllPoints()
+    frame.stacks:SetPoint("BOTTOMRIGHT", frame.iconHolder, "BOTTOMRIGHT", 1, 0)
+
+    -- Spark sizing — scales with bar height (always fills top-to-bottom), with
+    -- the same overflow the resource bar spark uses so it reads clearly.
+    if frame.spark then
+        frame.spark:SetSize(12, height + 8)
+    end
+end
+
+-- Update a bar's visual state from the live aura state.
+function AuraTracker:UpdateAuraBar(frame, db)
+    if not frame or not frame.procData then return end
+
+    local state = self:ComputeAuraState(frame)
+
+    if not state.enabled or not state.active then
+        if frame:IsShown() then frame:Hide() end
+        frame._activationTime = nil
+        frame.lastExpirationTime = nil
+        frame._barExpiration = nil
+        frame._barDuration = nil
+        return
+    end
+
+    local spellID = frame.procData.spellID
+    local barsDb = db.bars
+
+    -- Activation / refresh detection (parity with icons: sound + FIFO ordering)
+    local wasHidden = not frame:IsShown()
+    if wasHidden then
+        frame:Show()
+        frame._activationTime = GetTime()
+    end
+
+    local expirationTime = state.expirationTime
+    local wasRefreshed = false
+    if expirationTime and frame.lastExpirationTime and expirationTime > frame.lastExpirationTime + 0.5 then
+        wasRefreshed = true
+    end
+    frame.lastExpirationTime = expirationTime
+
+    if wasHidden or (wasRefreshed and addon:GetAuraSoundOnRefresh(spellID)) then
+        addon.SoundManager:PlaySound(addon:GetAuraSound(spellID) or db.soundOnProc)
+    end
+
+    -- Fill: deplete as the aura expires. The actual SetValue happens every frame
+    -- in UpdateBarFills (smooth) — here we cache the timing and set an initial
+    -- value so a freshly-shown bar isn't blank for one frame.
+    local duration = state.duration
+    local remaining = state.remaining
+    if duration and duration > 0 and remaining > 0 then
+        frame._barDuration = duration
+        frame._barExpiration = expirationTime
+        local pct = remaining / duration
+        if pct > 1 then pct = 1 end
+        frame.bar:SetValue(pct)
+        self:UpdateBarSpark(frame, pct, barsDb)
+    else
+        -- No duration info (e.g. some custom auras): full static bar, no spark
+        frame._barDuration = nil
+        frame._barExpiration = nil
+        frame.bar:SetValue(1)
+        if frame.spark then frame.spark:Hide() end
+    end
+
+    -- Per-aura fill color
+    local r, g, b = addon:GetAuraBarColor(spellID)
+    frame.bar:SetStatusBarColor(r, g, b)
+    if frame.bar.bg then
+        frame.bar.bg:SetVertexColor(r * 0.2, g * 0.2, b * 0.2)
+    end
+
+    -- Name
+    if barsDb.showName then
+        frame.nameText:SetText(frame.spellName or state.name or "")
+    else
+        frame.nameText:SetText("")
+    end
+
+    -- Remaining time
+    if barsDb.showDuration and remaining and remaining > 0 then
+        frame.timeText:SetText(self.Utils:FormatCooldown(remaining))
+    else
+        frame.timeText:SetText("")
+    end
+
+    -- Stacks
+    if state.count and state.count > 1 then
+        frame.stacks:SetText(state.count)
+    else
+        frame.stacks:SetText("")
+    end
+end
+
+function AuraTracker:UpdateBarSpark(frame, pct, barsDb)
+    if not frame.spark then return end
+    if not barsDb.showSpark or pct <= 0 or pct >= 1 then
+        frame.spark:Hide()
+        return
+    end
+    frame.spark:Show()
+    local x = frame.bar:GetWidth() * pct
+    frame.spark:ClearAllPoints()
+    frame.spark:SetPoint("CENTER", frame.bar, "LEFT", x, 0)
+end
+
+-- Per-frame fill driver (set as the bar container's OnUpdate while ≥1 bar is
+-- shown). Recomputes each visible bar's fill from its cached expiration so the
+-- depletion animates at the display's frame rate instead of the 0.1s state tick
+-- — the text/state still update on the slower tick, only the fill is smooth.
+function AuraTracker:UpdateBarFills()
+    if not self.bars then return end
+    local barsDb = addon.db.profile.auraTracker.bars
+    local now = GetTime()
+    for _, frame in ipairs(self.bars) do
+        if frame:IsShown() and frame._barDuration and frame._barExpiration then
+            local remaining = frame._barExpiration - now
+            if remaining < 0 then remaining = 0 end
+            local pct = remaining / frame._barDuration
+            if pct > 1 then pct = 1 end
+            frame.bar:SetValue(pct)
+            self:UpdateBarSpark(frame, pct, barsDb)
+        end
+    end
+end
+
+-- True if the set of bar-mode auras no longer matches the live bar frames —
+-- i.e. a per-aura display mode changed under us (e.g. a profile switch routed
+-- through Refresh rather than RebuildFrames). Signals Refresh to rebuild.
+function AuraTracker:DisplayPartitionChanged()
+    if not self.allAuras then return false end
+
+    local desired = {}
+    for _, procData in ipairs(self.allAuras) do
+        if addon:GetAuraDisplayMode(procData.spellID) == C.AURA_DISPLAY_MODE.BAR then
+            desired[procData.spellID] = true
+        end
+    end
+
+    local current = {}
+    for _, bar in ipairs(self.bars or {}) do
+        current[bar.spellID] = true
+    end
+
+    for id in pairs(desired) do
+        if not current[id] then return true end
+    end
+    for id in pairs(current) do
+        if not desired[id] then return true end
+    end
+    return false
+end
+
+-- Stack shown bars top-down (sorted like the icon row) and notify the layout
+-- system when the bar-zone height changes.
+function AuraTracker:RepositionBars()
+    if not self.bars or not self.barContainer then return end
+
+    local db = addon.db.profile.auraTracker
+    local barsDb = db.bars
+    local height = barsDb.height
+    local spacing = barsDb.spacing
+
+    local shown = {}
+    for _, bar in ipairs(self.bars) do
+        if bar:IsShown() then
+            table.insert(shown, bar)
+        end
+    end
+
+    -- Sort to match the icon row's configured order
+    local sortOrder = db.sortOrder
+    if sortOrder == C.AURA_SORT_ORDER.FIFO then
+        table.sort(shown, function(a, b)
+            return (a._activationTime or 0) < (b._activationTime or 0)
+        end)
+    elseif sortOrder == C.AURA_SORT_ORDER.REMAINING then
+        table.sort(shown, function(a, b)
+            return (a.lastExpirationTime or math.huge) < (b.lastExpirationTime or math.huge)
+        end)
+    end
+    -- FIXED = registration order (already preserved by ipairs above)
+
+    for i, bar in ipairs(shown) do
+        local y = -(i - 1) * (height + spacing)
+        bar:ClearAllPoints()
+        bar:SetPoint("TOP", self.barContainer, "TOP", 0, y)
+    end
+
+    local count = #shown
+    local zoneHeight = count > 0 and (count * height + (count - 1) * spacing) or 0
+    self.barContainer:SetSize(barsDb.width, math.max(1, zoneHeight))
+
+    -- Drive the smooth per-frame fill only while at least one bar is visible
+    if count > 0 then
+        if not self._barOnUpdate then
+            self.barContainer:SetScript("OnUpdate", function() self:UpdateBarFills() end)
+            self._barOnUpdate = true
+        end
+    elseif self._barOnUpdate then
+        self.barContainer:SetScript("OnUpdate", nil)
+        self._barOnUpdate = false
+    end
+
+    -- Bar zone grows/shrinks as auras come and go — re-run layout when it changes
+    if self._lastBarZoneHeight ~= zoneHeight then
+        self._lastBarZoneHeight = zoneHeight
+        addon.Layout:Refresh()
+    end
+end
+
 function AuraTracker:FindBuffBySpellID(spellID, allRankIDs, spellName)
     -- Use cached buff lookup to avoid scanning 40 buffs per proc per update
     local aura = self.Utils:GetCachedBuff("player", spellID, spellName)
@@ -979,12 +1487,20 @@ end
 function AuraTracker:Refresh()
     -- Re-apply config settings to existing frames
     local db = addon.db.profile.auraTracker
-    
+
     -- Create frames if they don't exist and we should have them
     if not self.container and db.enabled and addon.hudFrame then
         self:CreateFrames(addon.hudFrame)
     end
-    
+
+    -- If the icon/bar partition no longer matches the current per-aura display
+    -- modes (e.g. after a profile switch), the frame *types* are wrong — a full
+    -- rebuild is required rather than an in-place restyle.
+    if self.container and self:DisplayPartitionChanged() then
+        self:RebuildFrames()
+        return
+    end
+
     if self.container then
         -- Get icon dimensions (needed for sizing with aspect ratio)
         local iconSize = db.iconSize
@@ -998,12 +1514,14 @@ function AuraTracker:Refresh()
             self.container:Hide()
         end
         
-        -- Update icon sizes and spacing (use aspect ratio for height)
+        -- Update icon sizes and spacing (use aspect ratio for height).
+        -- Width is based on the icon-mode count only — bar-mode auras live in
+        -- the separate bar stack and don't occupy the icon row.
         local spacing = db.iconSpacing
-        local numProcs = #(self.allAuras or {})
-        local totalWidth = (numProcs * iconWidth) + ((numProcs - 1) * spacing)
-        
-        self.container:SetSize(totalWidth, iconHeight)
+        local numIcons = #(self.icons or {})
+        local totalWidth = (numIcons * iconWidth) + (math.max(0, numIcons - 1) * spacing)
+
+        self.container:SetSize(math.max(1, totalWidth), iconHeight)
         
         -- Resize all icons and update stored dimensions
         for i, frame in ipairs(self.icons or {}) do
@@ -1057,14 +1575,29 @@ function AuraTracker:Refresh()
         end
     end
 
+    -- Re-style and re-lay-out the bar stack
+    if self.barContainer then
+        if db.enabled then
+            self.barContainer:Show()
+        else
+            self.barContainer:Hide()
+        end
+        for _, bar in ipairs(self.bars or {}) do
+            self:StyleAuraBar(bar, db)
+        end
+        -- Force a layout pass on next reposition (sizes may have changed)
+        self._lastBarZoneHeight = nil
+        self:RepositionBars()
+    end
+
     -- Reapply texcoords (handles Masque compositing)
     self:ApplyIconTexCoords()
 
     -- Reposition to re-center visible icons
     self:RepositionIcons()
-    
+
     self:UpdateAllProcs()
-    
+
     -- Notify layout system (our height may have changed)
     addon.Layout:Refresh()
 end
@@ -1088,6 +1621,23 @@ function AuraTracker:RefreshFonts(fontPath)
             local stacksFontSize = math.max(10, math.floor(iconSize * 0.26))
             self.Utils:ApplyFontOutline(frame.stacks, fontPath, stacksFontSize, db)
             frame.stacks:SetTextColor(tc.r, tc.g, tc.b)
+        end
+    end
+
+    -- Bar text elements (name / time / stacks)
+    local barsDb = db.bars
+    for _, bar in ipairs(self.bars or {}) do
+        if bar.nameText then
+            self.Utils:ApplyFontOutline(bar.nameText, fontPath, barsDb.textSize, barsDb)
+            bar.nameText:SetTextColor(tc.r, tc.g, tc.b)
+        end
+        if bar.timeText then
+            self.Utils:ApplyFontOutline(bar.timeText, fontPath, barsDb.textSize, barsDb)
+            bar.timeText:SetTextColor(tc.r, tc.g, tc.b)
+        end
+        if bar.stacks then
+            self.Utils:ApplyFontOutline(bar.stacks, fontPath, math.max(9, barsDb.textSize - 2), barsDb)
+            bar.stacks:SetTextColor(tc.r, tc.g, tc.b)
         end
     end
 end

@@ -13,7 +13,7 @@ VeevHUD is a lightweight, WeakAuras-inspired heads-up display addon for World of
 - **Health/resource bars**: With heal prediction, predicted cost overlays, tickers
 - **Trinket tracking**: Equipped trinkets shown as icons in ability rows with on-use cooldowns, proc buff tracking, ICD display, and stack counts
 - **Consumable tracking**: User-configured combat potions, runes, and other mid-fight consumables with cooldown display, buff duration, and bag count overlay (per-spec)
-- **Aura tracker**: Horizontal aura icons (procs, externals, custom) with stack tracking and glow
+- **Aura tracker**: Horizontal aura icons (procs, externals, custom) with stack tracking and glow; each aura can optionally render as a status **bar** (name + depleting timer) instead, in a vertical stack below the icons, auto-colored from the spell icon
 - **Masque support**: Compatible with Masque for icon skinning
 
 ## File Structure
@@ -63,7 +63,7 @@ VeevHUD is a lightweight, WeakAuras-inspired heads-up display addon for World of
 - `CooldownPulse.lua` — Flashes a large icon in center-screen when a tracked ability comes off cooldown. Listens for `COOLDOWN_READY` addon event from GlowManager. Per-row filtering, concurrent pulses overlay simultaneously, eased fade+scale animation, frame pool. Inspired by Doom_CooldownPulse.
 - `TrinketTracker.lua` — Trinket tracking: equipment detection, on-use/proc classification, ICD tracking via CLEU, icon state computation. Delegates rendering to IconRenderer and glow to GlowManager.
 - `ConsumableTracker.lua` — User-configured consumable tracking (potions, runes, sappers, etc.): dynamic N slots, bag scanning for potion discovery, LibSpellDB fallback lists for potions and other consumables, cooldown display, bag count overlay. Sentinel IDs: `CONSUMABLE_SENTINEL_BASE (10000000) + itemID`. Delegates to CooldownIcons via same 3-point pattern as TrinketTracker.
-- `AuraTracker.lua` — Aura icons (class procs, external buffs, custom auras) with stacks, glow, and configurable enable/disable
+- `AuraTracker.lua` — Aura icons (class procs, external buffs, custom auras) with stacks, glow, and configurable enable/disable. Per-aura **display mode** (`icon`/`bar`): bars render in a separate vertical stack below the icon row (own container, dynamic height, per-frame smooth fill via OnUpdate). Shared detection (`ComputeAuraState`) feeds both renderers. Per-aura bar color resolves user override → `LibSpellDB:GetSpellColor` → global default (see `Database:GetAuraBarColor`). Display-mode changes require `RebuildFrames` (frame type changes); `Refresh` auto-rebuilds if the partition drifted (e.g. profile switch).
 - `BuffReminders.lua` — Buff reminder alerts for missing class/role buffs with per-spec configuration
 
 ### Services (`Services/`)

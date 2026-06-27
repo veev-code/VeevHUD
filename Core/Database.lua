@@ -460,6 +460,107 @@ function Database:SetAuraGlowEnabled(spellID, enabled)
 end
 
 -------------------------------------------------------------------------------
+-- Aura Display Mode Config (icon row vs. timer bar)
+-------------------------------------------------------------------------------
+
+-- Get an aura's display mode (default: ICON)
+function Database:GetAuraDisplayMode(spellID)
+    local C = addon.Constants
+    local cfg = addon.db and addon.db.profile and addon.db.profile.auraDisplayConfig
+    if cfg then
+        local override = cfg[spellID]
+        if override then
+            return override
+        end
+    end
+    return C.AURA_DISPLAY_MODE.ICON
+end
+
+-- Set an aura's display mode override (sparse: removed when matching the ICON default)
+function Database:SetAuraDisplayMode(spellID, mode)
+    if not addon.db or not addon.db.profile then return end
+    local C = addon.Constants
+
+    if mode == C.AURA_DISPLAY_MODE.ICON then
+        -- Matches default: remove override to keep storage sparse
+        local cfg = addon.db.profile.auraDisplayConfig
+        if cfg then
+            cfg[spellID] = nil
+            if next(cfg) == nil then
+                addon.db.profile.auraDisplayConfig = nil
+            end
+        end
+    else
+        if not addon.db.profile.auraDisplayConfig then
+            addon.db.profile.auraDisplayConfig = {}
+        end
+        addon.db.profile.auraDisplayConfig[spellID] = mode
+    end
+end
+
+-- The color an aura's bar shows with NO user override: LibSpellDB's icon-derived
+-- color if known, else the global bars.defaultColor. Returns r, g, b.
+local function GetAuraBarColorDefault(spellID)
+    local lib = addon.LibSpellDB
+    if lib and lib.GetSpellColor then
+        local r, g, b = lib:GetSpellColor(spellID)
+        if r then return r, g, b end
+    end
+    local d = addon.db.profile.auraTracker.bars.defaultColor
+    return d.r, d.g, d.b
+end
+
+-- Get an aura's bar fill color: user override → LibSpellDB icon color → default.
+function Database:GetAuraBarColor(spellID)
+    local cfg = addon.db and addon.db.profile and addon.db.profile.auraBarColorConfig
+    if cfg then
+        local c = cfg[spellID]
+        if c then
+            return c.r, c.g, c.b
+        end
+    end
+    return GetAuraBarColorDefault(spellID)
+end
+
+-- Set an aura's bar color override (sparse: removed when it matches the
+-- effective default, i.e. the icon-derived color or global default)
+function Database:SetAuraBarColor(spellID, r, g, b)
+    if not addon.db or not addon.db.profile then return end
+
+    local dr, dg, db = GetAuraBarColorDefault(spellID)
+    local matchesDefault = (math.abs(r - dr) < 0.004 and math.abs(g - dg) < 0.004 and math.abs(b - db) < 0.004)
+
+    if matchesDefault then
+        local cfg = addon.db.profile.auraBarColorConfig
+        if cfg then
+            cfg[spellID] = nil
+            if next(cfg) == nil then
+                addon.db.profile.auraBarColorConfig = nil
+            end
+        end
+    else
+        if not addon.db.profile.auraBarColorConfig then
+            addon.db.profile.auraBarColorConfig = {}
+        end
+        addon.db.profile.auraBarColorConfig[spellID] = { r = r, g = g, b = b }
+    end
+end
+
+-- Remove an aura's bar color override entirely (back to the resolved default).
+-- Used when deleting a custom aura — passing a literal color to SetAuraBarColor
+-- can't reliably strip it, since the effective default is the icon-derived color.
+function Database:ClearAuraBarColor(spellID)
+    if not addon.db or not addon.db.profile then return end
+    local cfg = addon.db.profile.auraBarColorConfig
+    if cfg then
+        cfg[spellID] = nil
+        if next(cfg) == nil then
+            addon.db.profile.auraBarColorConfig = nil
+        end
+    end
+end
+
+-------------------------------------------------------------------------------
 -- Aura Sound Config
 -------------------------------------------------------------------------------
 

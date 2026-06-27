@@ -57,7 +57,7 @@ Arrange your row as a priority order and the leftmost icon is always the next be
 
 ### Aura Tracker
 
-Small icons above the health bar for important buffs — class procs (Enrage, Flurry, Clearcasting), external buffs from other players (Bloodlust, Power Infusion, Innervate, Drums), and any custom auras you add. They appear only when active, with glows, animations, and duration text.
+Small icons above the health bar for important buffs — class procs (Enrage, Flurry, Clearcasting), external buffs from other players (Bloodlust, Power Infusion, Innervate, Drums), and any custom auras you add. They appear only when active, with glows, animations, and duration text. Prefer timer bars? Switch any aura to a **status bar** — name and countdown, auto-colored from its spell icon — while keeping the rest as icons.
 
 ### Cooldown Pulse
 

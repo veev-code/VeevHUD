@@ -69,6 +69,12 @@ C.AURA_SORT_ORDER = {
     REMAINING = "remaining",  -- Least remaining duration leftmost
 }
 
+-- Aura Tracker per-aura display mode (icon row vs. vertical timer bar stack)
+C.AURA_DISPLAY_MODE = {
+    ICON = "icon",  -- Horizontal icon row (default)
+    BAR = "bar",    -- Vertical status-bar stack below the icon row
+}
+
 -------------------------------------------------------------------------------
 -- Resource Display Mode Values
 -------------------------------------------------------------------------------
@@ -502,6 +508,22 @@ C.DEFAULTS = {
             soundOnProc = "None",  -- Default LSM sound name when any proc activates
             soundOnRefresh = false,  -- Default: don't play sound when auras refresh
             customAuras = {},  -- User-added auras: array of { id = spellID } or { name = "Spell Name" }
+
+            -- Bar display mode (auras set to "bar" render as a vertical timer-bar
+            -- stack below the icon row). Per-aura mode/color stored sparsely in the
+            -- profile-wide auraDisplayConfig / auraBarColorConfig tables.
+            bars = {
+                width = 230,          -- Total bar width (icon + bar). Matches the health/resource bar width for a clean aligned stack.
+                height = 18,          -- Bar height in pixels (taller than the health bar to fit the icon + name + timer)
+                spacing = 2,          -- Vertical gap between stacked bars
+                showIcon = true,      -- Show the spell icon at the bar's left edge
+                showName = true,      -- Show the aura name on the bar
+                showDuration = true,  -- Show remaining-time text on the bar
+                showSpark = true,     -- Show a spark at the fill edge
+                textSize = 11,
+                textOutline = "INHERIT",
+                defaultColor = { r = 0.9, g = 0.6, b = 0.2 },  -- Fallback fill color (per-aura overrides win)
+            },
         },
 
         -- Consumable Tracker settings (user-configured potion/consumable tracking)

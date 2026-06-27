@@ -54,7 +54,7 @@ local Migrations = addon.Migrations
 -- Bump this when adding new migrations.
 -- Versions 1-4 are legacy (pre-dataVersion system). All users start at
 -- CURRENT_VERSION on first encounter, so legacy versions never run.
-local CURRENT_VERSION = 9
+local CURRENT_VERSION = 10
 
 -- Migration definitions, keyed by version number.
 -- Versions 1-4 (legacy) are intentionally omitted — they corresponded to:
@@ -209,6 +209,28 @@ local migrations = {
                     C_Timer.After(0.1, function()
                         if addon.SpellsOptions then
                             addon.SpellsOptions:Open()
+                        end
+                    end)
+                end },
+                { text = "Got It" },
+            },
+        },
+    },
+
+    -- v10: Aura Tracker bar display mode
+    [10] = {
+        popup = {
+            title = "New: Aura Tracker Bars",
+            message = "Aura Tracker auras can now be shown as status bars instead of icons — each with the aura name, a smooth depleting timer, and the remaining time, stacked together just beneath the Aura Tracker's icons.\n\nFlip any aura between Icon and Bar using the new Display dropdown in the Class Procs, External Buffs, and Custom Auras tabs. Bars are colored automatically from the spell's icon, with a per-aura color override if you want something different.\n\nFine-tune bar width, height, spacing, and text under Aura Tracker > Settings > Bars.",
+            buttons = {
+                { text = "Open Settings", action = function()
+                    C_Timer.After(0.1, function()
+                        if addon.Options then
+                            addon.Options:Open()
+                            local AceConfigDialog = LibStub and LibStub("AceConfigDialog-3.0", true)
+                            if AceConfigDialog then
+                                AceConfigDialog:SelectGroup(ADDON_NAME, "procs", "settings")
+                            end
                         end
                     end)
                 end },

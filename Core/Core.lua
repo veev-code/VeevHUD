@@ -359,6 +359,26 @@ function addon:SetAuraGlowEnabled(spellID, enabled)
     self.Database:SetAuraGlowEnabled(spellID, enabled)
 end
 
+function addon:GetAuraDisplayMode(spellID)
+    return self.Database:GetAuraDisplayMode(spellID)
+end
+
+function addon:SetAuraDisplayMode(spellID, mode)
+    self.Database:SetAuraDisplayMode(spellID, mode)
+end
+
+function addon:GetAuraBarColor(spellID)
+    return self.Database:GetAuraBarColor(spellID)
+end
+
+function addon:SetAuraBarColor(spellID, r, g, b)
+    self.Database:SetAuraBarColor(spellID, r, g, b)
+end
+
+function addon:ClearAuraBarColor(spellID)
+    self.Database:ClearAuraBarColor(spellID)
+end
+
 function addon:GetAuraSound(spellID)
     return self.Database:GetAuraSound(spellID)
 end

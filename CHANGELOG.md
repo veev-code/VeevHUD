@@ -1,5 +1,13 @@
 # VeevHUD Changelog
 
+## [1.0.218] - 2026-06-26
+
+### Added
+- **Aura Tracker: Bar display mode** — Any tracked aura can now be shown as a status bar — spell icon, name, and a smooth depleting timer — instead of a compact icon. Bars stack vertically just beneath the Aura Tracker's icons, so you can keep most auras as icons and promote the ones you care about (Enrage, Bloodlust, a key proc) to full timer bars. Switch any aura between Icon and Bar with the new **Display** dropdown in the Class Procs, External Buffs, and Custom Auras tabs. Each bar is colored automatically from its spell's icon — with a per-aura color override — and you can tune bar width, height, spacing, and text under **Aura Tracker > Settings > Bars**. *(Pewster74)*
+
+### LibSpellDB Updates
+- **Per-spell icon colors** — LibSpellDB now provides a vibrant color sampled from every spell's icon, which the new aura bars use for their fill.
+
 ## [1.0.217] - 2026-06-25
 
 ### LibSpellDB Updates

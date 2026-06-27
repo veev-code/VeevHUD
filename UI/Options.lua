@@ -263,6 +263,12 @@ function Options:ApplySettingChange(path)
 		end
 		return
 	end
+	-- Per-aura display mode (icon vs bar) changes the frame type — rebuild
+	if path == "auraTracker.auraDisplayConfig" then
+		local m = addon:GetModule("AuraTracker")
+		SafeCall(m and m.RebuildFrames, m)
+		return
+	end
 	if path:match("^auraTracker%.") then
 		local m = addon:GetModule("AuraTracker")
 		SafeCall(m and m.Refresh, m)
@@ -2196,6 +2202,31 @@ function Options:BuildOptionsTable()
 									sortOrder = { type = "select", name = "Sort Order", desc = "How active aura icons are arranged.\n\n|cffffffffActivation Order|r — First-activated aura appears on the left, newest on the right.\n\n|cffffffffFixed|r — Icons stay in a consistent order based on spell registration (class procs first, then externals, then custom).\n\n|cffffffffLeast Remaining|r — Aura closest to expiring appears on the left. Icons re-sort as durations tick down.", values = { [C.AURA_SORT_ORDER.FIFO] = "Activation Order", [C.AURA_SORT_ORDER.FIXED] = "Fixed", [C.AURA_SORT_ORDER.REMAINING] = "Least Remaining" }, sorting = { C.AURA_SORT_ORDER.FIFO, C.AURA_SORT_ORDER.FIXED, C.AURA_SORT_ORDER.REMAINING }, arg = "auraTracker.sortOrder", order = 4 },
 								},
 							},
+							bars = {
+								type = "group",
+								name = "Bars",
+								inline = true,
+								order = 4.5,
+								disabled = function() return addon.db and addon.db.profile and not addon.db.profile.auraTracker.enabled end,
+								args = {
+									barsDesc = {
+										type = "description",
+										name = Dim("Auras set to \"Bar\" mode (via the Display dropdown in the aura list tabs) render as a vertical stack of timer bars below the icon row. These settings control how those bars look.") .. "\n",
+										order = 0,
+										width = "full",
+									},
+									width = { type = "range", name = "Bar Width", desc = "Width of each timer bar in pixels.", min = 60, max = 400, step = 1, arg = "auraTracker.bars.width", order = 1 },
+									height = { type = "range", name = "Bar Height", desc = "Height of each timer bar in pixels. The spell icon is sized to match.", min = 8, max = 48, step = 1, arg = "auraTracker.bars.height", order = 2 },
+									spacing = { type = "range", name = "Bar Spacing", desc = "Vertical gap in pixels between stacked bars.", min = 0, max = 16, step = 1, arg = "auraTracker.bars.spacing", order = 3 },
+									textSize = { type = "range", name = "Text Size", desc = "Font size for the bar's name and timer text.", min = 6, max = 28, step = 1, arg = "auraTracker.bars.textSize", order = 4 },
+									textOutline = { type = "select", name = "Text Outline", desc = "Text outline style for bar text.", values = textOutlineValuesInherit, sorting = textOutlineSortingInherit, arg = "auraTracker.bars.textOutline", order = 5 },
+									defaultColor = { type = "color", name = "Default Color", desc = "Fallback fill color for bars whose spell has no icon-sampled color (most do). Each aura's color is normally taken from its icon; you can override per aura in the aura list tabs.", hasAlpha = false, get = colorGet, set = colorSet, arg = "auraTracker.bars.defaultColor", order = 6 },
+									showIcon = { type = "toggle", name = "Show Icon", desc = "Show the spell icon at the left edge of each bar.", arg = "auraTracker.bars.showIcon", order = 7, width = 0.7 },
+									showName = { type = "toggle", name = "Show Name", desc = "Show the aura name on each bar.", arg = "auraTracker.bars.showName", order = 8, width = 0.7 },
+									showDuration = { type = "toggle", name = "Show Timer", desc = "Show the remaining-time text on each bar.", arg = "auraTracker.bars.showDuration", order = 9, width = 0.7 },
+									showSpark = { type = "toggle", name = "Show Spark", desc = "Show a spark at the fill edge of each bar.", arg = "auraTracker.bars.showSpark", order = 10, width = 0.7 },
+								},
+							},
 							soundGroup = {
 								type = "group",
 								name = "Sound",
@@ -3019,6 +3050,68 @@ local auraSourceFilterValues = {
 	[C.AURA_SOURCE_NOT_OWN] = "Others",
 }
 
+local auraDisplayModeValues = {
+	[C.AURA_DISPLAY_MODE.ICON] = "Icon",
+	[C.AURA_DISPLAY_MODE.BAR] = "Bar",
+}
+
+-- Per-aura display-mode (icon/bar) selector + bar fill-color picker. Returns two
+-- AceConfig arg entries ("displayMode", "barColor") to splice into an aura's
+-- config group. `unresolved` disables them for name-only auras with no spell ID.
+local function AddAuraDisplayControls(args, spellID, unresolved, unresolvedNote, displayOrder, colorOrder)
+	-- Full-width line break so Display + Bar Color always start a fresh row and
+	-- stay paired together, regardless of how many controls precede them (which
+	-- varies between the Procs / Externals / Custom tabs).
+	args.displayBreak = {
+		type = "description",
+		name = "",
+		width = "full",
+		order = displayOrder - 0.05,
+	}
+	args.displayMode = {
+		type = "select",
+		name = "Display",
+		desc = "Show this aura as a compact icon in the icon row, or as a status bar with name and timer in the bar stack below the icons." .. (unresolvedNote or ""),
+		values = auraDisplayModeValues,
+		sorting = { C.AURA_DISPLAY_MODE.ICON, C.AURA_DISPLAY_MODE.BAR },
+		disabled = unresolved or nil,
+		get = function()
+			if not spellID or spellID == 0 then return C.AURA_DISPLAY_MODE.ICON end
+			return addon:GetAuraDisplayMode(spellID)
+		end,
+		set = function(_, value)
+			if spellID and spellID ~= 0 then
+				addon:SetAuraDisplayMode(spellID, value)
+				Options:ApplySettingChange("auraTracker.auraDisplayConfig")
+			end
+		end,
+		order = displayOrder,
+		width = 0.5,
+	}
+	args.barColor = {
+		type = "color",
+		name = "Bar Color",
+		desc = "Fill color for this aura's timer bar (Bar display mode only). Defaults to a vibrant color sampled from the spell's icon — change it here to override.",
+		hasAlpha = false,
+		disabled = function()
+			if unresolved then return true end
+			return not addon:IsAuraEnabled(spellID) or addon:GetAuraDisplayMode(spellID) ~= C.AURA_DISPLAY_MODE.BAR
+		end,
+		get = function()
+			if not spellID or spellID == 0 then return 1, 1, 1 end
+			return addon:GetAuraBarColor(spellID)
+		end,
+		set = function(_, r, g, b)
+			if spellID and spellID ~= 0 then
+				addon:SetAuraBarColor(spellID, r, g, b)
+				Options:ApplySettingChange("auraTracker.auraBarColorConfig")
+			end
+		end,
+		order = colorOrder,
+		width = 0.5,
+	}
+end
+
 function Options:BuildAuraTrackerOptions(settingsGroup)
 	local LibSpellDB = addon.LibSpellDB
 
@@ -3166,6 +3259,7 @@ function Options:BuildAuraTrackerOptions(settingsGroup)
 					},
 				},
 			}
+			AddAuraDisplayControls(args[spellKey].args, spellID, false, "", 1.8, 1.9)
 			order = order + 1
 		end
 
@@ -3356,6 +3450,7 @@ function Options:BuildExternalBuffsArgs()
 					},
 				},
 			}
+			AddAuraDisplayControls(groupArgs[spellKey].args, spellID, false, "", 6, 7)
 			spellOrder = spellOrder + 1
 		end
 
@@ -3646,6 +3741,8 @@ function Options:RebuildCustomAuraEntries()
 							addon:SetAuraSourceFilter(filterSpellID, C.AURA_SOURCE_ANY, "custom")
 							addon:SetAuraSound(filterSpellID, nil)
 							addon:SetAuraSoundOnRefresh(filterSpellID, addon.db.profile.auraTracker.soundOnRefresh)
+							addon:SetAuraDisplayMode(filterSpellID, C.AURA_DISPLAY_MODE.ICON)
+							addon:ClearAuraBarColor(filterSpellID)
 						end
 						-- Resolve at click time — the build-time upvalue can point at a
 						-- previous profile's table after a profile switch
@@ -3663,6 +3760,7 @@ function Options:RebuildCustomAuraEntries()
 				},
 			},
 		}
+		AddAuraDisplayControls(entriesArgs[entryKey].args, filterSpellID, unresolved, unresolvedNote, 5.4, 5.6)
 	end
 end
 

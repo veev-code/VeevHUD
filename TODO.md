@@ -126,3 +126,4 @@ Items from feedback that have been completed, with the version they shipped in.
 | Resource-gated cooldown transition                                | 1.0.173 | Resource fill/bar visible during cooldowns; no more jarring snap |
 | Bar text improvements (max, deficit, number format)               | 1.0.175 | 7 text formats + 3 number formats on all bars                    |
 | Season of Discovery rune support                                  | 1.0.215 | Rune abilities + procs for all 9 classes; C_Engraving detection *(Tækker)* |
+| Aura Tracker as bars instead of icons                             | 1.0.218 | Per-aura icon/bar display mode; bars auto-colored from spell icon *(Pewster74)* |
