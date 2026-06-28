@@ -324,7 +324,8 @@ All user-facing UI strings are localized via **AceLocale-3.0**, using the Englis
 - TOC loads `Locales/*.lua` **before** any file that calls `GetLocale` (right after `Libs\embeds.xml`). `Constants.lua` is deliberately NOT localized so the first-loaded file stays dependency-free.
 - **Adding a string:** wrap it `L["..."]` in code, then add `L["..."] = true` to `enUS.lua`. Translations are optional.
 - **NOT localized by design:** raw `print()` debug/diagnostic output in `SlashCommands.lua` (English aids bug reports), the `!Kit` LSM registration prefix, and row-name defaults in `Constants.lua`.
-- The non-English locales are **AI-generated (Claude)** and flagged for native-speaker review in each file header; ruRU also includes 9 human-translated strings from a community contribution by ZamestoTV (Hubbotu). `Tools/` has no generator — regenerate enUS by re-extracting `L["..."]` keys if the set drifts.
+- The non-English locales are **AI-generated (Claude)** and flagged for native-speaker review in each file header; ruRU also includes 9 human-translated strings from a community contribution by ZamestoTV (Hubbotu).
+- **Consistency is enforced by `Tools/check_locales.py`** (runs in CI on every push/PR via the `validate` job). It hard-fails on: a key used in code but missing from enUS; a **stale** translation key (English wording changed but the translation file still has the old key — the main risk of the English-as-key pattern); `%s`/`%d` format-specifier mismatches; and broken `|cff..|r` color-code counts. Coverage gaps are warnings (English fallback is fine). Run it locally with `python3 Tools/check_locales.py`. There is no enUS *generator* — add new keys to `enUS.lua` by hand when you wrap a new `L["..."]`.
 
 ### Optional
 - `Masque` — Icon skinning (optional)

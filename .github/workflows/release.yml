@@ -4,8 +4,13 @@ on:
   push:
     branches:
       - main
+      - master
     tags:
       - '*'
+  pull_request:
+    branches:
+      - main
+      - master
 
 jobs:
   validate:
@@ -32,6 +37,9 @@ jobs:
             exit 1
           fi
           echo "All Lua files pass syntax check"
+
+      - name: Locale consistency check
+        run: python3 Tools/check_locales.py
 
   release:
     needs: validate
