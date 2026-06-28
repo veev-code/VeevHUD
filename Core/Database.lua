@@ -7,6 +7,7 @@
 ]]
 
 local ADDON_NAME, addon = ...
+local L = LibStub("AceLocale-3.0"):GetLocale("VeevHUD")
 
 addon.Database = {}
 local Database = addon.Database
@@ -923,5 +924,5 @@ function Database:ResetProfile()
         addon.db:ResetProfile()
     end
 
-    addon.Utils:Print("Profile reset to defaults.")
+    addon.Utils:Print(L["Profile reset to defaults."])
 end

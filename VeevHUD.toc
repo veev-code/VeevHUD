@@ -2,7 +2,7 @@
 ## Title: VeevHUD
 ## Notes: WeakAuras-inspired cooldown, buff/debuff, and resource HUD. Works out-of-the-box for all classes with zero config required.
 ## Author: Veev
-## Version: 1.0.218
+## Version: 1.0.219
 ## IconTexture: Interface\Icons\Spell_Nature_Reincarnation
 ## SavedVariables: VeevHUDDB, VeevHUDLog
 ## OptionalDeps: Ace3, LibSharedMedia-3.0, AceGUI-3.0-SharedMediaWidgets, LibDualSpec-1.0, Masque, LibSpellDB
@@ -17,6 +17,19 @@
 
 # Libraries
 Libs\embeds.xml
+
+# Locales (must load before any file that calls AceLocale GetLocale; enUS first = default)
+Locales\enUS.lua
+Locales\deDE.lua
+Locales\esES.lua
+Locales\esMX.lua
+Locales\frFR.lua
+Locales\itIT.lua
+Locales\koKR.lua
+Locales\ptBR.lua
+Locales\ruRU.lua
+Locales\zhCN.lua
+Locales\zhTW.lua
 
 # Core
 Core\Constants.lua

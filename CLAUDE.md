@@ -312,9 +312,19 @@ All libraries are fetched via `.pkgmeta` externals at release time (by `BigWigsM
 **Local dev workflow:** Run `bash Tools/fetch-libs.sh` to populate `Libs/`, test in-game, then release in the same session to ensure version consistency.
 
 ### Libraries (`Libs/`)
-LibStub, CallbackHandler-1.0, AceAddon-3.0, AceEvent-3.0, AceHook-3.0, AceConsole-3.0, AceDB-3.0, AceDBOptions-3.0, AceGUI-3.0, AceConfig-3.0, AceGUI-3.0-SharedMediaWidgets, LibDualSpec-1.0, LibSharedMedia-3.0, LibCustomGlow-1.0, LibSpellDB
+LibStub, CallbackHandler-1.0, AceAddon-3.0, AceEvent-3.0, AceHook-3.0, AceConsole-3.0, AceLocale-3.0, AceDB-3.0, AceDBOptions-3.0, AceGUI-3.0, AceConfig-3.0, AceGUI-3.0-SharedMediaWidgets, LibDualSpec-1.0, LibSharedMedia-3.0, LibCustomGlow-1.0, LibSpellDB
 
-Note: there is no localization layer — all user-facing strings are English literals by design (a previous AceLocale scaffold was removed as dead code in the 2026-06 audit).
+### Localization (`Locales/`, AceLocale-3.0)
+
+All user-facing UI strings are localized via **AceLocale-3.0**, using the English text itself as the lookup key.
+
+- `Locales/enUS.lua` — source/default locale: `L["English text"] = true` for every key. This is the canonical key list; **keep it in sync with the code**.
+- `Locales/<locale>.lua` — deDE, frFR, esES, esMX, ptBR, itIT, koKR, zhCN, zhTW, ruRU. They override enUS; any key a translation omits falls back to English automatically (so partial translations are safe).
+- Each consuming file declares `local L = LibStub("AceLocale-3.0"):GetLocale("VeevHUD")` and wraps strings as `L["..."]`. Dynamic strings use format keys: `L["Track %s (ID: %s)"]:format(a, b)`.
+- TOC loads `Locales/*.lua` **before** any file that calls `GetLocale` (right after `Libs\embeds.xml`). `Constants.lua` is deliberately NOT localized so the first-loaded file stays dependency-free.
+- **Adding a string:** wrap it `L["..."]` in code, then add `L["..."] = true` to `enUS.lua`. Translations are optional.
+- **NOT localized by design:** raw `print()` debug/diagnostic output in `SlashCommands.lua` (English aids bug reports), the `!Kit` LSM registration prefix, and row-name defaults in `Constants.lua`.
+- The non-English locales are **AI-generated (Claude)** and flagged for native-speaker review in each file header; ruRU also includes 9 human-translated strings from a community contribution by ZamestoTV (Hubbotu). `Tools/` has no generator — regenerate enUS by re-extracting `L["..."]` keys if the set drifts.
 
 ### Optional
 - `Masque` — Icon skinning (optional)

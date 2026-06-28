@@ -4,6 +4,7 @@
 ]]
 
 local _, addon = ...
+local L = LibStub("AceLocale-3.0"):GetLocale("VeevHUD")
 
 addon.SlashCommands = {}
 local SlashCommands = addon.SlashCommands
@@ -42,9 +43,9 @@ function SlashCommands:HandleCommand(msg)
     elseif cmd == "toggle" then
         addon.db.profile.enabled = not addon.db.profile.enabled
         if addon.db.profile.enabled then
-            addon.Utils:Print("HUD |cff00ff00enabled|r.")
+            addon.Utils:Print(L["HUD |cff00ff00enabled|r."])
         else
-            addon.Utils:Print("HUD |cffff0000disabled|r.")
+            addon.Utils:Print(L["HUD |cffff0000disabled|r."])
         end
 
     elseif cmd == "config" or cmd == "options" then
@@ -52,7 +53,7 @@ function SlashCommands:HandleCommand(msg)
         if options then
             options:Open()
         else
-            addon.Utils:Print("Options module not loaded.")
+            addon.Utils:Print(L["Options module not loaded."])
         end
 
     elseif cmd == "log" then
@@ -103,7 +104,7 @@ function SlashCommands:HandleCommand(msg)
         local tracker = addon:GetModule("SpellTracker")
         if tracker then
             tracker:FullRescan()
-            addon.Utils:Print("Spells rescanned.")
+            addon.Utils:Print(L["Spells rescanned."])
         end
 
     elseif cmd == "spec" then
@@ -135,7 +136,7 @@ function SlashCommands:HandleCommand(msg)
         end
 
     else
-        addon.Utils:Print("Unknown command. Type /vh help for usage.")
+        addon.Utils:Print(L["Unknown command. Type /vh help for usage."])
     end
 end
 
@@ -144,16 +145,16 @@ end
 -------------------------------------------------------------------------------
 
 function SlashCommands:ShowHelp()
-    addon.Utils:Print("Commands:")
-    print("  /vh options - Open settings panel")
-    print("  /vh reset - Reset to defaults")
-    print("  /vh toggle - Enable/disable HUD")
-    print("  /vh spec - Show detected spec")
-    print("  /vh scan - Force rescan spells")
-    print("  /vh check <id> - Diagnose why a spell isn't showing")
-    print("  /vh layout - Debug layout system positions")
-    print("  /vh log [n] - Show log entries")
-    print("  /vh debug - Toggle debug mode")
+    addon.Utils:Print(L["Commands:"])
+    print("  /vh options - " .. L["Open settings panel"])
+    print("  /vh reset - " .. L["Reset to defaults"])
+    print("  /vh toggle - " .. L["Enable/disable HUD"])
+    print("  /vh spec - " .. L["Show detected spec"])
+    print("  /vh scan - " .. L["Force rescan spells"])
+    print("  /vh check <id> - " .. L["Diagnose why a spell isn't showing"])
+    print("  /vh layout - " .. L["Debug layout system positions"])
+    print("  /vh log [n] - " .. L["Show log entries"])
+    print("  /vh debug - " .. L["Toggle debug mode"])
 end
 
 -------------------------------------------------------------------------------

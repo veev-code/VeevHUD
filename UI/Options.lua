@@ -9,6 +9,7 @@
 
 local ADDON_NAME, addon = ...
 local C = addon.Constants
+local L = LibStub("AceLocale-3.0"):GetLocale("VeevHUD")
 
 local Options = {}
 addon.Options = Options
@@ -44,10 +45,10 @@ end
 
 -- Shared value tables for text outline dropdowns (used by both BuildOptions and BuildBuffRemindersOptions)
 local textOutlineValues = {
-	[C.TEXT_OUTLINE.OUTLINE] = "Outline",
-	[C.TEXT_OUTLINE.SHADOW] = "Shadow",
-	[C.TEXT_OUTLINE.BOTH] = "Both",
-	[C.TEXT_OUTLINE.NONE] = "None",
+	[C.TEXT_OUTLINE.OUTLINE] = L["Outline"],
+	[C.TEXT_OUTLINE.SHADOW] = L["Shadow"],
+	[C.TEXT_OUTLINE.BOTH] = L["Both"],
+	[C.TEXT_OUTLINE.NONE] = L["None"],
 }
 local textOutlineSorting = {
 	C.TEXT_OUTLINE.OUTLINE,
@@ -56,11 +57,11 @@ local textOutlineSorting = {
 	C.TEXT_OUTLINE.NONE,
 }
 local textOutlineValuesInherit = {
-	[C.TEXT_OUTLINE.INHERIT] = "Inherit (Global)",
-	[C.TEXT_OUTLINE.OUTLINE] = "Outline",
-	[C.TEXT_OUTLINE.SHADOW] = "Shadow",
-	[C.TEXT_OUTLINE.BOTH] = "Both",
-	[C.TEXT_OUTLINE.NONE] = "None",
+	[C.TEXT_OUTLINE.INHERIT] = L["Inherit (Global)"],
+	[C.TEXT_OUTLINE.OUTLINE] = L["Outline"],
+	[C.TEXT_OUTLINE.SHADOW] = L["Shadow"],
+	[C.TEXT_OUTLINE.BOTH] = L["Both"],
+	[C.TEXT_OUTLINE.NONE] = L["None"],
 }
 local textOutlineSortingInherit = {
 	C.TEXT_OUTLINE.INHERIT,
@@ -371,12 +372,12 @@ end
 
 function Options:BuildOptionsTable()
 	local rowSettingAll = {
-		[C.ROW_SETTING.NONE] = "Off",
-		[C.ROW_SETTING.PRIMARY] = "Primary Row",
-		[C.ROW_SETTING.PRIMARY_SECONDARY] = "Primary + Secondary Rows",
-		[C.ROW_SETTING.SECONDARY_UTILITY] = "Secondary + Utility Rows",
-		[C.ROW_SETTING.UTILITY] = "Utility Row",
-		[C.ROW_SETTING.ALL] = "All Rows",
+		[C.ROW_SETTING.NONE] = L["Off"],
+		[C.ROW_SETTING.PRIMARY] = L["Primary Row"],
+		[C.ROW_SETTING.PRIMARY_SECONDARY] = L["Primary + Secondary Rows"],
+		[C.ROW_SETTING.SECONDARY_UTILITY] = L["Secondary + Utility Rows"],
+		[C.ROW_SETTING.UTILITY] = L["Utility Row"],
+		[C.ROW_SETTING.ALL] = L["All Rows"],
 	}
 
 	local rowSettingDynamicSort = PickValues(rowSettingAll,
@@ -386,24 +387,24 @@ function Options:BuildOptionsTable()
 	)
 
 	local resourceDisplayModeValues = {
-		[C.RESOURCE_DISPLAY_MODE.PREDICTION] = "Prediction",
-		[C.RESOURCE_DISPLAY_MODE.FILL] = "Fill",
-		[C.RESOURCE_DISPLAY_MODE.BAR] = "Bar",
+		[C.RESOURCE_DISPLAY_MODE.PREDICTION] = L["Prediction"],
+		[C.RESOURCE_DISPLAY_MODE.FILL] = L["Fill"],
+		[C.RESOURCE_DISPLAY_MODE.BAR] = L["Bar"],
 	}
 
 	local tickerStyleValues = {
-		[C.TICKER_STYLE.SPARK] = "Spark",
-		[C.TICKER_STYLE.BAR] = "Bar",
+		[C.TICKER_STYLE.SPARK] = L["Spark"],
+		[C.TICKER_STYLE.BAR] = L["Bar"],
 	}
 
 	local textFormatValues = {
-		[C.TEXT_FORMAT.CURRENT] = "Current",
-		[C.TEXT_FORMAT.PERCENT] = "%",
-		[C.TEXT_FORMAT.BOTH] = "Current (%)",
-		[C.TEXT_FORMAT.CURRENT_MAX] = "Current / Max",
-		[C.TEXT_FORMAT.CURRENT_MAX_PERCENT] = "Current / Max (%)",
-		[C.TEXT_FORMAT.DEFICIT] = "Deficit",
-		[C.TEXT_FORMAT.NONE] = "None",
+		[C.TEXT_FORMAT.CURRENT] = L["Current"],
+		[C.TEXT_FORMAT.PERCENT] = L["%"],
+		[C.TEXT_FORMAT.BOTH] = L["Current (%)"],
+		[C.TEXT_FORMAT.CURRENT_MAX] = L["Current / Max"],
+		[C.TEXT_FORMAT.CURRENT_MAX_PERCENT] = L["Current / Max (%)"],
+		[C.TEXT_FORMAT.DEFICIT] = L["Deficit"],
+		[C.TEXT_FORMAT.NONE] = L["None"],
 	}
 	local textFormatSorting = {
 		C.TEXT_FORMAT.CURRENT,
@@ -416,9 +417,9 @@ function Options:BuildOptionsTable()
 	}
 
 	local numberFormatValues = {
-		[C.NUMBER_FORMAT.ABBREVIATED] = "Abbreviated (4.5k)",
-		[C.NUMBER_FORMAT.FULL] = "Full (4523)",
-		[C.NUMBER_FORMAT.COMMA] = "Comma (4,523)",
+		[C.NUMBER_FORMAT.ABBREVIATED] = L["Abbreviated (4.5k)"],
+		[C.NUMBER_FORMAT.FULL] = L["Full (4523)"],
+		[C.NUMBER_FORMAT.COMMA] = L["Comma (4,523)"],
 	}
 	local numberFormatSorting = {
 		C.NUMBER_FORMAT.ABBREVIATED,
@@ -482,7 +483,7 @@ function Options:BuildOptionsTable()
 								math.floor(default.r * 255 + 0.5),
 								math.floor(default.g * 255 + 0.5),
 								math.floor(default.b * 255 + 0.5))
-							return text .. "\n\n" .. Dim("Default: " .. hex)
+							return text .. "\n\n" .. Dim(L["Default: "] .. hex)
 						end
 						if type(default) == "table" then return text end
 						local formatted
@@ -513,7 +514,7 @@ function Options:BuildOptionsTable()
 						else
 							formatted = tostring(default)
 						end
-						return text .. "\n\n" .. Dim("Default: " .. formatted)
+						return text .. "\n\n" .. Dim(L["Default: "] .. formatted)
 					end
 				end
 			end
@@ -537,10 +538,10 @@ function Options:BuildOptionsTable()
 
 	-- Per-row options (Primary / Secondary / Utility)
 	local rowDescriptions = {
-		Dim("Core rotation abilities used every fight — your most important cooldowns."),
-		Dim("Throughput cooldowns, maintenance buffs, and situational damage or healing abilities."),
-		Dim("Crowd control, interrupts, defensives, and movement abilities."),
-		Dim("Totems, trinkets, and other supplementary icons."),
+		Dim(L["Core rotation abilities used every fight — your most important cooldowns."]),
+		Dim(L["Throughput cooldowns, maintenance buffs, and situational damage or healing abilities."]),
+		Dim(L["Crowd control, interrupts, defensives, and movement abilities."]),
+		Dim(L["Totems, trinkets, and other supplementary icons."]),
 	}
 
 	local rowArgs = {}
@@ -560,14 +561,14 @@ function Options:BuildOptionsTable()
 					},
 					enabled = {
 						type = "toggle",
-						name = "Enabled",
-						desc = "Enables or disables this row. When disabled, abilities assigned to this row are hidden and the row takes no space on the HUD.",
+						name = L["Enabled"],
+						desc = L["Enables or disables this row. When disabled, abilities assigned to this row are hidden and the row takes no space on the HUD."],
 						arg = ("rows.%d.enabled"):format(i),
 						order = 1,
 					},
 					sizeSettings = {
 						type = "group",
-						name = "Size",
+						name = L["Size"],
 						inline = true,
 						order = 2,
 						disabled = function()
@@ -576,31 +577,31 @@ function Options:BuildOptionsTable()
 						args = {
 							iconSize = {
 								type = "range",
-								name = "Icon Size",
-								desc = "The size of each ability icon in this row, in pixels. Each row can have different-sized icons — for example, larger icons for your main rotation and smaller ones for utility.",
+								name = L["Icon Size"],
+								desc = L["The size of each ability icon in this row, in pixels. Each row can have different-sized icons — for example, larger icons for your main rotation and smaller ones for utility."],
 								min = 16, max = 96, step = 1,
 								arg = ("rows.%d.iconSize"):format(i),
 								order = 1,
 							},
 							maxIcons = {
 								type = "range",
-								name = "Max Icons",
-								desc = "The maximum number of ability icons that can appear in this row. If you assign more spells than this limit, the extra ones won't be shown.",
+								name = L["Max Icons"],
+								desc = L["The maximum number of ability icons that can appear in this row. If you assign more spells than this limit, the extra ones won't be shown."],
 								min = 1, max = 48, step = 1,
 								arg = ("rows.%d.maxIcons"):format(i),
 								order = 2,
 							},
 							iconAspectRatio = {
 								type = "select",
-								name = "Aspect Ratio",
-								desc = "Override the icon shape for this row. |cffffffffInherit|r uses the global setting from Appearance.",
+								name = L["Aspect Ratio"],
+								desc = L["Override the icon shape for this row. |cffffffffInherit|r uses the global setting from Appearance."],
 								values = {
-									[0] = "Inherit",
-									[1.0] = "Square (1:1)",
-									[1.165] = "Slightly Compact",
-									[1.33] = "Compact (4:3)",
-									[1.665] = "Very Compact",
-									[2.0] = "Ultra Compact (2:1)",
+									[0] = L["Inherit"],
+									[1.0] = L["Square (1:1)"],
+									[1.165] = L["Slightly Compact"],
+									[1.33] = L["Compact (4:3)"],
+									[1.665] = L["Very Compact"],
+									[2.0] = L["Ultra Compact (2:1)"],
 								},
 								sorting = {0, 1.0, 1.165, 1.33, 1.665, 2.0},
 								get = function()
@@ -622,7 +623,7 @@ function Options:BuildOptionsTable()
 					},
 					flowSettings = {
 						type = "group",
-						name = "Flow Layout",
+						name = L["Flow Layout"],
 						inline = true,
 						order = 3,
 						disabled = function()
@@ -631,15 +632,15 @@ function Options:BuildOptionsTable()
 						args = {
 							flowLayout = {
 								type = "toggle",
-								name = "Enabled",
-								desc = "Wraps icons into multiple lines instead of displaying them all in a single long line. The Icons Per Row setting controls the maximum icons per line.\n\nTo avoid a sparse last row, icons are moved down from the previous row — for example, 8 icons at 6 per row becomes 5 and 3 instead of 6 and 2.",
+								name = L["Enabled"],
+								desc = L["Wraps icons into multiple lines instead of displaying them all in a single long line. The Icons Per Row setting controls the maximum icons per line.\n\nTo avoid a sparse last row, icons are moved down from the previous row — for example, 8 icons at 6 per row becomes 5 and 3 instead of 6 and 2."],
 								arg = ("rows.%d.flowLayout"):format(i),
 								order = 1,
 							},
 							iconsPerRow = {
 								type = "range",
-								name = "Icons Per Row",
-								desc = "The maximum number of icons on each line before wrapping to the next. Rows fill from the top, so earlier rows are always full.\n\nTo avoid a sparse last row, icons are moved down from the previous row — for example, 14 icons at 6 per row becomes 6, 5, 3 instead of 6, 6, 2.",
+								name = L["Icons Per Row"],
+								desc = L["The maximum number of icons on each line before wrapping to the next. Rows fill from the top, so earlier rows are always full.\n\nTo avoid a sparse last row, icons are moved down from the previous row — for example, 14 icons at 6 per row becomes 6, 5, 3 instead of 6, 6, 2."],
 								min = 2, max = 20, step = 1,
 								arg = ("rows.%d.iconsPerRow"):format(i),
 								disabled = function()
@@ -677,7 +678,7 @@ function Options:BuildOptionsTable()
 		-- Intro description
 		layoutArgs["introDesc"] = {
 			type = "description",
-			name = Dim("Reorder the vertical layout of the HUD and adjust spacing between elements.") .. "\n",
+			name = Dim(L["Reorder the vertical layout of the HUD and adjust spacing between elements."]) .. "\n",
 			fontSize = "medium",
 			order = 0,
 		}
@@ -713,7 +714,7 @@ function Options:BuildOptionsTable()
 			-- Move Up button
 			layoutArgs["up" .. i] = {
 				type = "execute",
-				name = "Up",
+				name = L["Up"],
 				order = base,
 				width = 0.5,
 				hidden = elemHiddenFn,
@@ -753,7 +754,7 @@ function Options:BuildOptionsTable()
 			-- Move Down button
 			layoutArgs["dn" .. i] = {
 				type = "execute",
-				name = "Down",
+				name = L["Down"],
 				order = base + 2,
 				width = 0.5,
 				hidden = elemHiddenFn,
@@ -796,8 +797,8 @@ function Options:BuildOptionsTable()
 				local nextDisplayName = C.LAYOUT_ELEMENTS[nextKey] or nextKey
 				layoutArgs["gap" .. i] = {
 					type = "range",
-					name = "Gap above " .. nextDisplayName,
-					desc = "Pixels of space between " .. displayName .. " and " .. nextDisplayName .. ".",
+					name = L["Gap above %s"]:format(nextDisplayName),
+					desc = L["Pixels of space between %s and %s."]:format(displayName, nextDisplayName),
 					min = -20, max = 200, step = 1,
 					order = base + 5,
 					width = "full",
@@ -819,53 +820,53 @@ function Options:BuildOptionsTable()
 
 	local optionsTable = {
 		type = "group",
-		name = "VeevHUD",
+		name = L["VeevHUD"],
 		get = get,
 		set = set,
 		args = {
 			header = {
 				type = "description",
-				name = Dim("Version " .. (addon.version or "1.0.0")),
+				name = Dim(L["Version "] .. (addon.version or "1.0.0")),
 				order = 0,
 				fontSize = "medium",
 			},
 			general = {
 				type = "group",
-				name = "General",
+				name = L["General"],
 				order = 1,
 				args = {
 					introDesc = {
 						type = "description",
-						name = Dim("Global settings that affect the entire HUD. Individual modules have their own tabs.") .. "\n",
+						name = Dim(L["Global settings that affect the entire HUD. Individual modules have their own tabs."]) .. "\n",
 						fontSize = "medium",
 						order = 0,
 					},
 					positionAndScale = {
 						type = "group",
-						name = "Position and Scale",
+						name = L["Position and Scale"],
 						inline = true,
 						order = 1,
 						args = {
 							hOffset = {
 								type = "range",
-								name = "Horizontal Offset",
-								desc = "Moves the entire HUD left or right from the center of the screen. Negative values shift it left, positive values shift it right. The range adjusts to your screen resolution.",
+								name = L["Horizontal Offset"],
+								desc = L["Moves the entire HUD left or right from the center of the screen. Negative values shift it left, positive values shift it right. The range adjusts to your screen resolution."],
 								min = -screenW, max = screenW, step = 1,
 								arg = "anchor.x",
 								order = 2,
 							},
 							vOffset = {
 								type = "range",
-								name = "Vertical Offset",
-								desc = "Moves the entire HUD up or down on your screen. Negative values move it below center, positive values move it above. The range adjusts to your screen resolution.",
+								name = L["Vertical Offset"],
+								desc = L["Moves the entire HUD up or down on your screen. Negative values move it below center, positive values move it above. The range adjusts to your screen resolution."],
 								min = -screenH, max = screenH, step = 1,
 								arg = "anchor.y",
 								order = 3,
 							},
 							scale = {
 								type = "range",
-								name = "Scale",
-								desc = "Makes everything in the HUD bigger or smaller. 100% is the normal size. Increase if you have trouble seeing the icons, decrease if they take up too much screen space.",
+								name = L["Scale"],
+								desc = L["Makes everything in the HUD bigger or smaller. 100% is the normal size. Increase if you have trouble seeing the icons, decrease if they take up too much screen space."],
 								min = 0.25, max = 3.0, step = 0.05,
 								isPercent = true,
 								arg = "icons.scale",
@@ -875,14 +876,14 @@ function Options:BuildOptionsTable()
 					},
 					appearance = {
 						type = "group",
-						name = "Appearance",
+						name = L["Appearance"],
 						inline = true,
 						order = 1.5,
 						args = {
 							font = {
 								type = "select",
-								name = "Font",
-								desc = "The font used for all text in the HUD, including cooldown timers, stack counts, health/resource values, and proc durations.\n\nIf you have font-sharing addons installed (SharedMedia, etc.), their fonts will appear here automatically.",
+								name = L["Font"],
+								desc = L["The font used for all text in the HUD, including cooldown timers, stack counts, health/resource values, and proc durations.\n\nIf you have font-sharing addons installed (SharedMedia, etc.), their fonts will appear here automatically."],
 								dialogControl = "LSM30_Font",
 								values = GetLSMFontValues,
 								arg = "appearance.font",
@@ -891,8 +892,8 @@ function Options:BuildOptionsTable()
 							},
 							textColor = {
 								type = "color",
-								name = "Text Color",
-								desc = "The color used for cooldown countdowns, duration timers, and stack counts across all HUD elements.",
+								name = L["Text Color"],
+								desc = L["The color used for cooldown countdowns, duration timers, and stack counts across all HUD elements."],
 								hasAlpha = false,
 								get = colorGet,
 								set = colorSet,
@@ -902,8 +903,8 @@ function Options:BuildOptionsTable()
 							},
 							textOutline = {
 								type = "select",
-								name = "Text Outline",
-								desc = "Controls how text is rendered across all HUD elements.\n\n|cffffffffOutline|r — Font outline only.\n|cffffffffShadow|r — Drop shadow only (cleaner at small sizes).\n|cffffffffBoth|r — Font outline + drop shadow (maximum readability).\n|cffffffffNone|r — No outline or shadow.\n\nIndividual elements can override this in their own settings.",
+								name = L["Text Outline"],
+								desc = L["Controls how text is rendered across all HUD elements.\n\n|cffffffffOutline|r — Font outline only.\n|cffffffffShadow|r — Drop shadow only (cleaner at small sizes).\n|cffffffffBoth|r — Font outline + drop shadow (maximum readability).\n|cffffffffNone|r — No outline or shadow.\n\nIndividual elements can override this in their own settings."],
 								values = textOutlineValues,
 								sorting = textOutlineSorting,
 								arg = "appearance.textOutline",
@@ -912,8 +913,8 @@ function Options:BuildOptionsTable()
 							},
 							statusbarTexture = {
 								type = "select",
-								name = "Bar Texture",
-								desc = "The texture used for all status bars in the HUD, including health, resource, combo point, and energy ticker bars.\n\nIf you have texture-sharing addons installed (SharedMedia, etc.), their textures will appear here automatically.",
+								name = L["Bar Texture"],
+								desc = L["The texture used for all status bars in the HUD, including health, resource, combo point, and energy ticker bars.\n\nIf you have texture-sharing addons installed (SharedMedia, etc.), their textures will appear here automatically."],
 								dialogControl = "LSM30_Statusbar",
 								values = GetLSMStatusbarValues,
 								arg = "appearance.statusbarTexture",
@@ -922,16 +923,16 @@ function Options:BuildOptionsTable()
 							},
 							showGradient = {
 								type = "toggle",
-								name = "Bar Gradient",
-								desc = "Adds a subtle dark-to-light gradient across all status bars (health, resource, combo points, and energy ticker), giving them more visual depth instead of a flat solid color.",
+								name = L["Bar Gradient"],
+								desc = L["Adds a subtle dark-to-light gradient across all status bars (health, resource, combo points, and energy ticker), giving them more visual depth instead of a flat solid color."],
 								arg = "appearance.showGradient",
 								order = 5,
 								width = 0.6,
 							},
 							iconZoom = {
 								type = "range",
-								name = "Icon Zoom",
-								desc = "Zooms into each icon's artwork, cropping the edges. Affects ability rows and Aura Tracker. Useful for removing the default border that some spell textures have. 0% shows the full icon, 16% is a subtle crop.",
+								name = L["Icon Zoom"],
+								desc = L["Zooms into each icon's artwork, cropping the edges. Affects ability rows and Aura Tracker. Useful for removing the default border that some spell textures have. 0% shows the full icon, 16% is a subtle crop."],
 								min = 0, max = 0.6, step = 0.01,
 								isPercent = true,
 								arg = "icons.iconZoom",
@@ -941,35 +942,35 @@ function Options:BuildOptionsTable()
 					},
 					sound = {
 						type = "group",
-						name = "Sound",
+						name = L["Sound"],
 						inline = true,
 						order = 4,
 						args = {
 							channel = {
 								type = "select",
-								name = "Sound Channel",
-								desc = "Audio channel for all VeevHUD sound alerts.\n\n|cffffffffMaster|r — Always plays regardless of volume sliders.\n|cffffffffSound Effects|r — Respects the Sound Effects volume slider.\n|cffffffffMusic|r — Respects the Music volume slider.\n|cffffffffAmbience|r — Respects the Ambience volume slider.",
+								name = L["Sound Channel"],
+								desc = L["Audio channel for all VeevHUD sound alerts.\n\n|cffffffffMaster|r — Always plays regardless of volume sliders.\n|cffffffffSound Effects|r — Respects the Sound Effects volume slider.\n|cffffffffMusic|r — Respects the Music volume slider.\n|cffffffffAmbience|r — Respects the Ambience volume slider."],
 								values = { Master = "Master", SFX = "Sound Effects", Music = "Music", Ambience = "Ambience" },
 								arg = "sound.channel",
 								order = 1,
 							},
 							registerKitID = {
 								type = "input",
-								name = "Register Sound Kit ID",
-								desc = "Enter a WoW Sound Kit ID (a number) to register it as an available sound. Once registered, it appears in all sound dropdowns.\n\nBrowse IDs at: wowhead.com/sounds\n\nExamples: 8959 (raid warning), 11466 (Illidan), 8174 (PvP flag).\n\nNote: the speaker preview button in dropdowns does not work for Kit IDs, but the sound plays correctly in-game.",
+								name = L["Register Sound Kit ID"],
+								desc = L["Enter a WoW Sound Kit ID (a number) to register it as an available sound. Once registered, it appears in all sound dropdowns.\n\nBrowse IDs at: wowhead.com/sounds\n\nExamples: 8959 (raid warning), 11466 (Illidan), 8174 (PvP flag).\n\nNote: the speaker preview button in dropdowns does not work for Kit IDs, but the sound plays correctly in-game."],
 								get = function() return "" end,
 								set = function(_, value)
 									local kitID = tonumber(value)
 									if not kitID then
-										addon.Utils:Print("Invalid Sound Kit ID: " .. value)
+										addon.Utils:Print(L["Invalid Sound Kit ID: %s"]:format(value))
 										return
 									end
 									local name = addon.SoundManager:RegisterSoundKitID(kitID)
 									if name then
 										pcall(PlaySound, kitID, "Master")
-										addon.Utils:Print("Playing Kit ID " .. kitID .. " — registered as " .. Green(name) .. " (top of sound dropdowns).")
+										addon.Utils:Print(L["Playing Kit ID %s — registered as %s (top of sound dropdowns)."]:format(kitID, Green(name)))
 									else
-										addon.Utils:Print("Sound Kit ID registration failed — LibSharedMedia not available.")
+										addon.Utils:Print(L["Sound Kit ID registration failed — LibSharedMedia not available."])
 									end
 								end,
 								order = 2,
@@ -978,14 +979,14 @@ function Options:BuildOptionsTable()
 					},
 					visibility = {
 						type = "group",
-						name = "Visibility",
+						name = L["Visibility"],
 						inline = true,
 						order = 2,
 						args = {
 							outOfCombatAlpha = {
 								type = "range",
-								name = "Out of Combat Opacity",
-								desc = "Controls the HUD's visibility when not in combat. Use this to fade the HUD when out of combat so it's less distracting. 100% = fully visible, 50% = half transparent, 0% = invisible.\n\nNote: This setting is ignored while the config panel is open so you can see the HUD while configuring.",
+								name = L["Out of Combat Opacity"],
+								desc = L["Controls the HUD's visibility when not in combat. Use this to fade the HUD when out of combat so it's less distracting. 100% = fully visible, 50% = half transparent, 0% = invisible.\n\nNote: This setting is ignored while the config panel is open so you can see the HUD while configuring."],
 								min = 0, max = 1.0, step = 0.05,
 								isPercent = true,
 								arg = "visibility.outOfCombatAlpha",
@@ -993,8 +994,8 @@ function Options:BuildOptionsTable()
 							},
 							hideOnFlightPath = {
 								type = "toggle",
-								name = "Hide on Flight Path",
-								desc = "Automatically hides the HUD when you're on a flight path (taxi). The HUD will reappear when you land. Useful to keep your screen clean while traveling.\n\nNote: This setting is ignored while the config panel is open so you can see the HUD while configuring.",
+								name = L["Hide on Flight Path"],
+								desc = L["Automatically hides the HUD when you're on a flight path (taxi). The HUD will reappear when you land. Useful to keep your screen clean while traveling.\n\nNote: This setting is ignored while the config panel is open so you can see the HUD while configuring."],
 								arg = "visibility.hideOnFlightPath",
 								order = 2,
 							},
@@ -1002,21 +1003,21 @@ function Options:BuildOptionsTable()
 					},
 					animations = {
 						type = "group",
-						name = "Animations",
+						name = L["Animations"],
 						inline = true,
 						order = 3,
 						args = {
 							smoothBars = {
 								type = "toggle",
-								name = "Smooth Bar Animation",
-								desc = "Health bars, resource bars, and the resource-cost overlay on ability icons animate smoothly instead of jumping when values change.",
+								name = L["Smooth Bar Animation"],
+								desc = L["Health bars, resource bars, and the resource-cost overlay on ability icons animate smoothly instead of jumping when values change."],
 								arg = "animations.smoothBars",
 								order = 1,
 							},
 							dimTransition = {
 								type = "toggle",
-								name = "Smooth Dim Transition",
-								desc = "When icons fade in or out (e.g., dimming on cooldown), the transition is gradual instead of instant. Disable for snappier visual feedback.",
+								name = L["Smooth Dim Transition"],
+								desc = L["When icons fade in or out (e.g., dimming on cooldown), the transition is gradual instead of instant. Disable for snappier visual feedback."],
 								arg = "animations.dimTransition",
 								order = 2,
 							},
@@ -1027,24 +1028,24 @@ function Options:BuildOptionsTable()
 
 			icons = {
 				type = "group",
-				name = "Ability Rows",
+				name = L["Ability Rows"],
 				childGroups = "tab",
 				order = 2,
 				args = {
 					appearance = {
 						type = "group",
-						name = "Appearance",
+						name = L["Appearance"],
 						order = 1,
 						args = {
 							introDesc = {
 								type = "description",
-								name = Dim("Default visual settings for all ability rows. Individual rows can override icon shape in their own tabs.") .. "\n",
+								name = Dim(L["Default visual settings for all ability rows. Individual rows can override icon shape in their own tabs."]) .. "\n",
 								fontSize = "medium",
 								order = 0.1,
 							},
 							masqueTip = {
 								type = "description",
-								name = Dim("Tip: Install the Masque addon to reskin ability icons with custom button styles."),
+								name = Dim(L["Tip: Install the Masque addon to reskin ability icons with custom button styles."]),
 								order = 0.2,
 								hidden = function()
 									return IsAddOnLoaded and IsAddOnLoaded("Masque")
@@ -1052,20 +1053,20 @@ function Options:BuildOptionsTable()
 							},
 							shape = {
 								type = "group",
-								name = "Shape",
+								name = L["Shape"],
 								inline = true,
 								order = 1,
 								args = {
 									iconAspectRatio = {
 										type = "select",
-										name = "Aspect Ratio",
-										desc = "Default icon shape for all ability rows. Individual rows can override this in their own settings. Aura Tracker has its own setting under Bars.",
+										name = L["Aspect Ratio"],
+										desc = L["Default icon shape for all ability rows. Individual rows can override this in their own settings. Aura Tracker has its own setting under Bars."],
 										values = {
-											[1.0] = "Square (1:1)",
-											[1.165] = "Slightly Compact",
-											[1.33] = "Compact (4:3)",
-											[1.665] = "Very Compact",
-											[2.0] = "Ultra Compact (2:1)",
+											[1.0] = L["Square (1:1)"],
+											[1.165] = L["Slightly Compact"],
+											[1.33] = L["Compact (4:3)"],
+											[1.665] = L["Very Compact"],
+											[2.0] = L["Ultra Compact (2:1)"],
 										},
 										sorting = {1.0, 1.165, 1.33, 1.665, 2.0},
 										arg = "icons.iconAspectRatio",
@@ -1079,22 +1080,22 @@ function Options:BuildOptionsTable()
 							},
 							spacing = {
 								type = "group",
-								name = "Spacing",
+								name = L["Spacing"],
 								inline = true,
 								order = 2,
 								args = {
 									iconSpacing = {
 										type = "range",
-										name = "Icon Spacing",
-										desc = "The horizontal gap in pixels between each ability icon within a row. A small gap (2-4) helps visually separate icons. Set to 0 for icons to touch. Negative values allow overlap, which may look better with certain skins.",
+										name = L["Icon Spacing"],
+										desc = L["The horizontal gap in pixels between each ability icon within a row. A small gap (2-4) helps visually separate icons. Set to 0 for icons to touch. Negative values allow overlap, which may look better with certain skins."],
 										min = -10, max = 20, step = 1,
 										arg = "icons.iconSpacing",
 										order = 1,
 									},
 									rowSpacing = {
 										type = "range",
-										name = "Flow Row Spacing",
-										desc = "When a row uses flow layout and icons overflow to a second line, this is the vertical gap between lines.",
+										name = L["Flow Row Spacing"],
+										desc = L["When a row uses flow layout and icons overflow to a second line, this is the vertical gap between lines."],
 										min = -10, max = 40, step = 1,
 										arg = "icons.rowSpacing",
 										order = 2,
@@ -1103,14 +1104,14 @@ function Options:BuildOptionsTable()
 							},
 							opacity = {
 								type = "group",
-								name = "Opacity",
+								name = L["Opacity"],
 								inline = true,
 								order = 3,
 								args = {
 									readyAlpha = {
 										type = "range",
-										name = "Ready Opacity",
-										desc = "How visible icons are when the ability is ready to use. 100% means fully visible, lower values make ready abilities slightly transparent. Most people want this at 100%.",
+										name = L["Ready Opacity"],
+										desc = L["How visible icons are when the ability is ready to use. 100% means fully visible, lower values make ready abilities slightly transparent. Most people want this at 100%."],
 										min = 0, max = 1.0, step = 0.05,
 										isPercent = true,
 										arg = "icons.readyAlpha",
@@ -1118,8 +1119,8 @@ function Options:BuildOptionsTable()
 									},
 									cooldownAlpha = {
 										type = "range",
-										name = "Cooldown Opacity",
-										desc = "How visible icons are when on cooldown (for rows with Dim On Cooldown enabled). A lower value (like 30%) makes cooldown abilities fade out so you can focus on what's ready. Higher values keep them visible.",
+										name = L["Cooldown Opacity"],
+										desc = L["How visible icons are when on cooldown (for rows with Dim On Cooldown enabled). A lower value (like 30%) makes cooldown abilities fade out so you can focus on what's ready. Higher values keep them visible."],
 										min = 0, max = 1.0, step = 0.05,
 										isPercent = true,
 										arg = "icons.cooldownAlpha",
@@ -1127,8 +1128,8 @@ function Options:BuildOptionsTable()
 									},
 									desaturateNoResources = {
 										type = "toggle",
-										name = "Grey Out Unusable",
-										desc = "Makes icons grey when you don't have enough mana, rage, or energy to use the ability, or when you're in the wrong stance. Works the same way as WoW's default action bars.\n\nAutomatically disabled while resting in an inn or city to avoid constant grey-outs on combat abilities.",
+										name = L["Grey Out Unusable"],
+										desc = L["Makes icons grey when you don't have enough mana, rage, or energy to use the ability, or when you're in the wrong stance. Works the same way as WoW's default action bars.\n\nAutomatically disabled while resting in an inn or city to avoid constant grey-outs on combat abilities."],
 										arg = "icons.desaturateNoResources",
 										order = 3,
 									},
@@ -1138,33 +1139,33 @@ function Options:BuildOptionsTable()
 					},
 					cooldowns = {
 						type = "group",
-						name = "Cooldowns",
+						name = L["Cooldowns"],
 						order = 2,
 						args = {
 							introDesc = {
 								type = "description",
-								name = Dim("How cooldown information is displayed on ability icons.") .. "\n",
+								name = Dim(L["How cooldown information is displayed on ability icons."]) .. "\n",
 								fontSize = "medium",
 								order = 0,
 							},
 							display = {
 								type = "group",
-								name = "Display",
+								name = L["Display"],
 								inline = true,
 								order = 1,
 								args = {
 									showCooldownTextOn = {
 										type = "select",
-										name = "Cooldown Text",
-										desc = "Displays the remaining cooldown time as numbers on top of each icon. When enabled, VeevHUD shows its own text and hides text from addons like OmniCC. Select which rows display cooldown text.",
+										name = L["Cooldown Text"],
+										desc = L["Displays the remaining cooldown time as numbers on top of each icon. When enabled, VeevHUD shows its own text and hides text from addons like OmniCC. Select which rows display cooldown text."],
 										values = rowSettingAll,
 										arg = "icons.showCooldownTextOn",
 										order = 1,
 									},
 									textOutline = {
 										type = "select",
-										name = "Text Outline",
-										desc = "Text outline style for ability icon text (cooldowns, stacks, charges, keybinds).",
+										name = L["Text Outline"],
+										desc = L["Text outline style for ability icon text (cooldowns, stacks, charges, keybinds)."],
 										values = textOutlineValuesInherit,
 										sorting = textOutlineSortingInherit,
 										arg = "icons.textOutline",
@@ -1172,32 +1173,32 @@ function Options:BuildOptionsTable()
 									},
 									detailedTimeThreshold = {
 										type = "range",
-										name = "Minutes Threshold",
-										desc = "Remaining times above this many minutes are shown compactly. At the default of 2, 3 minutes 27 seconds is shown as 3m, while 1 minute 45 seconds is shown as 1:45.",
+										name = L["Minutes Threshold"],
+										desc = L["Remaining times above this many minutes are shown compactly. At the default of 2, 3 minutes 27 seconds is shown as 3m, while 1 minute 45 seconds is shown as 1:45."],
 										min = 1, max = 10, step = 1,
 										arg = "icons.detailedTimeThreshold",
 										order = 1.5,
 									},
 									tenthsThreshold = {
 										type = "range",
-										name = "Decimal Threshold",
-										desc = "Remaining times below this many seconds are shown with one decimal. At the default of 2, 3.4 seconds is shown as 3, while 1.8 seconds is shown as 1.8.",
+										name = L["Decimal Threshold"],
+										desc = L["Remaining times below this many seconds are shown with one decimal. At the default of 2, 3.4 seconds is shown as 3, while 1.8 seconds is shown as 1.8."],
 										min = 1, max = 10, step = 0.5,
 										arg = "icons.tenthsThreshold",
 										order = 1.6,
 									},
 									showCooldownSpiralOn = {
 										type = "select",
-										name = "Cooldown Spiral",
-										desc = "Shows the dark 'clock sweep' overlay on abilities that are on cooldown. This visual helps you see at a glance how much time remains. Select which rows display the cooldown spiral.",
+										name = L["Cooldown Spiral"],
+										desc = L["Shows the dark 'clock sweep' overlay on abilities that are on cooldown. This visual helps you see at a glance how much time remains. Select which rows display the cooldown spiral."],
 										values = rowSettingAll,
 										arg = "icons.showCooldownSpiralOn",
 										order = 2,
 									},
 									showGCDOn = {
 										type = "select",
-										name = "Show GCD",
-										desc = "Controls which rows display the Global Cooldown (GCD) spinner. The GCD is the brief ~1.5 second lockout after using most abilities. Showing GCD helps you see when you can press your next ability.",
+										name = L["Show GCD"],
+										desc = L["Controls which rows display the Global Cooldown (GCD) spinner. The GCD is the brief ~1.5 second lockout after using most abilities. Showing GCD helps you see when you can press your next ability."],
 										values = rowSettingAll,
 										arg = "icons.showGCDOn",
 										order = 3,
@@ -1206,30 +1207,30 @@ function Options:BuildOptionsTable()
 							},
 							behavior = {
 								type = "group",
-								name = "Behavior",
+								name = L["Behavior"],
 								inline = true,
 								order = 2,
 								args = {
 									dimOnCooldown = {
 										type = "select",
-										name = "Dim On Cooldown",
-										desc = "Controls which rows fade out (become transparent) when abilities are on cooldown. The amount they fade is controlled by the |cffffffffCooldown Opacity|r setting.\n\nRows without dimming stay at full brightness and use greying-out to indicate unavailability instead. Many players keep the Primary row undimmed so their core rotation stays visually prominent.",
+										name = L["Dim On Cooldown"],
+										desc = L["Controls which rows fade out (become transparent) when abilities are on cooldown. The amount they fade is controlled by the |cffffffffCooldown Opacity|r setting.\n\nRows without dimming stay at full brightness and use greying-out to indicate unavailability instead. Many players keep the Primary row undimmed so their core rotation stays visually prominent."],
 										values = rowSettingAll,
 										arg = "icons.dimOnCooldown",
 										order = 1,
 									},
 									cooldownBlingRows = {
 										type = "select",
-										name = "Cooldown Sparkle",
-										desc = "Plays WoW's native sparkle animation when a cooldown finishes. Also triggers after the GCD, matching default action bar behavior. This is purely cooldown-based — it does not check resources or other usability conditions.",
+										name = L["Cooldown Sparkle"],
+										desc = L["Plays WoW's native sparkle animation when a cooldown finishes. Also triggers after the GCD, matching default action bar behavior. This is purely cooldown-based — it does not check resources or other usability conditions."],
 										values = rowSettingAll,
 										arg = "icons.cooldownBlingRows",
 										order = 2,
 									},
 									cooldownSpiralAlpha = {
 										type = "range",
-										name = "Cooldown Spiral Opacity",
-										desc = "How dark the spiral overlay appears during ability cooldowns. Lower values make it more subtle and transparent.\n\nNote: Even at 100%, the spiral won't completely obscure the icon — WoW's cooldown texture has built-in transparency.",
+										name = L["Cooldown Spiral Opacity"],
+										desc = L["How dark the spiral overlay appears during ability cooldowns. Lower values make it more subtle and transparent.\n\nNote: Even at 100%, the spiral won't completely obscure the icon — WoW's cooldown texture has built-in transparency."],
 										min = 0, max = 1.0, step = 0.05,
 										isPercent = true,
 										arg = "icons.cooldownSpiralAlpha",
@@ -1241,25 +1242,25 @@ function Options:BuildOptionsTable()
 					},
 					resources = {
 						type = "group",
-						name = "Resources",
+						name = L["Resources"],
 						order = 3,
 						args = {
 							introDesc = {
 								type = "description",
-								name = Dim("How resource costs (mana, rage, energy) are shown on ability icons.") .. "\n",
+								name = Dim(L["How resource costs (mana, rage, energy) are shown on ability icons."]) .. "\n",
 								fontSize = "medium",
 								order = 0,
 							},
 							display = {
 								type = "group",
-								name = "Display",
+								name = L["Display"],
 								inline = true,
 								order = 1,
 								args = {
 									resourceDisplayMode = {
 										type = "select",
-										name = "Display Mode",
-										desc = "How ability icons show whether you can afford to cast them:\n\n|cffffffffPrediction|r — Extends the cooldown sweep to include resource regeneration time. The icon shows how long until you can actually cast, accounting for both cooldown and resource cost. Energy and Mana predictions are tick-aware and very accurate. Rage falls back to Fill since rage income is unpredictable.\n\n|cffffffffFill|r — Darkens the icon from top to bottom proportional to missing resources. Simple and easy to read.\n\n|cffffffffBar|r — Shows a small colored bar at the bottom of each icon that fills up as you gain resources.",
+										name = L["Display Mode"],
+										desc = L["How ability icons show whether you can afford to cast them:\n\n|cffffffffPrediction|r — Extends the cooldown sweep to include resource regeneration time. The icon shows how long until you can actually cast, accounting for both cooldown and resource cost. Energy and Mana predictions are tick-aware and very accurate. Rage falls back to Fill since rage income is unpredictable.\n\n|cffffffffFill|r — Darkens the icon from top to bottom proportional to missing resources. Simple and easy to read.\n\n|cffffffffBar|r — Shows a small colored bar at the bottom of each icon that fills up as you gain resources."],
 										values = resourceDisplayModeValues,
 										sorting = {"prediction", "fill", "bar"},
 										arg = "icons.resourceDisplayMode",
@@ -1267,16 +1268,16 @@ function Options:BuildOptionsTable()
 									},
 									resourceDisplayRows = {
 										type = "select",
-										name = "Show On Rows",
-										desc = "Choose which rows show resource cost information on their icons. When enabled, you can see at a glance whether you have enough mana, rage, or energy to cast each ability.",
+										name = L["Show On Rows"],
+										desc = L["Choose which rows show resource cost information on their icons. When enabled, you can see at a glance whether you have enough mana, rage, or energy to cast each ability."],
 										values = rowSettingAll,
 										arg = "icons.resourceDisplayRows",
 										order = 2,
 									},
 									resourceShowDuringCooldown = {
 										type = "toggle",
-										name = "Show During Cooldowns",
-										desc = "Shows the resource cost overlay on icons while they are on cooldown, so you can see your resource state through the cooldown spiral. When disabled, the resource overlay only appears when the ability is off cooldown.",
+										name = L["Show During Cooldowns"],
+										desc = L["Shows the resource cost overlay on icons while they are on cooldown, so you can see your resource state through the cooldown spiral. When disabled, the resource overlay only appears when the ability is off cooldown."],
 										arg = "icons.resourceShowDuringCooldown",
 										order = 3,
 									},
@@ -1284,7 +1285,7 @@ function Options:BuildOptionsTable()
 							},
 							fillStyle = {
 								type = "group",
-								name = "Fill Style",
+								name = L["Fill Style"],
 								inline = true,
 								order = 2,
 								disabled = function()
@@ -1296,15 +1297,15 @@ function Options:BuildOptionsTable()
 								args = {
 									resourceFillUsePowerColor = {
 										type = "toggle",
-										name = "Use Resource Color",
-										desc = "Uses your resource type color for the fill overlay — red for rage, blue for mana, yellow for energy — instead of the custom Fill Color.",
+										name = L["Use Resource Color"],
+										desc = L["Uses your resource type color for the fill overlay — red for rage, blue for mana, yellow for energy — instead of the custom Fill Color."],
 										arg = "icons.resourceFillUsePowerColor",
 										order = 1,
 									},
 									resourceFillColor = {
 										type = "color",
-										name = "Fill Color",
-										desc = "The color of the resource cost fill overlay on icons. Default is black (a dark overlay showing missing resources). Only used when Use Resource Color is unchecked.",
+										name = L["Fill Color"],
+										desc = L["The color of the resource cost fill overlay on icons. Default is black (a dark overlay showing missing resources). Only used when Use Resource Color is unchecked."],
 										hasAlpha = false,
 										get = colorGet,
 										set = colorSet,
@@ -1320,8 +1321,8 @@ function Options:BuildOptionsTable()
 									},
 									resourceFillAlpha = {
 										type = "range",
-										name = "Fill Opacity",
-										desc = "How opaque the resource cost overlay appears on icons. Higher values make it more obvious when you can't afford an ability. Applies to Fill mode and Prediction mode's fill fallback (used for rage and when predictions are unavailable).",
+										name = L["Fill Opacity"],
+										desc = L["How opaque the resource cost overlay appears on icons. Higher values make it more obvious when you can't afford an ability. Applies to Fill mode and Prediction mode's fill fallback (used for rage and when predictions are unavailable)."],
 										min = 0.05, max = 1.0, step = 0.05,
 										isPercent = true,
 										arg = "icons.resourceFillAlpha",
@@ -1329,8 +1330,8 @@ function Options:BuildOptionsTable()
 									},
 									resourceFillInvert = {
 										type = "toggle",
-										name = "Invert Fill",
-										desc = "Inverts the fill direction. Normal: overlay covers from top down showing missing resources. Inverted: overlay fills from bottom up showing current resources.",
+										name = L["Invert Fill"],
+										desc = L["Inverts the fill direction. Normal: overlay covers from top down showing missing resources. Inverted: overlay fills from bottom up showing current resources."],
 										arg = "icons.resourceFillInvert",
 										order = 4,
 									},
@@ -1338,7 +1339,7 @@ function Options:BuildOptionsTable()
 							},
 							barStyle = {
 								type = "group",
-								name = "Bar Style",
+								name = L["Bar Style"],
 								inline = true,
 								order = 3,
 								disabled = function()
@@ -1347,15 +1348,15 @@ function Options:BuildOptionsTable()
 								args = {
 									resourceBarUsePowerColor = {
 										type = "toggle",
-										name = "Use Resource Color",
-										desc = "Uses your resource type color for the bar — red for rage, blue for mana, yellow for energy — instead of the custom Bar Color.",
+										name = L["Use Resource Color"],
+										desc = L["Uses your resource type color for the bar — red for rage, blue for mana, yellow for energy — instead of the custom Bar Color."],
 										arg = "icons.resourceBarUsePowerColor",
 										order = 1,
 									},
 									resourceBarColor = {
 										type = "color",
-										name = "Bar Color",
-										desc = "The color of the resource bar at the bottom of icons. Only used when Use Resource Color is unchecked.",
+										name = L["Bar Color"],
+										desc = L["The color of the resource bar at the bottom of icons. Only used when Use Resource Color is unchecked."],
 										hasAlpha = false,
 										get = colorGet,
 										set = colorSet,
@@ -1369,8 +1370,8 @@ function Options:BuildOptionsTable()
 									},
 									resourceBarHeight = {
 										type = "range",
-										name = "Bar Height",
-										desc = "Height of the small resource bar shown at the bottom of each icon. Only visible when Display Mode is set to |cffffffffBar|r.",
+										name = L["Bar Height"],
+										desc = L["Height of the small resource bar shown at the bottom of each icon. Only visible when Display Mode is set to |cffffffffBar|r."],
 										min = 1, max = 16, step = 1,
 										arg = "icons.resourceBarHeight",
 										order = 3,
@@ -1381,32 +1382,32 @@ function Options:BuildOptionsTable()
 					},
 					effects = {
 						type = "group",
-						name = "Effects",
+						name = L["Effects"],
 						order = 4,
 						args = {
 							introDesc = {
 								type = "description",
-								name = Dim("Visual effects on ability icons for active buffs, debuffs, and procs.") .. "\n",
+								name = Dim(L["Visual effects on ability icons for active buffs, debuffs, and procs."]) .. "\n",
 								fontSize = "medium",
 								order = 0,
 							},
 							auraTracking = {
 								type = "group",
-								name = "Aura Tracking",
+								name = L["Aura Tracking"],
 								inline = true,
 								order = 1,
 								args = {
 									showAuraTracking = {
 										type = "toggle",
-										name = "Enabled",
-										desc = "Abilities that apply buffs or debuffs (like Intimidating Shout, Rend, Renew) show the active duration with a glow while the effect is on a target. After it expires, the cooldown is shown. Disable if you only want to see cooldowns.",
+										name = L["Enabled"],
+										desc = L["Abilities that apply buffs or debuffs (like Intimidating Shout, Rend, Renew) show the active duration with a glow while the effect is on a target. After it expires, the cooldown is shown. Disable if you only want to see cooldowns."],
 										arg = "icons.showAuraTracking",
 										order = 1,
 									},
 									auraTargettargetSupport = {
 										type = "toggle",
-										name = "Target-of-Target Support",
-										desc = "Also check for your buffs and debuffs on your target's target. Useful for healers tracking HoTs on the tank's target.\n\nExamples:\n- Target the boss, see your heals on the tank (the boss's target)\n- Target the tank, see your DoTs on the boss (the tank's target)",
+										name = L["Target-of-Target Support"],
+										desc = L["Also check for your buffs and debuffs on your target's target. Useful for healers tracking HoTs on the tank's target.\n\nExamples:\n- Target the boss, see your heals on the tank (the boss's target)\n- Target the tank, see your DoTs on the boss (the tank's target)"],
 										arg = "icons.auraTargettargetSupport",
 										order = 2,
 										disabled = function()
@@ -1415,8 +1416,8 @@ function Options:BuildOptionsTable()
 									},
 									auraSpiralAlpha = {
 										type = "range",
-										name = "Aura Spiral Opacity",
-										desc = "How dark the spiral overlay appears when tracking active buff or aura durations on icons. Lower values make it more subtle and transparent.\n\nNote: Even at 100%, the spiral won't completely obscure the icon — WoW's cooldown texture has built-in transparency.",
+										name = L["Aura Spiral Opacity"],
+										desc = L["How dark the spiral overlay appears when tracking active buff or aura durations on icons. Lower values make it more subtle and transparent.\n\nNote: Even at 100%, the spiral won't completely obscure the icon — WoW's cooldown texture has built-in transparency."],
 										min = 0, max = 1.0, step = 0.05,
 										isPercent = true,
 										arg = "icons.auraSpiralAlpha",
@@ -1429,22 +1430,22 @@ function Options:BuildOptionsTable()
 							},
 							castFeedback = {
 								type = "group",
-								name = "Cast Feedback",
+								name = L["Cast Feedback"],
 								inline = true,
 								order = 2,
 								args = {
 									castFeedbackRows = {
 										type = "select",
-										name = "Show On Rows",
-										desc = "Plays a brief 'pop' animation (the icon scales up slightly then back down) whenever you successfully cast an ability. Gives satisfying visual feedback that your spell went off. Select which rows show this animation.",
+										name = L["Show On Rows"],
+										desc = L["Plays a brief 'pop' animation (the icon scales up slightly then back down) whenever you successfully cast an ability. Gives satisfying visual feedback that your spell went off. Select which rows show this animation."],
 										values = rowSettingAll,
 										arg = "icons.castFeedbackRows",
 										order = 1,
 									},
 									castFeedbackScale = {
 										type = "range",
-										name = "Pop Scale",
-										desc = "How much the icon briefly grows when you cast a spell. Higher values = bigger pop.",
+										name = L["Pop Scale"],
+										desc = L["How much the icon briefly grows when you cast a spell. Higher values = bigger pop."],
 										min = 1.05, max = 2.0, step = 0.05,
 										isPercent = true,
 										arg = "icons.castFeedbackScale",
@@ -1457,22 +1458,22 @@ function Options:BuildOptionsTable()
 							},
 							readyGlow = {
 								type = "group",
-								name = "Ready Glow",
+								name = L["Ready Glow"],
 								inline = true,
 								order = 3,
 								args = {
 									readyGlowRows = {
 										type = "select",
-										name = "Show On Rows",
-										desc = "Shows a glowing border around ability icons when they come off cooldown and are ready to use. Only triggers while in combat. Select which rows display this effect.",
+										name = L["Show On Rows"],
+										desc = L["Shows a glowing border around ability icons when they come off cooldown and are ready to use. Only triggers while in combat. Select which rows display this effect."],
 										values = rowSettingAll,
 										arg = "icons.readyGlowRows",
 										order = 1,
 									},
 									readyGlowAlwaysRows = {
 										type = "select",
-										name = "Re-trigger Glow",
-										desc = "Which rows re-trigger the glow whenever an ability becomes usable again (not just the first time).\n\nOn these rows, the glow plays again every time usability changes (e.g., gaining enough resources, target entering Execute range). Rows not selected here play the glow only once per cooldown cycle.\n\nNote: Reactive abilities (like Execute or Overpower) always re-trigger regardless of this setting.",
+										name = L["Re-trigger Glow"],
+										desc = L["Which rows re-trigger the glow whenever an ability becomes usable again (not just the first time).\n\nOn these rows, the glow plays again every time usability changes (e.g., gaining enough resources, target entering Execute range). Rows not selected here play the glow only once per cooldown cycle.\n\nNote: Reactive abilities (like Execute or Overpower) always re-trigger regardless of this setting."],
 										values = rowSettingAll,
 										arg = "icons.readyGlowAlwaysRows",
 										order = 2,
@@ -1482,8 +1483,8 @@ function Options:BuildOptionsTable()
 									},
 									readyGlowDuration = {
 										type = "range",
-										name = "Duration",
-										desc = "How long each ready glow animation lasts (in seconds). After this time, the glow fades out. On rows with Re-trigger Glow, the glow will re-trigger at this interval each time usability changes.",
+										name = L["Duration"],
+										desc = L["How long each ready glow animation lasts (in seconds). After this time, the glow fades out. On rows with Re-trigger Glow, the glow will re-trigger at this interval each time usability changes."],
 										min = 0.1, max = 5.0, step = 0.05,
 										arg = "icons.readyGlowDuration",
 										order = 3,
@@ -1493,8 +1494,8 @@ function Options:BuildOptionsTable()
 									},
 									readyGlowThreshold = {
 										type = "range",
-										name = "Pre-trigger Time",
-										desc = "Begin the glow this many seconds before the cooldown completes, so you can prepare your next action. At 0, the glow only appears once the cooldown is fully complete.",
+										name = L["Pre-trigger Time"],
+										desc = L["Begin the glow this many seconds before the cooldown completes, so you can prepare your next action. At 0, the glow only appears once the cooldown is fully complete."],
 										min = 0, max = 2.0, step = 0.05,
 										arg = "icons.readyGlowThreshold",
 										order = 4,
@@ -1506,14 +1507,14 @@ function Options:BuildOptionsTable()
 							},
 							queuedHighlight = {
 								type = "group",
-								name = "Queued Highlight",
+								name = L["Queued Highlight"],
 								inline = true,
 								order = 4,
 								args = {
 									showQueuedHighlight = {
 										type = "toggle",
-										name = "Enabled",
-										desc = "Brightens the icon of your next queued ability. Most noticeable on \"next melee\" attacks like Heroic Strike or Maul that stay queued until your next swing, but you may also see a brief flash on any ability queued during a cast or GCD.",
+										name = L["Enabled"],
+										desc = L["Brightens the icon of your next queued ability. Most noticeable on \"next melee\" attacks like Heroic Strike or Maul that stay queued until your next swing, but you may also see a brief flash on any ability queued during a cast or GCD."],
 										arg = "icons.showQueuedHighlight",
 										order = 1,
 									},
@@ -1523,25 +1524,25 @@ function Options:BuildOptionsTable()
 					},
 					other = {
 						type = "group",
-						name = "Indicators",
+						name = L["Indicators"],
 						order = 5,
 						args = {
 							introDesc = {
 								type = "description",
-								name = Dim("Range checking, sorting, and keybind display on ability icons.") .. "\n",
+								name = Dim(L["Range checking, sorting, and keybind display on ability icons."]) .. "\n",
 								fontSize = "medium",
 								order = 0,
 							},
 							rangeIndicator = {
 								type = "group",
-								name = "Range Indicator",
+								name = L["Range Indicator"],
 								inline = true,
 								order = 1,
 								args = {
 									showRangeIndicator = {
 										type = "select",
-										name = "Range Indicator",
-										desc = "Shows a red overlay on spell icons when your current target is out of range. Shows when an ability is usable but out of range — even during cooldown, giving you a heads-up on positioning. When resources are insufficient, the grey/resource indicators take priority instead.\n\nNote: Only shows when you have a target. Spells without a range component (self-buffs, etc.) are not affected.",
+										name = L["Range Indicator"],
+										desc = L["Shows a red overlay on spell icons when your current target is out of range. Shows when an ability is usable but out of range — even during cooldown, giving you a heads-up on positioning. When resources are insufficient, the grey/resource indicators take priority instead.\n\nNote: Only shows when you have a target. Spells without a range component (self-buffs, etc.) are not affected."],
 										values = rowSettingAll,
 										arg = "icons.showRangeIndicator",
 										order = 1,
@@ -1550,22 +1551,22 @@ function Options:BuildOptionsTable()
 							},
 							dynamicSorting = {
 								type = "group",
-								name = "Dynamic Sorting",
+								name = L["Dynamic Sorting"],
 								inline = true,
 								order = 2,
 								args = {
 									dynamicSortRows = {
 										type = "select",
-										name = "Dynamic Sorting",
-										desc = "Automatically reorders icons left-to-right by remaining cooldown, so abilities that are almost ready appear first.\n\nUseful for DOT classes (see which debuff is closest to expiring) and cooldown-heavy classes (see which ability is ready next).\n\nTie-breaker: When multiple abilities are ready, they sort by their original row position — so your row order acts as a priority list and the leftmost icon is always the next best spell to cast.",
+										name = L["Dynamic Sorting"],
+										desc = L["Automatically reorders icons left-to-right by remaining cooldown, so abilities that are almost ready appear first.\n\nUseful for DOT classes (see which debuff is closest to expiring) and cooldown-heavy classes (see which ability is ready next).\n\nTie-breaker: When multiple abilities are ready, they sort by their original row position — so your row order acts as a priority list and the leftmost icon is always the next best spell to cast."],
 										values = rowSettingDynamicSort,
 										arg = "icons.dynamicSortRows",
 										order = 1,
 									},
 									dynamicSortAnimation = {
 										type = "toggle",
-										name = "Smooth Sorting",
-										desc = "Icons slide smoothly into their new position when the sort order changes. Disable for instant repositioning.",
+										name = L["Smooth Sorting"],
+										desc = L["Icons slide smoothly into their new position when the sort order changes. Disable for instant repositioning."],
 										arg = "icons.dynamicSortAnimation",
 										order = 2,
 										disabled = function()
@@ -1576,22 +1577,22 @@ function Options:BuildOptionsTable()
 							},
 							keybinds = {
 								type = "group",
-								name = "Keybinds",
+								name = L["Keybinds"],
 								inline = true,
 								order = 3,
 								args = {
 									showKeybindText = {
 										type = "select",
-										name = "Show On Rows",
-										desc = "Displays the keyboard shortcut for each ability in the bottom-right corner. VeevHUD scans your action bars to find where each spell is placed. Modifiers are abbreviated: Shift=S, Ctrl=C, Alt=A (e.g., Shift+X becomes 'SX').\n\nSupports Bartender4, ElvUI, Dominos. If you move spells or change keybinds, the display updates automatically.",
+										name = L["Show On Rows"],
+										desc = L["Displays the keyboard shortcut for each ability in the bottom-right corner. VeevHUD scans your action bars to find where each spell is placed. Modifiers are abbreviated: Shift=S, Ctrl=C, Alt=A (e.g., Shift+X becomes 'SX').\n\nSupports Bartender4, ElvUI, Dominos. If you move spells or change keybinds, the display updates automatically."],
 										values = rowSettingAll,
 										arg = "icons.showKeybindText",
 										order = 1,
 									},
 									keybindTextSize = {
 										type = "range",
-										name = "Text Size",
-										desc = "The font size for keybind text in pixels. Larger values make the text more readable but take up more space on the icon.",
+										name = L["Text Size"],
+										desc = L["The font size for keybind text in pixels. Larger values make the text more readable but take up more space on the icon."],
 										min = 6, max = 24, step = 1,
 										arg = "icons.keybindTextSize",
 										order = 2,
@@ -1603,29 +1604,29 @@ function Options:BuildOptionsTable()
 							},
 							itemCounts = {
 								type = "group",
-								name = "Item Counts",
+								name = L["Item Counts"],
 								inline = true,
 								order = 4,
 								args = {
 									showReagentCount = {
 										type = "toggle",
-										name = "Reagent Count",
-										desc = "Shows the number of reagents you have in the top-right corner of spell icons that consume reagents on cast. Examples: Soul Shards on warlock abilities, seeds on Rebirth, Flash Powder on Vanish, Ankhs on Reincarnation.",
+										name = L["Reagent Count"],
+										desc = L["Shows the number of reagents you have in the top-right corner of spell icons that consume reagents on cast. Examples: Soul Shards on warlock abilities, seeds on Rebirth, Flash Powder on Vanish, Ankhs on Reincarnation."],
 										arg = "icons.showReagentCount",
 										order = 1,
 									},
 									reagentCountAllRanks = {
 										type = "toggle",
-										name = "Count All Ranks",
-										desc = "When enabled, counts reagents for all spell ranks combined (e.g., all seed types for Rebirth). When disabled, only counts the reagent for your highest learned rank.",
+										name = L["Count All Ranks"],
+										desc = L["When enabled, counts reagents for all spell ranks combined (e.g., all seed types for Rebirth). When disabled, only counts the reagent for your highest learned rank."],
 										arg = "icons.reagentCountAllRanks",
 										order = 2,
 										disabled = function() return not addon.db.profile.icons.showReagentCount end,
 									},
 									showConsumableCount = {
 										type = "toggle",
-										name = "Consumable Count",
-										desc = "Shows your current bag count in the top-right corner of consumable icons (potions, runes, etc.).",
+										name = L["Consumable Count"],
+										desc = L["Shows your current bag count in the top-right corner of consumable icons (potions, runes, etc.)."],
 										arg = "icons.showConsumableCount",
 										order = 3,
 									},
@@ -1638,67 +1639,67 @@ function Options:BuildOptionsTable()
 
 			bars = {
 				type = "group",
-				name = "Status Bars",
+				name = L["Status Bars"],
 				childGroups = "tab",
 				order = 4,
 				args = {
 					resource = {
 						type = "group",
-						name = "Resource Bar",
+						name = L["Resource Bar"],
 						order = 3,
 						args = {
 							introDesc = {
 								type = "description",
-								name = Dim("Your character's resource bar (mana, rage, or energy).") .. "\n",
+								name = Dim(L["Your character's resource bar (mana, rage, or energy)."]) .. "\n",
 								fontSize = "medium",
 								order = 0,
 							},
-							enabled = { type = "toggle", name = "Enabled", desc = "Shows a bar displaying your current mana, rage, or energy (depending on your class). Appears between the health bar and the ability icon rows.", arg = "resourceBar.enabled", order = 1 },
+							enabled = { type = "toggle", name = L["Enabled"], desc = L["Shows a bar displaying your current mana, rage, or energy (depending on your class). Appears between the health bar and the ability icon rows."], arg = "resourceBar.enabled", order = 1 },
 							sizeSettings = {
 								type = "group",
-								name = "Size",
+								name = L["Size"],
 								inline = true,
 								order = 2,
 								disabled = function() return addon.db and addon.db.profile and not addon.db.profile.resourceBar.enabled end,
 								args = {
-									width = { type = "range", name = "Width", desc = "How wide the resource bar is in pixels.", min = 50, max = 600, step = 1, arg = "resourceBar.width", order = 1 },
-									height = { type = "range", name = "Height", desc = "How tall/thick the resource bar is in pixels. Changing this will automatically adjust the position of elements above it.", min = 4, max = 60, step = 1, arg = "resourceBar.height", order = 2 },
+									width = { type = "range", name = L["Width"], desc = L["How wide the resource bar is in pixels."], min = 50, max = 600, step = 1, arg = "resourceBar.width", order = 1 },
+									height = { type = "range", name = L["Height"], desc = L["How tall/thick the resource bar is in pixels. Changing this will automatically adjust the position of elements above it."], min = 4, max = 60, step = 1, arg = "resourceBar.height", order = 2 },
 								},
 							},
 							textSettings = {
 								type = "group",
-								name = "Text",
+								name = L["Text"],
 								inline = true,
 								order = 3,
 								disabled = function() return addon.db and addon.db.profile and not addon.db.profile.resourceBar.enabled end,
 								args = {
-									textFormat = { type = "select", name = "Text Format", desc = "Controls what text is shown on the resource bar.\n\n|cffffffffCurrent|r — Shows your actual resource (e.g., 4523).\n|cffffffffPercent|r — Shows your resource percentage (e.g., 85%).\n|cffffffffBoth|r — Shows both (e.g., 4523 (85%)).\n|cffffffffCurrent / Max|r — Shows current and maximum (e.g., 4523 / 5320).\n|cffffffffCurrent / Max (%)|r — Shows current, maximum, and percentage (e.g., 4523 / 5320 (85%)).\n|cffffffffDeficit|r — Shows how much is missing (e.g., -797). Hidden at full.\n|cffffffffNone|r — Hides the text entirely.", values = textFormatValues, sorting = textFormatSorting, arg = "resourceBar.textFormat", order = 1 },
-									numberFormat = { type = "select", name = "Number Format", desc = "Controls how numbers are displayed.\n\n|cffffffffAbbreviated|r — Large numbers shortened (e.g., 4.5k, 1.2m).\n|cffffffffFull|r — Whole numbers (e.g., 4523).\n|cffffffffComma|r — Comma-separated (e.g., 4,523).", values = numberFormatValues, sorting = numberFormatSorting, arg = "resourceBar.numberFormat", order = 2, disabled = function() local fmt = addon.db.profile.resourceBar.textFormat; return fmt == C.TEXT_FORMAT.NONE or fmt == C.TEXT_FORMAT.PERCENT end },
-									textSize = { type = "range", name = "Text Size", desc = "Font size for the resource text. Larger sizes are easier to read but may overflow small bars.", min = 6, max = 24, step = 1, arg = "resourceBar.textSize", order = 3, disabled = function() return addon.db.profile.resourceBar.textFormat == C.TEXT_FORMAT.NONE end },
-									textOutline = { type = "select", name = "Text Outline", desc = "Text outline style for the resource bar.", values = textOutlineValuesInherit, sorting = textOutlineSortingInherit, arg = "resourceBar.textOutline", order = 4, disabled = function() return addon.db.profile.resourceBar.textFormat == C.TEXT_FORMAT.NONE end },
+									textFormat = { type = "select", name = L["Text Format"], desc = L["Controls what text is shown on the resource bar.\n\n|cffffffffCurrent|r — Shows your actual resource (e.g., 4523).\n|cffffffffPercent|r — Shows your resource percentage (e.g., 85%).\n|cffffffffBoth|r — Shows both (e.g., 4523 (85%)).\n|cffffffffCurrent / Max|r — Shows current and maximum (e.g., 4523 / 5320).\n|cffffffffCurrent / Max (%)|r — Shows current, maximum, and percentage (e.g., 4523 / 5320 (85%)).\n|cffffffffDeficit|r — Shows how much is missing (e.g., -797). Hidden at full.\n|cffffffffNone|r — Hides the text entirely."], values = textFormatValues, sorting = textFormatSorting, arg = "resourceBar.textFormat", order = 1 },
+									numberFormat = { type = "select", name = L["Number Format"], desc = L["Controls how numbers are displayed.\n\n|cffffffffAbbreviated|r — Large numbers shortened (e.g., 4.5k, 1.2m).\n|cffffffffFull|r — Whole numbers (e.g., 4523).\n|cffffffffComma|r — Comma-separated (e.g., 4,523)."], values = numberFormatValues, sorting = numberFormatSorting, arg = "resourceBar.numberFormat", order = 2, disabled = function() local fmt = addon.db.profile.resourceBar.textFormat; return fmt == C.TEXT_FORMAT.NONE or fmt == C.TEXT_FORMAT.PERCENT end },
+									textSize = { type = "range", name = L["Text Size"], desc = L["Font size for the resource text. Larger sizes are easier to read but may overflow small bars."], min = 6, max = 24, step = 1, arg = "resourceBar.textSize", order = 3, disabled = function() return addon.db.profile.resourceBar.textFormat == C.TEXT_FORMAT.NONE end },
+									textOutline = { type = "select", name = L["Text Outline"], desc = L["Text outline style for the resource bar."], values = textOutlineValuesInherit, sorting = textOutlineSortingInherit, arg = "resourceBar.textOutline", order = 4, disabled = function() return addon.db.profile.resourceBar.textFormat == C.TEXT_FORMAT.NONE end },
 								},
 							},
 							colorSettings = {
 								type = "group",
-								name = "Default Color",
+								name = L["Default Color"],
 								inline = true,
 								order = 4,
 								disabled = function() return addon.db and addon.db.profile and not addon.db.profile.resourceBar.enabled end,
 								args = {
-									powerColor = { type = "toggle", name = "Use Resource Color", desc = "Colors the bar based on your resource type — blue for mana, red for rage, yellow for energy. Uncheck to use a custom color instead.\n\n" .. Dim("Overridden by Innervate Highlight (mana) and Rage Highlight (rage) when those are active."), arg = "resourceBar.powerColor", order = 1 },
-									color = { type = "color", name = "Bar Color", desc = "The custom color for the resource bar. Only used when Use Resource Color is unchecked.\n\n" .. Dim("Overridden by Innervate Highlight (mana) and Rage Highlight (rage) when those are active."), hasAlpha = false, get = colorGet, set = colorSet, arg = "resourceBar.color", order = 2, disabled = function() local db = addon.db and addon.db.profile and addon.db.profile.resourceBar; return db and db.powerColor end },
+									powerColor = { type = "toggle", name = L["Use Resource Color"], desc = L["Colors the bar based on your resource type — blue for mana, red for rage, yellow for energy. Uncheck to use a custom color instead.\n\n"] .. Dim(L["Overridden by Innervate Highlight (mana) and Rage Highlight (rage) when those are active."]), arg = "resourceBar.powerColor", order = 1 },
+									color = { type = "color", name = L["Bar Color"], desc = L["The custom color for the resource bar. Only used when Use Resource Color is unchecked.\n\n"] .. Dim(L["Overridden by Innervate Highlight (mana) and Rage Highlight (rage) when those are active."]), hasAlpha = false, get = colorGet, set = colorSet, arg = "resourceBar.color", order = 2, disabled = function() local db = addon.db and addon.db.profile and addon.db.profile.resourceBar; return db and db.powerColor end },
 								},
 							},
 							innervateHighlight = {
 								type = "group",
-								name = "Innervate Highlight",
+								name = L["Innervate Highlight"],
 								inline = true,
 								order = 5,
 								hidden = function() return addon.playerClass == C.CLASS.ROGUE or addon.playerClass == C.CLASS.WARRIOR end,
 								disabled = function() return addon.db and addon.db.profile and not addon.db.profile.resourceBar.enabled end,
 								args = {
-									enabled = { type = "toggle", name = "Enabled", desc = "Changes the mana bar color when the Innervate buff is active, giving you immediate visual feedback that your mana regeneration is boosted.", arg = "resourceBar.innervateHighlight.enabled", order = 1 },
-									color = { type = "color", name = "Color", desc = "The color the resource bar changes to during Innervate.", hasAlpha = false, get = colorGet, set = colorSet, arg = "resourceBar.innervateHighlight.color", order = 2, disabled = function() return not addon.db.profile.resourceBar.innervateHighlight.enabled end },
+									enabled = { type = "toggle", name = L["Enabled"], desc = L["Changes the mana bar color when the Innervate buff is active, giving you immediate visual feedback that your mana regeneration is boosted."], arg = "resourceBar.innervateHighlight.enabled", order = 1 },
+									color = { type = "color", name = L["Color"], desc = L["The color the resource bar changes to during Innervate."], hasAlpha = false, get = colorGet, set = colorSet, arg = "resourceBar.innervateHighlight.color", order = 2, disabled = function() return not addon.db.profile.resourceBar.innervateHighlight.enabled end },
 								},
 							},
 							rageHighlight = (function()
@@ -1733,8 +1734,8 @@ function Options:BuildOptionsTable()
 								local args = {
 									enabled = {
 										type = "toggle",
-										name = "Enabled",
-										desc = "Master toggle for rage bar coloring. When enabled, the bar changes color based on rage thresholds (e.g., flag rage cap risk) and when Heroic Strike or Cleave is queued onto your next swing.",
+										name = L["Enabled"],
+										desc = L["Master toggle for rage bar coloring. When enabled, the bar changes color based on rage thresholds (e.g., flag rage cap risk) and when Heroic Strike or Cleave is queued onto your next swing."],
 										arg = "resourceBar.rageHighlight.enabled",
 										order = 1,
 										width = "full",
@@ -1742,13 +1743,13 @@ function Options:BuildOptionsTable()
 									-- Threshold tier section
 									thresholdHeader = {
 										type = "header",
-										name = "Rage Thresholds",
+										name = L["Rage Thresholds"],
 										order = 10,
 									},
 									thresholdEnabled = {
 										type = "toggle",
-										name = "Threshold Coloring",
-										desc = "Recolor the bar based on current rage. Three tiers (low/mid/high) gated by two thresholds.",
+										name = L["Threshold Coloring"],
+										desc = L["Recolor the bar based on current rage. Three tiers (low/mid/high) gated by two thresholds."],
 										arg = "resourceBar.rageHighlight.thresholdEnabled",
 										order = 11,
 										width = "full",
@@ -1756,8 +1757,8 @@ function Options:BuildOptionsTable()
 									},
 									lowThreshold = {
 										type = "range",
-										name = "Low Threshold",
-										desc = "Below this rage value, the bar uses the Low color. Above it (and below the High threshold), the Mid color.",
+										name = L["Low Threshold"],
+										desc = L["Below this rage value, the bar uses the Low color. Above it (and below the High threshold), the Mid color."],
 										min = 0, max = 100, step = 5,
 										arg = "resourceBar.rageHighlight.lowThreshold",
 										order = 12,
@@ -1765,8 +1766,8 @@ function Options:BuildOptionsTable()
 									},
 									highThreshold = {
 										type = "range",
-										name = "High Threshold",
-										desc = "At or above this rage value, the bar uses the High color (e.g., bright red to flag rage cap risk).",
+										name = L["High Threshold"],
+										desc = L["At or above this rage value, the bar uses the High color (e.g., bright red to flag rage cap risk)."],
 										min = 0, max = 100, step = 5,
 										arg = "resourceBar.rageHighlight.highThreshold",
 										order = 13,
@@ -1774,8 +1775,8 @@ function Options:BuildOptionsTable()
 									},
 									lowColor = {
 										type = "color",
-										name = "Low Color",
-										desc = "Bar color when rage is below the Low threshold.",
+										name = L["Low Color"],
+										desc = L["Bar color when rage is below the Low threshold."],
 										hasAlpha = false, get = colorGet, set = colorSet,
 										arg = "resourceBar.rageHighlight.lowColor",
 										order = 14,
@@ -1783,8 +1784,8 @@ function Options:BuildOptionsTable()
 									},
 									midColor = {
 										type = "color",
-										name = "Mid Color",
-										desc = "Bar color when rage is between the Low and High thresholds.",
+										name = L["Mid Color"],
+										desc = L["Bar color when rage is between the Low and High thresholds."],
 										hasAlpha = false, get = colorGet, set = colorSet,
 										arg = "resourceBar.rageHighlight.midColor",
 										order = 15,
@@ -1792,8 +1793,8 @@ function Options:BuildOptionsTable()
 									},
 									highColor = {
 										type = "color",
-										name = "High Color",
-										desc = "Bar color when rage is at or above the High threshold.",
+										name = L["High Color"],
+										desc = L["Bar color when rage is at or above the High threshold."],
 										hasAlpha = false, get = colorGet, set = colorSet,
 										arg = "resourceBar.rageHighlight.highColor",
 										order = 16,
@@ -1802,13 +1803,13 @@ function Options:BuildOptionsTable()
 									-- Queue override section
 									queueHeader = {
 										type = "header",
-										name = "Queued Ability Override",
+										name = L["Queued Ability Override"],
 										order = 20,
 									},
 									queueEnabled = {
 										type = "toggle",
-										name = "Queue Override",
-										desc = "When a swing-reset ability (Heroic Strike, Cleave, Maul) is queued onto your next swing, override the threshold color with a per-ability color.",
+										name = L["Queue Override"],
+										desc = L["When a swing-reset ability (Heroic Strike, Cleave, Maul) is queued onto your next swing, override the threshold color with a per-ability color."],
 										arg = "resourceBar.rageHighlight.queueEnabled",
 										order = 21,
 										width = "full",
@@ -1837,7 +1838,7 @@ function Options:BuildOptionsTable()
 										args["queueColor_" .. e.spellID] = {
 											type = "color",
 											name = e.name,
-											desc = "Bar color when " .. e.name .. " is queued onto your next swing.",
+											desc = L["Bar color when %s is queued onto your next swing."]:format(e.name),
 											hasAlpha = false,
 											get = getQueueColor(e.spellID),
 											set = setQueueColor(e.spellID),
@@ -1850,7 +1851,7 @@ function Options:BuildOptionsTable()
 
 								return {
 									type = "group",
-									name = "Rage Highlight",
+									name = L["Rage Highlight"],
 									inline = true,
 									order = 6,
 									hidden = function() return not isRageClass() end,
@@ -1860,41 +1861,41 @@ function Options:BuildOptionsTable()
 							end)(),
 							sparkSettings = {
 								type = "group",
-								name = "Spark",
+								name = L["Spark"],
 								inline = true,
 								order = 7,
 								disabled = function() return addon.db and addon.db.profile and not addon.db.profile.resourceBar.enabled end,
 								args = {
-									showSpark = { type = "toggle", name = "Enabled", desc = "Shows a bright highlight at the bar's current fill point — the glowing line where the filled and empty portions meet. Adds visual polish.", arg = "resourceBar.showSpark", order = 1 },
-									sparkWidth = { type = "range", name = "Width", desc = "How wide the spark highlight is in pixels. Larger values create a broader, more prominent glow.", min = 1, max = 32, step = 1, arg = "resourceBar.sparkWidth", order = 2 },
-									sparkOverflow = { type = "range", name = "Overflow", desc = "How far the spark glow extends beyond the top and bottom edges of the bar (in pixels). Higher values create a taller spark that 'overflows' past the bar.", min = 0, max = 32, step = 1, arg = "resourceBar.sparkOverflow", order = 3 },
-									sparkHideFullEmpty = { type = "toggle", name = "Hide at Full/Empty", desc = "Hides the spark when the bar is completely full or completely empty, since there's no meaningful fill point to highlight in those states.", arg = "resourceBar.sparkHideFullEmpty", order = 4 },
+									showSpark = { type = "toggle", name = L["Enabled"], desc = L["Shows a bright highlight at the bar's current fill point — the glowing line where the filled and empty portions meet. Adds visual polish."], arg = "resourceBar.showSpark", order = 1 },
+									sparkWidth = { type = "range", name = L["Width"], desc = L["How wide the spark highlight is in pixels. Larger values create a broader, more prominent glow."], min = 1, max = 32, step = 1, arg = "resourceBar.sparkWidth", order = 2 },
+									sparkOverflow = { type = "range", name = L["Overflow"], desc = L["How far the spark glow extends beyond the top and bottom edges of the bar (in pixels). Higher values create a taller spark that 'overflows' past the bar."], min = 0, max = 32, step = 1, arg = "resourceBar.sparkOverflow", order = 3 },
+									sparkHideFullEmpty = { type = "toggle", name = L["Hide at Full/Empty"], desc = L["Hides the spark when the bar is completely full or completely empty, since there's no meaningful fill point to highlight in those states."], arg = "resourceBar.sparkHideFullEmpty", order = 4 },
 								},
 							},
 							overlaySettings = {
 								type = "group",
-								name = "Overlays",
+								name = L["Overlays"],
 								inline = true,
 								order = 8,
 								disabled = function() return addon.db and addon.db.profile and not addon.db.profile.resourceBar.enabled end,
 								args = {
-									showPredictedCost = { type = "toggle", name = "Predicted Cost", desc = "Shows a darkened section on the resource bar representing the cost of abilities you are currently casting or have queued (e.g., Heroic Strike, Cleave). Gives you a preview of where your resource will be after the ability completes.", arg = "resourceBar.showPredictedCost", order = 1 },
+									showPredictedCost = { type = "toggle", name = L["Predicted Cost"], desc = L["Shows a darkened section on the resource bar representing the cost of abilities you are currently casting or have queued (e.g., Heroic Strike, Cleave). Gives you a preview of where your resource will be after the ability completes."], arg = "resourceBar.showPredictedCost", order = 1 },
 								},
 							},
 						},
 					},
 				energyTicker = {
 					type = "group",
-					name = "Energy Ticker",
+					name = L["Energy Ticker"],
 					order = 4,
 					hidden = function() return addon.playerClass ~= C.CLASS.ROGUE and addon.playerClass ~= C.CLASS.DRUID end,
 						args = {
-							enabled = { type = "toggle", name = "Enabled", desc = "Shows progress toward the next energy tick (energy regenerates every 2 seconds). Helps you time abilities to maximize energy efficiency.", arg = "resourceBar.energyTicker.enabled", order = 1, disabled = function() return addon.db and addon.db.profile and not addon.db.profile.resourceBar.enabled end },
-							style = { type = "select", name = "Style", desc = "|cffffffffTicker Bar|r — Shows a separate thin bar below the resource bar that fills as the next tick approaches.\n\n|cffffffffSpark|r — Shows a moving spark overlay on the resource bar itself, which is more subtle.", values = tickerStyleValues, arg = "resourceBar.energyTicker.style", order = 2, disabled = function() return addon.db and addon.db.profile and not addon.db.profile.resourceBar.energyTicker.enabled end },
-							showAtFullEnergy = { type = "toggle", name = "Show at Full Energy", desc = "Keep the tick indicator running even when at full energy. Useful for timing openers — you can see exactly when the next tick will occur and use energy right before it arrives.", arg = "resourceBar.energyTicker.showAtFullEnergy", order = 3, disabled = function() return addon.db and addon.db.profile and not addon.db.profile.resourceBar.energyTicker.enabled end },
+							enabled = { type = "toggle", name = L["Enabled"], desc = L["Shows progress toward the next energy tick (energy regenerates every 2 seconds). Helps you time abilities to maximize energy efficiency."], arg = "resourceBar.energyTicker.enabled", order = 1, disabled = function() return addon.db and addon.db.profile and not addon.db.profile.resourceBar.enabled end },
+							style = { type = "select", name = L["Style"], desc = L["|cffffffffTicker Bar|r — Shows a separate thin bar below the resource bar that fills as the next tick approaches.\n\n|cffffffffSpark|r — Shows a moving spark overlay on the resource bar itself, which is more subtle."], values = tickerStyleValues, arg = "resourceBar.energyTicker.style", order = 2, disabled = function() return addon.db and addon.db.profile and not addon.db.profile.resourceBar.energyTicker.enabled end },
+							showAtFullEnergy = { type = "toggle", name = L["Show at Full Energy"], desc = L["Keep the tick indicator running even when at full energy. Useful for timing openers — you can see exactly when the next tick will occur and use energy right before it arrives."], arg = "resourceBar.energyTicker.showAtFullEnergy", order = 3, disabled = function() return addon.db and addon.db.profile and not addon.db.profile.resourceBar.energyTicker.enabled end },
 							barSettings = {
 								type = "group",
-								name = "Bar Settings",
+								name = L["Bar Settings"],
 								inline = true,
 								order = 4,
 								disabled = function()
@@ -1902,14 +1903,14 @@ function Options:BuildOptionsTable()
 									return not t or not t.enabled or t.style ~= C.TICKER_STYLE.BAR
 								end,
 								args = {
-									height = { type = "range", name = "Bar Height", desc = "How tall the energy ticker bar is in pixels.", min = 1, max = 60, step = 1, arg = "resourceBar.energyTicker.height", order = 1 },
-									offsetY = { type = "range", name = "Bar Offset", desc = "Moves the energy ticker bar up or down relative to the resource bar. Positive values move it down, negative values move it up.", min = -24, max = 24, step = 1, arg = "resourceBar.energyTicker.offsetY", order = 2 },
-									color = { type = "color", name = "Color", desc = "The color used for the energy ticker bar.", hasAlpha = false, get = colorGet, set = colorSet, arg = "resourceBar.energyTicker.color", order = 3 },
+									height = { type = "range", name = L["Bar Height"], desc = L["How tall the energy ticker bar is in pixels."], min = 1, max = 60, step = 1, arg = "resourceBar.energyTicker.height", order = 1 },
+									offsetY = { type = "range", name = L["Bar Offset"], desc = L["Moves the energy ticker bar up or down relative to the resource bar. Positive values move it down, negative values move it up."], min = -24, max = 24, step = 1, arg = "resourceBar.energyTicker.offsetY", order = 2 },
+									color = { type = "color", name = L["Color"], desc = L["The color used for the energy ticker bar."], hasAlpha = false, get = colorGet, set = colorSet, arg = "resourceBar.energyTicker.color", order = 3 },
 								},
 							},
 							sparkSettings = {
 								type = "group",
-								name = "Spark Settings",
+								name = L["Spark Settings"],
 								inline = true,
 								order = 5,
 								disabled = function()
@@ -1917,25 +1918,25 @@ function Options:BuildOptionsTable()
 									return not t or not t.enabled or t.style ~= C.TICKER_STYLE.SPARK
 								end,
 								args = {
-									sparkWidth = { type = "range", name = "Spark Width", desc = "How wide the tick spark is in pixels.", min = 1, max = 32, step = 1, arg = "resourceBar.energyTicker.sparkWidth", order = 1 },
-									sparkHeight = { type = "range", name = "Spark Height", desc = "How tall the tick spark is relative to the resource bar. Values above 1.0 make the spark extend beyond the bar edges.", min = 0.5, max = 4.0, step = 0.1, arg = "resourceBar.energyTicker.sparkHeight", order = 2 },
+									sparkWidth = { type = "range", name = L["Spark Width"], desc = L["How wide the tick spark is in pixels."], min = 1, max = 32, step = 1, arg = "resourceBar.energyTicker.sparkWidth", order = 1 },
+									sparkHeight = { type = "range", name = L["Spark Height"], desc = L["How tall the tick spark is relative to the resource bar. Values above 1.0 make the spark extend beyond the bar edges."], min = 0.5, max = 4.0, step = 0.1, arg = "resourceBar.energyTicker.sparkHeight", order = 2 },
 								},
 							},
 						},
 					},
 				manaTicker = {
 					type = "group",
-					name = "Mana Ticker",
+					name = L["Mana Ticker"],
 					order = 5,
 					hidden = function()
 						return not manaTickerClasses[addon.playerClass]
 					end,
 						args = {
-							enabled = { type = "toggle", name = "Enabled", desc = "Shows a moving spark on the resource bar indicating when your next mana tick will arrive. Mana regenerates in periodic ticks, and casting at the wrong time can delay your next tick — this indicator helps you cast at the optimal moment.", arg = "resourceBar.manaTicker.enabled", order = 1, disabled = function() return addon.db and addon.db.profile and not addon.db.profile.resourceBar.enabled end },
+							enabled = { type = "toggle", name = L["Enabled"], desc = L["Shows a moving spark on the resource bar indicating when your next mana tick will arrive. Mana regenerates in periodic ticks, and casting at the wrong time can delay your next tick — this indicator helps you cast at the optimal moment."], arg = "resourceBar.manaTicker.enabled", order = 1, disabled = function() return addon.db and addon.db.profile and not addon.db.profile.resourceBar.enabled end },
 							style = {
 								type = "select",
-								name = "Style",
-								desc = "|cffffffffOutside 5 Second Rule|r — Only shows the tick timer when you haven't cast a spell in the last 5 seconds (when you're getting full spirit-based mana regeneration).\n\n|cffffffffNext Full Tick|r (Recommended) — Always active. After you cast a spell, it predicts exactly when your first full-rate mana tick will arrive and counts down to it. Cast right after the tick completes to get the most mana before your next spell.",
+								name = L["Style"],
+								desc = L["|cffffffffOutside 5 Second Rule|r — Only shows the tick timer when you haven't cast a spell in the last 5 seconds (when you're getting full spirit-based mana regeneration).\n\n|cffffffffNext Full Tick|r (Recommended) — Always active. After you cast a spell, it predicts exactly when your first full-rate mana tick will arrive and counts down to it. Cast right after the tick completes to get the most mana before your next spell."],
 								values = {
 									outside5sr = "Outside 5-second rule",
 									nextfulltick = "Next full tick",
@@ -1944,227 +1945,227 @@ function Options:BuildOptionsTable()
 								order = 2,
 								disabled = function() return addon.db and addon.db.profile and not addon.db.profile.resourceBar.manaTicker.enabled end,
 							},
-							sparkWidth = { type = "range", name = "Spark Width", desc = "How wide the mana tick spark is in pixels.", min = 1, max = 32, step = 1, arg = "resourceBar.manaTicker.sparkWidth", order = 3, disabled = function() return addon.db and addon.db.profile and not addon.db.profile.resourceBar.manaTicker.enabled end },
-							sparkHeight = { type = "range", name = "Spark Height", desc = "How tall the mana tick spark is relative to the resource bar. Values above 1.0 make it extend beyond the bar edges.", min = 0.5, max = 4.0, step = 0.1, arg = "resourceBar.manaTicker.sparkHeight", order = 4, disabled = function() return addon.db and addon.db.profile and not addon.db.profile.resourceBar.manaTicker.enabled end },
+							sparkWidth = { type = "range", name = L["Spark Width"], desc = L["How wide the mana tick spark is in pixels."], min = 1, max = 32, step = 1, arg = "resourceBar.manaTicker.sparkWidth", order = 3, disabled = function() return addon.db and addon.db.profile and not addon.db.profile.resourceBar.manaTicker.enabled end },
+							sparkHeight = { type = "range", name = L["Spark Height"], desc = L["How tall the mana tick spark is relative to the resource bar. Values above 1.0 make it extend beyond the bar edges."], min = 0.5, max = 4.0, step = 0.1, arg = "resourceBar.manaTicker.sparkHeight", order = 4, disabled = function() return addon.db and addon.db.profile and not addon.db.profile.resourceBar.manaTicker.enabled end },
 						},
 					},
 				druidManaBar = {
 					type = "group",
-					name = "Mana Bar (Druid)",
+					name = L["Mana Bar (Druid)"],
 					order = 6,
 					hidden = function() return addon.playerClass ~= C.CLASS.DRUID end,
 					args = {
 						desc = {
 							type = "description",
-							name = Dim("Shows a secondary mana bar below the resource bar while in Cat Form or Bear Form, so you can monitor mana for shifting and casting."),
+							name = Dim(L["Shows a secondary mana bar below the resource bar while in Cat Form or Bear Form, so you can monitor mana for shifting and casting."]),
 							order = 0,
 						},
-						enabled = { type = "toggle", name = "Enabled", desc = "Show a secondary mana bar below the resource bar while shapeshifted.", arg = "resourceBar.druidManaBar.enabled", order = 1, disabled = function() return addon.db and addon.db.profile and not addon.db.profile.resourceBar.enabled end },
-						height = { type = "range", name = "Height", desc = "How tall the secondary mana bar is in pixels.", min = 2, max = 60, step = 1, arg = "resourceBar.druidManaBar.height", order = 2, disabled = function() return addon.db and addon.db.profile and not addon.db.profile.resourceBar.druidManaBar.enabled end },
-						showSpark = { type = "toggle", name = "Show Spark", desc = "Shows a glowing spark at the current fill position on the mana bar.", arg = "resourceBar.druidManaBar.showSpark", order = 3, disabled = function() return addon.db and addon.db.profile and not addon.db.profile.resourceBar.druidManaBar.enabled end },
-						color = { type = "color", name = "Color", desc = "The color used for the secondary mana bar.", hasAlpha = false, get = colorGet, set = colorSet, arg = "resourceBar.druidManaBar.color", order = 4, disabled = function() return addon.db and addon.db.profile and not addon.db.profile.resourceBar.druidManaBar.enabled end },
-						showManaTicker = { type = "toggle", name = "Show Mana Ticker", desc = "Shows the mana tick spark on this bar while in form. When disabled, the mana ticker only appears on the main resource bar in caster form.", arg = "resourceBar.druidManaBar.showManaTicker", order = 5, disabled = function() return addon.db and addon.db.profile and not addon.db.profile.resourceBar.druidManaBar.enabled end },
-						showFormCostMarker = { type = "toggle", name = "Form Cost Marker", desc = "Shows a vertical line on the mana bar when your mana is too low to re-enter your current shapeshift form. The line indicates the mana threshold needed, so you can see how close you are to being able to shift back.", arg = "resourceBar.druidManaBar.showFormCostMarker", order = 6, disabled = function() return addon.db and addon.db.profile and not addon.db.profile.resourceBar.druidManaBar.enabled end },
+						enabled = { type = "toggle", name = L["Enabled"], desc = L["Show a secondary mana bar below the resource bar while shapeshifted."], arg = "resourceBar.druidManaBar.enabled", order = 1, disabled = function() return addon.db and addon.db.profile and not addon.db.profile.resourceBar.enabled end },
+						height = { type = "range", name = L["Height"], desc = L["How tall the secondary mana bar is in pixels."], min = 2, max = 60, step = 1, arg = "resourceBar.druidManaBar.height", order = 2, disabled = function() return addon.db and addon.db.profile and not addon.db.profile.resourceBar.druidManaBar.enabled end },
+						showSpark = { type = "toggle", name = L["Show Spark"], desc = L["Shows a glowing spark at the current fill position on the mana bar."], arg = "resourceBar.druidManaBar.showSpark", order = 3, disabled = function() return addon.db and addon.db.profile and not addon.db.profile.resourceBar.druidManaBar.enabled end },
+						color = { type = "color", name = L["Color"], desc = L["The color used for the secondary mana bar."], hasAlpha = false, get = colorGet, set = colorSet, arg = "resourceBar.druidManaBar.color", order = 4, disabled = function() return addon.db and addon.db.profile and not addon.db.profile.resourceBar.druidManaBar.enabled end },
+						showManaTicker = { type = "toggle", name = L["Show Mana Ticker"], desc = L["Shows the mana tick spark on this bar while in form. When disabled, the mana ticker only appears on the main resource bar in caster form."], arg = "resourceBar.druidManaBar.showManaTicker", order = 5, disabled = function() return addon.db and addon.db.profile and not addon.db.profile.resourceBar.druidManaBar.enabled end },
+						showFormCostMarker = { type = "toggle", name = L["Form Cost Marker"], desc = L["Shows a vertical line on the mana bar when your mana is too low to re-enter your current shapeshift form. The line indicates the mana threshold needed, so you can see how close you are to being able to shift back."], arg = "resourceBar.druidManaBar.showFormCostMarker", order = 6, disabled = function() return addon.db and addon.db.profile and not addon.db.profile.resourceBar.druidManaBar.enabled end },
 						textSettings = {
 							type = "group",
-							name = "Text",
+							name = L["Text"],
 							inline = true,
 							order = 7,
 							disabled = function() return addon.db and addon.db.profile and not addon.db.profile.resourceBar.druidManaBar.enabled end,
 							args = {
-								textFormat = { type = "select", name = "Text Format", desc = "Controls what text is shown on the Druid mana bar.\n\n|cffffffffCurrent|r — Shows your actual mana.\n|cffffffffPercent|r — Shows your mana percentage.\n|cffffffffBoth|r — Shows both.\n|cffffffffCurrent / Max|r — Shows current and maximum.\n|cffffffffCurrent / Max (%)|r — Shows current, maximum, and percentage.\n|cffffffffDeficit|r — Shows how much is missing. Hidden at full.\n|cffffffffNone|r — Hides the text.", values = textFormatValues, sorting = textFormatSorting, arg = "resourceBar.druidManaBar.textFormat", order = 1 },
-								numberFormat = { type = "select", name = "Number Format", desc = "Controls how numbers are displayed.", values = numberFormatValues, sorting = numberFormatSorting, arg = "resourceBar.druidManaBar.numberFormat", order = 2, disabled = function() local fmt = addon.db.profile.resourceBar.druidManaBar.textFormat; return fmt == C.TEXT_FORMAT.NONE or fmt == C.TEXT_FORMAT.PERCENT end },
-								textSize = { type = "range", name = "Text Size", desc = "Font size for the mana bar text.", min = 6, max = 18, step = 1, arg = "resourceBar.druidManaBar.textSize", order = 3 },
-								textOutline = { type = "select", name = "Text Outline", desc = "Text outline style for the druid mana bar.", values = textOutlineValuesInherit, sorting = textOutlineSortingInherit, arg = "resourceBar.druidManaBar.textOutline", order = 4 },
+								textFormat = { type = "select", name = L["Text Format"], desc = L["Controls what text is shown on the Druid mana bar.\n\n|cffffffffCurrent|r — Shows your actual mana.\n|cffffffffPercent|r — Shows your mana percentage.\n|cffffffffBoth|r — Shows both.\n|cffffffffCurrent / Max|r — Shows current and maximum.\n|cffffffffCurrent / Max (%)|r — Shows current, maximum, and percentage.\n|cffffffffDeficit|r — Shows how much is missing. Hidden at full.\n|cffffffffNone|r — Hides the text."], values = textFormatValues, sorting = textFormatSorting, arg = "resourceBar.druidManaBar.textFormat", order = 1 },
+								numberFormat = { type = "select", name = L["Number Format"], desc = L["Controls how numbers are displayed."], values = numberFormatValues, sorting = numberFormatSorting, arg = "resourceBar.druidManaBar.numberFormat", order = 2, disabled = function() local fmt = addon.db.profile.resourceBar.druidManaBar.textFormat; return fmt == C.TEXT_FORMAT.NONE or fmt == C.TEXT_FORMAT.PERCENT end },
+								textSize = { type = "range", name = L["Text Size"], desc = L["Font size for the mana bar text."], min = 6, max = 18, step = 1, arg = "resourceBar.druidManaBar.textSize", order = 3 },
+								textOutline = { type = "select", name = L["Text Outline"], desc = L["Text outline style for the druid mana bar."], values = textOutlineValuesInherit, sorting = textOutlineSortingInherit, arg = "resourceBar.druidManaBar.textOutline", order = 4 },
 							},
 						},
 					},
 				},
 					health = {
 						type = "group",
-						name = "Health Bar",
+						name = L["Health Bar"],
 						order = 2,
 						args = {
 							introDesc = {
 								type = "description",
-								name = Dim("Your character's health bar with heal prediction.") .. "\n",
+								name = Dim(L["Your character's health bar with heal prediction."]) .. "\n",
 								fontSize = "medium",
 								order = 0,
 							},
-							enabled = { type = "toggle", name = "Enabled", desc = "Shows a bar displaying your current health above the resource bar. Gives you a quick glance at your survivability without looking at your unit frame.", arg = "healthBar.enabled", order = 1 },
+							enabled = { type = "toggle", name = L["Enabled"], desc = L["Shows a bar displaying your current health above the resource bar. Gives you a quick glance at your survivability without looking at your unit frame."], arg = "healthBar.enabled", order = 1 },
 							sizeSettings = {
 								type = "group",
-								name = "Size",
+								name = L["Size"],
 								inline = true,
 								order = 2,
 								disabled = function() return addon.db and addon.db.profile and not addon.db.profile.healthBar.enabled end,
 								args = {
-									width = { type = "range", name = "Width", desc = "How wide the health bar is in pixels.", min = 50, max = 600, step = 1, arg = "healthBar.width", order = 1 },
-									height = { type = "range", name = "Height", desc = "How tall/thick the health bar is in pixels. Changing this will automatically adjust the position of elements above it.", min = 4, max = 60, step = 1, arg = "healthBar.height", order = 2 },
+									width = { type = "range", name = L["Width"], desc = L["How wide the health bar is in pixels."], min = 50, max = 600, step = 1, arg = "healthBar.width", order = 1 },
+									height = { type = "range", name = L["Height"], desc = L["How tall/thick the health bar is in pixels. Changing this will automatically adjust the position of elements above it."], min = 4, max = 60, step = 1, arg = "healthBar.height", order = 2 },
 								},
 							},
 							textSettings = {
 								type = "group",
-								name = "Text",
+								name = L["Text"],
 								inline = true,
 								order = 3,
 								disabled = function() return addon.db and addon.db.profile and not addon.db.profile.healthBar.enabled end,
 								args = {
-									textFormat = { type = "select", name = "Text Format", desc = "Controls what text is shown on the health bar.\n\n|cffffffffCurrent|r — Shows your actual health (e.g., 3256).\n|cffffffffPercent|r — Shows your health percentage (e.g., 71%).\n|cffffffffBoth|r — Shows both (e.g., 3256 (71%)).\n|cffffffffCurrent / Max|r — Shows current and maximum (e.g., 3256 / 4580).\n|cffffffffCurrent / Max (%)|r — Shows current, maximum, and percentage (e.g., 3256 / 4580 (71%)).\n|cffffffffDeficit|r — Shows how much health is missing (e.g., -1324). Hidden at full.\n|cffffffffNone|r — Hides the text entirely.", values = textFormatValues, sorting = textFormatSorting, arg = "healthBar.textFormat", order = 1 },
-									numberFormat = { type = "select", name = "Number Format", desc = "Controls how numbers are displayed.\n\n|cffffffffAbbreviated|r — Large numbers shortened (e.g., 4.5k, 1.2m).\n|cffffffffFull|r — Whole numbers (e.g., 4523).\n|cffffffffComma|r — Comma-separated (e.g., 4,523).", values = numberFormatValues, sorting = numberFormatSorting, arg = "healthBar.numberFormat", order = 2, disabled = function() local fmt = addon.db.profile.healthBar.textFormat; return fmt == C.TEXT_FORMAT.NONE or fmt == C.TEXT_FORMAT.PERCENT end },
-									textSize = { type = "range", name = "Text Size", desc = "Font size for the health text. Larger sizes are easier to read but may overflow small bars.", min = 6, max = 24, step = 1, arg = "healthBar.textSize", order = 3, disabled = function() return addon.db.profile.healthBar.textFormat == C.TEXT_FORMAT.NONE end },
-									textOutline = { type = "select", name = "Text Outline", desc = "Text outline style for the health bar.", values = textOutlineValuesInherit, sorting = textOutlineSortingInherit, arg = "healthBar.textOutline", order = 4, disabled = function() return addon.db.profile.healthBar.textFormat == C.TEXT_FORMAT.NONE end },
+									textFormat = { type = "select", name = L["Text Format"], desc = L["Controls what text is shown on the health bar.\n\n|cffffffffCurrent|r — Shows your actual health (e.g., 3256).\n|cffffffffPercent|r — Shows your health percentage (e.g., 71%).\n|cffffffffBoth|r — Shows both (e.g., 3256 (71%)).\n|cffffffffCurrent / Max|r — Shows current and maximum (e.g., 3256 / 4580).\n|cffffffffCurrent / Max (%)|r — Shows current, maximum, and percentage (e.g., 3256 / 4580 (71%)).\n|cffffffffDeficit|r — Shows how much health is missing (e.g., -1324). Hidden at full.\n|cffffffffNone|r — Hides the text entirely."], values = textFormatValues, sorting = textFormatSorting, arg = "healthBar.textFormat", order = 1 },
+									numberFormat = { type = "select", name = L["Number Format"], desc = L["Controls how numbers are displayed.\n\n|cffffffffAbbreviated|r — Large numbers shortened (e.g., 4.5k, 1.2m).\n|cffffffffFull|r — Whole numbers (e.g., 4523).\n|cffffffffComma|r — Comma-separated (e.g., 4,523)."], values = numberFormatValues, sorting = numberFormatSorting, arg = "healthBar.numberFormat", order = 2, disabled = function() local fmt = addon.db.profile.healthBar.textFormat; return fmt == C.TEXT_FORMAT.NONE or fmt == C.TEXT_FORMAT.PERCENT end },
+									textSize = { type = "range", name = L["Text Size"], desc = L["Font size for the health text. Larger sizes are easier to read but may overflow small bars."], min = 6, max = 24, step = 1, arg = "healthBar.textSize", order = 3, disabled = function() return addon.db.profile.healthBar.textFormat == C.TEXT_FORMAT.NONE end },
+									textOutline = { type = "select", name = L["Text Outline"], desc = L["Text outline style for the health bar."], values = textOutlineValuesInherit, sorting = textOutlineSortingInherit, arg = "healthBar.textOutline", order = 4, disabled = function() return addon.db.profile.healthBar.textFormat == C.TEXT_FORMAT.NONE end },
 								},
 							},
 							colorSettings = {
 								type = "group",
-								name = "Color",
+								name = L["Color"],
 								inline = true,
 								order = 4,
 								disabled = function() return addon.db and addon.db.profile and not addon.db.profile.healthBar.enabled end,
 								args = {
-									classColored = { type = "toggle", name = "Use Class Color", desc = "Colors the health bar using your class color (e.g., brown for Warriors, purple for Warlocks) instead of the standard green.", arg = "healthBar.classColored", order = 1 },
-									color = { type = "color", name = "Bar Color", desc = "The custom color for the health bar. Only used when Use Class Color is unchecked.", hasAlpha = false, get = colorGet, set = colorSet, arg = "healthBar.color", order = 2, disabled = function() local db = addon.db and addon.db.profile and addon.db.profile.healthBar; return db and db.classColored end },
+									classColored = { type = "toggle", name = L["Use Class Color"], desc = L["Colors the health bar using your class color (e.g., brown for Warriors, purple for Warlocks) instead of the standard green."], arg = "healthBar.classColored", order = 1 },
+									color = { type = "color", name = L["Bar Color"], desc = L["The custom color for the health bar. Only used when Use Class Color is unchecked."], hasAlpha = false, get = colorGet, set = colorSet, arg = "healthBar.color", order = 2, disabled = function() local db = addon.db and addon.db.profile and addon.db.profile.healthBar; return db and db.classColored end },
 								},
 							},
 							overlaySettings = {
 								type = "group",
-								name = "Overlays",
+								name = L["Overlays"],
 								inline = true,
 								order = 5,
 								disabled = function() return addon.db and addon.db.profile and not addon.db.profile.healthBar.enabled end,
 								args = {
-									showHealPrediction = { type = "toggle", name = "Heal Prediction", desc = "Shows a lighter overlay on the health bar representing incoming heals. The overlay extends from your current health into the missing health area, giving you a preview of where your health will be after heals land.", arg = "healthBar.showHealPrediction", order = 1 },
+									showHealPrediction = { type = "toggle", name = L["Heal Prediction"], desc = L["Shows a lighter overlay on the health bar representing incoming heals. The overlay extends from your current health into the missing health area, giving you a preview of where your health will be after heals land."], arg = "healthBar.showHealPrediction", order = 1 },
 								},
 							},
 						},
 					},
 					petHealth = {
 						type = "group",
-						name = "Pet Health Bar",
+						name = L["Pet Health Bar"],
 						order = 2.5,
 						args = {
 							introDesc = {
 								type = "description",
-								name = Dim("Your pet's health bar. Automatically hides when no pet is active.") .. "\n",
+								name = Dim(L["Your pet's health bar. Automatically hides when no pet is active."]) .. "\n",
 								fontSize = "medium",
 								order = 0,
 							},
-							enabled = { type = "toggle", name = "Enabled", desc = "Shows a bar displaying your pet's current health. Automatically hides when you have no active pet.", arg = "petHealthBar.enabled", order = 1 },
+							enabled = { type = "toggle", name = L["Enabled"], desc = L["Shows a bar displaying your pet's current health. Automatically hides when you have no active pet."], arg = "petHealthBar.enabled", order = 1 },
 							sizeSettings = {
 								type = "group",
-								name = "Size",
+								name = L["Size"],
 								inline = true,
 								order = 2,
 								disabled = function() return not addon.db.profile.petHealthBar.enabled end,
 								args = {
-									width = { type = "range", name = "Width", desc = "How wide the pet health bar is in pixels.", min = 50, max = 600, step = 1, arg = "petHealthBar.width", order = 1 },
-									height = { type = "range", name = "Height", desc = "How tall/thick the pet health bar is in pixels.", min = 2, max = 60, step = 1, arg = "petHealthBar.height", order = 2 },
+									width = { type = "range", name = L["Width"], desc = L["How wide the pet health bar is in pixels."], min = 50, max = 600, step = 1, arg = "petHealthBar.width", order = 1 },
+									height = { type = "range", name = L["Height"], desc = L["How tall/thick the pet health bar is in pixels."], min = 2, max = 60, step = 1, arg = "petHealthBar.height", order = 2 },
 								},
 							},
 							textSettings = {
 								type = "group",
-								name = "Text",
+								name = L["Text"],
 								inline = true,
 								order = 3,
 								disabled = function() return not addon.db.profile.petHealthBar.enabled end,
 								args = {
-									textFormat = { type = "select", name = "Text Format", desc = "Controls what text is shown on the pet health bar.\n\n|cffffffffCurrent|r — Shows actual health.\n|cffffffffPercent|r — Shows health percentage.\n|cffffffffBoth|r — Shows both.\n|cffffffffCurrent / Max|r — Shows current and maximum.\n|cffffffffCurrent / Max (%)|r — Shows current, maximum, and percentage.\n|cffffffffDeficit|r — Shows how much health is missing. Hidden at full.\n|cffffffffNone|r — Hides the text.", values = textFormatValues, sorting = textFormatSorting, arg = "petHealthBar.textFormat", order = 1 },
-									numberFormat = { type = "select", name = "Number Format", desc = "Controls how numbers are displayed.", values = numberFormatValues, sorting = numberFormatSorting, arg = "petHealthBar.numberFormat", order = 2, disabled = function() local fmt = addon.db.profile.petHealthBar.textFormat; return fmt == C.TEXT_FORMAT.NONE or fmt == C.TEXT_FORMAT.PERCENT end },
-									textSize = { type = "range", name = "Text Size", desc = "Font size for the pet health text.", min = 6, max = 24, step = 1, arg = "petHealthBar.textSize", order = 3, disabled = function() return addon.db.profile.petHealthBar.textFormat == C.TEXT_FORMAT.NONE end },
-									textOutline = { type = "select", name = "Text Outline", desc = "Text outline style for the pet health bar.", values = textOutlineValuesInherit, sorting = textOutlineSortingInherit, arg = "petHealthBar.textOutline", order = 4, disabled = function() return addon.db.profile.petHealthBar.textFormat == C.TEXT_FORMAT.NONE end },
+									textFormat = { type = "select", name = L["Text Format"], desc = L["Controls what text is shown on the pet health bar.\n\n|cffffffffCurrent|r — Shows actual health.\n|cffffffffPercent|r — Shows health percentage.\n|cffffffffBoth|r — Shows both.\n|cffffffffCurrent / Max|r — Shows current and maximum.\n|cffffffffCurrent / Max (%)|r — Shows current, maximum, and percentage.\n|cffffffffDeficit|r — Shows how much health is missing. Hidden at full.\n|cffffffffNone|r — Hides the text."], values = textFormatValues, sorting = textFormatSorting, arg = "petHealthBar.textFormat", order = 1 },
+									numberFormat = { type = "select", name = L["Number Format"], desc = L["Controls how numbers are displayed."], values = numberFormatValues, sorting = numberFormatSorting, arg = "petHealthBar.numberFormat", order = 2, disabled = function() local fmt = addon.db.profile.petHealthBar.textFormat; return fmt == C.TEXT_FORMAT.NONE or fmt == C.TEXT_FORMAT.PERCENT end },
+									textSize = { type = "range", name = L["Text Size"], desc = L["Font size for the pet health text."], min = 6, max = 24, step = 1, arg = "petHealthBar.textSize", order = 3, disabled = function() return addon.db.profile.petHealthBar.textFormat == C.TEXT_FORMAT.NONE end },
+									textOutline = { type = "select", name = L["Text Outline"], desc = L["Text outline style for the pet health bar."], values = textOutlineValuesInherit, sorting = textOutlineSortingInherit, arg = "petHealthBar.textOutline", order = 4, disabled = function() return addon.db.profile.petHealthBar.textFormat == C.TEXT_FORMAT.NONE end },
 								},
 							},
 							colorSettings = {
 								type = "group",
-								name = "Color",
+								name = L["Color"],
 								inline = true,
 								order = 4,
 								disabled = function() return not addon.db.profile.petHealthBar.enabled end,
 								args = {
-									color = { type = "color", name = "Bar Color", desc = "The color for the pet health bar.", hasAlpha = false, get = colorGet, set = colorSet, arg = "petHealthBar.color", order = 1 },
+									color = { type = "color", name = L["Bar Color"], desc = L["The color for the pet health bar."], hasAlpha = false, get = colorGet, set = colorSet, arg = "petHealthBar.color", order = 1 },
 								},
 							},
 							overlaySettings = {
 								type = "group",
-								name = "Overlays",
+								name = L["Overlays"],
 								inline = true,
 								order = 5,
 								disabled = function() return not addon.db.profile.petHealthBar.enabled end,
 								args = {
-									showHealPrediction = { type = "toggle", name = "Heal Prediction", desc = "Shows a lighter overlay on the pet health bar representing incoming heals.", arg = "petHealthBar.showHealPrediction", order = 1 },
+									showHealPrediction = { type = "toggle", name = L["Heal Prediction"], desc = L["Shows a lighter overlay on the pet health bar representing incoming heals."], arg = "petHealthBar.showHealPrediction", order = 1 },
 								},
 							},
 						},
 					},
 				combopoints = {
 					type = "group",
-					name = "Combo Points",
+					name = L["Combo Points"],
 					order = 6,
 					hidden = function() return addon.playerClass ~= C.CLASS.ROGUE and addon.playerClass ~= C.CLASS.DRUID end,
 						args = {
 							introDesc = {
 								type = "description",
-								name = Dim("Horizontal combo point display below the resource bar.") .. "\n",
+								name = Dim(L["Horizontal combo point display below the resource bar."]) .. "\n",
 								fontSize = "medium",
 								order = 0,
 							},
-							enabled = { type = "toggle", name = "Enabled", desc = "Shows combo point bars below the resource bar. For Druids, this only appears while in Cat Form.", arg = "comboPoints.enabled", order = 1 },
+							enabled = { type = "toggle", name = L["Enabled"], desc = L["Shows combo point bars below the resource bar. For Druids, this only appears while in Cat Form."], arg = "comboPoints.enabled", order = 1 },
 							sizeLayout = {
 								type = "group",
-								name = "Size & Layout",
+								name = L["Size & Layout"],
 								inline = true,
 								order = 2,
 								disabled = function() return addon.db and addon.db.profile and not addon.db.profile.comboPoints.enabled end,
 								args = {
-									width = { type = "range", name = "Width", desc = "The total width of the combo points display in pixels.", min = 50, max = 600, step = 1, arg = "comboPoints.width", order = 1 },
-									barHeight = { type = "range", name = "Bar Height", desc = "The height of each combo point bar in pixels. Smaller values create a more subtle display.", min = 2, max = 60, step = 1, arg = "comboPoints.barHeight", order = 2 },
-									barSpacing = { type = "range", name = "Bar Spacing", desc = "The gap in pixels between each individual combo point segment.", min = 0, max = 20, step = 1, arg = "comboPoints.barSpacing", order = 3 },
+									width = { type = "range", name = L["Width"], desc = L["The total width of the combo points display in pixels."], min = 50, max = 600, step = 1, arg = "comboPoints.width", order = 1 },
+									barHeight = { type = "range", name = L["Bar Height"], desc = L["The height of each combo point bar in pixels. Smaller values create a more subtle display."], min = 2, max = 60, step = 1, arg = "comboPoints.barHeight", order = 2 },
+									barSpacing = { type = "range", name = L["Bar Spacing"], desc = L["The gap in pixels between each individual combo point segment."], min = 0, max = 20, step = 1, arg = "comboPoints.barSpacing", order = 3 },
 								},
 							},
 							appearance = {
 								type = "group",
-								name = "Appearance",
+								name = L["Appearance"],
 								inline = true,
 								order = 3,
 								disabled = function() return addon.db and addon.db.profile and not addon.db.profile.comboPoints.enabled end,
 								args = {
-									color = { type = "color", name = "Color", desc = "The color used for active combo point segments.", hasAlpha = false, get = colorGet, set = colorSet, arg = "comboPoints.color", order = 1 },
+									color = { type = "color", name = L["Color"], desc = L["The color used for active combo point segments."], hasAlpha = false, get = colorGet, set = colorSet, arg = "comboPoints.color", order = 1 },
 								},
 							},
 						},
 					},
 					procs = {
 						type = "group",
-						name = "Aura Tracker",
+						name = L["Aura Tracker"],
 						order = 1,
 						args = {
 							description = {
 								type = "description",
-								name = Dim("The Aura Tracker shows small icons for important temporary buffs — class procs (Enrage, Flurry, Clearcasting), external buffs (Bloodlust, Power Infusion, Innervate), and any custom auras you add.\n\nUse the tabs above to configure which auras to show.") .. "\n",
+								name = Dim(L["The Aura Tracker shows small icons for important temporary buffs — class procs (Enrage, Flurry, Clearcasting), external buffs (Bloodlust, Power Infusion, Innervate), and any custom auras you add.\n\nUse the tabs above to configure which auras to show."]) .. "\n",
 								fontSize = "medium",
 								order = 0,
 							},
-							enabled = { type = "toggle", name = "Enable Aura Tracker", desc = "Master toggle for the Aura Tracker feature. When disabled, no aura icons will be shown.", arg = "auraTracker.enabled", order = 1, width = "full" },
+							enabled = { type = "toggle", name = L["Enable Aura Tracker"], desc = L["Master toggle for the Aura Tracker feature. When disabled, no aura icons will be shown."], arg = "auraTracker.enabled", order = 1, width = "full" },
 							layout = {
 								type = "group",
-								name = "Layout",
+								name = L["Layout"],
 								inline = true,
 								order = 2,
 								disabled = function() return addon.db and addon.db.profile and not addon.db.profile.auraTracker.enabled end,
 								args = {
-									iconSize = { type = "range", name = "Icon Size", desc = "How big the aura icons are in pixels. These are typically smaller than ability icons since they're just indicators. 20-28 pixels works well for most people.", min = 12, max = 140, step = 1, arg = "auraTracker.iconSize", order = 1 },
-									iconSpacing = { type = "range", name = "Icon Spacing", desc = "The gap in pixels between each aura icon when multiple auras are active at once.", min = 0, max = 40, step = 1, arg = "auraTracker.iconSpacing", order = 2 },
+									iconSize = { type = "range", name = L["Icon Size"], desc = L["How big the aura icons are in pixels. These are typically smaller than ability icons since they're just indicators. 20-28 pixels works well for most people."], min = 12, max = 140, step = 1, arg = "auraTracker.iconSize", order = 1 },
+									iconSpacing = { type = "range", name = L["Icon Spacing"], desc = L["The gap in pixels between each aura icon when multiple auras are active at once."], min = 0, max = 40, step = 1, arg = "auraTracker.iconSpacing", order = 2 },
 									iconAspectRatio = {
 										type = "select",
-										name = "Aspect Ratio",
-										desc = "Makes aura icons shorter by shrinking height while keeping width the same. Useful if you want compact spell rows but prefer aura icons to stay more square and readable.",
+										name = L["Aspect Ratio"],
+										desc = L["Makes aura icons shorter by shrinking height while keeping width the same. Useful if you want compact spell rows but prefer aura icons to stay more square and readable."],
 										values = {
-											[1.0] = "Square (1:1)",
-											[1.165] = "Slightly Compact",
-											[1.33] = "Compact (4:3)",
-											[1.665] = "Very Compact",
-											[2.0] = "Ultra Compact (2:1)",
+											[1.0] = L["Square (1:1)"],
+											[1.165] = L["Slightly Compact"],
+											[1.33] = L["Compact (4:3)"],
+											[1.665] = L["Very Compact"],
+											[2.0] = L["Ultra Compact (2:1)"],
 										},
 										sorting = {1.0, 1.165, 1.33, 1.665, 2.0},
 										arg = "auraTracker.iconAspectRatio",
@@ -2178,72 +2179,72 @@ function Options:BuildOptionsTable()
 							},
 							glow = {
 								type = "group",
-								name = "Glow",
+								name = L["Glow"],
 								inline = true,
 								order = 3,
 								disabled = function() return addon.db and addon.db.profile and not addon.db.profile.auraTracker.enabled end,
 								args = {
-									activeGlow = { type = "toggle", name = "Edge Glow", desc = "Shows a glowing animated border around active aura icons, making them stand out and drawing your eye to important buffs.", width = "full", arg = "auraTracker.activeGlow", order = 1 },
-									backdropGlowIntensity = { type = "range", name = "Backdrop Intensity", desc = "Controls the brightness of the soft colored halo that appears behind each aura icon. Higher values make the glow more prominent. Set to 0 to turn it off completely.", min = 0, max = 0.8, step = 0.05, width = "normal", arg = "auraTracker.backdropGlowIntensity", order = 2 },
-									backdropGlowSize = { type = "range", name = "Backdrop Size", desc = "How far the backdrop glow extends outward from each aura icon. Larger values create a wider, softer halo.", min = 0.5, max = 6.0, step = 0.1, width = "normal", arg = "auraTracker.backdropGlowSize", order = 3 },
+									activeGlow = { type = "toggle", name = L["Edge Glow"], desc = L["Shows a glowing animated border around active aura icons, making them stand out and drawing your eye to important buffs."], width = "full", arg = "auraTracker.activeGlow", order = 1 },
+									backdropGlowIntensity = { type = "range", name = L["Backdrop Intensity"], desc = L["Controls the brightness of the soft colored halo that appears behind each aura icon. Higher values make the glow more prominent. Set to 0 to turn it off completely."], min = 0, max = 0.8, step = 0.05, width = "normal", arg = "auraTracker.backdropGlowIntensity", order = 2 },
+									backdropGlowSize = { type = "range", name = L["Backdrop Size"], desc = L["How far the backdrop glow extends outward from each aura icon. Larger values create a wider, softer halo."], min = 0.5, max = 6.0, step = 0.1, width = "normal", arg = "auraTracker.backdropGlowSize", order = 3 },
 								},
 							},
 							animation = {
 								type = "group",
-								name = "Animation",
+								name = L["Animation"],
 								inline = true,
 								order = 4,
 								disabled = function() return addon.db and addon.db.profile and not addon.db.profile.auraTracker.enabled end,
 								args = {
-									showDuration = { type = "toggle", name = "Show Duration", desc = "Displays the remaining time on aura buffs as text on the icon. Disable if you prefer a cleaner look or if it overlaps with stack counts.", width = "normal", arg = "auraTracker.showDuration", order = 1 },
-									textOutline = { type = "select", name = "Text Outline", desc = "Text outline style for aura tracker text.", values = textOutlineValuesInherit, sorting = textOutlineSortingInherit, arg = "auraTracker.textOutline", order = 1.5 },
-									slideAnimation = { type = "toggle", name = "Slide Animation", desc = "When auras appear or disappear, the remaining icons smoothly slide to re-center instead of snapping instantly. Disable for instant repositioning.", width = "normal", arg = "auraTracker.slideAnimation", order = 2 },
-									punchScale = { type = "range", name = "Activation Pop", desc = "How much the icon briefly grows when an aura activates or refreshes. Set to 100% to disable the pop animation.", min = 1.0, max = 2.0, step = 0.05, isPercent = true, arg = "auraTracker.punchScale", order = 3 },
-									sortOrder = { type = "select", name = "Sort Order", desc = "How active aura icons are arranged.\n\n|cffffffffActivation Order|r — First-activated aura appears on the left, newest on the right.\n\n|cffffffffFixed|r — Icons stay in a consistent order based on spell registration (class procs first, then externals, then custom).\n\n|cffffffffLeast Remaining|r — Aura closest to expiring appears on the left. Icons re-sort as durations tick down.", values = { [C.AURA_SORT_ORDER.FIFO] = "Activation Order", [C.AURA_SORT_ORDER.FIXED] = "Fixed", [C.AURA_SORT_ORDER.REMAINING] = "Least Remaining" }, sorting = { C.AURA_SORT_ORDER.FIFO, C.AURA_SORT_ORDER.FIXED, C.AURA_SORT_ORDER.REMAINING }, arg = "auraTracker.sortOrder", order = 4 },
+									showDuration = { type = "toggle", name = L["Show Duration"], desc = L["Displays the remaining time on aura buffs as text on the icon. Disable if you prefer a cleaner look or if it overlaps with stack counts."], width = "normal", arg = "auraTracker.showDuration", order = 1 },
+									textOutline = { type = "select", name = L["Text Outline"], desc = L["Text outline style for aura tracker text."], values = textOutlineValuesInherit, sorting = textOutlineSortingInherit, arg = "auraTracker.textOutline", order = 1.5 },
+									slideAnimation = { type = "toggle", name = L["Slide Animation"], desc = L["When auras appear or disappear, the remaining icons smoothly slide to re-center instead of snapping instantly. Disable for instant repositioning."], width = "normal", arg = "auraTracker.slideAnimation", order = 2 },
+									punchScale = { type = "range", name = L["Activation Pop"], desc = L["How much the icon briefly grows when an aura activates or refreshes. Set to 100% to disable the pop animation."], min = 1.0, max = 2.0, step = 0.05, isPercent = true, arg = "auraTracker.punchScale", order = 3 },
+									sortOrder = { type = "select", name = L["Sort Order"], desc = L["How active aura icons are arranged.\n\n|cffffffffActivation Order|r — First-activated aura appears on the left, newest on the right.\n\n|cffffffffFixed|r — Icons stay in a consistent order based on spell registration (class procs first, then externals, then custom).\n\n|cffffffffLeast Remaining|r — Aura closest to expiring appears on the left. Icons re-sort as durations tick down."], values = { [C.AURA_SORT_ORDER.FIFO] = L["Activation Order"], [C.AURA_SORT_ORDER.FIXED] = L["Fixed"], [C.AURA_SORT_ORDER.REMAINING] = L["Least Remaining"] }, sorting = { C.AURA_SORT_ORDER.FIFO, C.AURA_SORT_ORDER.FIXED, C.AURA_SORT_ORDER.REMAINING }, arg = "auraTracker.sortOrder", order = 4 },
 								},
 							},
 							bars = {
 								type = "group",
-								name = "Bars",
+								name = L["Bars"],
 								inline = true,
 								order = 4.5,
 								disabled = function() return addon.db and addon.db.profile and not addon.db.profile.auraTracker.enabled end,
 								args = {
 									barsDesc = {
 										type = "description",
-										name = Dim("Auras set to \"Bar\" mode (via the Display dropdown in the aura list tabs) render as a vertical stack of timer bars below the icon row. These settings control how those bars look.") .. "\n",
+										name = Dim(L["Auras set to \"Bar\" mode (via the Display dropdown in the aura list tabs) render as a vertical stack of timer bars below the icon row. These settings control how those bars look."]) .. "\n",
 										order = 0,
 										width = "full",
 									},
-									width = { type = "range", name = "Bar Width", desc = "Width of each timer bar in pixels.", min = 60, max = 400, step = 1, arg = "auraTracker.bars.width", order = 1 },
-									height = { type = "range", name = "Bar Height", desc = "Height of each timer bar in pixels. The spell icon is sized to match.", min = 8, max = 48, step = 1, arg = "auraTracker.bars.height", order = 2 },
-									spacing = { type = "range", name = "Bar Spacing", desc = "Vertical gap in pixels between stacked bars.", min = 0, max = 16, step = 1, arg = "auraTracker.bars.spacing", order = 3 },
-									textSize = { type = "range", name = "Text Size", desc = "Font size for the bar's name and timer text.", min = 6, max = 28, step = 1, arg = "auraTracker.bars.textSize", order = 4 },
-									textOutline = { type = "select", name = "Text Outline", desc = "Text outline style for bar text.", values = textOutlineValuesInherit, sorting = textOutlineSortingInherit, arg = "auraTracker.bars.textOutline", order = 5 },
-									defaultColor = { type = "color", name = "Default Color", desc = "Fallback fill color for bars whose spell has no icon-sampled color (most do). Each aura's color is normally taken from its icon; you can override per aura in the aura list tabs.", hasAlpha = false, get = colorGet, set = colorSet, arg = "auraTracker.bars.defaultColor", order = 6 },
-									showIcon = { type = "toggle", name = "Show Icon", desc = "Show the spell icon at the left edge of each bar.", arg = "auraTracker.bars.showIcon", order = 7, width = 0.7 },
-									showName = { type = "toggle", name = "Show Name", desc = "Show the aura name on each bar.", arg = "auraTracker.bars.showName", order = 8, width = 0.7 },
-									showDuration = { type = "toggle", name = "Show Timer", desc = "Show the remaining-time text on each bar.", arg = "auraTracker.bars.showDuration", order = 9, width = 0.7 },
-									showSpark = { type = "toggle", name = "Show Spark", desc = "Show a spark at the fill edge of each bar.", arg = "auraTracker.bars.showSpark", order = 10, width = 0.7 },
+									width = { type = "range", name = L["Bar Width"], desc = L["Width of each timer bar in pixels."], min = 60, max = 400, step = 1, arg = "auraTracker.bars.width", order = 1 },
+									height = { type = "range", name = L["Bar Height"], desc = L["Height of each timer bar in pixels. The spell icon is sized to match."], min = 8, max = 48, step = 1, arg = "auraTracker.bars.height", order = 2 },
+									spacing = { type = "range", name = L["Bar Spacing"], desc = L["Vertical gap in pixels between stacked bars."], min = 0, max = 16, step = 1, arg = "auraTracker.bars.spacing", order = 3 },
+									textSize = { type = "range", name = L["Text Size"], desc = L["Font size for the bar's name and timer text."], min = 6, max = 28, step = 1, arg = "auraTracker.bars.textSize", order = 4 },
+									textOutline = { type = "select", name = L["Text Outline"], desc = L["Text outline style for bar text."], values = textOutlineValuesInherit, sorting = textOutlineSortingInherit, arg = "auraTracker.bars.textOutline", order = 5 },
+									defaultColor = { type = "color", name = L["Default Color"], desc = L["Fallback fill color for bars whose spell has no icon-sampled color (most do). Each aura's color is normally taken from its icon; you can override per aura in the aura list tabs."], hasAlpha = false, get = colorGet, set = colorSet, arg = "auraTracker.bars.defaultColor", order = 6 },
+									showIcon = { type = "toggle", name = L["Show Icon"], desc = L["Show the spell icon at the left edge of each bar."], arg = "auraTracker.bars.showIcon", order = 7, width = 0.7 },
+									showName = { type = "toggle", name = L["Show Name"], desc = L["Show the aura name on each bar."], arg = "auraTracker.bars.showName", order = 8, width = 0.7 },
+									showDuration = { type = "toggle", name = L["Show Timer"], desc = L["Show the remaining-time text on each bar."], arg = "auraTracker.bars.showDuration", order = 9, width = 0.7 },
+									showSpark = { type = "toggle", name = L["Show Spark"], desc = L["Show a spark at the fill edge of each bar."], arg = "auraTracker.bars.showSpark", order = 10, width = 0.7 },
 								},
 							},
 							soundGroup = {
 								type = "group",
-								name = "Sound",
+								name = L["Sound"],
 								inline = true,
 								order = 5,
 								disabled = function() return addon.db and addon.db.profile and not addon.db.profile.auraTracker.enabled end,
 								args = {
 									soundOnProc = SoundDropdown({
-										name = "Default Sound",
-										desc = "Sound to play when any aura activates. Individual auras can override this in the aura list tabs.",
+										name = L["Default Sound"],
+										desc = L["Sound to play when any aura activates. Individual auras can override this in the aura list tabs."],
 										arg = "auraTracker.soundOnProc",
 										order = 1,
 									}),
 									soundOnRefresh = {
 										type = "toggle",
-										name = "Play on Refresh",
-										desc = "Also play the sound when an aura refreshes (is reapplied while already active). Useful for procs like Mace Stun where each trigger matters. Individual auras can override this in the aura list tabs.",
+										name = L["Play on Refresh"],
+										desc = L["Also play the sound when an aura refreshes (is reapplied while already active). Useful for procs like Mace Stun where each trigger matters. Individual auras can override this in the aura list tabs."],
 										arg = "auraTracker.soundOnRefresh",
 										order = 2,
 									},
@@ -2253,7 +2254,7 @@ function Options:BuildOptionsTable()
 					},
 					swingbar = {
 						type = "group",
-						name = "Swing Bar",
+						name = L["Swing Bar"],
 						order = 3,
 						args = {
 							classInfo = {
@@ -2262,50 +2263,50 @@ function Options:BuildOptionsTable()
 									local class = addon.playerClass
 									local spec = addon.playerSpec
 									if class == C.CLASS.HUNTER then
-										return Dim("Your character automatically fires auto-shots on a timer. If you cast an ability too late in the timer, it 'clips' (delays) your next auto-shot, costing you DPS. The bar turns green when it's safe to cast and red when casting would clip. Once you learn Steady Shot, a yellow zone appears for the window where Steady Shot would clip but instants and movement are still safe.") .. "\n"
+										return Dim(L["Your character automatically fires auto-shots on a timer. If you cast an ability too late in the timer, it 'clips' (delays) your next auto-shot, costing you DPS. The bar turns green when it's safe to cast and red when casting would clip. Once you learn Steady Shot, a yellow zone appears for the window where Steady Shot would clip but instants and movement are still safe."]) .. "\n"
 									elseif class == C.CLASS.PALADIN then
 										if spec == C.SPEC.RETRIBUTION then
-											return Dim("Seal twisting lets you get two seal procs on a single melee swing by swapping seals right before the hit lands. The bar turns green during the twist window — the last ~0.4 seconds before impact — telling you when to swap to your second seal.") .. "\n"
+											return Dim(L["Seal twisting lets you get two seal procs on a single melee swing by swapping seals right before the hit lands. The bar turns green during the twist window — the last ~0.4 seconds before impact — telling you when to swap to your second seal."]) .. "\n"
 										else
-											return Dim("Tracks your melee swing timer — a bar that fills up as your next auto-attack approaches. Auto-hides between pulls.") .. "\n"
+											return Dim(L["Tracks your melee swing timer — a bar that fills up as your next auto-attack approaches. Auto-hides between pulls."]) .. "\n"
 										end
 									elseif class == C.CLASS.SHAMAN then
 										if spec == C.SPEC.ENHANCEMENT then
-											return Dim("Two bars track your main-hand and off-hand swing timers. When both weapons swing at the same time (synced), your Flurry haste charges aren't wasted on isolated off-hand hits, and Windfury extra attacks land alongside your normal swings. Bars turn green when synced and red when desynced — meaning one weapon has drifted ahead of the other.") .. "\n"
+											return Dim(L["Two bars track your main-hand and off-hand swing timers. When both weapons swing at the same time (synced), your Flurry haste charges aren't wasted on isolated off-hand hits, and Windfury extra attacks land alongside your normal swings. Bars turn green when synced and red when desynced — meaning one weapon has drifted ahead of the other."]) .. "\n"
 										else
-											return Dim("Tracks your melee swing timer — a bar that fills up as your next auto-attack approaches. Auto-hides between pulls.") .. "\n"
+											return Dim(L["Tracks your melee swing timer — a bar that fills up as your next auto-attack approaches. Auto-hides between pulls."]) .. "\n"
 										end
 									elseif class == C.CLASS.WARRIOR then
 										local dwText = "When dual-wielding, two bars track your main-hand and off-hand swing timers. When Heroic Strike is queued, your off-hand's dual-wield miss penalty is removed — but MH fire consumes the queued HS. Bars turn red when your off-hand fires right after your main-hand (no time to re-queue HS), and green when there's a comfortable gap. Use a desync macro if they drift together."
 										if spec == C.SPEC.ARMS then
-											return Dim("Tracks your melee swing timer. Slam resets this timer, so for maximum DPS you want to Slam right after a swing lands (when the bar reaches the end and resets). This avoids losing auto-attack time to the Slam cast.\n\n" .. dwText) .. "\n"
+											return Dim(L["Tracks your melee swing timer. Slam resets this timer, so for maximum DPS you want to Slam right after a swing lands (when the bar reaches the end and resets). This avoids losing auto-attack time to the Slam cast.\n\n"] .. dwText) .. "\n"
 										else
-											return Dim("Tracks your melee swing timer — a bar that fills up as your next auto-attack approaches. Auto-hides between pulls.\n\n" .. dwText) .. "\n"
+											return Dim(L["Tracks your melee swing timer — a bar that fills up as your next auto-attack approaches. Auto-hides between pulls.\n\n"] .. dwText) .. "\n"
 										end
 									elseif class == C.CLASS.MAGE or class == C.CLASS.PRIEST or class == C.CLASS.WARLOCK then
-										return Dim("Tracks your auto-attack timer for wanding or melee. Only appears while actively attacking and auto-hides when you stop.") .. "\n"
+										return Dim(L["Tracks your auto-attack timer for wanding or melee. Only appears while actively attacking and auto-hides when you stop."]) .. "\n"
 									elseif class == C.CLASS.ROGUE then
-										return Dim("Tracks your melee swing timer. Shows separate main-hand and off-hand bars when dual-wielding.") .. "\n"
+										return Dim(L["Tracks your melee swing timer. Shows separate main-hand and off-hand bars when dual-wielding."]) .. "\n"
 									elseif class == C.CLASS.DRUID then
-										return Dim("Tracks your melee swing timer in Cat or Bear Form. Bear Form's 2.5s swing is useful for timing Maul. Auto-hides when not actively swinging.") .. "\n"
+										return Dim(L["Tracks your melee swing timer in Cat or Bear Form. Bear Form's 2.5s swing is useful for timing Maul. Auto-hides when not actively swinging."]) .. "\n"
 									end
 									return ""
 								end,
 								order = 0,
 								fontSize = "medium",
 							},
-							enabled = { type = "toggle", name = "Enabled", desc = "Shows a weapon swing timer bar that fills as your next auto-attack approaches. Includes class-specific colored zones: Hunter shot clipping, Ret Paladin seal twisting, Enhancement/Warrior dual-wield sync. Auto-hides when not actively swinging.", arg = "swingBar.enabled", order = 1 },
+							enabled = { type = "toggle", name = L["Enabled"], desc = L["Shows a weapon swing timer bar that fills as your next auto-attack approaches. Includes class-specific colored zones: Hunter shot clipping, Ret Paladin seal twisting, Enhancement/Warrior dual-wield sync. Auto-hides when not actively swinging."], arg = "swingBar.enabled", order = 1 },
 							layout = {
 								type = "group",
-								name = "Layout",
+								name = L["Layout"],
 								inline = true,
 								order = 2,
 								disabled = function() return not addon.db.profile.swingBar.enabled end,
 								args = {
-									width = { type = "range", name = "Width", desc = "Width of the swing bar in pixels.", min = 50, max = 600, step = 1, arg = "swingBar.width", order = 1 },
+									width = { type = "range", name = L["Width"], desc = L["Width of the swing bar in pixels."], min = 50, max = 600, step = 1, arg = "swingBar.width", order = 1 },
 									height = {
-										type = "range", name = "Height", order = 2,
-										desc = "Height of the swing bar in pixels (single weapon). Per-class/spec: each class or spec remembers its own height.",
+										type = "range", name = L["Height"], order = 2,
+										desc = L["Height of the swing bar in pixels (single weapon). Per-class/spec: each class or spec remembers its own height."],
 										min = 1, max = 60, step = 1,
 										get = function()
 											local db = addon.db.profile.swingBar
@@ -2322,23 +2323,23 @@ function Options:BuildOptionsTable()
 											end
 										end,
 									},
-									wandHeight = { type = "range", name = "Wand Height", desc = "Height of the swing bar in pixels for wand users (Mage, Priest, Warlock).", min = 1, max = 60, step = 1, arg = "swingBar.wandHeight", order = 3, hidden = function() local c = addon.playerClass; return c ~= C.CLASS.MAGE and c ~= C.CLASS.PRIEST and c ~= C.CLASS.WARLOCK end },
-									dualWieldHeight = { type = "range", name = "Dual-Wield Height", desc = "Height of each bar when dual-wielding (MH and OH bars shown separately).", min = 1, max = 60, step = 1, arg = "swingBar.dualWieldHeight", order = 4, hidden = function() local c = addon.playerClass; return c == C.CLASS.MAGE or c == C.CLASS.PRIEST or c == C.CLASS.WARLOCK or c == C.CLASS.DRUID or c == C.CLASS.PALADIN end },
-									dualWieldSpacing = { type = "range", name = "Dual-Wield Spacing", desc = "Gap in pixels between the main-hand and off-hand bars.", min = 0, max = 10, step = 1, arg = "swingBar.dualWieldSpacing", order = 5, hidden = function() local c = addon.playerClass; return c == C.CLASS.MAGE or c == C.CLASS.PRIEST or c == C.CLASS.WARLOCK or c == C.CLASS.DRUID or c == C.CLASS.PALADIN end },
+									wandHeight = { type = "range", name = L["Wand Height"], desc = L["Height of the swing bar in pixels for wand users (Mage, Priest, Warlock)."], min = 1, max = 60, step = 1, arg = "swingBar.wandHeight", order = 3, hidden = function() local c = addon.playerClass; return c ~= C.CLASS.MAGE and c ~= C.CLASS.PRIEST and c ~= C.CLASS.WARLOCK end },
+									dualWieldHeight = { type = "range", name = L["Dual-Wield Height"], desc = L["Height of each bar when dual-wielding (MH and OH bars shown separately)."], min = 1, max = 60, step = 1, arg = "swingBar.dualWieldHeight", order = 4, hidden = function() local c = addon.playerClass; return c == C.CLASS.MAGE or c == C.CLASS.PRIEST or c == C.CLASS.WARLOCK or c == C.CLASS.DRUID or c == C.CLASS.PALADIN end },
+									dualWieldSpacing = { type = "range", name = L["Dual-Wield Spacing"], desc = L["Gap in pixels between the main-hand and off-hand bars."], min = 0, max = 10, step = 1, arg = "swingBar.dualWieldSpacing", order = 5, hidden = function() local c = addon.playerClass; return c == C.CLASS.MAGE or c == C.CLASS.PRIEST or c == C.CLASS.WARLOCK or c == C.CLASS.DRUID or c == C.CLASS.PALADIN end },
 								},
 							},
 							display = {
 								type = "group",
-								name = "Display",
+								name = L["Display"],
 								inline = true,
 								order = 3,
 								disabled = function() return not addon.db.profile.swingBar.enabled end,
 								args = {
-									showSpark = { type = "toggle", name = "Show Spark", desc = "Show a glowing spark at the fill edge of the bar.", arg = "swingBar.showSpark", order = 1 },
-									hideDelay = { type = "range", name = "Hide Delay", desc = "Seconds to wait after the last swing before auto-hiding the bar.", min = 0, max = 10, step = 0.1, arg = "swingBar.hideDelay", order = 2 },
+									showSpark = { type = "toggle", name = L["Show Spark"], desc = L["Show a glowing spark at the fill edge of the bar."], arg = "swingBar.showSpark", order = 1 },
+									hideDelay = { type = "range", name = L["Hide Delay"], desc = L["Seconds to wait after the last swing before auto-hiding the bar."], min = 0, max = 10, step = 0.1, arg = "swingBar.hideDelay", order = 2 },
 									color = {
-										type = "color", name = "Bar Color", hasAlpha = false,
-										desc = "The fill color of the swing bar. Disabled when class-specific coloring overrides the entire bar.",
+										type = "color", name = L["Bar Color"], hasAlpha = false,
+										desc = L["The fill color of the swing bar. Disabled when class-specific coloring overrides the entire bar."],
 										get = colorGet, set = colorSet, arg = "swingBar.color", order = 3,
 										disabled = function()
 											if not addon.db.profile.swingBar.enabled then return true end
@@ -2352,19 +2353,19 @@ function Options:BuildOptionsTable()
 							},
 							text = {
 								type = "group",
-								name = "Timer Text",
+								name = L["Timer Text"],
 								inline = true,
 								order = 4,
 								disabled = function() return not addon.db.profile.swingBar.enabled end,
 								args = {
-									showText = { type = "toggle", name = "Show Timer Text", desc = "Show a countdown timer on the bar.", arg = "swingBar.showText", order = 1 },
-									textSize = { type = "range", name = "Text Size", desc = "Font size for the timer text.", min = 6, max = 24, step = 1, arg = "swingBar.textSize", order = 2, disabled = function() return not addon.db.profile.swingBar.showText end },
-									textOutline = { type = "select", name = "Text Outline", desc = "Text outline style for the swing bar.", values = textOutlineValuesInherit, sorting = textOutlineSortingInherit, arg = "swingBar.textOutline", order = 3, disabled = function() return not addon.db.profile.swingBar.showText end },
+									showText = { type = "toggle", name = L["Show Timer Text"], desc = L["Show a countdown timer on the bar."], arg = "swingBar.showText", order = 1 },
+									textSize = { type = "range", name = L["Text Size"], desc = L["Font size for the timer text."], min = 6, max = 24, step = 1, arg = "swingBar.textSize", order = 2, disabled = function() return not addon.db.profile.swingBar.showText end },
+									textOutline = { type = "select", name = L["Text Outline"], desc = L["Text outline style for the swing bar."], values = textOutlineValuesInherit, sorting = textOutlineSortingInherit, arg = "swingBar.textOutline", order = 3, disabled = function() return not addon.db.profile.swingBar.showText end },
 								},
 							},
 							classOptions = {
 								type = "group",
-								name = "Class Options",
+								name = L["Class Options"],
 								inline = true,
 								order = 5,
 								disabled = function() return not addon.db.profile.swingBar.enabled end,
@@ -2375,19 +2376,19 @@ function Options:BuildOptionsTable()
 								end,
 								args = {
 									-- Hunter: shot zones
-									enableClipZones = { type = "toggle", name = "Enable Shot Zones", desc = "Color the bar by auto-shot timing:\n\n|cffffffffGreen|r — Safe to cast anything and move freely.\n|cffffffffYellow|r — Steady Shot would clip, but instants and movement are safe.\n|cffffffffRed|r — Don't move or cast Multi-Shot (auto-shot animation playing).", arg = "swingBar.enableClipZones", order = 1, width = "full", hidden = function() return addon.playerClass ~= C.CLASS.HUNTER end },
-									hunterSafeColor = { type = "color", name = "Safe Zone (Green)", desc = "Bar color when it's safe to cast and move.", hasAlpha = false, get = colorGet, set = colorSet, arg = "swingBar.safeColor", order = 2, hidden = function() return addon.playerClass ~= C.CLASS.HUNTER end, disabled = function() return not addon.db.profile.swingBar.enableClipZones end },
-									hunterCautionColor = { type = "color", name = "Steady Zone (Yellow)", desc = "Bar color when Steady Shot would clip, but instant shots and movement are still safe.", hasAlpha = false, get = colorGet, set = colorSet, arg = "swingBar.cautionColor", order = 3, hidden = function() return addon.playerClass ~= C.CLASS.HUNTER end, disabled = function() return not addon.db.profile.swingBar.enableClipZones end },
-									hunterDangerColor = { type = "color", name = "Stop Zone (Red)", desc = "Bar color when moving would cancel your auto-shot and Multi-Shot would clip.", hasAlpha = false, get = colorGet, set = colorSet, arg = "swingBar.dangerColor", order = 4, hidden = function() return addon.playerClass ~= C.CLASS.HUNTER end, disabled = function() return not addon.db.profile.swingBar.enableClipZones end },
+									enableClipZones = { type = "toggle", name = L["Enable Shot Zones"], desc = L["Color the bar by auto-shot timing:\n\n|cffffffffGreen|r — Safe to cast anything and move freely.\n|cffffffffYellow|r — Steady Shot would clip, but instants and movement are safe.\n|cffffffffRed|r — Don't move or cast Multi-Shot (auto-shot animation playing)."], arg = "swingBar.enableClipZones", order = 1, width = "full", hidden = function() return addon.playerClass ~= C.CLASS.HUNTER end },
+									hunterSafeColor = { type = "color", name = L["Safe Zone (Green)"], desc = L["Bar color when it's safe to cast and move."], hasAlpha = false, get = colorGet, set = colorSet, arg = "swingBar.safeColor", order = 2, hidden = function() return addon.playerClass ~= C.CLASS.HUNTER end, disabled = function() return not addon.db.profile.swingBar.enableClipZones end },
+									hunterCautionColor = { type = "color", name = L["Steady Zone (Yellow)"], desc = L["Bar color when Steady Shot would clip, but instant shots and movement are still safe."], hasAlpha = false, get = colorGet, set = colorSet, arg = "swingBar.cautionColor", order = 3, hidden = function() return addon.playerClass ~= C.CLASS.HUNTER end, disabled = function() return not addon.db.profile.swingBar.enableClipZones end },
+									hunterDangerColor = { type = "color", name = L["Stop Zone (Red)"], desc = L["Bar color when moving would cancel your auto-shot and Multi-Shot would clip."], hasAlpha = false, get = colorGet, set = colorSet, arg = "swingBar.dangerColor", order = 4, hidden = function() return addon.playerClass ~= C.CLASS.HUNTER end, disabled = function() return not addon.db.profile.swingBar.enableClipZones end },
 
 									-- Ret Paladin: twist window
-									enableTwistWindow = { type = "toggle", name = "Enable Twist Window", desc = "Highlight the last ~0.4 seconds before your melee swing with a different color — your cue to swap seals for seal twisting.", arg = "swingBar.enableTwistWindow", order = 5, width = "full", hidden = function() return not isRetPaladin() end },
-									twistColor = { type = "color", name = "Twist Window Color", desc = "Bar color during the seal twist window.", hasAlpha = false, get = colorGet, set = colorSet, arg = "swingBar.safeColor", order = 6, hidden = function() return not isRetPaladin() end, disabled = function() return not addon.db.profile.swingBar.enableTwistWindow end },
+									enableTwistWindow = { type = "toggle", name = L["Enable Twist Window"], desc = L["Highlight the last ~0.4 seconds before your melee swing with a different color — your cue to swap seals for seal twisting."], arg = "swingBar.enableTwistWindow", order = 5, width = "full", hidden = function() return not isRetPaladin() end },
+									twistColor = { type = "color", name = L["Twist Window Color"], desc = L["Bar color during the seal twist window."], hasAlpha = false, get = colorGet, set = colorSet, arg = "swingBar.safeColor", order = 6, hidden = function() return not isRetPaladin() end, disabled = function() return not addon.db.profile.swingBar.enableTwistWindow end },
 
 									-- Zone opacity (Hunter shot zones + Ret twist window)
 									zoneAlpha = {
-										type = "range", name = "Zone Opacity", min = 0, max = 1, step = 0.05,
-										desc = "Opacity of the background zone indicators that preview upcoming color changes on the bar.",
+										type = "range", name = L["Zone Opacity"], min = 0, max = 1, step = 0.05,
+										desc = L["Opacity of the background zone indicators that preview upcoming color changes on the bar."],
 										arg = "swingBar.zoneAlpha", order = 7, isPercent = true,
 										hidden = function()
 											return addon.playerClass ~= C.CLASS.HUNTER
@@ -2402,11 +2403,11 @@ function Options:BuildOptionsTable()
 									},
 
 									-- Hunter: melee weaving (not zone-related, placed after zone options)
-									enableMeleeWeaving = { type = "toggle", name = "Melee Weaving", desc = "Show both ranged and melee swing bars simultaneously. For advanced hunters who weave melee attacks (e.g., Raptor Strike) between auto-shots.", arg = "swingBar.enableMeleeWeaving", order = 10, width = "full", hidden = function() return addon.playerClass ~= C.CLASS.HUNTER end },
+									enableMeleeWeaving = { type = "toggle", name = L["Melee Weaving"], desc = L["Show both ranged and melee swing bars simultaneously. For advanced hunters who weave melee attacks (e.g., Raptor Strike) between auto-shots."], arg = "swingBar.enableMeleeWeaving", order = 10, width = "full", hidden = function() return addon.playerClass ~= C.CLASS.HUNTER end },
 
 									-- Enhancement Shaman / Fury Warrior: sync colors
 									enableSyncColors = {
-										type = "toggle", name = "Enable Sync Colors",
+										type = "toggle", name = L["Enable Sync Colors"],
 										desc = function()
 											if addon.playerClass == C.CLASS.WARRIOR then
 												return "Color both bars by your HS re-queue window. |cffffffffGreen|r when there's time to re-queue HS before off-hand fires, |cffffffffRed|r when off-hand fires too soon after main-hand (no time to re-queue)."
@@ -2417,7 +2418,7 @@ function Options:BuildOptionsTable()
 										hidden = function() return not isDualWieldSyncSpec() end,
 									},
 									syncThreshold = {
-										type = "range", name = "Sync Threshold",
+										type = "range", name = L["Sync Threshold"],
 										desc = function()
 											if addon.playerClass == C.CLASS.WARRIOR then
 												return "If your off-hand fires within this many seconds after your main-hand, bars turn red. Increase if you need more reaction time to re-queue HS."
@@ -2462,25 +2463,25 @@ function Options:BuildOptionsTable()
 
 			spells = {
 				type = "group",
-				name = "Spell Config",
+				name = L["Spell Config"],
 				order = 3,
 				childGroups = "tab",
 				args = {
 					spellsTab = {
 						type = "group",
-						name = "Spells",
+						name = L["Spells"],
 						order = 1,
 						args = {
 							_desc = {
 								type = "description",
-								name = Dim("Click the button below to open the spell configuration window — enable/disable spells, reorder them, and drag between rows."),
+								name = Dim(L["Click the button below to open the spell configuration window — enable/disable spells, reorder them, and drag between rows."]),
 								order = 1,
 								fontSize = "medium",
 							},
 							openButton = {
 								type = "execute",
-								name = "Open Spell Configuration",
-								desc = "Opens the spell configuration window where you can enable/disable spells, reorder them, and move them between rows using drag-and-drop.",
+								name = L["Open Spell Configuration"],
+								desc = L["Opens the spell configuration window where you can enable/disable spells, reorder them, and move them between rows using drag-and-drop."],
 								func = function()
 									local AceConfigDialog = LibStub and LibStub("AceConfigDialog-3.0", true)
 									if not AceConfigDialog then return end
@@ -2503,26 +2504,26 @@ function Options:BuildOptionsTable()
 					},
 					consumablesTab = {
 						type = "group",
-						name = "Consumables",
+						name = L["Consumables"],
 						order = 2,
 						args = {
 							desc = {
 								type = "description",
-								name = Dim("Track combat consumables on your HUD — potions, runes, and other items you use mid-fight. Each icon shows the item cooldown, buff duration, and bag count. For long-duration pre-pull buffs (elixirs, flasks, food), use a consumable-tracking addon like NovaConsumesHelper."),
+								name = Dim(L["Track combat consumables on your HUD — potions, runes, and other items you use mid-fight. Each icon shows the item cooldown, buff duration, and bag count. For long-duration pre-pull buffs (elixirs, flasks, food), use a consumable-tracking addon like NovaConsumesHelper."]),
 								fontSize = "medium",
 								order = 1,
 							},
 							specLabel = {
 								type = "description",
 								name = function()
-									return addon:FormatSpecLabel() or Dim("Spec not yet detected")
+									return addon:FormatSpecLabel() or Dim(L["Spec not yet detected"])
 								end,
 								fontSize = "medium",
 								order = 1.5,
 							},
 							addHeader = {
 								type = "header",
-								name = "Add Consumables",
+								name = L["Add Consumables"],
 								order = 2,
 							},
 							potionSelect = self:BuildConsumableDropdown(
@@ -2537,8 +2538,8 @@ function Options:BuildOptionsTable()
 							),
 							customInput = {
 								type = "input",
-								name = "Add by Item ID",
-								desc = "Enter an item ID to track any consumable not listed above. You can find item IDs on Wowhead (the number in the URL) or with the idTip addon.",
+								name = L["Add by Item ID"],
+								desc = L["Enter an item ID to track any consumable not listed above. You can find item IDs on Wowhead (the number in the URL) or with the idTip addon."],
 								order = 5,
 								width = 1.5,
 								get = function() return self._customConsumableInput or "" end,
@@ -2552,7 +2553,7 @@ function Options:BuildOptionsTable()
 									local itemID = tonumber(value)
 									if not itemID then
 										self._customConsumableInput = ""
-										self._customConsumableStatus = Orange("Invalid input — enter a numeric item ID.")
+										self._customConsumableStatus = Orange(L["Invalid input — enter a numeric item ID."])
 										return
 									end
 
@@ -2561,7 +2562,7 @@ function Options:BuildOptionsTable()
 										-- Item not cached — request load and tell user to retry
 										C_Item.RequestLoadItemData(itemID)
 										self._customConsumableInput = ""
-										self._customConsumableStatus = Orange("Item " .. itemID .. " not cached yet. Try again in a moment.")
+										self._customConsumableStatus = Orange(L["Item "] .. itemID .. " not cached yet. Try again in a moment.")
 										return
 									end
 
@@ -2570,7 +2571,7 @@ function Options:BuildOptionsTable()
 										ct:AddConsumable(itemID)
 										self._customConsumableInput = ""
 										local iconStr = itemIcon and ("|T" .. itemIcon .. ":16|t ") or ""
-										self._customConsumableStatus = Green("Added:") .. " " .. iconStr .. itemName
+										self._customConsumableStatus = Green(L["Added:"]) .. " " .. iconStr .. itemName
 										self:RebuildConsumableEntries()
 									end
 								end,
@@ -2584,7 +2585,7 @@ function Options:BuildOptionsTable()
 							},
 							trackedHeader = {
 								type = "header",
-								name = "Tracked Consumables",
+								name = L["Tracked Consumables"],
 								order = 7,
 							},
 							consumableEntries = {
@@ -2598,13 +2599,13 @@ function Options:BuildOptionsTable()
 					},
 					soundsTab = {
 						type = "group",
-						name = "Sounds",
+						name = L["Sounds"],
 						order = 3,
 						args = (function()
 							local args = self:BuildReadyGlowSoundOverrideArgs()
 							args._desc = {
 								type = "description",
-								name = Dim("Play a sound when an ability becomes ready — when it comes off cooldown, becomes usable, or meets resource requirements. Set a default sound for all abilities, or override individual spells below.\n\nSound plays for all rows regardless of the Ready Glow row filter. Other settings still apply: combat-only, pre-trigger time, and once vs. re-trigger mode."),
+								name = Dim(L["Play a sound when an ability becomes ready — when it comes off cooldown, becomes usable, or meets resource requirements. Set a default sound for all abilities, or override individual spells below.\n\nSound plays for all rows regardless of the Ready Glow row filter. Other settings still apply: combat-only, pre-trigger time, and once vs. re-trigger mode."]),
 								fontSize = "medium",
 								order = 1,
 							}
@@ -2616,19 +2617,19 @@ function Options:BuildOptionsTable()
 
 			support = {
 				type = "group",
-				name = "Support",
+				name = L["Support"],
 				order = 9,
 				args = {
 					discordInfo = {
 						type = "description",
-						name = Dim("Join the " .. White("Veev Addons Discord") .. " for feedback, suggestions, and bug reports:"),
+						name = Dim(L["Join the "] .. White(L["Veev Addons Discord"]) .. " for feedback, suggestions, and bug reports:"),
 						fontSize = "medium",
 						order = 1,
 					},
 					discordLink = {
 						type = "input",
-						name = "Discord URL",
-						desc = "Press Ctrl+C to copy the URL.",
+						name = L["Discord URL"],
+						desc = L["Press Ctrl+C to copy the URL."],
 						get = function() return C.DISCORD_URL end,
 						set = function() end,
 						order = 2,
@@ -2641,14 +2642,14 @@ function Options:BuildOptionsTable()
 					},
 					donateInfo = {
 						type = "description",
-						name = Dim("VeevHUD is built with a $200/mo Claude subscription, late-night coding sessions, and unhealthy amounts of caffeine. I code for the love of the game, not for profit. Donations to help offset the costs are appreciated but never expected!"),
+						name = Dim(L["VeevHUD is built with a $200/mo Claude subscription, late-night coding sessions, and unhealthy amounts of caffeine. I code for the love of the game, not for profit. Donations to help offset the costs are appreciated but never expected!"]),
 						fontSize = "medium",
 						order = 4,
 					},
 					donateLink = {
 						type = "input",
-						name = "Donate URL",
-						desc = "Press Ctrl+C to copy the URL.",
+						name = L["Donate URL"],
+						desc = L["Press Ctrl+C to copy the URL."],
 						get = function() return C.DONATE_URL end,
 						set = function() end,
 						order = 5,
@@ -2711,42 +2712,42 @@ function Options:BuildOptionsTable()
 	-- Cooldown Pulse tab
 	optionsTable.args.cooldownPulse = {
 		type = "group",
-		name = "Cooldown Pulse",
+		name = L["Cooldown Pulse"],
 		order = 6,
 		args = {
 			introDesc = {
 				type = "description",
-				name = Dim("Flashes a large icon in the center of the screen when a tracked ability comes off cooldown. A prominent visual cue that complements the ready glow on ability icons.") .. "\n",
+				name = Dim(L["Flashes a large icon in the center of the screen when a tracked ability comes off cooldown. A prominent visual cue that complements the ready glow on ability icons."]) .. "\n",
 				fontSize = "medium",
 				order = 0,
 			},
 			enabled = {
 				type = "toggle",
-				name = "Enable Cooldown Pulse",
-				desc = "Master toggle for the cooldown pulse effect. When enabled, a large icon briefly flashes on screen each time a tracked ability finishes its cooldown.",
+				name = L["Enable Cooldown Pulse"],
+				desc = L["Master toggle for the cooldown pulse effect. When enabled, a large icon briefly flashes on screen each time a tracked ability finishes its cooldown."],
 				arg = "cooldownPulse.enabled",
 				order = 1,
 				width = "full",
 			},
 			appearance = {
 				type = "group",
-				name = "Appearance",
+				name = L["Appearance"],
 				inline = true,
 				order = 2,
 				disabled = function() return not addon.db.profile.cooldownPulse.enabled end,
 				args = {
 					iconSize = {
 						type = "range",
-						name = "Icon Size",
-						desc = "How large the flashing icon appears on screen, in pixels.",
+						name = L["Icon Size"],
+						desc = L["How large the flashing icon appears on screen, in pixels."],
 						min = 16, max = 120, step = 1,
 						arg = "cooldownPulse.iconSize",
 						order = 1,
 					},
 					maxAlpha = {
 						type = "range",
-						name = "Opacity",
-						desc = "Peak opacity of the icon during the flash. Lower values create a more subtle, ghostly effect.",
+						name = L["Opacity"],
+						desc = L["Peak opacity of the icon during the flash. Lower values create a more subtle, ghostly effect."],
 						min = 0.1, max = 1.0, step = 0.05,
 						isPercent = true,
 						arg = "cooldownPulse.maxAlpha",
@@ -2760,16 +2761,16 @@ function Options:BuildOptionsTable()
 					},
 					xOffset = {
 						type = "range",
-						name = "X Offset",
-						desc = "Horizontal offset from the center of your screen. Negative values move left, positive values move right.",
+						name = L["X Offset"],
+						desc = L["Horizontal offset from the center of your screen. Negative values move left, positive values move right."],
 						min = -screenW, max = screenW, step = 1,
 						arg = "cooldownPulse.anchor.x",
 						order = 3,
 					},
 					yOffset = {
 						type = "range",
-						name = "Y Offset",
-						desc = "Vertical offset from the center of your screen. Negative values move down, positive values move up.",
+						name = L["Y Offset"],
+						desc = L["Vertical offset from the center of your screen. Negative values move down, positive values move up."],
 						min = -screenH, max = screenH, step = 1,
 						arg = "cooldownPulse.anchor.y",
 						order = 4,
@@ -2778,15 +2779,15 @@ function Options:BuildOptionsTable()
 			},
 			filtering = {
 				type = "group",
-				name = "Filtering",
+				name = L["Filtering"],
 				inline = true,
 				order = 3,
 				disabled = function() return not addon.db.profile.cooldownPulse.enabled end,
 				args = {
 					pulseRows = {
 						type = "select",
-						name = "Ability Rows",
-						desc = "Which ability rows trigger the cooldown pulse. Primary Row is your core rotation — the most impactful notifications. Add Secondary to include throughput cooldowns too.",
+						name = L["Ability Rows"],
+						desc = L["Which ability rows trigger the cooldown pulse. Primary Row is your core rotation — the most impactful notifications. Add Secondary to include throughput cooldowns too."],
 						values = rowSettingAll,
 						arg = "cooldownPulse.pulseRows",
 						width = "normal",
@@ -2794,8 +2795,8 @@ function Options:BuildOptionsTable()
 					},
 					onlyInCombat = {
 						type = "toggle",
-						name = "Only In Combat",
-						desc = "Only show cooldown pulses while you are in combat.",
+						name = L["Only In Combat"],
+						desc = L["Only show cooldown pulses while you are in combat."],
 						arg = "cooldownPulse.onlyInCombat",
 						width = "normal",
 						order = 2,
@@ -2808,8 +2809,8 @@ function Options:BuildOptionsTable()
 					},
 					minCooldown = {
 						type = "range",
-						name = "Ignore Cooldowns Below",
-						desc = "Skip pulses for abilities with cooldowns shorter than this. Useful for filtering out short-cooldown rotational spells. Set to 0 to include everything.",
+						name = L["Ignore Cooldowns Below"],
+						desc = L["Skip pulses for abilities with cooldowns shorter than this. Useful for filtering out short-cooldown rotational spells. Set to 0 to include everything."],
 						min = 0, max = 300, step = 1, bigStep = 5,
 						arg = "cooldownPulse.minCooldown",
 						width = "normal",
@@ -2819,19 +2820,19 @@ function Options:BuildOptionsTable()
 			},
 			animation = {
 				type = "group",
-				name = "Animation",
+				name = L["Animation"],
 				inline = true,
 				order = 4,
 				disabled = function() return not addon.db.profile.cooldownPulse.enabled end,
 				args = {
 					animationIn = {
 						type = "select",
-						name = "Fade In Effect",
-						desc = "Size effect while the icon fades in. Grow: starts small, grows to normal. Shrink: starts big, shrinks to normal. None: no size change.",
+						name = L["Fade In Effect"],
+						desc = L["Size effect while the icon fades in. Grow: starts small, grows to normal. Shrink: starts big, shrinks to normal. None: no size change."],
 						values = {
-							[C.PULSE_EFFECT.GROW] = "Grow",
-							[C.PULSE_EFFECT.SHRINK] = "Shrink",
-							[C.PULSE_EFFECT.NONE] = "None",
+							[C.PULSE_EFFECT.GROW] = L["Grow"],
+							[C.PULSE_EFFECT.SHRINK] = L["Shrink"],
+							[C.PULSE_EFFECT.NONE] = L["None"],
 						},
 						arg = "cooldownPulse.animationIn",
 						width = "normal",
@@ -2839,12 +2840,12 @@ function Options:BuildOptionsTable()
 					},
 					animationOut = {
 						type = "select",
-						name = "Fade Out Effect",
-						desc = "Size effect while the icon fades out. Grow: grows from normal to big. Shrink: shrinks from normal to small. None: no size change.",
+						name = L["Fade Out Effect"],
+						desc = L["Size effect while the icon fades out. Grow: grows from normal to big. Shrink: shrinks from normal to small. None: no size change."],
 						values = {
-							[C.PULSE_EFFECT.GROW] = "Grow",
-							[C.PULSE_EFFECT.SHRINK] = "Shrink",
-							[C.PULSE_EFFECT.NONE] = "None",
+							[C.PULSE_EFFECT.GROW] = L["Grow"],
+							[C.PULSE_EFFECT.SHRINK] = L["Shrink"],
+							[C.PULSE_EFFECT.NONE] = L["None"],
 						},
 						arg = "cooldownPulse.animationOut",
 						width = "normal",
@@ -2858,8 +2859,8 @@ function Options:BuildOptionsTable()
 					},
 					fadeInTime = {
 						type = "range",
-						name = "Fade In",
-						desc = "How long the icon takes to fade in, in seconds.",
+						name = L["Fade In"],
+						desc = L["How long the icon takes to fade in, in seconds."],
 						min = 0.05, max = 1.0, step = 0.05,
 						arg = "cooldownPulse.fadeInTime",
 						width = "normal",
@@ -2867,8 +2868,8 @@ function Options:BuildOptionsTable()
 					},
 					holdTime = {
 						type = "range",
-						name = "Hold Time",
-						desc = "How long the icon stays at peak opacity before fading out. Set to 0 for a quick flash, or increase for a longer notification.",
+						name = L["Hold Time"],
+						desc = L["How long the icon stays at peak opacity before fading out. Set to 0 for a quick flash, or increase for a longer notification."],
 						min = 0, max = 1.5, step = 0.05,
 						arg = "cooldownPulse.holdTime",
 						width = "normal",
@@ -2882,8 +2883,8 @@ function Options:BuildOptionsTable()
 					},
 					fadeOutTime = {
 						type = "range",
-						name = "Fade Out",
-						desc = "How long the icon takes to fade out, in seconds.",
+						name = L["Fade Out"],
+						desc = L["How long the icon takes to fade out, in seconds."],
 						min = 0.05, max = 1.5, step = 0.05,
 						arg = "cooldownPulse.fadeOutTime",
 						width = "normal",
@@ -2891,8 +2892,8 @@ function Options:BuildOptionsTable()
 					},
 					preTriggerTime = {
 						type = "range",
-						name = "Early Trigger",
-						desc = "Fire the pulse this many seconds before the cooldown finishes. Gives you a head start on reacting. Set to 0 to pulse at the exact moment the ability becomes ready.",
+						name = L["Early Trigger"],
+						desc = L["Fire the pulse this many seconds before the cooldown finishes. Gives you a head start on reacting. Set to 0 to pulse at the exact moment the ability becomes ready."],
 						min = 0, max = 3, step = 0.1,
 						arg = "cooldownPulse.preTriggerTime",
 						width = "normal",
@@ -2902,8 +2903,8 @@ function Options:BuildOptionsTable()
 			},
 			testButton = {
 				type = "execute",
-				name = "Test Pulse",
-				desc = "Plays a test pulse so you can preview your current settings.",
+				name = L["Test Pulse"],
+				desc = L["Plays a test pulse so you can preview your current settings."],
 				func = function()
 					local pulse = addon:GetModule("CooldownPulse")
 					if pulse then
@@ -2926,7 +2927,7 @@ function Options:BuildOptionsTable()
 	-- Create Advanced tab from Layout
 	optionsTable.args.advanced = {
 		type = "group",
-		name = "Layout",
+		name = L["Layout"],
 		order = 8,
 		args = layoutArgs,
 	}
@@ -2996,7 +2997,7 @@ function Options:RebuildConsumableEntries()
 	if #items == 0 then
 		entriesArgs["empty"] = {
 			type = "description",
-			name = Dim("No consumables added yet. Select one from the dropdowns above."),
+			name = Dim(L["No consumables added yet. Select one from the dropdowns above."]),
 			order = 1,
 		}
 		return
@@ -3019,8 +3020,8 @@ function Options:RebuildConsumableEntries()
 			args = {
 				remove = {
 					type = "execute",
-					name = "Remove",
-					desc = "Remove this consumable from tracking.",
+					name = L["Remove"],
+					desc = L["Remove this consumable from tracking."],
 					func = function()
 						if ct then
 							ct:RemoveConsumable(itemID)
@@ -3045,14 +3046,14 @@ end
 
 -- Shared dropdown values for aura source filter (used by external + custom aura config)
 local auraSourceFilterValues = {
-	[C.AURA_SOURCE_ANY] = "Any",
-	[C.AURA_SOURCE_OWN] = "Own",
-	[C.AURA_SOURCE_NOT_OWN] = "Others",
+	[C.AURA_SOURCE_ANY] = L["Any"],
+	[C.AURA_SOURCE_OWN] = L["Own"],
+	[C.AURA_SOURCE_NOT_OWN] = L["Others"],
 }
 
 local auraDisplayModeValues = {
-	[C.AURA_DISPLAY_MODE.ICON] = "Icon",
-	[C.AURA_DISPLAY_MODE.BAR] = "Bar",
+	[C.AURA_DISPLAY_MODE.ICON] = L["Icon"],
+	[C.AURA_DISPLAY_MODE.BAR] = L["Bar"],
 }
 
 -- Per-aura display-mode (icon/bar) selector + bar fill-color picker. Returns two
@@ -3070,8 +3071,8 @@ local function AddAuraDisplayControls(args, spellID, unresolved, unresolvedNote,
 	}
 	args.displayMode = {
 		type = "select",
-		name = "Display",
-		desc = "Show this aura as a compact icon in the icon row, or as a status bar with name and timer in the bar stack below the icons." .. (unresolvedNote or ""),
+		name = L["Display"],
+		desc = L["Show this aura as a compact icon in the icon row, or as a status bar with name and timer in the bar stack below the icons."] .. (unresolvedNote or ""),
 		values = auraDisplayModeValues,
 		sorting = { C.AURA_DISPLAY_MODE.ICON, C.AURA_DISPLAY_MODE.BAR },
 		disabled = unresolved or nil,
@@ -3090,8 +3091,8 @@ local function AddAuraDisplayControls(args, spellID, unresolved, unresolvedNote,
 	}
 	args.barColor = {
 		type = "color",
-		name = "Bar Color",
-		desc = "Fill color for this aura's timer bar (Bar display mode only). Defaults to a vibrant color sampled from the spell's icon — change it here to override.",
+		name = L["Bar Color"],
+		desc = L["Fill color for this aura's timer bar (Bar display mode only). Defaults to a vibrant color sampled from the spell's icon — change it here to override."],
 		hasAlpha = false,
 		disabled = function()
 			if unresolved then return true end
@@ -3154,7 +3155,7 @@ function Options:BuildAuraTrackerOptions(settingsGroup)
 		-- Intro description
 		args["introDesc"] = {
 			type = "description",
-			name = Dim("Toggle which class procs are tracked. Enabled procs appear as icons in the Aura Tracker when active.") .. "\n",
+			name = Dim(L["Toggle which class procs are tracked. Enabled procs appear as icons in the Aura Tracker when active."]) .. "\n",
 			fontSize = "medium",
 			order = 0,
 		}
@@ -3163,7 +3164,7 @@ function Options:BuildAuraTrackerOptions(settingsGroup)
 		args["specIndicator"] = {
 			type = "description",
 			name = function()
-				return addon:FormatSpecLabel() or Dim("Spec not yet detected")
+				return addon:FormatSpecLabel() or Dim(L["Spec not yet detected"])
 			end,
 			fontSize = "medium",
 			order = 1,
@@ -3199,8 +3200,8 @@ function Options:BuildAuraTrackerOptions(settingsGroup)
 				args = {
 					enabled = {
 						type = "toggle",
-						name = "Enabled",
-						desc = "Show this aura in the tracker.",
+						name = L["Enabled"],
+						desc = L["Show this aura in the tracker."],
 						get = function()
 							return addon:IsAuraEnabled(spellID)
 						end,
@@ -3213,8 +3214,8 @@ function Options:BuildAuraTrackerOptions(settingsGroup)
 					},
 					glow = {
 						type = "toggle",
-						name = "Glow",
-						desc = "Show the glowing border and backdrop halo when this aura is active. Disable for auras you want to track quietly without the glow drawing your eye.",
+						name = L["Glow"],
+						desc = L["Show the glowing border and backdrop halo when this aura is active. Disable for auras you want to track quietly without the glow drawing your eye."],
 						get = function()
 							return addon:IsAuraGlowEnabled(spellID)
 						end,
@@ -3229,7 +3230,7 @@ function Options:BuildAuraTrackerOptions(settingsGroup)
 						end,
 					},
 					sound = SoundDropdown({
-						desc = "Sound to play when this aura activates. 'None' uses the global default from the Sound section above.",
+						desc = L["Sound to play when this aura activates. 'None' uses the global default from the Sound section above."],
 						get = function() return addon:GetAuraSound(spellID) or "None" end,
 						set = function(_, value) addon:SetAuraSound(spellID, value) end,
 						order = 1.6,
@@ -3237,8 +3238,8 @@ function Options:BuildAuraTrackerOptions(settingsGroup)
 					}),
 					soundOnRefresh = {
 						type = "toggle",
-						name = "Refresh",
-						desc = "Also play the sound when this aura refreshes (is reapplied while already active).",
+						name = L["Refresh"],
+						desc = L["Also play the sound when this aura refreshes (is reapplied while already active)."],
 						get = function()
 							return addon:GetAuraSoundOnRefresh(spellID)
 						end,
@@ -3279,17 +3280,17 @@ function Options:BuildAuraTrackerOptions(settingsGroup)
 
 	-- Wrap existing settings into a Settings sub-tab, add Spells sub-tab
 	settingsGroup.order = 1
-	settingsGroup.name = "Settings"
+	settingsGroup.name = L["Settings"]
 
 	return {
 		type = "group",
-		name = "Aura Tracker",
+		name = L["Aura Tracker"],
 		childGroups = "tab",
 		args = {
 			settings = settingsGroup,
 			spellsTab = {
 				type = "group",
-				name = "Class Procs",
+				name = L["Class Procs"],
 				order = 2,
 				disabled = function()
 					return addon.db and addon.db.profile and not addon.db.profile.auraTracker.enabled
@@ -3298,7 +3299,7 @@ function Options:BuildAuraTrackerOptions(settingsGroup)
 			},
 			externalsTab = {
 				type = "group",
-				name = "External Buffs",
+				name = L["External Buffs"],
 				order = 3,
 				disabled = function()
 					return addon.db and addon.db.profile and not addon.db.profile.auraTracker.enabled
@@ -3307,7 +3308,7 @@ function Options:BuildAuraTrackerOptions(settingsGroup)
 			},
 			customTab = {
 				type = "group",
-				name = "Custom Auras",
+				name = L["Custom Auras"],
 				order = 4,
 				disabled = function()
 					return addon.db and addon.db.profile and not addon.db.profile.auraTracker.enabled
@@ -3340,7 +3341,7 @@ function Options:BuildExternalBuffsArgs()
 
 	args["description"] = {
 		type = "description",
-		name = Dim("Toggle which external buffs are tracked (from other players, consumables, or PvP powerups). These appear as icons in the Aura Tracker when active on you.") .. "\n",
+		name = Dim(L["Toggle which external buffs are tracked (from other players, consumables, or PvP powerups). These appear as icons in the Aura Tracker when active on you."]) .. "\n",
 		fontSize = "medium",
 		order = 0,
 	}
@@ -3395,8 +3396,8 @@ function Options:BuildExternalBuffsArgs()
 				args = {
 					enabled = {
 						type = "toggle",
-						name = "Enabled",
-						desc = "Track " .. spellName .. " (ID: " .. spellID .. ")",
+						name = L["Enabled"],
+						desc = L["Track %s (ID: %s)"]:format(spellName, spellID),
 						get = function() return addon:IsAuraEnabled(spellID) end,
 						set = function(_, value)
 							addon:SetAuraEnabled(spellID, value)
@@ -3407,8 +3408,8 @@ function Options:BuildExternalBuffsArgs()
 					},
 					glow = {
 						type = "toggle",
-						name = "Glow",
-						desc = "Show the glowing border and backdrop halo when this aura is active.",
+						name = L["Glow"],
+						desc = L["Show the glowing border and backdrop halo when this aura is active."],
 						get = function() return addon:IsAuraGlowEnabled(spellID) end,
 						set = function(_, value)
 							addon:SetAuraGlowEnabled(spellID, value)
@@ -3432,7 +3433,7 @@ function Options:BuildExternalBuffsArgs()
 						disabled = function() return not addon:IsAuraEnabled(spellID) end,
 					},
 					sound = SoundDropdown({
-						desc = "Sound to play when this aura activates. 'None' uses the global default.",
+						desc = L["Sound to play when this aura activates. 'None' uses the global default."],
 						get = function() return addon:GetAuraSound(spellID) or "None" end,
 						set = function(_, value) addon:SetAuraSound(spellID, value) end,
 						order = 4,
@@ -3440,8 +3441,8 @@ function Options:BuildExternalBuffsArgs()
 					}),
 					soundRefresh = {
 						type = "toggle",
-						name = "Refresh",
-						desc = "Also play the sound when this aura refreshes.",
+						name = L["Refresh"],
+						desc = L["Also play the sound when this aura refreshes."],
 						get = function() return addon:GetAuraSoundOnRefresh(spellID) end,
 						set = function(_, value) addon:SetAuraSoundOnRefresh(spellID, value) end,
 						order = 5,
@@ -3479,15 +3480,15 @@ function Options:BuildCustomAurasArgs()
 
 	args["description"] = {
 		type = "description",
-		name = Dim("Add custom auras to track by spell ID or spell name. These work like procs — the icon appears when the buff is active on you.") .. "\n",
+		name = Dim(L["Add custom auras to track by spell ID or spell name. These work like procs — the icon appears when the buff is active on you."]) .. "\n",
 		fontSize = "medium",
 		order = 0,
 	}
 
 	args["inputField"] = {
 		type = "input",
-		name = "Spell ID or Name",
-		desc = "Enter a numeric spell ID or exact spell name and press Enter to add.\n\nYou can find spell IDs on Wowhead (the number at the end of the spell URL), or install the idTip addon to see spell IDs directly in tooltips.",
+		name = L["Spell ID or Name"],
+		desc = L["Enter a numeric spell ID or exact spell name and press Enter to add.\n\nYou can find spell IDs on Wowhead (the number at the end of the spell URL), or install the idTip addon to see spell IDs directly in tooltips."],
 		get = function() return self._customAuraInput or "" end,
 		set = function(_, value)
 			if not value or value == "" then
@@ -3552,11 +3553,11 @@ function Options:BuildCustomAurasArgs()
 			self._customAuraInput = ""
 			local iconString = resolvedIcon and ("|T" .. resolvedIcon .. ":16|t ") or ""
 			if not resolvedName then
-				self._customAuraStatus = Green("Added:") .. " ID " .. entry.id .. " " .. Dim("(icon shows when buff is active)")
+				self._customAuraStatus = Green(L["Added:"]) .. " ID " .. entry.id .. " " .. Dim(L["(icon shows when buff is active)"])
 			elseif entry.name and not entry.id then
-				self._customAuraStatus = Green("Added:") .. " " .. resolvedName .. " " .. Dim("(by name — icon shows when buff is active)")
+				self._customAuraStatus = Green(L["Added:"]) .. " " .. resolvedName .. " " .. Dim(L["(by name — icon shows when buff is active)"])
 			else
-				self._customAuraStatus = Green("Added:") .. " " .. iconString .. resolvedName
+				self._customAuraStatus = Green(L["Added:"]) .. " " .. iconString .. resolvedName
 			end
 			self:RebuildCustomAuraEntries()
 			self:RebuildRecentBuffEntries(true)
@@ -3588,7 +3589,7 @@ function Options:BuildCustomAurasArgs()
 	-- Build entries for existing custom auras
 	args["entries"] = {
 		type = "group",
-		name = "Current Custom Auras",
+		name = L["Current Custom Auras"],
 		inline = true,
 		order = 5,
 		args = {},
@@ -3601,7 +3602,7 @@ function Options:BuildCustomAurasArgs()
 	-- RebuildRecentBuffEntries dirty-checks so unchanged data is a no-op)
 	args["recentBuffs"] = {
 		type = "group",
-		name = "Recently Seen Buffs",
+		name = L["Recently Seen Buffs"],
 		inline = true,
 		order = 10,
 		hidden = function()
@@ -3628,7 +3629,7 @@ function Options:RebuildCustomAuraEntries()
 	if not customAuras or #customAuras == 0 then
 		entriesArgs["empty"] = {
 			type = "description",
-			name = Dim("No custom auras added yet."),
+			name = Dim(L["No custom auras added yet."]),
 			order = 1,
 		}
 		return
@@ -3645,7 +3646,7 @@ function Options:RebuildCustomAuraEntries()
 		end
 		resolvedName = resolvedName or spellName or ("Unknown Spell " .. (spellID or ""))
 		local iconString = resolvedIcon and ("|T" .. resolvedIcon .. ":16|t ") or ""
-		local idStr = spellID and (" " .. Dim("(ID: " .. spellID .. ")")) or ""
+		local idStr = spellID and (" " .. Dim(L["(ID: "] .. spellID .. ")")) or ""
 
 		-- Resolve spell ID for source filter config key
 		local filterSpellID = spellID
@@ -3668,8 +3669,8 @@ function Options:RebuildCustomAuraEntries()
 			args = {
 				glow = {
 					type = "toggle",
-					name = "Glow",
-					desc = "Show the glowing border and backdrop halo when this aura is active." .. unresolvedNote,
+					name = L["Glow"],
+					desc = L["Show the glowing border and backdrop halo when this aura is active."] .. unresolvedNote,
 					disabled = unresolved,
 					get = function()
 						if not filterSpellID then return true end
@@ -3699,7 +3700,7 @@ function Options:RebuildCustomAuraEntries()
 					width = 0.45,
 				},
 				sound = SoundDropdown({
-					desc = "Sound to play when this aura activates. 'None' uses the global default." .. unresolvedNote,
+					desc = L["Sound to play when this aura activates. 'None' uses the global default."] .. unresolvedNote,
 					disabled = unresolved,
 					get = function()
 						if not filterSpellID then return "None" end
@@ -3714,8 +3715,8 @@ function Options:RebuildCustomAuraEntries()
 				}),
 				soundRefresh = {
 					type = "toggle",
-					name = "Refresh",
-					desc = "Also play the sound when this aura refreshes." .. unresolvedNote,
+					name = L["Refresh"],
+					desc = L["Also play the sound when this aura refreshes."] .. unresolvedNote,
 					disabled = unresolved,
 					get = function()
 						if not filterSpellID then return false end
@@ -3731,8 +3732,8 @@ function Options:RebuildCustomAuraEntries()
 				},
 				remove = {
 					type = "execute",
-					name = "Del",
-					desc = "Remove this custom aura.",
+					name = L["Del"],
+					desc = L["Remove this custom aura."],
 					order = 5,
 					width = 0.3,
 					func = function()
@@ -3792,7 +3793,7 @@ function Options:RebuildRecentBuffEntries(force)
 	if not recentBuffs or not next(recentBuffs) then
 		recentArgs["empty"] = {
 			type = "description",
-			name = Dim("No recent buffs recorded yet. Play for a bit and reopen this tab."),
+			name = Dim(L["No recent buffs recorded yet. Play for a bit and reopen this tab."]),
 			order = 1,
 		}
 		return
@@ -3852,7 +3853,7 @@ function Options:RebuildRecentBuffEntries(force)
 	if #filtered == 0 then
 		recentArgs["empty"] = {
 			type = "description",
-			name = Dim("All recent buffs are already tracked."),
+			name = Dim(L["All recent buffs are already tracked."]),
 			order = 1,
 		}
 		return
@@ -3865,7 +3866,7 @@ function Options:RebuildRecentBuffEntries(force)
 
 		recentArgs[entryKey .. "_label"] = {
 			type = "description",
-			name = iconString .. (entry.name or ("Spell " .. entry.spellID)) .. " " .. Dim("(ID: " .. entry.spellID .. ")"),
+			name = iconString .. (entry.name or ("Spell " .. entry.spellID)) .. " " .. Dim(L["(ID: "] .. entry.spellID .. ")"),
 			fontSize = "medium",
 			order = i * 2 - 1,
 			width = 1.4,
@@ -3874,7 +3875,7 @@ function Options:RebuildRecentBuffEntries(force)
 		local capturedSpellID = entry.spellID
 		recentArgs[entryKey .. "_add"] = {
 			type = "execute",
-			name = "Add",
+			name = L["Add"],
 			order = i * 2,
 			width = 0.5,
 			func = function()
@@ -3933,15 +3934,15 @@ function Options:BuildBuffRemindersOptions()
 	end
 
 	local combatStateValues = {
-		["any"] = "Any",
-		["combat"] = "In Combat",
-		["ooc"] = "Out of Combat",
+		["any"] = L["Any"],
+		["combat"] = L["In Combat"],
+		["ooc"] = L["Out of Combat"],
 	}
 
 	local trackTargetValues = {
-		["player"] = "Player",
-		["party"] = "Party",
-		["raid"] = "Raid",
+		["player"] = L["Player"],
+		["party"] = L["Party"],
+		["raid"] = L["Raid"],
 	}
 
 	-- Dynamically build spell config args
@@ -4171,8 +4172,8 @@ function Options:BuildBuffRemindersOptions()
 					args = {
 						enabled = {
 							type = "toggle",
-							name = "Enabled",
-							desc = "Enable or disable this buff reminder.",
+							name = L["Enabled"],
+							desc = L["Enable or disable this buff reminder."],
 							get = function()
 								local cfg = getBRSpellConfig(spellID)
 								if cfg and cfg.enabled ~= nil then
@@ -4189,8 +4190,8 @@ function Options:BuildBuffRemindersOptions()
 						},
 						timeRemaining = {
 							type = "range",
-							name = "Time Threshold",
-							desc = "Show the reminder when the buff has less than this many seconds remaining. Set to 0 to only remind when the buff is completely missing.",
+							name = L["Time Threshold"],
+							desc = L["Show the reminder when the buff has less than this many seconds remaining. Set to 0 to only remind when the buff is completely missing."],
 							min = 0, max = 600, step = 5,
 							hidden = not spellData.duration or spellData.duration == 0,  -- Hide for permanent auras/toggles
 							disabled = isSpellDisabled,
@@ -4210,8 +4211,8 @@ function Options:BuildBuffRemindersOptions()
 						},
 						combatState = {
 							type = "select",
-							name = "Combat",
-							desc = "When to show this reminder based on combat state.",
+							name = L["Combat"],
+							desc = L["When to show this reminder based on combat state."],
 							values = combatStateValues,
 							disabled = isSpellDisabled,
 							get = function()
@@ -4230,8 +4231,8 @@ function Options:BuildBuffRemindersOptions()
 						},
 						trackTarget = {
 							type = "select",
-							name = "Track",
-							desc = "Who to check for this buff.\n\n|cffffffffPlayer|r: Only check yourself.\n|cffffffffParty|r: Check all party members (or only yourself if solo).\n|cffffffffRaid|r: Check all raid members (downsizes to party if not in a raid).",
+							name = L["Track"],
+							desc = L["Who to check for this buff.\n\n|cffffffffPlayer|r: Only check yourself.\n|cffffffffParty|r: Check all party members (or only yourself if solo).\n|cffffffffRaid|r: Check all raid members (downsizes to party if not in a raid)."],
 							values = trackTargetValues,
 							sorting = {"player", "party", "raid"},
 							hidden = not (defaults and defaults.groupTrackable),  -- Hide for self-only buffs / weapon enchants
@@ -4251,7 +4252,7 @@ function Options:BuildBuffRemindersOptions()
 							width = 0.7,
 						},
 						sound = SoundDropdown({
-							desc = "Sound to play when this buff reminder appears. 'None' uses the global default from the General tab.",
+							desc = L["Sound to play when this buff reminder appears. 'None' uses the global default from the General tab."],
 							disabled = isSpellDisabled,
 							get = function() return addon:GetBuffReminderSound(spellID) or "None" end,
 							set = function(_, value) addon:SetBuffReminderSound(spellID, value) end,
@@ -4289,8 +4290,8 @@ function Options:BuildBuffRemindersOptions()
 					if maxCharges > 0 then
 						args[spellKey].args.minStacks = {
 							type = "range",
-							name = "Min Stacks",
-							desc = "Show the reminder when stacks fall below this number. Set to 0 to disable stack checking. This is an OR condition with the time threshold.",
+							name = L["Min Stacks"],
+							desc = L["Show the reminder when stacks fall below this number. Set to 0 to disable stack checking. This is an OR condition with the time threshold."],
 							min = 0, max = maxCharges, step = 1,
 							disabled = isSpellDisabled,
 							get = function()
@@ -4342,8 +4343,8 @@ function Options:BuildBuffRemindersOptions()
 
 						args[spellKey].args.priority = {
 							type = "select",
-							name = "Priority",
-							desc = "Which spell to remind first when no buff from this group is active.",
+							name = L["Priority"],
+							desc = L["Which spell to remind first when no buff from this group is active."],
 							values = priorityValues,
 							sorting = prioritySorting,
 							disabled = isSpellDisabled,
@@ -4376,16 +4377,16 @@ function Options:BuildBuffRemindersOptions()
 						}
 						args[spellKey].args.weaponEnchantMH = {
 							type = "toggle",
-							name = "Main Hand",
-							desc = "Show a reminder when your main hand weapon is missing an enchant. Disable this if you prefer to benefit from a Shaman's Windfury Totem instead.",
+							name = L["Main Hand"],
+							desc = L["Show a reminder when your main hand weapon is missing an enchant. Disable this if you prefer to benefit from a Shaman's Windfury Totem instead."],
 							disabled = isSpellDisabled,
 							arg = "buffReminders.weaponEnchantMH",
 							order = 13,
 						}
 						args[spellKey].args.weaponEnchantOH = {
 							type = "toggle",
-							name = "Off Hand",
-							desc = "Show a reminder when your off hand weapon is missing an enchant.",
+							name = L["Off Hand"],
+							desc = L["Show a reminder when your off hand weapon is missing an enchant."],
 							disabled = isSpellDisabled,
 							arg = "buffReminders.weaponEnchantOH",
 							order = 14,
@@ -4400,7 +4401,7 @@ function Options:BuildBuffRemindersOptions()
 		-- Intro description
 		args["introDesc"] = {
 			type = "description",
-			name = Dim("Configure which buff reminders are active. Settings on this tab are per-spec — switching specs loads that spec's configuration.") .. "\n",
+			name = Dim(L["Configure which buff reminders are active. Settings on this tab are per-spec — switching specs loads that spec's configuration."]) .. "\n",
 			fontSize = "medium",
 			order = 0,
 		}
@@ -4409,7 +4410,7 @@ function Options:BuildBuffRemindersOptions()
 		args["specIndicator"] = {
 			type = "description",
 			name = function()
-				return addon:FormatSpecLabel() or Dim("Spec not yet detected")
+				return addon:FormatSpecLabel() or Dim(L["Spec not yet detected"])
 			end,
 			fontSize = "medium",
 			order = 1,
@@ -4419,8 +4420,8 @@ function Options:BuildBuffRemindersOptions()
 		-- Add "show only known" toggle at top of spell list
 		args["showOnlyKnown"] = {
 			type = "toggle",
-			name = "Show Only Known Spells",
-			desc = "Only shows spells you currently know. Disable to see all class buff spells, including ones you haven't learned yet.",
+			name = L["Show Only Known Spells"],
+			desc = L["Only shows spells you currently know. Disable to see all class buff spells, including ones you haven't learned yet."],
 			get = function()
 				return addon.db.profile.buffReminders.showOnlyKnown
 			end,
@@ -4444,32 +4445,32 @@ function Options:BuildBuffRemindersOptions()
 
 	return {
 		type = "group",
-		name = "Buff Reminders",
+		name = L["Buff Reminders"],
 		childGroups = "tab",
 		order = 6,
 		args = {
 			settings = {
 				type = "group",
-				name = "Settings",
+				name = L["Settings"],
 				order = 1,
 				args = {
 					description = {
 						type = "description",
-						name = Dim("Buff Reminders show a large, semi-transparent icon when a long-duration buff you should maintain is missing or about to expire. They are separate from the main HUD icons and only appear when action is needed.\n\nReminders automatically check that you know the spell and have the resources to cast it. Use the Spells tab to configure individual reminders.") .. "\n",
+						name = Dim(L["Buff Reminders show a large, semi-transparent icon when a long-duration buff you should maintain is missing or about to expire. They are separate from the main HUD icons and only appear when action is needed.\n\nReminders automatically check that you know the spell and have the resources to cast it. Use the Spells tab to configure individual reminders."]) .. "\n",
 						fontSize = "medium",
 						order = 0,
 					},
 					enabled = {
 						type = "toggle",
-						name = "Enable Buff Reminders",
-						desc = "Master toggle for the Buff Reminders feature. When disabled, no buff reminder icons will be shown.",
+						name = L["Enable Buff Reminders"],
+						desc = L["Master toggle for the Buff Reminders feature. When disabled, no buff reminder icons will be shown."],
 						arg = "buffReminders.enabled",
 						order = 1,
 						width = "full",
 					},
 					appearance = {
 						type = "group",
-						name = "Appearance",
+						name = L["Appearance"],
 						inline = true,
 						order = 2,
 						disabled = function()
@@ -4479,24 +4480,24 @@ function Options:BuildBuffRemindersOptions()
 						args = {
 							iconSize = {
 								type = "range",
-								name = "Icon Size",
-								desc = "The size of buff reminder icons in pixels.",
+								name = L["Icon Size"],
+								desc = L["The size of buff reminder icons in pixels."],
 								min = 24, max = 400, step = 1,
 								arg = "buffReminders.iconSize",
 								order = 1,
 							},
 							iconSpacing = {
 								type = "range",
-								name = "Icon Spacing",
-								desc = "The horizontal gap between buff reminder icons.",
+								name = L["Icon Spacing"],
+								desc = L["The horizontal gap between buff reminder icons."],
 								min = -10, max = 64, step = 1,
 								arg = "buffReminders.iconSpacing",
 								order = 2,
 							},
 							alpha = {
 								type = "range",
-								name = "Icon Opacity",
-								desc = "The opacity of the buff reminder icons.",
+								name = L["Icon Opacity"],
+								desc = L["The opacity of the buff reminder icons."],
 								min = 0.05, max = 1.0, step = 0.05,
 								isPercent = true,
 								arg = "buffReminders.alpha",
@@ -4504,8 +4505,8 @@ function Options:BuildBuffRemindersOptions()
 							},
 							textOutline = {
 								type = "select",
-								name = "Text Outline",
-								desc = "Text outline style for buff reminder text.",
+								name = L["Text Outline"],
+								desc = L["Text outline style for buff reminder text."],
 								values = textOutlineValuesInherit,
 								sorting = textOutlineSortingInherit,
 								arg = "buffReminders.textOutline",
@@ -4515,7 +4516,7 @@ function Options:BuildBuffRemindersOptions()
 					},
 					behavior = {
 						type = "group",
-						name = "Behavior",
+						name = L["Behavior"],
 						inline = true,
 						order = 2.5,
 						disabled = function()
@@ -4525,36 +4526,36 @@ function Options:BuildBuffRemindersOptions()
 						args = {
 							pulseEnabled = {
 								type = "toggle",
-								name = "Pulse Animation",
-								desc = "Reminder icons gently pulse to draw attention.",
+								name = L["Pulse Animation"],
+								desc = L["Reminder icons gently pulse to draw attention."],
 								arg = "buffReminders.pulseEnabled",
 								order = 1,
 							},
 							respectResourceCost = {
 								type = "toggle",
-								name = "Respect Resource Cost",
-								desc = "Only show buff reminders when you have enough resources (mana, rage, energy) to cast the spell. Uncheck to always show reminders for missing buffs regardless of your current resource level.",
+								name = L["Respect Resource Cost"],
+								desc = L["Only show buff reminders when you have enough resources (mana, rage, energy) to cast the spell. Uncheck to always show reminders for missing buffs regardless of your current resource level."],
 								arg = "buffReminders.respectResourceCost",
 								order = 2,
 							},
 							showWhileResting = {
 								type = "toggle",
-								name = "Show While Resting",
-								desc = "Show buff reminders while in inns and cities.",
+								name = L["Show While Resting"],
+								desc = L["Show buff reminders while in inns and cities."],
 								arg = "buffReminders.showWhileResting",
 								order = 3,
 							},
 							showWhileMounted = {
 								type = "toggle",
-								name = "Show While Mounted",
-								desc = "Show buff reminders while mounted.",
+								name = L["Show While Mounted"],
+								desc = L["Show buff reminders while mounted."],
 								arg = "buffReminders.showWhileMounted",
 								order = 4,
 							},
 							slideAnimation = {
 								type = "toggle",
-								name = "Slide Animation",
-								desc = "When buff reminders appear or disappear, the remaining icons smoothly slide to re-center instead of snapping instantly. Disable for instant repositioning.",
+								name = L["Slide Animation"],
+								desc = L["When buff reminders appear or disappear, the remaining icons smoothly slide to re-center instead of snapping instantly. Disable for instant repositioning."],
 								arg = "buffReminders.slideAnimation",
 								order = 5,
 							},
@@ -4562,7 +4563,7 @@ function Options:BuildBuffRemindersOptions()
 					},
 					soundGroup = {
 						type = "group",
-						name = "Sound",
+						name = L["Sound"],
 						inline = true,
 						order = 2.7,
 						disabled = function()
@@ -4571,8 +4572,8 @@ function Options:BuildBuffRemindersOptions()
 						end,
 						args = {
 							soundOnMissing = SoundDropdown({
-								name = "Default Sound",
-								desc = "Sound to play when a buff reminder first appears. Individual spells can override this in the Spells tab.",
+								name = L["Default Sound"],
+								desc = L["Sound to play when a buff reminder first appears. Individual spells can override this in the Spells tab."],
 								arg = "buffReminders.soundOnMissing",
 								order = 1,
 							}),
@@ -4580,7 +4581,7 @@ function Options:BuildBuffRemindersOptions()
 					},
 					position = {
 						type = "group",
-						name = "Position",
+						name = L["Position"],
 						inline = true,
 						order = 3,
 						disabled = function()
@@ -4590,16 +4591,16 @@ function Options:BuildBuffRemindersOptions()
 						args = {
 							xOffset = {
 								type = "range",
-								name = "X Offset",
-								desc = "Horizontal offset of buff reminder icons relative to the HUD. The range adjusts to your screen resolution.",
+								name = L["X Offset"],
+								desc = L["Horizontal offset of buff reminder icons relative to the HUD. The range adjusts to your screen resolution."],
 								min = -screenW, max = screenW, step = 1,
 								arg = "buffReminders.anchor.x",
 								order = 1,
 							},
 							yOffset = {
 								type = "range",
-								name = "Y Offset",
-								desc = "Vertical offset of buff reminder icons relative to the HUD. The range adjusts to your screen resolution.",
+								name = L["Y Offset"],
+								desc = L["Vertical offset of buff reminder icons relative to the HUD. The range adjusts to your screen resolution."],
 								min = -screenH, max = screenH, step = 1,
 								arg = "buffReminders.anchor.y",
 								order = 2,
@@ -4615,7 +4616,7 @@ function Options:BuildBuffRemindersOptions()
 							end
 							return "Show Preview"
 						end,
-						desc = "Toggle a sample buff reminder icon so you can see your settings in action.",
+						desc = L["Toggle a sample buff reminder icon so you can see your settings in action."],
 						func = function()
 							local m = addon:GetModule("BuffReminders")
 							if not m then return end
@@ -4636,7 +4637,7 @@ function Options:BuildBuffRemindersOptions()
 			},
 			spellsTab = {
 				type = "group",
-				name = "Spells",
+				name = L["Spells"],
 				order = 2,
 				disabled = function()
 					local db = addon.db and addon.db.profile
@@ -4663,13 +4664,13 @@ function Options:BuildReadyGlowSoundOverrideArgs()
 	local overrideArgs = {}
 	overrideArgs.defaultGroup = {
 		type = "group",
-		name = "Default",
+		name = L["Default"],
 		inline = true,
 		order = 2,
 		args = {
 			sound = SoundDropdown({
-				name = "Default Sound",
-				desc = "Sound to play when the ready glow activates on any ability. Per-spell overrides below take priority.",
+				name = L["Default Sound"],
+				desc = L["Sound to play when the ready glow activates on any ability. Per-spell overrides below take priority."],
 				arg = "icons.readyGlowSound",
 				order = 1,
 			}),
@@ -4681,7 +4682,7 @@ function Options:BuildReadyGlowSoundOverrideArgs()
 	local rowConfigs = addon.db and addon.db.profile and addon.db.profile.rows
 
 	if iconsByRow and rowConfigs then
-		local ROW_NAMES = { "Primary", "Secondary", "Utility", "Auxiliary" }
+		local ROW_NAMES = { L["Primary"], L["Secondary"], L["Utility"], L["Auxiliary"] }
 		for rowIndex = 1, #rowConfigs do
 			local spells = iconsByRow[rowIndex]
 			if spells and #spells > 0 then
@@ -4851,7 +4852,7 @@ function Options:RegisterSettingsPanel()
 	if not Settings or not Settings.RegisterCanvasLayoutCategory then return end
 
 	local panel = CreateFrame("Frame")
-	panel.name = "VeevHUD |TInterface\\Icons\\Spell_Nature_Reincarnation:16:16|t"
+	panel.name = L["VeevHUD |TInterface\\Icons\\Spell_Nature_Reincarnation:16:16|t"]
 
 	local title = panel:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
 	title:SetPoint("TOPLEFT", 16, -16)
@@ -4859,7 +4860,7 @@ function Options:RegisterSettingsPanel()
 
 	local desc = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 	desc:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -8)
-	desc:SetText("Type " .. Cyan("/vh") .. " to open settings.")
+	desc:SetText("Type " .. Cyan(L["/vh"]) .. " to open settings.")
 
 	local openBtn = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
 	openBtn:SetText("Open VeevHUD Settings")
@@ -4884,7 +4885,7 @@ function Options:Open(centerX, centerY)
 	local AceConfigDialog = LibStub and LibStub("AceConfigDialog-3.0", true)
 	if not AceConfigDialog then
 		if addon.Utils then
-			addon.Utils:Print("Options unavailable (AceConfigDialog missing).")
+			addon.Utils:Print(L["Options unavailable (AceConfigDialog missing)."])
 		end
 		return
 	end

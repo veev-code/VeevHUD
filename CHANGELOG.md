@@ -1,5 +1,10 @@
 # VeevHUD Changelog
 
+## [1.0.219] - 2026-06-28
+
+### Added
+- **Multi-language support** — VeevHUD's interface is now localized and automatically follows your WoW client's language. The options panel, tooltips, slash-command help, and the welcome popup are all translatable, with translations included for German, French, Spanish (Spain & Latin America), Brazilian Portuguese, Italian, Russian, Korean, and Simplified & Traditional Chinese. Anything not yet translated falls back to English. The non-English translations are AI-generated first drafts pending native-speaker review — corrections and new languages are very welcome on GitHub. *(ZamestoTV)*
+
 ## [1.0.218] - 2026-06-26
 
 ### Added

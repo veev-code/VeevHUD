@@ -3,6 +3,7 @@
 ]]
 
 local ADDON_NAME, addon = ...
+local L = LibStub("AceLocale-3.0"):GetLocale("VeevHUD")
 
 -- Make addon accessible globally for debugging
 _G.VeevHUD = addon
@@ -216,7 +217,7 @@ function addon:OnPlayerLogin()
     self.Utils:LogInfo("Initialization complete.")
 
     -- Print load message
-    self.Utils:Print("v" .. self.version .. " loaded. Type |cff00ff00/vh|r for options.")
+    self.Utils:Print(L["v%s loaded. Type |cff00ff00/vh|r for options."]:format(self.version))
     
     -- Show welcome popup on first load
     self.WelcomePopup:Show()

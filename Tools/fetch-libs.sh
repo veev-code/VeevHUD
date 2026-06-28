@@ -18,6 +18,7 @@ ACE3_MODULES=(
     CallbackHandler-1.0
     AceAddon-3.0
     AceConsole-3.0
+    AceLocale-3.0
     AceConfig-3.0
     AceDB-3.0
     AceDBOptions-3.0

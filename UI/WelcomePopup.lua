@@ -5,6 +5,7 @@
 
 local _, addon = ...
 local C = addon.Constants
+local L = LibStub("AceLocale-3.0"):GetLocale("VeevHUD")
 
 addon.WelcomePopup = {}
 local WelcomePopup = addon.WelcomePopup
@@ -41,10 +42,7 @@ function WelcomePopup:CreateDialog()
     message:SetPoint("TOP", title, "BOTTOM", 0, -12)
     message:SetWidth(360)
     message:SetJustifyH("CENTER")
-    message:SetText("Thanks for trying VeevHUD!\n\n" ..
-                   "Type |cff00ff00/vh|r to open settings.\n\n" ..
-                   "Join the |cffffffffVeev Addons Discord|r for suggestions,\n" ..
-                   "bug reports, and updates:")
+    message:SetText(L["Thanks for trying VeevHUD!\n\nType |cff00ff00/vh|r to open settings.\n\nJoin the |cffffffffVeev Addons Discord|r for suggestions,\nbug reports, and updates:"])
     
     -- URL edit box (for copy/paste)
     local editBox = CreateFrame("EditBox", nil, dialog, "InputBoxTemplate")
@@ -67,13 +65,13 @@ function WelcomePopup:CreateDialog()
     -- Instructions
     local instructions = dialog:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     instructions:SetPoint("TOP", editBox, "BOTTOM", 0, -4)
-    instructions:SetText("|cff888888Click the link above, then Ctrl+C to copy|r")
+    instructions:SetText("|cff888888" .. L["Click the link above, then Ctrl+C to copy"] .. "|r")
     
     -- Close button
     local closeBtn = CreateFrame("Button", nil, dialog, "UIPanelButtonTemplate")
     closeBtn:SetSize(120, 24)
     closeBtn:SetPoint("BOTTOM", 0, 12)
-    closeBtn:SetText("Got it!")
+    closeBtn:SetText(L["Got it!"])
     closeBtn:SetScript("OnClick", function()
         if addon.db and addon.db.global then
             addon.db.global.welcomeShown = true
