@@ -989,6 +989,84 @@ function SpellsOptions:GetEffectiveSpellList()
         end
     end
 
+    -- Saved configs can contain multiple disabled/off-spec members from one
+    -- shared cooldown group. Collapse them before converting to meta-entries,
+    -- otherwise each raw member renders as the same group label.
+    if addon.LibSpellDB then
+        local sharedGroups = {}  -- groupName -> {members = {{spellInfo, rowIndex}, ...}}
+        for rowIndex, spells in pairs(rows) do
+            for _, spellInfo in ipairs(spells) do
+                local groupName, groupInfo = addon.LibSpellDB:GetSharedCooldownGroup(spellInfo.spellID)
+                if groupName and groupInfo then
+                    sharedGroups[groupName] = sharedGroups[groupName] or {members = {}}
+                    table.insert(sharedGroups[groupName].members, {spellInfo = spellInfo, rowIndex = rowIndex})
+                end
+            end
+        end
+
+        for _, group in pairs(sharedGroups) do
+            if #group.members > 1 then
+                table.sort(group.members, function(a, b)
+                    local aInfo = a.spellInfo
+                    local bInfo = b.spellInfo
+                    local aEnabled = aInfo.enabled == true
+                    local bEnabled = bInfo.enabled == true
+                    if aEnabled ~= bEnabled then
+                        return aEnabled
+                    end
+
+                    local aHasDefault = aInfo.defaultRow ~= nil
+                    local bHasDefault = bInfo.defaultRow ~= nil
+                    if aHasDefault ~= bHasDefault then
+                        return aHasDefault
+                    end
+
+                    if a.rowIndex ~= b.rowIndex then return a.rowIndex < b.rowIndex end
+
+                    local orderA = aInfo.order or aInfo.defaultOrder or 999
+                    local orderB = bInfo.order or bInfo.defaultOrder or 999
+                    if orderA ~= orderB then return orderA < orderB end
+
+                    local prioA = aInfo.spellData.priority or 999
+                    local prioB = bInfo.spellData.priority or 999
+                    if prioA ~= prioB then return prioA < prioB end
+
+                    return aInfo.spellID < bInfo.spellID
+                end)
+
+                local rep = group.members[1]
+                local anyEnabled = false
+                local removeSet = {}
+                for _, member in ipairs(group.members) do
+                    removeSet[member.spellInfo.spellID] = true
+                    if member.spellInfo.enabled then anyEnabled = true end
+                end
+                rep.spellInfo.enabled = anyEnabled
+
+                for rowIndex, spells in pairs(rows) do
+                    local filtered = {}
+                    for _, spellInfo in ipairs(spells) do
+                        if not removeSet[spellInfo.spellID] then
+                            table.insert(filtered, spellInfo)
+                        end
+                    end
+                    rows[rowIndex] = filtered
+                end
+
+                rows[rep.rowIndex] = rows[rep.rowIndex] or {}
+                table.insert(rows[rep.rowIndex], rep.spellInfo)
+                table.sort(rows[rep.rowIndex], function(a, b)
+                    local orderA = a.order or a.defaultOrder or 999
+                    local orderB = b.order or b.defaultOrder or 999
+                    if orderA ~= orderB then
+                        return orderA < orderB
+                    end
+                    return a.spellID < b.spellID
+                end)
+            end
+        end
+    end
+
     -- Replace shared cooldown group entries with a meta-entry (like exclusive BuffGroups).
     -- E.g., Arms warrior's Retaliation becomes a group entry showing the override spell icon.
     if addon.LibSpellDB then

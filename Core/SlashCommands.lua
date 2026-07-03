@@ -119,6 +119,9 @@ function SlashCommands:HandleCommand(msg)
     elseif cmd == "icon" then
         self:DebugIcon(args[2])
 
+    elseif cmd == "keybind" or cmd == "kb" then
+        self:DebugKeybind(msg:match("^%S+%s+(.+)$"))
+
     elseif cmd == "usable" then
         self:DebugUsable(args[2])
 
@@ -152,6 +155,7 @@ function SlashCommands:ShowHelp()
     print("  /vh spec - " .. L["Show detected spec"])
     print("  /vh scan - " .. L["Force rescan spells"])
     print("  /vh check <id> - " .. L["Diagnose why a spell isn't showing"])
+    print("  /vh keybind <spell> - Debug keybind detection")
     print("  /vh layout - " .. L["Debug layout system positions"])
     print("  /vh log [n] - " .. L["Show log entries"])
     print("  /vh debug - " .. L["Toggle debug mode"])
@@ -200,6 +204,19 @@ end
 -------------------------------------------------------------------------------
 -- Debug Commands
 -------------------------------------------------------------------------------
+
+function SlashCommands:DebugKeybind(query)
+    if not query or query == "" then
+        addon.Utils:Print("Usage: /vh keybind <spellID or spell name>")
+        return
+    end
+
+    if addon.Keybinds and addon.Keybinds.DebugSpellKeybind then
+        addon.Keybinds:DebugSpellKeybind(query)
+    else
+        addon.Utils:Print("Keybind debugger unavailable.")
+    end
+end
 
 function SlashCommands:DebugCooldown(query)
     if not query then

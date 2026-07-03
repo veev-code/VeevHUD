@@ -217,6 +217,7 @@ function CooldownIcons:Initialize()
     -- Register for action bar and keybind changes (for keybind text display)
     self.Events:RegisterEvent(self, "ACTIONBAR_SLOT_CHANGED", self.OnActionBarChanged)
     self.Events:RegisterEvent(self, "UPDATE_BINDINGS", self.OnBindingsChanged)
+    self.Events:RegisterEvent(self, "UPDATE_MACROS", self.OnActionBarChanged)
     self.Events:RegisterEvent(self, "ACTIONBAR_PAGE_CHANGED", self.OnActionBarChanged)
     self.Events:RegisterEvent(self, "ACTIONBAR_SHOWGRID", self.OnActionBarChanged)
     self.Events:RegisterEvent(self, "ACTIONBAR_HIDEGRID", self.OnActionBarChanged)
@@ -245,8 +246,15 @@ end
 
 function CooldownIcons:OnPlayerEnteringWorld()
     C_Timer.After(2, function()
+        addon.Keybinds:ClearCache()
         self:RebuildAllRows()
         self:UpdateAllIcons()
+        self:UpdateAllKeybindText()
+    end)
+
+    C_Timer.After(5, function()
+        addon.Keybinds:ClearCache()
+        self:UpdateAllKeybindText()
     end)
 end
 

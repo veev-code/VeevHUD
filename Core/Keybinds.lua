@@ -22,7 +22,8 @@ local MAX_SLOTS_BARTENDER4 = 180
 -------------------------------------------------------------------------------
 
 -- Keybind lookup cache: spellID -> formatted keybind string or false (not found)
--- Cleared on ACTIONBAR_SLOT_CHANGED or UPDATE_BINDINGS
+-- Item/trinket lookups use string keys ("inventory:14", "item:12345").
+-- Cleared on action-bar, binding, and macro updates.
 Keybinds._cache = {}
 
 -- Clear the keybind cache (called when action bar or bindings change)
@@ -107,62 +108,44 @@ end
 -- Spell Detection in Action Slots
 -------------------------------------------------------------------------------
 
--- Check if a macro contains/casts a specific spell
--- Returns true if the macro's primary spell matches the target spellID
-local function MacroContainsSpell(macroIndex, targetSpellID)
-    if not macroIndex or not targetSpellID then return false end
+-- Get the macro body across clients. Some builds return body as the third
+-- result, while others may expose it later in the return list.
+local function GetMacroBody(macroIndex)
+    if not macroIndex then return nil end
 
-    -- GetMacroSpell's signature differs by client: modern Classic returns
-    -- just the spellID; legacy clients returned (name, rank, spellID).
-    -- The old 3-return destructure put a number in the name slot and nil in
-    -- the ID slot, so macro keybinds never matched.
-    local first, _, third = GetMacroSpell(macroIndex)
-    local macroSpellID = type(first) == "number" and first or third
-
-    if macroSpellID then
-        if macroSpellID == targetSpellID then
-            return true
-        end
-        -- Rank-insensitive match by name
-        local macroName = GetSpellInfo(macroSpellID)
-        local targetName = GetSpellInfo(targetSpellID)
-        if macroName and targetName and macroName == targetName then
-            return true
-        end
-    elseif type(first) == "string" then
-        -- Legacy shape without a usable ID: match by name
-        local targetName = GetSpellInfo(targetSpellID)
-        if targetName and first == targetName then
-            return true
-        end
+    local _, _, body, _, body5 = GetMacroInfo(macroIndex)
+    if type(body) == "string" then
+        return body
     end
-
-    return false
+    if type(body5) == "string" then
+        return body5
+    end
+    return nil
 end
 
 -- Check if an action slot's icon matches a spell's icon
 -- This is a fallback for macros where GetMacroSpell doesn't return the spell
-local function SlotIconMatchesSpell(slot, targetSpellID)
-    if not HasAction(slot) then return false end
+local function SlotIconSpellScore(slot, targetSpellID)
+    if not HasAction(slot) then return nil end
     
     local actionTexture = GetActionTexture(slot)
-    if not actionTexture then return false end
+    if not actionTexture then return nil end
     
     local spellTexture = GetSpellTexture(targetSpellID)
-    if not spellTexture then return false end
+    if not spellTexture then return nil end
     
     -- Compare texture paths (normalize to handle path variations)
     -- Textures can be numbers (fileIDs) or strings (paths)
     if type(actionTexture) == "number" and type(spellTexture) == "number" then
-        return actionTexture == spellTexture
+        return actionTexture == spellTexture and 20 or nil
     elseif type(actionTexture) == "string" and type(spellTexture) == "string" then
         -- Normalize paths for comparison (lowercase, strip interface prefix)
         local normAction = actionTexture:lower():gsub("interface\\icons\\", "")
         local normSpell = spellTexture:lower():gsub("interface\\icons\\", "")
-        return normAction == normSpell
+        return normAction == normSpell and 20 or nil
     end
     
-    return false
+    return nil
 end
 
 -- Check if two spells are the same (accounting for different ranks in Classic)
@@ -178,23 +161,266 @@ local function SpellsMatch(spellID1, spellID2)
     return name1 and name2 and name1 == name2
 end
 
--- Check if an action slot contains the target spell (directly, via macro, or by icon match)
-local function SlotContainsSpell(slot, targetSpellID)
-    local actionType, actionID = GetActionInfo(slot)
-    
-    if actionType == "spell" then
-        -- Check by ID first, then by name for different ranks
-        return SpellsMatch(actionID, targetSpellID)
-    elseif actionType == "macro" then
-        -- First try GetMacroSpell
-        if MacroContainsSpell(actionID, targetSpellID) then
-            return true
-        end
-        -- Fall back to icon matching for complex macros
-        return SlotIconMatchesSpell(slot, targetSpellID)
+local function StripMacroConditionals(text)
+    if not text then return "" end
+
+    -- Remove option blocks before parsing arguments:
+    -- /cast [combat,@player] Mortal Strike -> /cast Mortal Strike
+    return text:gsub("%b[]%s*", "")
+end
+
+local function TextContainsSpellName(text, spellName)
+    if not text or not spellName then return false end
+
+    local startIndex = text:find(spellName, 1, true)
+    if not startIndex then return false end
+
+    local beforeIndex = startIndex - 1
+    local afterIndex = startIndex + #spellName
+    local beforeOK = beforeIndex < 1 or not text:sub(beforeIndex, beforeIndex):match("[%w]")
+    local afterOK = afterIndex > #text or not text:sub(afterIndex, afterIndex):match("[%w]")
+    return beforeOK and afterOK
+end
+
+local function MacroConditionPenalty(segment)
+    if not segment then return 0 end
+
+    local lower = segment:lower()
+    local penalty = 0
+    if lower:find("@focus", 1, true) or lower:find("target=focus", 1, true) or lower:find("target:focus", 1, true) then
+        penalty = penalty + 25
     end
-    
-    return false
+    if lower:find("@mouseover", 1, true) or lower:find("target=mouseover", 1, true) or lower:find("target:mouseover", 1, true) then
+        penalty = penalty + 12
+    end
+    if lower:find("mod:", 1, true) or lower:find("modifier:", 1, true) then
+        penalty = penalty + 12
+    end
+    if lower:find("stance:", 1, true) or lower:find("nostance:", 1, true)
+        or lower:find("combat", 1, true) or lower:find("nocombat", 1, true) then
+        penalty = penalty + 3
+    end
+
+    return penalty
+end
+
+local function MacroCommandFromLine(line)
+    if not line then return nil end
+
+    local command, args = line:match("^%s*/([%a%d]+)%s*(.*)$")
+    if command then
+        return command:lower(), args or ""
+    end
+
+    args = line:match("^%s*#showtooltip%s*(.*)$")
+    if args then
+        return "#showtooltip", args
+    end
+    return nil
+end
+
+local function MacroSegmentSpellScore(segment, targetNameLower, baseScore)
+    if not segment or not targetNameLower then return nil end
+
+    local stripped = StripMacroConditionals(segment:lower())
+    stripped = stripped:gsub("[,;]", " ")
+
+    -- Castsequence options such as "reset=120" are not spell names.
+    while stripped:match("^%s*[%w_:]+=%S+%s+") do
+        stripped = stripped:gsub("^%s*[%w_:]+=%S+%s+", "", 1)
+    end
+
+    if TextContainsSpellName(stripped, targetNameLower) then
+        return baseScore - MacroConditionPenalty(segment)
+    end
+    return nil
+end
+
+local function MacroBodySpellScore(body, targetSpellID)
+    if not body or not targetSpellID then return nil end
+
+    local targetName = GetSpellInfo(targetSpellID)
+    if not targetName then return nil end
+
+    local targetNameLower = targetName:lower()
+    local bestScore
+    local tooltipMatches = false
+    for line in body:gmatch("[^\r\n]+") do
+        local command, args = MacroCommandFromLine(line)
+        local baseScore
+        if command == "cast" then
+            baseScore = 95
+        elseif command == "castsequence" then
+            baseScore = 82
+        elseif command == "#showtooltip" then
+            baseScore = 1
+        end
+
+        if baseScore and args then
+            for segment in args:gmatch("[^;]+") do
+                local score = MacroSegmentSpellScore(segment, targetNameLower, baseScore)
+                if score then
+                    if command == "#showtooltip" then
+                        tooltipMatches = true
+                    elseif not bestScore or score > bestScore then
+                        bestScore = score
+                    end
+                end
+            end
+        end
+    end
+
+    if bestScore and tooltipMatches then
+        bestScore = bestScore + 4
+    end
+    return bestScore
+end
+
+local function MacroSpellAPIScore(macroIndex, targetSpellID)
+    if not macroIndex or not targetSpellID then return nil end
+
+    -- GetMacroSpell's signature differs by client: modern Classic returns
+    -- just the spellID; legacy clients returned (name, rank, spellID).
+    -- The old 3-return destructure put a number in the name slot and nil in
+    -- the ID slot, so macro keybinds never matched.
+    local first, _, third = GetMacroSpell(macroIndex)
+    local macroSpellID = type(first) == "number" and first or third
+
+    if macroSpellID then
+        if macroSpellID == targetSpellID then
+            return 70
+        end
+        local macroName = GetSpellInfo(macroSpellID)
+        local targetName = GetSpellInfo(targetSpellID)
+        if macroName and targetName and macroName == targetName then
+            return 65
+        end
+    elseif type(first) == "string" then
+        local targetName = GetSpellInfo(targetSpellID)
+        if targetName and first == targetName then
+            return 60
+        end
+    end
+
+    return nil
+end
+
+local function MacroSpellScore(macroIndex, targetSpellID, slot)
+    local body = GetMacroBody(macroIndex)
+    local bodyMissing = body == nil
+    if bodyMissing then
+        local fallbackScore = MacroSpellAPIScore(macroIndex, targetSpellID)
+            or SlotIconSpellScore(slot, targetSpellID)
+        return fallbackScore, fallbackScore ~= nil
+    end
+
+    local score = MacroBodySpellScore(body, targetSpellID)
+    if score then
+        local macroName = GetMacroInfo(macroIndex)
+        local targetName = GetSpellInfo(targetSpellID)
+        if macroName and targetName then
+            local macroLower = macroName:lower()
+            local targetLower = targetName:lower()
+            if macroLower == targetLower then
+                score = score + 6
+            elseif macroLower:find(targetLower, 1, true) then
+                score = score + 3
+            end
+        end
+    end
+
+    return score, false
+end
+
+local function GetSlotSpellScore(slot, targetSpellID)
+    local actionType, actionID = GetActionInfo(slot)
+
+    if actionType == "spell" then
+        if actionID == targetSpellID then
+            -- Direct spell actions are a strong match, but not unbeatable:
+            -- hidden stance/page copies can otherwise override the macro the
+            -- player actually bound on the visible bar. Visible buttons still
+            -- win through the +35 visible-button candidate bonus.
+            return 94, false
+        elseif SpellsMatch(actionID, targetSpellID) then
+            return 88, false
+        end
+    elseif actionType == "macro" then
+        return MacroSpellScore(actionID, targetSpellID, slot)
+    end
+
+    return nil, false
+end
+
+-- Check if an action slot contains the target spell directly, via macro body,
+-- via GetMacroSpell, or as a low-confidence icon fallback.
+local function SlotContainsSpell(slot, targetSpellID)
+    local score = GetSlotSpellScore(slot, targetSpellID)
+    return score ~= nil
+end
+
+local function IsUseCommandLine(line)
+    if not line then return false end
+
+    line = line:match("^%s*(.-)%s*$")
+    return line:match("^/use%s+")
+        or line:match("^/use13%s+")
+        or line:match("^/use14%s+")
+        or line:match("^/cast%s+")
+        or line:match("^/castsequence%s+")
+end
+
+-- Check whether a macro body uses an equipment slot directly, e.g.:
+--   /use 14
+--   /use [combat] 13
+--   /castsequence reset=120 13, 14
+local function MacroContainsInventorySlot(macroIndex, inventorySlot)
+    if not macroIndex or not inventorySlot then return nil, false end
+
+    local body = GetMacroBody(macroIndex)
+    if not body then return nil, true end
+
+    local slotText = tostring(inventorySlot)
+    local bestScore
+    for line in body:gmatch("[^\r\n]+") do
+        line = line:lower()
+        if IsUseCommandLine(line) then
+            local args = StripMacroConditionals(line)
+            args = args:gsub("[,;]", " ")
+            for token in args:gmatch("%S+") do
+                if token == slotText then
+                    local score = 95 - MacroConditionPenalty(line)
+                    if not bestScore or score > bestScore then
+                        bestScore = score
+                    end
+                end
+            end
+        end
+    end
+
+    return bestScore, false
+end
+
+-- Check if an action slot activates an inventory slot directly.
+local function SlotContainsInventorySlot(slot, inventorySlot)
+    local actionType, actionID = GetActionInfo(slot)
+
+    if actionType == "macro" then
+        return MacroContainsInventorySlot(actionID, inventorySlot)
+    end
+
+    return nil, false
+end
+
+local function GetButtonAction(button)
+    if not button then return nil end
+
+    local action = button.action or button._state_action
+    if not action and button.GetAttribute then
+        action = button:GetAttribute("action")
+    end
+
+    return tonumber(action) or action
 end
 
 -------------------------------------------------------------------------------
@@ -240,7 +466,7 @@ local function GetElvUIKeybind(slot)
         -- name-derived button may hold a DIFFERENT action slot — trusting it
         -- blindly would display the wrong keybind. Only use it when its
         -- action matches; otherwise fall through to the generic button scan.
-        local btnAction = btn._state_action or btn.action
+        local btnAction = GetButtonAction(btn)
         if btnAction and btnAction ~= slot then
             return nil
         end
@@ -313,7 +539,7 @@ local function GetKeybindByButtonScan(targetSlot)
                 for btn = 1, 12 do
                     local buttonName = pattern:format(bar, btn)
                     local button = _G[buttonName]
-                    if button and button.action == targetSlot then
+                    if button and GetButtonAction(button) == targetSlot then
                         -- Found the button, now get its keybind
                         local key = GetBindingKey("CLICK " .. buttonName .. ":LeftButton")
                             or GetBindingKey("CLICK " .. buttonName .. ":Keybind")
@@ -327,8 +553,7 @@ local function GetKeybindByButtonScan(targetSlot)
                 local buttonName = pattern:format(i)
                 local button = _G[buttonName]
                 if button then
-                    local buttonAction = button.action or (button._state_action)
-                    if buttonAction == targetSlot then
+                    if GetButtonAction(button) == targetSlot then
                         local key = GetBindingKey("CLICK " .. buttonName .. ":LeftButton")
                             or GetBindingKey("CLICK " .. buttonName .. ":Keybind")
                         if key then return key end
@@ -345,6 +570,11 @@ end
 local function GetKeybindForSlot(slot)
     local barAddon = GetActionBarAddon()
     local key
+
+    -- Prefer the button currently displaying this action slot. This matters for
+    -- paged/stance bars where action slot 73 may be shown on BT4Button1.
+    key = GetKeybindByButtonScan(slot)
+    if key then return key end
     
     if barAddon == "Bartender4" then
         -- Try Bartender4 binding first
@@ -363,6 +593,72 @@ local function GetKeybindForSlot(slot)
     return GetKeybindByButtonScan(slot)
 end
 
+local function GetInventorySlotKeybind(inventorySlot)
+    local bindingName
+
+    if inventorySlot == 13 then
+        bindingName = "USETRINKET1"
+    elseif inventorySlot == 14 then
+        bindingName = "USETRINKET2"
+    end
+
+    if bindingName then
+        return GetBindingKey(bindingName)
+    end
+    return nil
+end
+
+local function GetKeyModifierPenalty(key)
+    if not key then return 0 end
+
+    local upper = key:upper()
+    local penalty = 0
+    if upper:find("SHIFT%-") then penalty = penalty + 8 end
+    if upper:find("CTRL%-") then penalty = penalty + 8 end
+    if upper:find("ALT%-") then penalty = penalty + 8 end
+    if upper:find("META%-") then penalty = penalty + 8 end
+    return penalty
+end
+
+local function ConsiderKeybindCandidate(best, slot, key, matchScore, visible)
+    if not key or not matchScore then return best end
+
+    local modifierPenalty = GetKeyModifierPenalty(key)
+    local candidate = {
+        slot = slot,
+        key = key,
+        matchScore = matchScore,
+        modifierPenalty = modifierPenalty,
+        adjustedScore = matchScore + (visible and 35 or 0) - modifierPenalty,
+    }
+
+    if not best then return candidate end
+    if candidate.adjustedScore ~= best.adjustedScore then
+        return candidate.adjustedScore > best.adjustedScore and candidate or best
+    end
+    if candidate.matchScore ~= best.matchScore then
+        return candidate.matchScore > best.matchScore and candidate or best
+    end
+    if candidate.modifierPenalty ~= best.modifierPenalty then
+        return candidate.modifierPenalty < best.modifierPenalty and candidate or best
+    end
+    return candidate.slot < best.slot and candidate or best
+end
+
+local function AddSlotCandidate(best, slot, matchScore)
+    local key = GetKeybindByButtonScan(slot)
+    if key then
+        return ConsiderKeybindCandidate(best, slot, key, matchScore, true)
+    end
+
+    key = GetKeybindForSlot(slot)
+    if key then
+        return ConsiderKeybindCandidate(best, slot, key, matchScore, false)
+    end
+
+    return best
+end
+
 -------------------------------------------------------------------------------
 -- Main API
 -------------------------------------------------------------------------------
@@ -372,10 +668,9 @@ end
 -- Supports Bartender4, ElvUI, and default UI
 -- Returns the formatted keybind string (e.g., "SX") or nil if not found
 --
--- Two-pass scan: first looks for an exact spell ID match (same rank),
--- then falls back to name-based matching (any rank) and macro detection.
--- This ensures max-rank keybinds are preferred over low-rank ones when
--- both are present on the action bar.
+-- Candidate scoring keeps displayed keys aligned with paged/stance buttons,
+-- prefers macro bodies over icon guesses, and breaks ties toward unmodified
+-- binds (B over Shift-B).
 function Keybinds:GetKeybindForSpell(spellID)
     if not spellID then return nil end
 
@@ -388,34 +683,190 @@ function Keybinds:GetKeybindForSpell(spellID)
     -- Determine max slots to scan based on addon
     local maxSlots = _G["Bartender4"] and MAX_SLOTS_BARTENDER4 or MAX_SLOTS_DEFAULT
 
-    -- Pass 1: Exact spell ID match only (prefer same-rank keybinds)
+    local best
+    local sawUnloadedMacro = false
     for slot = 1, maxSlots do
-        local actionType, actionID = GetActionInfo(slot)
-        if actionType == "spell" and actionID == spellID then
-            local key = GetKeybindForSlot(slot)
-            if key then
-                local formatted = self:FormatKeybind(key)
-                self._cache[spellID] = formatted
-                return formatted
-            end
+        local matchScore, bodyMissing = GetSlotSpellScore(slot, spellID)
+        if bodyMissing then
+            sawUnloadedMacro = true
+        end
+        if matchScore then
+            best = AddSlotCandidate(best, slot, matchScore)
         end
     end
 
-    -- Pass 2: Name-based match (any rank) and macro detection
-    for slot = 1, maxSlots do
-        if SlotContainsSpell(slot, spellID) then
-            local key = GetKeybindForSlot(slot)
-            if key then
-                local formatted = self:FormatKeybind(key)
-                self._cache[spellID] = formatted
-                return formatted
-            end
+    if best then
+        if sawUnloadedMacro then
+            return nil
         end
+
+        local formatted = self:FormatKeybind(best.key)
+        if not sawUnloadedMacro then
+            self._cache[spellID] = formatted
+        end
+        return formatted
     end
 
     -- Not found or no keybind
-    self._cache[spellID] = false
+    if not sawUnloadedMacro then
+        self._cache[spellID] = false
+    end
     return nil
+end
+
+-- Find the keybind for an inventory slot by scanning action bars for:
+--   - a macro that activates the slot directly, e.g. /use 13 or /use 14
+function Keybinds:GetKeybindForInventorySlot(inventorySlot)
+    if not inventorySlot then return nil end
+
+    local equippedItemID = GetInventoryItemID("player", inventorySlot) or 0
+    local cacheKey = "inventory:" .. inventorySlot .. ":" .. equippedItemID
+    local cached = self._cache[cacheKey]
+    if cached ~= nil then
+        return cached or nil
+    end
+
+    local maxSlots = _G["Bartender4"] and MAX_SLOTS_BARTENDER4 or MAX_SLOTS_DEFAULT
+
+    local best
+    local sawUnloadedMacro = false
+    for slot = 1, maxSlots do
+        local matchScore, bodyMissing = SlotContainsInventorySlot(slot, inventorySlot)
+        if bodyMissing then
+            sawUnloadedMacro = true
+        end
+        if matchScore then
+            best = AddSlotCandidate(best, slot, matchScore)
+        end
+    end
+
+    if best then
+        if sawUnloadedMacro then
+            return nil
+        end
+
+        local formatted = self:FormatKeybind(best.key)
+        if not sawUnloadedMacro then
+            self._cache[cacheKey] = formatted
+        end
+        return formatted
+    end
+
+    if not sawUnloadedMacro then
+        local key = GetInventorySlotKeybind(inventorySlot)
+        if key then
+            local formatted = self:FormatKeybind(key)
+            self._cache[cacheKey] = formatted
+            return formatted
+        end
+
+        self._cache[cacheKey] = false
+    end
+    return nil
+end
+
+-------------------------------------------------------------------------------
+-- Debug
+-------------------------------------------------------------------------------
+
+local function ResolveSpellQuery(query)
+    if not query or query == "" then return nil end
+
+    local spellID = tonumber(query)
+    if spellID then
+        return spellID, GetSpellInfo(spellID)
+    end
+
+    local name, _, _, _, _, _, resolvedID = GetSpellInfo(query)
+    if resolvedID then
+        return resolvedID, name
+    end
+
+    local lowerQuery = query:lower()
+    for i = 1, 500 do
+        local spellName = GetSpellBookItemName(i, BOOKTYPE_SPELL)
+        if not spellName then break end
+        if spellName:lower() == lowerQuery then
+            local _, spellBookID = GetSpellBookItemInfo(i, BOOKTYPE_SPELL)
+            if spellBookID then
+                return spellBookID, spellName
+            end
+        end
+    end
+
+    return nil
+end
+
+local function SafeText(value)
+    if value == nil then return "nil" end
+    return tostring(value)
+end
+
+local function GetMacroDebugInfo(actionType, actionID)
+    if actionType ~= "macro" or not actionID then
+        return nil, nil
+    end
+
+    local macroName, _, body = GetMacroInfo(actionID)
+    if type(body) ~= "string" then
+        body = GetMacroBody(actionID)
+    end
+    if type(body) == "string" then
+        body = body:gsub("[\r\n]+", " / ")
+        if #body > 180 then
+            body = body:sub(1, 177) .. "..."
+        end
+    end
+
+    return macroName, body
+end
+
+function Keybinds:DebugSpellKeybind(query)
+    local spellID, spellName = ResolveSpellQuery(query)
+    if not spellID then
+        addon.Utils:Print("Usage: /vh keybind <spellID or spell name>")
+        return
+    end
+
+    self:ClearCache()
+    local final = self:GetKeybindForSpell(spellID)
+    print("|cff00ff00VeevHUD Keybind Debug:|r " .. (spellName or "?") .. " (" .. spellID .. ") final=" .. SafeText(final))
+
+    local maxSlots = _G["Bartender4"] and MAX_SLOTS_BARTENDER4 or MAX_SLOTS_DEFAULT
+    local count = 0
+    for slot = 1, maxSlots do
+        local matchScore, bodyMissing = GetSlotSpellScore(slot, spellID)
+        if matchScore or bodyMissing then
+            count = count + 1
+            local actionType, actionID = GetActionInfo(slot)
+            local visibleKey = GetKeybindByButtonScan(slot)
+            local fallbackKey = GetKeybindForSlot(slot)
+            local macroName, macroBody = GetMacroDebugInfo(actionType, actionID)
+            local visibleCandidate = visibleKey and ConsiderKeybindCandidate(nil, slot, visibleKey, matchScore or 0, true)
+            local fallbackCandidate = fallbackKey and ConsiderKeybindCandidate(nil, slot, fallbackKey, matchScore or 0, false)
+
+            print(string.format(
+                "  slot=%d type=%s id=%s score=%s missingBody=%s visibleKey=%s visibleAdj=%s fallbackKey=%s fallbackAdj=%s macro=%s",
+                slot,
+                SafeText(actionType),
+                SafeText(actionID),
+                SafeText(matchScore),
+                SafeText(bodyMissing),
+                SafeText(visibleKey),
+                SafeText(visibleCandidate and visibleCandidate.adjustedScore),
+                SafeText(fallbackKey),
+                SafeText(fallbackCandidate and fallbackCandidate.adjustedScore),
+                SafeText(macroName)
+            ))
+            if macroBody then
+                print("    " .. macroBody)
+            end
+        end
+    end
+
+    if count == 0 then
+        print("  No matching action slots found.")
+    end
 end
 
 -------------------------------------------------------------------------------
@@ -461,15 +912,19 @@ function Keybinds:UpdateKeybindText(frame, showKeybindSetting)
         return
     end
     
-    -- Get the spell ID (actualSpellID handles rank variants, etc.)
-    local spellID = frame.actualSpellID or frame.spellID
-    if not spellID then
-        frame.keybindText:Hide()
-        return
+    local keybind
+    if frame.isTrinket and frame.trinketSlotID then
+        keybind = self:GetKeybindForInventorySlot(frame.trinketSlotID)
+    end
+
+    if not keybind then
+        -- Get the spell ID (actualSpellID handles rank variants, etc.)
+        local spellID = frame.actualSpellID or frame.spellID
+        if spellID then
+            keybind = self:GetKeybindForSpell(spellID)
+        end
     end
     
-    -- Look up and display the keybind
-    local keybind = self:GetKeybindForSpell(spellID)
     if keybind then
         frame.keybindText:SetText(keybind)
         frame.keybindText:Show()

@@ -1,5 +1,22 @@
 # VeevHUD Changelog
 
+## [1.0.220] - 2026-07-03
+
+Keybind detection overhaul.
+
+### Added
+- **Trinket keybinds** — Tracked trinket icons now show their key, whether it comes from the Use Trinket bindings or a macro that fires the slot (`/use 13`, `/use 14`).
+
+### Fixed
+- **Correct keys on paged and stance bars** — Abilities shown on a paged, stance, or form-swapped action bar (warrior stances, druid forms, bonus bars) now display the key you'd actually press, instead of a stale binding from a hidden copy of the slot or nothing at all.
+- **Macro keybinds** — Keybinds now resolve from the macro's contents, covering `/cast`, `/castsequence`, and `#showtooltip` macros as well as ones with conditions like `[combat]` or `[@focus]`. Complex macros that used to show no key now work.
+- **Smarter pick when a spell is bound in more than one place** — VeevHUD now prefers the visible button and the simplest key: an unmodified press (e.g. `B`) over a modified one (`Shift-B`), and a direct cast over a `@focus`/`@mouseover` macro variant, so the key it shows is the one you're most likely to press.
+- **Faster refresh** — Editing a macro updates the shown keys immediately, and keybind text now settles reliably after logging in or reloading.
+- **Duplicate entries in Spell config** — In the Spells configuration window, abilities that share a cooldown no longer appear as several identical group rows when some members are off-spec or disabled; they collapse into a single entry.
+
+### LibSpellDB Updates
+- Spell-database accuracy fixes — corrected the rank lists for Bash, Freezing Trap, Mind Control, Shackle Undead, Kick, and Polymorph (removed IDs that don't exist in TBC), simplified Scatter Shot's disorient tracking, and consolidated the Blood Elf Arcane Torrent racial so Hunters and Paladins share the correct entry.
+
 ## [1.0.219] - 2026-06-28
 
 ### Added
