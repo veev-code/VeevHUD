@@ -1,5 +1,10 @@
 # VeevHUD Changelog
 
+## [1.0.222] - 2026-07-12
+
+### Fixed
+- **Consumable and trinket keybinds** — Potions, bandages, and other tracked consumables now show the key from their action-bar button or item macro. Equipped trinkets placed directly on an action bar now show their key too, while `/use 13` / `/use 14` macros and the dedicated Use Trinket bindings continue to work. *(Thanks zearp for reporting)*
+
 ## [1.0.221] - 2026-07-12
 
 ### Fixed

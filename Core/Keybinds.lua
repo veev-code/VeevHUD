@@ -352,6 +352,98 @@ local function GetSlotSpellScore(slot, targetSpellID)
     return nil, false
 end
 
+local function MacroSegmentItemScore(segment, targetItemID, targetNameLower, baseScore)
+    if not segment or not targetItemID then return nil end
+
+    local stripped = StripMacroConditionals(segment:lower())
+    stripped = stripped:match("^%s*(.-)%s*$") or ""
+
+    -- Castsequence options such as "reset=120" are not item references.
+    while stripped:match("^%s*[%w_:]+=%S+%s+") do
+        stripped = stripped:gsub("^%s*[%w_:]+=%S+%s+", "", 1)
+    end
+
+    local targetText = tostring(targetItemID)
+    for itemText in stripped:gmatch("item:(%d+)") do
+        if itemText == targetText then
+            return baseScore - MacroConditionPenalty(segment)
+        end
+    end
+
+    -- WoW also accepts a bare item ID in /use commands.
+    for numberText in stripped:gmatch("%f[%d](%d+)%f[%D]") do
+        if numberText == targetText then
+            return baseScore - MacroConditionPenalty(segment)
+        end
+    end
+
+    if targetNameLower and TextContainsSpellName(stripped, targetNameLower) then
+        return baseScore - MacroConditionPenalty(segment)
+    end
+
+    return nil
+end
+
+local function MacroBodyItemScore(body, targetItemID)
+    if not body or not targetItemID then return nil end
+
+    local targetName = GetItemInfo(targetItemID)
+    local targetNameLower = targetName and targetName:lower() or nil
+    local bestScore
+    local tooltipMatches = false
+
+    for line in body:gmatch("[^\r\n]+") do
+        local command, args = MacroCommandFromLine(line)
+        local baseScore
+        if command == "use" or command == "use13" or command == "use14" then
+            baseScore = 95
+        elseif command == "castsequence" then
+            baseScore = 82
+        elseif command == "#showtooltip" then
+            baseScore = 1
+        end
+
+        if baseScore and args then
+            for segment in args:gmatch("[^;]+") do
+                local score = MacroSegmentItemScore(segment, targetItemID, targetNameLower, baseScore)
+                if score then
+                    if command == "#showtooltip" then
+                        tooltipMatches = true
+                    elseif not bestScore or score > bestScore then
+                        bestScore = score
+                    end
+                end
+            end
+        end
+    end
+
+    if bestScore and tooltipMatches then
+        bestScore = bestScore + 4
+    end
+    return bestScore
+end
+
+local function MacroItemScore(macroIndex, targetItemID)
+    if not macroIndex or not targetItemID then return nil, false end
+
+    local body = GetMacroBody(macroIndex)
+    if not body then return nil, true end
+
+    return MacroBodyItemScore(body, targetItemID), false
+end
+
+local function GetSlotItemScore(slot, targetItemID)
+    local actionType, actionID = GetActionInfo(slot)
+
+    if actionType == "item" and tonumber(actionID) == targetItemID then
+        return 94, false
+    elseif actionType == "macro" then
+        return MacroItemScore(actionID, targetItemID)
+    end
+
+    return nil, false
+end
+
 -- Check if an action slot contains the target spell directly, via macro body,
 -- via GetMacroSpell, or as a low-confidence icon fallback.
 local function SlotContainsSpell(slot, targetSpellID)
@@ -402,11 +494,17 @@ local function MacroContainsInventorySlot(macroIndex, inventorySlot)
 end
 
 -- Check if an action slot activates an inventory slot directly.
-local function SlotContainsInventorySlot(slot, inventorySlot)
+local function SlotContainsInventorySlot(slot, inventorySlot, equippedItemID)
     local actionType, actionID = GetActionInfo(slot)
 
-    if actionType == "macro" then
-        return MacroContainsInventorySlot(actionID, inventorySlot)
+    if actionType == "item" and equippedItemID and tonumber(actionID) == equippedItemID then
+        return 94, false
+    elseif actionType == "macro" then
+        local slotScore, bodyMissing = MacroContainsInventorySlot(actionID, inventorySlot)
+        if slotScore or bodyMissing then
+            return slotScore, bodyMissing
+        end
+        return MacroItemScore(actionID, equippedItemID)
     end
 
     return nil, false
@@ -714,8 +812,52 @@ function Keybinds:GetKeybindForSpell(spellID)
     return nil
 end
 
+-- Find the keybind for an item placed directly on an action bar or referenced
+-- by an item-aware macro (/use itemID, /use item:itemID, or /use Item Name).
+function Keybinds:GetKeybindForItem(itemID)
+    itemID = tonumber(itemID)
+    if not itemID then return nil end
+
+    local cacheKey = "item:" .. itemID
+    local cached = self._cache[cacheKey]
+    if cached ~= nil then
+        return cached or nil
+    end
+
+    local maxSlots = _G["Bartender4"] and MAX_SLOTS_BARTENDER4 or MAX_SLOTS_DEFAULT
+    local best
+    local sawUnloadedMacro = false
+
+    for slot = 1, maxSlots do
+        local matchScore, bodyMissing = GetSlotItemScore(slot, itemID)
+        if bodyMissing then
+            sawUnloadedMacro = true
+        end
+        if matchScore then
+            best = AddSlotCandidate(best, slot, matchScore)
+        end
+    end
+
+    if best then
+        if sawUnloadedMacro then
+            return nil
+        end
+
+        local formatted = self:FormatKeybind(best.key)
+        self._cache[cacheKey] = formatted
+        return formatted
+    end
+
+    if not sawUnloadedMacro then
+        self._cache[cacheKey] = false
+    end
+    return nil
+end
+
 -- Find the keybind for an inventory slot by scanning action bars for:
+--   - the currently equipped item placed directly on an action bar
 --   - a macro that activates the slot directly, e.g. /use 13 or /use 14
+--   - a macro that activates the currently equipped item by ID or name
 function Keybinds:GetKeybindForInventorySlot(inventorySlot)
     if not inventorySlot then return nil end
 
@@ -731,7 +873,7 @@ function Keybinds:GetKeybindForInventorySlot(inventorySlot)
     local best
     local sawUnloadedMacro = false
     for slot = 1, maxSlots do
-        local matchScore, bodyMissing = SlotContainsInventorySlot(slot, inventorySlot)
+        local matchScore, bodyMissing = SlotContainsInventorySlot(slot, inventorySlot, equippedItemID)
         if bodyMissing then
             sawUnloadedMacro = true
         end
@@ -915,9 +1057,9 @@ function Keybinds:UpdateKeybindText(frame, showKeybindSetting)
     local keybind
     if frame.isTrinket and frame.trinketSlotID then
         keybind = self:GetKeybindForInventorySlot(frame.trinketSlotID)
-    end
-
-    if not keybind then
+    elseif frame.isConsumable and frame.consumableItemID then
+        keybind = self:GetKeybindForItem(frame.consumableItemID)
+    else
         -- Get the spell ID (actualSpellID handles rank variants, etc.)
         local spellID = frame.actualSpellID or frame.spellID
         if spellID then
