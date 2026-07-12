@@ -68,7 +68,7 @@ jobs:
 
       - name: Package and Release
         uses: BigWigsMods/packager@v2
-        # Game versions (Classic Era 11508 + TBC 20505) are auto-detected from the TOC ## Interface line
+        # Game versions (Classic Era 11508 + TBC 20506) are auto-detected from the TOC ## Interface line
         env:
           CF_API_KEY: ${{ secrets.CF_API_KEY }}
           GITHUB_OAUTH: ${{ secrets.GITHUB_TOKEN }}

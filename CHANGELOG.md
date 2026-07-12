@@ -1,5 +1,14 @@
 # VeevHUD Changelog
 
+## [1.0.221] - 2026-07-12
+
+### Fixed
+- **TBC Anniversary 2.5.6 compatibility** — VeevHUD no longer appears as "Out of date" on the latest TBC Anniversary client.
+- **Totem tracking: Windwall Totem** — All four ranks now appear in the Air totem slot with the correct two-minute timer and out-of-range dimming. *(Thanks Splicer006 for reporting)*
+
+### LibSpellDB Updates
+- Added Windwall Totem's complete rank and party-buff metadata for duration and range tracking.
+
 ## [1.0.220] - 2026-07-03
 
 Keybind detection overhaul.
