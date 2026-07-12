@@ -897,6 +897,7 @@ function IconStateEngine:_ComputeVisualFlags(frame, db, s)
     s.alpha = db.readyAlpha
     s.desaturate = false
     s.showSpinner = false
+    s.showGCDSpinner = false
     s.showText = false
     s.showGlow = false
     s.showAuraActive = false
@@ -984,8 +985,9 @@ function IconStateEngine:_ComputeVisualFlags(frame, db, s)
             end
         end
 
-        if s.isOnGCD then
+        if s.isOnGCD and showGCDForThisRow then
             s.showSpinner = true
+            s.showGCDSpinner = true
         elseif s.isOnActualCooldown then
             s.showSpinner = true
             s.showText = s.duration >= 2
@@ -1017,6 +1019,7 @@ function IconStateEngine:_ComputeVisualFlags(frame, db, s)
             end
         elseif s.isOnGCD and showGCDForThisRow then
             s.showSpinner = true
+            s.showGCDSpinner = true
             s.alpha = db.readyAlpha
         elseif s.noChargesLeft then
             s.alpha = db.cooldownAlpha

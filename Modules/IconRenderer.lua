@@ -164,6 +164,7 @@ function IconRenderer:ApplyIconVisuals(frame, state, db)
     local alpha = state.alpha
     local desaturate = state.desaturate
     local showSpinner = state.showSpinner
+    local showGCDSpinner = state.showGCDSpinner
     local showText = state.showText
     local showPrediction = state.showPrediction
     local predictionRemaining = state.predictionRemaining or 0
@@ -177,10 +178,20 @@ function IconRenderer:ApplyIconVisuals(frame, state, db)
     -- Spiral display
     -------------------------------------------------------------------
     local showSpiralForRow = addon.Database:IsRowSettingEnabled(db.showCooldownSpiralOn, rowIndex)
-    local shouldShowSpiral = showSpinner or showPrediction
+    -- The GCD swipe has its own row setting and must remain independent from
+    -- the real-cooldown spiral setting. Preserve the normal priority order
+    -- (prediction > aura > cooldown/GCD), but fall back to a requested GCD
+    -- swipe when prediction spirals are disabled for this row.
+    local renderPrediction = showPrediction and predictionDuration > 0 and showSpiralForRow
+    local renderAura = not renderPrediction and showSpinner
+        and showAuraActive and auraDuration > 0 and showSpiralForRow
+    local renderCooldown = not renderPrediction and not renderAura
+        and showSpinner and cdDuration > 0 and cdStartTime > 0
+        and (showGCDSpinner or showSpiralForRow)
+    local shouldShowSpiral = renderPrediction or renderAura or renderCooldown
 
-    if shouldShowSpiral and showSpiralForRow then
-        if showPrediction and predictionDuration > 0 then
+    if shouldShowSpiral then
+        if renderPrediction then
             -- Prediction spiral (waiting for resources)
             frame.cooldown:SetAlpha(db.cooldownSpiralAlpha)
             frame.cooldown:SetReverse(false)
@@ -191,7 +202,7 @@ function IconRenderer:ApplyIconVisuals(frame, state, db)
             end
             frame.cooldown:Show()
             frame._wasRealCooldown = false
-        elseif showAuraActive and auraDuration > 0 then
+        elseif renderAura then
             -- Aura spiral (reverse: bright drains as time passes)
             frame.cooldown:SetAlpha(db.auraSpiralAlpha)
             frame.cooldown:SetReverse(true)
@@ -203,7 +214,7 @@ function IconRenderer:ApplyIconVisuals(frame, state, db)
             end
             frame.cooldown:Show()
             frame._wasRealCooldown = false
-        elseif cdDuration > 0 and cdStartTime > 0 then
+        elseif renderCooldown then
             -- Cooldown spiral (normal: dark drains as time passes)
             frame.cooldown:SetAlpha(db.cooldownSpiralAlpha)
             frame.cooldown:SetReverse(false)
@@ -467,5 +478,4 @@ function IconRenderer:UpdateResourceDisplay(frame, _, _, hasResourceCost, resour
     self:RegisterAnimatedFrame(frame)
 
 end
-
 

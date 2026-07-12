@@ -1567,6 +1567,7 @@ function CooldownIcons:UpdateIconState(frame, db)
     visualState.alpha = s.alpha
     visualState.desaturate = s.desaturate
     visualState.showSpinner = s.showSpinner
+    visualState.showGCDSpinner = s.showGCDSpinner
     visualState.showText = s.showText
     visualState.showPrediction = s.showPredictionSpiral
     visualState.predictionRemaining = s.predictionRemaining

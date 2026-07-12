@@ -1,5 +1,10 @@
 # VeevHUD Changelog
 
+## [1.0.223] - 2026-07-12
+
+### Fixed
+- **Show GCD row setting** — The global-cooldown swipe now follows the Show GCD selection exactly: it remains visible on selected rows even when the regular Cooldown Spiral is disabled, and stays hidden from excluded rows regardless of their Dim On Cooldown setting. *(Thanks zearp for reporting)*
+
 ## [1.0.222] - 2026-07-12
 
 ### Fixed
