@@ -5,9 +5,10 @@ description: Coordinate production releases of LibSpellDB and VeevHUD. Use only 
 
 # Coordinated Addon Release
 
-Release LibSpellDB before VeevHUD when both have unreleased changes. VeevHUD
-consumes LibSpellDB as a packaged external, so include newly shipped library
-changes in VeevHUD's player-facing changelog.
+Release LibSpellDB before VeevHUD when both have releasable shipped changes.
+VeevHUD consumes LibSpellDB as a packaged external, so include newly shipped
+library changes in VeevHUD's player-facing changelog. Source-only repository
+maintenance does not create a library release by itself.
 
 ## Authority
 
@@ -53,9 +54,10 @@ pipe Git output through `Select-Object`.
 - `.agents/` and `.claude/` are source-only agent tooling. They must remain in
   `.pkgmeta`'s ignore list and must never appear in addon archives.
 - Require the owning repository's package-boundary check to pass before
-  treating release validation as green. VeevHUD uses
-  `Tools/check_package_contents.py`; LibSpellDB performs the equivalent archive
-  inspection in its release workflow.
+  treating release validation as green. Both repositories use
+  `Tools/check_package_contents.py`. The exact-SHA branch workflow is the
+  authoritative pre-tag package check when the conditional local dry build is
+  skipped.
 
 ## Release Contract And Helpers
 
@@ -82,6 +84,28 @@ a new LibSpellDB version, update both `.pkgmeta` and the release contract with
 the verified tag, full commit SHA, version, and LibStub minor before preparing
 VeevHUD. Never package LibSpellDB from an unpinned branch head.
 
+## Fast Path And Local Packaging
+
+Do not run the BigWigs packager locally for every ordinary Lua, XML, or locale
+release. A local dry package is required only when the delta since the newest
+tag, including working-tree changes, is package-sensitive. Treat a delta as
+package-sensitive when it changes any of the following:
+
+- `.pkgmeta`, `.github/workflows/release.yml`, or a package checker;
+- a TOC's file list, package-related XML manifests, dependency pins, or the
+  release contract;
+- source-only exclusion rules; or
+- added, deleted, renamed, or moved paths that could change archive contents.
+
+When the delta is not package-sensitive, run the fast local syntax, locale,
+data, and targeted checks, then let exact-SHA branch CI perform the dry package
+and package-contract verification. That branch run must succeed before tagging.
+
+Tag workflows intentionally skip the already-proven dry package. They rerun
+the fast validators, build and upload the release package once, and validate
+that actual release archive before announcing success. Do not add a second tag
+dry-build unless the branch-to-tag trust model changes.
+
 ## Mandatory Preflight
 
 Run the preflight helper before editing release files, then review its findings
@@ -92,7 +116,9 @@ with the following judgment checks for both repositories:
    helper.
 3. Require the intended release branch and expected origin.
 4. Get version tags with `git tag --sort=-v:refname`.
-5. Review every uncommitted change and commit since the newest tag.
+5. Build the release delta from uncommitted changes plus commits since the
+   newest tag. Review that diff completely; do not re-read unchanged files or
+   historical release tooling outside the delta.
 6. Review the recent workflow history in addition to the helper's active-run
    gate.
 7. Determine the next unused patch version and verify both local and remote tag
@@ -104,8 +130,16 @@ Write changelog entries from the complete release delta, not session notes.
 
 ## Release LibSpellDB
 
-If LibSpellDB has neither uncommitted changes nor commits after its newest tag,
-report that no library release is needed and continue.
+First classify LibSpellDB's complete delta since its newest tag. Release it only
+when shipped library behavior or data changed, including `Core/`, `Data/`,
+`lib.xml`, `LibSpellDB.toc`, or another file that belongs in the addon archive.
+
+Changes limited to `.agents/`, `.claude/`, `.github/`, `Tools/`, Markdown docs,
+`.gitignore`, or release-maintenance `.pkgmeta` rules are source-only and do not
+create a LibSpellDB version by themselves. Report that no library release is
+needed, preserve those changes, and continue with VeevHUD when they can be kept
+separate. Do not commit or push source-only LibSpellDB maintenance during the
+coordinated release unless the user separately requested that maintenance.
 
 When it has releasable work:
 
@@ -115,13 +149,15 @@ When it has releasable work:
 4. Add one changelog entry covering every shipped API, schema, and spell-data
    change.
 5. Run `python Tools/validate_spells.py`, Lua syntax validation, and relevant
-   targeted checks.
+   targeted checks. Run a local dry package and
+   `python Tools/check_package_contents.py <package-path> --source-root .` only
+   when the Fast Path rules classify the delta as package-sensitive.
 6. Verify the TOC version and LibStub minor with `rg`.
 7. Stage only intended files. Use `git add -A` only when every dirty file has
    been reviewed and belongs to the release.
 8. Inspect `git diff --cached --check`, `git diff --cached --stat`, and the full
-   cached diff. Stop if version, minor, changelog, or implementation files are
-   missing.
+   cached release diff. Stop if version, minor, changelog, or implementation
+   files are missing. Do not audit unchanged files outside this delta.
 9. Commit and push the release branch.
 10. Find and watch the branch workflow for the exact commit SHA. Do not create
     the tag until branch CI succeeds.
@@ -144,14 +180,16 @@ must be pulled into the packaged external.
 2. Bump `VeevHUD.toc` to the next patch version.
 3. Add a player-facing changelog entry. Include `LibSpellDB Updates` only when
    library changes are newly included.
-4. Run `python Tools/check_locales.py`, Lua syntax validation, relevant targeted
-   checks, and `python Tools/check_package_contents.py <package-path> --addon
-   VeevHUD --source-root .` after a dry package build.
+4. Run `python Tools/check_locales.py`, Lua syntax validation, and relevant
+   targeted checks. Only for a package-sensitive delta, also run a local dry
+   package and `python Tools/check_package_contents.py <package-path> --addon
+   VeevHUD --source-root .`.
 5. Review `TODO.md`. Move only fully completed items to Implemented with the
    new version and preserve reporter credits.
 6. Verify the TOC version with `rg`.
-7. Stage only intended files and inspect the complete cached diff. Stop if the
-   TOC, changelog, intended implementation, or required TODO changes are absent.
+7. Stage only intended files and inspect the complete cached release diff. Stop
+   if the TOC, changelog, intended implementation, or required TODO changes are
+   absent. Do not audit unchanged files outside the delta.
 8. Commit and push the release branch.
 9. Find and watch the branch workflow for the exact commit SHA. Do not tag
    until branch CI succeeds.
@@ -183,8 +221,10 @@ from a verified checkpoint; do not repeat completed mutations.
 
 The release workflows must accept only semantic `v*.*.*` tags, serialize
 release jobs without canceling an in-progress publication, pin third-party
-actions by immutable commit SHA, validate the package contract before tagging,
-and send success announcements only after every required release step passes.
+actions by immutable commit SHA, validate the package contract on branch CI
+before tagging, validate the actual archive after packaging the tag, and send
+success announcements only after every required release step passes. Tag
+validation must not repeat the branch workflow's dry package.
 
 ## Changelog Rules
 
@@ -223,6 +263,7 @@ Report:
 - branch push, branch CI, tag workflow, and GitHub release results;
 - LibSpellDB changes included in VeevHUD's changelog;
 - TODO items moved to Implemented;
+- whether the local dry package ran or was skipped under the Fast Path rules;
 - package-boundary verification;
 - embedded LibSpellDB version, tag, full commit SHA, and LibStub minor;
 - published archive name and SHA-256;

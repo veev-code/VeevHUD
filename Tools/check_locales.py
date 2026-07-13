@@ -58,8 +58,14 @@ def parse_locale(path, is_default):
 def scan_code_keys():
     keys = set()
     for p in ROOT.rglob("*.lua"):
-        rel = p.relative_to(ROOT).as_posix()
-        if rel.startswith("Libs/") or rel.startswith("Locales/"):
+        rel = p.relative_to(ROOT)
+        # Only addon-owned runtime Lua is relevant. Generated packages contain
+        # embedded AceLocale consumers, and source tooling can contain Lua
+        # snippets; treating either as VeevHUD code creates false failures.
+        if set(rel.parts) & {
+            ".agents", ".claude", ".git", ".github", ".release",
+            "Libs", "Locales", "Tools",
+        }:
             continue
         for m in KEY_USE_RE.finditer(p.read_text(encoding="utf-8")):
             keys.add(m.group(1))

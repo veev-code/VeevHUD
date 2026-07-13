@@ -18,6 +18,8 @@ MINOR_RE = re.compile(r'local MAJOR, MINOR = "LibSpellDB-1\.0",\s*(\d+)')
 PIN_RE = re.compile(
     r"(?ms)^\s{2}Libs/LibSpellDB:\s*$.*?^\s{4}commit:\s*([0-9a-fA-F]{40})\s*$"
 )
+LIB_SOURCE_ONLY_PREFIXES = (".agents/", ".claude/", ".github/", "Tools/")
+LIB_SOURCE_ONLY_FILES = {".gitignore", ".pkgmeta", "AGENTS.md", "CLAUDE.md"}
 
 
 def veev_root() -> Path:
@@ -113,6 +115,30 @@ def repository_slug(origin: str) -> str:
     return match.group(1)
 
 
+def changed_paths(repo: Path, latest_tag: str) -> list[str]:
+    """Return only the current release delta: committed, staged, unstaged, and untracked."""
+    paths: set[str] = set()
+    commands = (
+        ("git", "diff", "--name-only", f"{latest_tag}..HEAD", "--"),
+        ("git", "diff", "--name-only", "--cached", "--"),
+        ("git", "diff", "--name-only", "--"),
+        ("git", "ls-files", "--others", "--exclude-standard"),
+    )
+    for command in commands:
+        output = run(repo, *command)
+        paths.update(line for line in output.splitlines() if line)
+    return sorted(paths, key=str.casefold)
+
+
+def is_lib_source_only(path: str) -> bool:
+    normalized = path.replace("\\", "/")
+    return (
+        normalized.startswith(LIB_SOURCE_ONLY_PREFIXES)
+        or normalized in LIB_SOURCE_ONLY_FILES
+        or normalized.casefold().endswith(".md")
+    )
+
+
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -173,8 +199,16 @@ def main(argv: list[str]) -> int:
                 failures.append(f"{name}: candidate tag {next_tag} already exists remotely.")
 
             dirty = run(repo, "git", "status", "--short")
+            delta_paths = changed_paths(repo, latest_tag)
             print(f"  branch={branch} latest={latest_tag} candidate={next_tag}")
             print(f"  worktree={'dirty; review required' if dirty else 'clean'}")
+            print(f"  release_delta={len(delta_paths)} path(s)")
+            if name == "LibSpellDB" and delta_paths:
+                candidates = [path for path in delta_paths if not is_lib_source_only(path)]
+                if candidates:
+                    print(f"  library_delta=candidate ({len(candidates)} shipped path(s)); review required")
+                else:
+                    print("  library_delta=none; source-only paths only")
 
             if not args.skip_remote:
                 remote_latest = latest_remote_version_tag(repo)

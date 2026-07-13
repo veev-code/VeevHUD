@@ -51,11 +51,13 @@ jobs:
         run: python3 Tools/check_locales.py
 
       - name: Build package without uploading
+        if: github.ref_type != 'tag'
         uses: BigWigsMods/packager@6d50adb6e8517eefef63f4afb16a6518166a6b28 # v2
         with:
           args: -d
 
       - name: Verify package contract
+        if: github.ref_type != 'tag'
         run: python3 Tools/check_package_contents.py .release --addon VeevHUD --source-root .
 
   release:

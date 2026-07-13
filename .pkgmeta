@@ -35,7 +35,7 @@ externals:
   # Spell database
   Libs/LibSpellDB:
     url: https://github.com/veev-code/LibSpellDB
-    commit: a72dbfe17073051698bc836cfbb8ad2ce37a266b
+    commit: edc189b928df86376339d00c0760c2d894ae0bad
 
 manual-changelog:
   filename: CHANGELOG.md

@@ -15,10 +15,10 @@
   },
   "embedded_dependencies": {
     "LibSpellDB": {
-      "version": "1.0.102",
-      "tag": "v1.0.102",
-      "commit": "a72dbfe17073051698bc836cfbb8ad2ce37a266b",
-      "minor": 102
+      "version": "1.0.103",
+      "tag": "v1.0.103",
+      "commit": "edc189b928df86376339d00c0760c2d894ae0bad",
+      "minor": 103
     }
   }
 }

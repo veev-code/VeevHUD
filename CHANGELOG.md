@@ -1,5 +1,11 @@
 # VeevHUD Changelog
 
+## [1.0.225] - 2026-07-12
+
+### LibSpellDB Updates
+- **TBC spell accuracy** — Corrected rank resolution for Fire Blast, Hammer of Justice, Holy Shield, Fade, Lightwell, Vampiric Touch, Shadow Word: Death, Sprint, and Mocking Blow; corrected Soulshatter and warrior stance cooldowns plus Major Holy Protection Potion's protection aura.
+- **Season of Discovery spell accuracy** — Corrected Metamorphosis, Demonic Howl, and Incinerate identities and fixed cooldowns for eleven rune and skill-book abilities across Druid, Mage, Paladin, Priest, Rogue, and Warrior.
+
 ## [1.0.224] - 2026-07-12
 
 ### Added
