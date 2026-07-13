@@ -4,6 +4,11 @@ enable-nolib-creation: no
 
 ignore:
   - README.md
+  - TODO.md
+  - AGENTS.md
+  - CLAUDE.md
+  - .agents
+  - .claude
   - .github
   - .git
   - .gitignore
@@ -28,7 +33,9 @@ externals:
   Libs/LibSharedMedia-3.0: https://repos.wowace.com/wow/libsharedmedia-3-0/trunk/LibSharedMedia-3.0
   Libs/LibCustomGlow-1.0: https://github.com/Stanzilla/LibCustomGlow
   # Spell database
-  Libs/LibSpellDB: https://github.com/veev-code/LibSpellDB
+  Libs/LibSpellDB:
+    url: https://github.com/veev-code/LibSpellDB
+    commit: a72dbfe17073051698bc836cfbb8ad2ce37a266b
 
 manual-changelog:
   filename: CHANGELOG.md

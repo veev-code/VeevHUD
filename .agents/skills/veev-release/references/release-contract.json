@@ -1,0 +1,24 @@
+{
+  "repositories": {
+    "VeevHUD": {
+      "origin": "https://github.com/veev-code/VeevHUD.git",
+      "branch": "master",
+      "toc": "VeevHUD.toc",
+      "changelog": "CHANGELOG.md"
+    },
+    "LibSpellDB": {
+      "origin": "https://github.com/veev-code/LibSpellDB.git",
+      "branch": "master",
+      "toc": "LibSpellDB.toc",
+      "changelog": "CHANGELOG.md"
+    }
+  },
+  "embedded_dependencies": {
+    "LibSpellDB": {
+      "version": "1.0.102",
+      "tag": "v1.0.102",
+      "commit": "a72dbfe17073051698bc836cfbb8ad2ce37a266b",
+      "minor": 102
+    }
+  }
+}

@@ -3,9 +3,10 @@
 
     Centralized layout system for ALL HUD element positioning.
 
-    All HUD elements (bars + icon rows) are stacked vertically in a
-    user-configurable order. Each element registers with the layout manager
-    and provides:
+    HUD elements (bars + icon rows) are stacked vertically in a
+    user-configurable order by default. Ability rows can opt out of the stack
+    and use their own persisted screen anchor. Each element registers with the
+    layout manager and provides:
       - GetLayoutHeight(): returns the height this element needs (0 if hidden)
       - SetLayoutPosition(centerY): positions the element at the given Y offset
 
@@ -13,8 +14,9 @@
       1. Reads elementOrder from profile to determine stacking sequence
       2. Stacks elements downward from Y=0, applying per-element gaps
       3. Offsets the entire stack so Primary Row's top edge stays at a fixed
-         Y position (PRIMARY_TOP_OFFSET), ensuring icon rows don't shift when
-         bars above them appear or disappear
+         Y position (PRIMARY_TOP_OFFSET). If Primary is independent, the next
+         stacked ability row becomes the reference. This prevents the rest of
+         the HUD from jumping when a row is detached.
 
     Element keys (matching C.LAYOUT_ELEMENTS):
       auraTracker, auxiliaryRow, healthBar, resourceBar, comboPoints,
@@ -46,6 +48,7 @@ Layout.elements = {}
 -- Height/gap cache for skip-if-unchanged optimization
 Layout._cachedHeights = {}
 Layout._cachedGaps = {}
+Layout._cachedInStack = {}
 Layout._forceRefresh = false
 
 --[[
@@ -70,12 +73,15 @@ end
     @param key        Element key ("primaryRow", "secondaryRow", "utilityRow", "auxiliaryRow")
     @param getHeight  Function() -> number (row pixel height, 0 if hidden)
     @param setPosition Function(topY) -> nil (position row at given Y offset)
+    @param isInStack   Optional Function() -> boolean. False keeps the row
+                       visible but removes it from the shared vertical stack.
 ]]
-function Layout:RegisterRowElement(key, getHeight, setPosition)
+function Layout:RegisterRowElement(key, getHeight, setPosition, isInStack)
     self.elements[key] = {
         key = key,
         getHeight = getHeight,
         setPosition = setPosition,
+        isInStack = isInStack,
     }
     addon.Utils:LogDebug("Layout: Registered row element", key)
 end
@@ -101,6 +107,17 @@ function Layout:GetElementHeight(key)
     end
 
     return 0
+end
+
+-- Whether an element participates in the shared vertical stack. Floating
+-- elements are still positioned by the layout pass, but do not consume height
+-- or pass their configured gap through to the next stacked element.
+function Layout:IsElementInStack(key)
+    local elem = self.elements[key]
+    if elem and elem.isInStack then
+        return elem.isInStack() ~= false
+    end
+    return true
 end
 
 -- Position a layout element at the given center Y offset
@@ -148,13 +165,17 @@ function Layout:Refresh()
 
     -- Gather current heights and check if anything changed since last refresh
     local heights = {}
+    local inStack = {}
     local anyChanged = self._forceRefresh
     for _, key in ipairs(order) do
         local h = self:GetElementHeight(key)
+        local stacked = self:IsElementInStack(key)
         heights[key] = h
+        inStack[key] = stacked
         if not anyChanged then
             if self._cachedHeights[key] ~= h then anyChanged = true end
             if self._cachedGaps[key] ~= (gaps[key] or 0) then anyChanged = true end
+            if self._cachedInStack[key] ~= stacked then anyChanged = true end
         end
     end
     if not anyChanged then return end
@@ -164,12 +185,13 @@ function Layout:Refresh()
     local visible = {}
     local currentY = 0
     local primaryTopY = nil
+    local rowTopY = {}
     local visibleCount = 0
     local pendingGap = 0  -- max gap accumulated from hidden elements
 
     for _, key in ipairs(order) do
         local height = heights[key]
-        if height > 0 then
+        if height > 0 and inStack[key] then
             visibleCount = visibleCount + 1
 
             -- Apply gap: use the larger of this element's own gap and any
@@ -197,9 +219,13 @@ function Layout:Refresh()
             if key == "primaryRow" then
                 primaryTopY = topY
             end
+            if key == "primaryRow" or key == "secondaryRow"
+                    or key == "utilityRow" or key == "auxiliaryRow" then
+                rowTopY[key] = topY
+            end
 
             currentY = bottomY
-        else
+        elseif inStack[key] then
             -- Element hidden: accumulate its gap for the next visible element
             pendingGap = math.max(pendingGap, gaps[key] or 0)
         end
@@ -207,8 +233,12 @@ function Layout:Refresh()
 
     -- Phase 2: Compute offset to anchor Primary Row at PRIMARY_TOP_OFFSET
     local offset = 0
-    if primaryTopY then
-        offset = PRIMARY_TOP_OFFSET - primaryTopY
+    local rowAnchorTopY = primaryTopY
+    if not inStack.primaryRow then
+        rowAnchorTopY = rowTopY.secondaryRow or rowTopY.utilityRow or rowTopY.auxiliaryRow
+    end
+    if rowAnchorTopY then
+        offset = PRIMARY_TOP_OFFSET - rowAnchorTopY
     else
         -- Primary row not visible: center the entire stack at hudFrame center
         local stackHeight = -currentY  -- currentY is negative, so negate
@@ -218,6 +248,14 @@ function Layout:Refresh()
     -- Phase 3: Apply positions with offset
     for _, elem in ipairs(visible) do
         self:SetElementPosition(elem.key, elem.centerY + offset, elem.topY + offset)
+    end
+
+    -- Floating elements use their own persisted anchors. Passing nil positions
+    -- lets the owning module distinguish this from a stacked placement.
+    for _, key in ipairs(order) do
+        if heights[key] > 0 and not inStack[key] then
+            self:SetElementPosition(key, nil, nil)
+        end
     end
 
     -- Phase 4: Toggle top border on skipTop bars based on adjacency
@@ -243,6 +281,7 @@ function Layout:Refresh()
     self._cachedHeights = heights
     for _, key in ipairs(order) do
         self._cachedGaps[key] = gaps[key] or 0
+        self._cachedInStack[key] = inStack[key]
     end
 
     addon.Utils:LogDebug("Layout: Refreshed, elements:", visibleCount, "offset:", offset)
@@ -283,17 +322,26 @@ function Layout:PrintDebug()
     -- Simulate the stacking algorithm
     local currentY = 0
     local primaryTopY = nil
+    local rowTopY = {}
     local visibleCount = 0
     local pendingGap = 0
     local allElements = {}
 
     for _, key in ipairs(order) do
         local height = self:GetElementHeight(key)
-        local status = height > 0 and "|cff00ff00visible|r" or "|cff888888hidden|r"
+        local stacked = self:IsElementInStack(key)
+        local status
+        if height > 0 and not stacked then
+            status = "|cff00ccffindependent|r"
+        elseif height > 0 then
+            status = "|cff00ff00visible|r"
+        else
+            status = "|cff888888hidden|r"
+        end
         local gap = 0
         local topY, centerY
 
-        if height > 0 then
+        if height > 0 and stacked then
             visibleCount = visibleCount + 1
             if visibleCount > 1 then
                 gap = math.max(gaps[key] or 0, pendingGap)
@@ -305,8 +353,12 @@ function Layout:PrintDebug()
             if key == "primaryRow" then
                 primaryTopY = topY
             end
+            if key == "primaryRow" or key == "secondaryRow"
+                    or key == "utilityRow" or key == "auxiliaryRow" then
+                rowTopY[key] = topY
+            end
             currentY = currentY - height
-        else
+        elseif stacked then
             pendingGap = math.max(pendingGap, gaps[key] or 0)
         end
 
@@ -317,14 +369,18 @@ function Layout:PrintDebug()
     end
 
     local offset = 0
-    if primaryTopY then
-        offset = PRIMARY_TOP_OFFSET - primaryTopY
+    local rowAnchorTopY = primaryTopY
+    if not self:IsElementInStack("primaryRow") then
+        rowAnchorTopY = rowTopY.secondaryRow or rowTopY.utilityRow or rowTopY.auxiliaryRow
+    end
+    if rowAnchorTopY then
+        offset = PRIMARY_TOP_OFFSET - rowAnchorTopY
     else
         local stackHeight = -currentY
         offset = stackHeight / 2
     end
 
-    print("  Offset:", offset, "(primaryTopY:", tostring(primaryTopY), ")")
+    print("  Offset:", offset, "(rowAnchorTopY:", tostring(rowAnchorTopY), ")")
 
     for i, elem in ipairs(allElements) do
         local finalCenter = elem.centerY and (elem.centerY + offset) or "n/a"

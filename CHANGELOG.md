@@ -1,5 +1,13 @@
 # VeevHUD Changelog
 
+## [1.0.224] - 2026-07-12
+
+### Added
+- **Move ability rows separately** — Any ability row can now be detached from the HUD stack and dragged anywhere on screen from **Layout > Move Rows**, with precise horizontal and vertical sliders plus a one-click position reset. Rows remain attached by default, preserving the existing layout for everyone who does not opt in. *(zearp, Jackwell)*
+
+### Changed
+- **Cleaner HUD Stack controls** — The stack editor now presents a compact numbered order with familiar AceUI spacing sliders, making reordering and gap adjustments easier to scan and tune.
+
 ## [1.0.223] - 2026-07-12
 
 ### Fixed

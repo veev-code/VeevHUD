@@ -337,6 +337,7 @@ function Options:ApplySettingChange(path)
 		SafeCall(addon.Layout and addon.Layout.Refresh, addon.Layout)
 		local icons = addon:GetModule("CooldownIcons")
 		SafeCall(icons and icons.Refresh, icons)
+		if self.RebuildLayoutArgs then self:RebuildLayoutArgs() end
 		return
 	end
 
@@ -659,9 +660,34 @@ function Options:BuildOptionsTable()
 	-- Dynamic Layout Element Order UI
 	---------------------------------------------------------------------------
 
-	local layoutArgs = {}
+	local stackLayoutArgs = {}
+	local independentLayoutArgs = {}
+	local layoutArgs = {
+		hudStack = {
+			type = "group",
+			name = L["HUD Stack"],
+			order = 1,
+			args = stackLayoutArgs,
+		},
+		independentRows = {
+			type = "group",
+			name = L["Move Rows"],
+			order = 2,
+			args = independentLayoutArgs,
+		},
+	}
+	local rowLayoutIndices = {
+		primaryRow = 1,
+		secondaryRow = 2,
+		utilityRow = 3,
+		auxiliaryRow = 4,
+	}
+	local independentRowKeys = { "auxiliaryRow", "primaryRow", "secondaryRow", "utilityRow" }
 
-	-- Helper: check if an element key is hidden for the current class
+	local function getCooldownIcons()
+		return addon:GetModule("CooldownIcons")
+	end
+
 	local function isElementHidden(key)
 		if key == "comboPoints" then
 			return addon.playerClass ~= C.CLASS.ROGUE and addon.playerClass ~= C.CLASS.DRUID
@@ -669,147 +695,205 @@ function Options:BuildOptionsTable()
 		return false
 	end
 
+	local function isElementIndependent(key)
+		local rowIndex = rowLayoutIndices[key]
+		local icons = rowIndex and getCooldownIcons()
+		return icons and icons:IsRowIndependent(rowIndex) or false
+	end
+
+	local function isStackEditorElement(key)
+		return not isElementHidden(key) and not isElementIndependent(key)
+	end
+
+	local function notifyLayoutOptionsChanged()
+		local registry = LibStub("AceConfigRegistry-3.0", true)
+		if registry then registry:NotifyChange(ADDON_NAME) end
+	end
+
 	local function rebuildLayoutArgs()
-		-- Clear existing args
-		for k in pairs(layoutArgs) do
-			layoutArgs[k] = nil
+		for k in pairs(stackLayoutArgs) do
+			stackLayoutArgs[k] = nil
+		end
+		for k in pairs(independentLayoutArgs) do
+			independentLayoutArgs[k] = nil
 		end
 
-		-- Intro description
-		layoutArgs["introDesc"] = {
+		stackLayoutArgs.introDesc = {
 			type = "description",
-			name = Dim(L["Reorder the vertical layout of the HUD and adjust spacing between elements."]) .. "\n",
+			name = Dim(L["Reorder the vertical layout of the HUD and adjust spacing between elements."]
+				.. "\n" .. L["Only attached elements appear here. Reorder them from top to bottom and tune the space between each pair."]) .. "\n",
 			fontSize = "medium",
 			order = 0,
 		}
 
 		local db = addon.db.profile.layout
 		local order = db.elementOrder
-		local orderLen = #order
-
-		-- Find first and last visible positions (for disabling Move buttons)
-		local firstVisiblePos, lastVisiblePos
-		for i, key in ipairs(order) do
-			if not isElementHidden(key) then
-				if not firstVisiblePos then firstVisiblePos = i end
-				lastVisiblePos = i
+		local stackEntries = {}
+		for elementIndex, key in ipairs(order) do
+			if isStackEditorElement(key) then
+				stackEntries[#stackEntries + 1] = { index = elementIndex, key = key }
 			end
 		end
 
-		for i, key in ipairs(order) do
-			local displayName = C.LAYOUT_ELEMENTS[key]
-			if not displayName then break end
+		local function swapStackEntries(sourceIndex, targetIndex)
+			local liveOrder = addon.db.profile.layout.elementOrder
+			local gaps = addon.db.profile.layout.gaps
+			local sourceKey, targetKey = liveOrder[sourceIndex], liveOrder[targetIndex]
+			if not sourceKey or not targetKey then return end
 
-			local idx = i
-			local base = i * 10
+			liveOrder[sourceIndex], liveOrder[targetIndex] = targetKey, sourceKey
+			gaps[sourceKey], gaps[targetKey] = gaps[targetKey], gaps[sourceKey]
+			addon.Layout:ForceRefresh()
+			rebuildLayoutArgs()
+			notifyLayoutOptionsChanged()
+		end
 
-			-- Hidden function for comboPoints (class-conditional)
-			local elemHiddenFn
-			if key == "comboPoints" then
-				elemHiddenFn = function()
-					return addon.playerClass ~= C.CLASS.ROGUE and addon.playerClass ~= C.CLASS.DRUID
-				end
-			end
+		local function addStackEntry(stackIndex, entry, nextEntry)
+			local key = entry.key
+			local sourceIndex = entry.index
+			local displayName = C.LAYOUT_ELEMENTS[key] or key
+			local base = 100 + stackIndex * 10
 
-			-- Move Up button
-			layoutArgs["up" .. i] = {
+			stackLayoutArgs["stackName" .. stackIndex] = {
+				type = "description",
+				name = Gold(("%d. %s"):format(stackIndex, displayName)),
+				order = base,
+				width = 1.1,
+				fontSize = "medium",
+			}
+			stackLayoutArgs["stackUp" .. stackIndex] = {
 				type = "execute",
 				name = L["Up"],
-				order = base,
-				width = 0.5,
-				hidden = elemHiddenFn,
-				disabled = idx == (firstVisiblePos or 1),
+				order = base + 1,
+				width = 0.4,
+				disabled = stackIndex == 1,
 				func = function()
-					local o = addon.db.profile.layout.elementOrder
-					local g = addon.db.profile.layout.gaps
-					local target = idx - 1
-					while target >= 1 do
-						if not isElementHidden(o[target]) then break end
-						target = target - 1
-					end
-					if target < 1 then return end
-					for p = idx, target + 1, -1 do
-						local kA, kB = o[p - 1], o[p]
-						g[kA], g[kB] = g[kB], g[kA]
-						o[p - 1], o[p] = o[p], o[p - 1]
-					end
-					-- ForceRefresh: the Layout dirty-check ignores element order, so
-					-- equal-gap swaps would no-op visually with a plain Refresh
-					addon.Layout:ForceRefresh()
-					rebuildLayoutArgs()
-					LibStub("AceConfigRegistry-3.0"):NotifyChange(ADDON_NAME)
+					local previous = stackEntries[stackIndex - 1]
+					if previous then swapStackEntries(sourceIndex, previous.index) end
 				end,
 			}
-
-			-- Element name label
-			layoutArgs["name" .. i] = {
-				type = "description",
-				name = Gold(displayName),
-				order = base + 1,
-				width = 0.7,
-				fontSize = "medium",
-				hidden = elemHiddenFn,
-			}
-
-			-- Move Down button
-			layoutArgs["dn" .. i] = {
+			stackLayoutArgs["stackDown" .. stackIndex] = {
 				type = "execute",
 				name = L["Down"],
 				order = base + 2,
-				width = 0.5,
-				hidden = elemHiddenFn,
-				disabled = idx == (lastVisiblePos or orderLen),
+				width = 0.45,
+				disabled = stackIndex == #stackEntries,
 				func = function()
-					local o = addon.db.profile.layout.elementOrder
-					local g = addon.db.profile.layout.gaps
-					local target = idx + 1
-					while target <= #o do
-						if not isElementHidden(o[target]) then break end
-						target = target + 1
-					end
-					if target > #o then return end
-					for p = idx, target - 1 do
-						local kA, kB = o[p], o[p + 1]
-						g[kA], g[kB] = g[kB], g[kA]
-						o[p], o[p + 1] = o[p + 1], o[p]
-					end
-					-- ForceRefresh: the Layout dirty-check ignores element order, so
-					-- equal-gap swaps would no-op visually with a plain Refresh
-					addon.Layout:ForceRefresh()
-					rebuildLayoutArgs()
-					LibStub("AceConfigRegistry-3.0"):NotifyChange(ADDON_NAME)
+					local following = stackEntries[stackIndex + 1]
+					if following then swapStackEntries(sourceIndex, following.index) end
 				end,
 			}
 
-			-- Gap slider between this element and the next
-			if i < orderLen then
-				local nextKey = order[i + 1]
-				local gapKey = nextKey
-
-				-- Hide gap if the element below it is hidden
-				local gapHiddenFn
-				if nextKey == "comboPoints" then
-					gapHiddenFn = function()
-						return addon.playerClass ~= C.CLASS.ROGUE and addon.playerClass ~= C.CLASS.DRUID
-					end
-				end
-
+			if nextEntry then
+				local nextKey = nextEntry.key
 				local nextDisplayName = C.LAYOUT_ELEMENTS[nextKey] or nextKey
-				layoutArgs["gap" .. i] = {
+				stackLayoutArgs["stackGap" .. stackIndex] = {
 					type = "range",
-					name = L["Gap above %s"]:format(nextDisplayName),
-					desc = L["Pixels of space between %s and %s."]:format(displayName, nextDisplayName),
+					name = L["Gap below"],
+					desc = L["Gap above %s"]:format(nextDisplayName) .. "\n"
+						.. L["Pixels of space between %s and %s."]:format(displayName, nextDisplayName),
 					min = -20, max = 200, step = 1,
-					order = base + 5,
-					width = "full",
-					hidden = gapHiddenFn,
-					get = function() return addon.db.profile.layout.gaps[gapKey] or 0 end,
-					set = function(_, val)
-						addon.db.profile.layout.gaps[gapKey] = val
+					order = base + 3,
+					width = 0.9,
+					get = function() return addon.db.profile.layout.gaps[nextKey] or 0 end,
+					set = function(_, value)
+						addon.db.profile.layout.gaps[nextKey] = value
 						addon.Layout:Refresh()
 					end,
 				}
 			end
+		end
+
+		for stackIndex, entry in ipairs(stackEntries) do
+			addStackEntry(stackIndex, entry, stackEntries[stackIndex + 1])
+		end
+
+		independentLayoutArgs.introDesc = {
+			type = "description",
+			name = Dim(L["Detach any ability row from the HUD stack, then drag it anywhere on the screen. While this tab is open, detached rows show drag handles and other HUD elements close the vacated space automatically."]) .. "\n",
+			fontSize = "medium",
+			order = 0,
+		}
+
+		local icons = getCooldownIcons()
+
+		local function addIndependentRowOptions(rowOrder, key)
+			local rowIndex = rowLayoutIndices[key]
+			local displayName = C.LAYOUT_ELEMENTS[key] or key
+			local independent = icons and icons:IsRowIndependent(rowIndex) or false
+			local rowArgs = {
+				moveSeparately = {
+					type = "toggle",
+					name = L["Move separately"],
+					desc = L["Moves this ability row separately from the shared HUD stack so it can be placed anywhere on the screen. Turning it off returns the row to its configured layout order."],
+					get = function() return icons and icons:IsRowIndependent(rowIndex) or false end,
+					set = function(_, value)
+						if not icons then return end
+						icons:SetRowIndependent(rowIndex, value)
+						rebuildLayoutArgs()
+						notifyLayoutOptionsChanged()
+					end,
+					order = 1,
+					width = independent and 1.7 or "full",
+				},
+			}
+
+			if independent then
+				rowArgs.resetPosition = {
+					type = "execute",
+					name = L["Reset Position"],
+					desc = L["Moves this independent row back to the position it would occupy in the shared HUD stack while keeping independent positioning enabled."],
+					func = function()
+						icons:ResetIndependentRowPosition(rowIndex)
+					end,
+					order = 2,
+					width = 0.8,
+				}
+				rowArgs.horizontalPosition = {
+					type = "range",
+					name = L["Horizontal Position"],
+					desc = L["Fine-tunes this row's horizontal position relative to the center of the screen."],
+					min = -screenW, max = screenW, step = 1,
+					get = function()
+						local x = icons:GetIndependentRowAnchor(rowIndex)
+						return x
+					end,
+					set = function(_, value)
+						local _, y = icons:GetIndependentRowAnchor(rowIndex)
+						icons:SetIndependentRowAnchor(rowIndex, value, y)
+					end,
+					order = 3,
+					width = 1.25,
+				}
+				rowArgs.verticalPosition = {
+					type = "range",
+					name = L["Vertical Position"],
+					desc = L["Fine-tunes this row's vertical position relative to the center of the screen."],
+					min = -screenH, max = screenH, step = 1,
+					get = function()
+						local _, y = icons:GetIndependentRowAnchor(rowIndex)
+						return y
+					end,
+					set = function(_, value)
+						local x = icons:GetIndependentRowAnchor(rowIndex)
+						icons:SetIndependentRowAnchor(rowIndex, x, value)
+					end,
+					order = 4,
+					width = 1.25,
+				}
+			end
+
+			independentLayoutArgs["independentRow" .. rowOrder] = {
+				type = "group",
+				name = displayName,
+				inline = true,
+				order = 100 + rowOrder,
+				args = rowArgs,
+			}
+		end
+
+		for rowOrder, key in ipairs(independentRowKeys) do
+			addIndependentRowOptions(rowOrder, key)
 		end
 	end
 
@@ -2928,6 +3012,7 @@ function Options:BuildOptionsTable()
 	optionsTable.args.advanced = {
 		type = "group",
 		name = L["Layout"],
+		childGroups = "tab",
 		order = 8,
 		args = layoutArgs,
 	}
@@ -4801,6 +4886,60 @@ function Options:Register()
 	self._registered = true
 end
 
+function Options:IsMoveRowsTabSelected()
+	if not self.isConfigOpen then return false end
+
+	local AceConfigDialog = LibStub and LibStub("AceConfigDialog-3.0", true)
+	if not AceConfigDialog then return false end
+
+	local rootStatus = AceConfigDialog:GetStatusTable(ADDON_NAME)
+	local rootSelected = rootStatus and rootStatus.groups and rootStatus.groups.selected
+	if rootSelected ~= "advanced" then return false end
+
+	local layoutStatus = AceConfigDialog:GetStatusTable(ADDON_NAME, { "advanced" })
+	return layoutStatus and layoutStatus.groups
+		and layoutStatus.groups.selected == "independentRows" or false
+end
+
+function Options:SyncRowPositionEditMode()
+	local cooldownIcons = addon:GetModule("CooldownIcons")
+	if not cooldownIcons or not cooldownIcons.IsPositionEditMode then return end
+
+	local inCombat = InCombatLockdown and InCombatLockdown()
+	local shouldEdit = self:IsMoveRowsTabSelected() and not inCombat
+	if cooldownIcons:IsPositionEditMode() ~= shouldEdit then
+		cooldownIcons:SetPositionEditMode(shouldEdit)
+	end
+end
+
+function Options:StartRowPositionTabWatcher()
+	if self._rowPositionTabTicker then
+		self._rowPositionTabTicker:Cancel()
+	end
+
+	self:SyncRowPositionEditMode()
+	self._rowPositionTabTicker = C_Timer.NewTicker(0.1, function()
+		if not Options.isConfigOpen then
+			Options:StopRowPositionTabWatcher()
+			return
+		end
+		Options:SyncRowPositionEditMode()
+	end)
+end
+
+function Options:StopRowPositionTabWatcher()
+	if self._rowPositionTabTicker then
+		self._rowPositionTabTicker:Cancel()
+		self._rowPositionTabTicker = nil
+	end
+
+	local cooldownIcons = addon:GetModule("CooldownIcons")
+	if cooldownIcons and cooldownIcons.IsPositionEditMode
+			and cooldownIcons:IsPositionEditMode() then
+		cooldownIcons:SetPositionEditMode(false)
+	end
+end
+
 function Options:HookDialogState()
 	local AceConfigDialog = LibStub and LibStub("AceConfigDialog-3.0", true)
 	if not AceConfigDialog then return end
@@ -4813,12 +4952,14 @@ function Options:HookDialogState()
 		frame._veevhudStateHooked = true
 		frame:HookScript("OnShow", function()
 			Options.isConfigOpen = true
+			Options:StartRowPositionTabWatcher()
 			if addon and addon.UpdateVisibility then
 				addon:UpdateVisibility()
 			end
 		end)
 		frame:HookScript("OnHide", function()
 			Options.isConfigOpen = false
+			Options:StopRowPositionTabWatcher()
 			if addon and addon.UpdateVisibility then
 				addon:UpdateVisibility()
 			end
@@ -4831,6 +4972,9 @@ function Options:HookDialogState()
 	end
 
 	Options.isConfigOpen = frame:IsShown() or false
+	if Options.isConfigOpen then
+		Options:StartRowPositionTabWatcher()
+	end
 end
 
 -------------------------------------------------------------------------------

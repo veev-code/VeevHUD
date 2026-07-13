@@ -1,0 +1,7 @@
+interface:
+  display_name: "Veev Addon Release"
+  short_description: "Release LibSpellDB and VeevHUD safely"
+  default_prompt: "Use $veev-release to publish coordinated LibSpellDB and VeevHUD releases."
+
+policy:
+  allow_implicit_invocation: false

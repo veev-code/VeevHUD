@@ -781,6 +781,7 @@ C.DEFAULTS = {
                 tags = {"ROTATIONAL", "CORE_ROTATION"},
                 maxIcons = 24,       -- No practical limit, grows horizontally
                 enabled = true,
+                independentPosition = false, -- Opt-in: remove from shared HUD stack
                 iconSize = 56,       -- Larger core icons (like retail)
                 iconAspectRatio = nil, -- nil = inherit from icons.iconAspectRatio
                 flowLayout = false,  -- Single line by default
@@ -797,6 +798,7 @@ C.DEFAULTS = {
                         "SITUATIONAL", "OFFENSIVE_CD", "OFFENSIVE_CD_MINOR", "HEALING_CD", "RESOURCE"},
                 maxIcons = 24,       -- No practical limit, grows horizontally
                 enabled = true,
+                independentPosition = false,
                 iconSize = 48,
                 iconAspectRatio = nil, -- nil = inherit from icons.iconAspectRatio
                 flowLayout = false,  -- Single line by default
@@ -812,6 +814,7 @@ C.DEFAULTS = {
                 maxIcons = 24,       -- Allow many icons, will wrap
                 iconsPerRow = 6,     -- Target icons per row
                 enabled = true,
+                independentPosition = false,
                 iconSize = 42,
                 iconAspectRatio = nil, -- nil = inherit from icons.iconAspectRatio
                 flowLayout = true,   -- Enable multi-row flow layout
@@ -823,6 +826,7 @@ C.DEFAULTS = {
                 tags = {},
                 maxIcons = 24,
                 enabled = true,
+                independentPosition = false,
                 iconSize = 36,       -- Matches previous totem bar icon size
                 iconAspectRatio = nil, -- nil = inherit from icons.iconAspectRatio
                 flowLayout = false,

@@ -1,2 +1,13 @@
 # Library externals (fetched by .pkgmeta at release, Tools/fetch-libs.sh for local dev)
 Libs/*/
+
+# Local release output and agent-specific settings
+.release/
+.claude/settings.local.json
+.env
+.env.*
+!.env.example
+
+# Python bytecode from local validation
+__pycache__/
+*.pyc

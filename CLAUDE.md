@@ -1,3 +1,5 @@
+@AGENTS.md
+
 # VeevHUD - Addon Context
 
 VeevHUD is a lightweight, WeakAuras-inspired heads-up display addon for World of Warcraft (Classic Era and TBC / Anniversary Edition). It tracks cooldowns, buffs, debuffs, DoTs, procs, and resources with zero configuration required.

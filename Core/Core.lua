@@ -52,6 +52,13 @@ frame:SetScript("OnEvent", function(self, event, arg1)
     elseif event == "PLAYER_LOGIN" then
         addon:OnPlayerLogin()
     elseif event == "PLAYER_REGEN_DISABLED" or event == "PLAYER_REGEN_ENABLED" then
+        if event == "PLAYER_REGEN_DISABLED" then
+            local cooldownIcons = addon:GetModule("CooldownIcons")
+            if cooldownIcons and cooldownIcons.IsPositionEditMode
+                    and cooldownIcons:IsPositionEditMode() then
+                cooldownIcons:SetPositionEditMode(false)
+            end
+        end
         -- Combat state changed, update HUD visibility/alpha immediately
         addon:UpdateVisibility()
     elseif event == "UI_SCALE_CHANGED" or event == "DISPLAY_SIZE_CHANGED" then
@@ -516,6 +523,13 @@ function addon:UpdateHUDScale()
     if not self.hudFrame then return end
     local scale = self.Utils:GetEffectiveHUDScale()
     self.hudFrame:SetScale(scale)
+
+    -- Independently positioned rows are anchored to UIParent while inheriting
+    -- the HUD's scale, so their offsets must be reapplied after scale changes.
+    local cooldownIcons = self:GetModule("CooldownIcons")
+    if cooldownIcons and cooldownIcons.RefreshIndependentRowPositions then
+        cooldownIcons:RefreshIndependentRowPositions()
+    end
 
     -- BuffReminders is parented to UIParent (not hudFrame) for independent visibility,
     -- so it doesn't inherit the HUD scale automatically and needs a manual update

@@ -78,8 +78,9 @@
         This allows the glow to trigger fresh on the next cooldown cycle.
 ]]
 
-local _, addon = ...
+local ADDON_NAME, addon = ...
 local C = addon.Constants
+local L = LibStub("AceLocale-3.0"):GetLocale("VeevHUD")
 
 -- Localized WoW API functions (hot path)
 local GetTime = GetTime
@@ -111,6 +112,9 @@ CooldownIcons.MasqueGroups = {}  -- Per-row Masque groups: [rowIndex] = MSQ:Grou
 -- Events (SPELL_UPDATE_COOLDOWN, UNIT_POWER_UPDATE, etc.) call UpdateAllIcons()
 -- directly for state changes; the ticker only exists for smooth timer text countdown.
 CooldownIcons._hasActiveTimers = true  -- Conservative default; recalculated each UpdateAllIcons
+
+-- Temporary edit mode for opt-in independently positioned rows.
+CooldownIcons.positionEditMode = false
 
 -- Reusable table for ApplyIconVisuals (avoids per-icon per-tick allocation)
 local visualState = {}
@@ -683,6 +687,8 @@ function CooldownIcons:CreateRowFrames()
         rowFrame.iconSpacing = rowIconSpacing
         rowFrame.iconsPerRow = rowConfig.iconsPerRow or rowConfig.maxIcons
         rowFrame.flowLayout = rowConfig.flowLayout
+        rowFrame.rowIndex = rowIndex
+        rowFrame:SetMovable(true)
 
         rowFrame.config = rowConfig
         rowFrame.icons = {}
@@ -702,6 +708,8 @@ function CooldownIcons:CreateRowFrames()
 
         -- Create slide animator for dynamic sort animations (shared driver, composes with punch)
         rowFrame.slideAnimator = self.Animations:CreateSlideAnimator(rowFrame, 20)
+
+        self:CreatePositionHandle(rowIndex, rowFrame)
 
         self.rows[rowIndex] = rowFrame
         self.iconsByRow[rowIndex] = {}
@@ -724,9 +732,16 @@ function CooldownIcons:RegisterRowsWithLayout()
         local ri = rowIndex  -- capture for closure
         addon.Layout:RegisterRowElement(key,
             function() return self:GetRowHeight(ri) end,
-            function(topY) self:SetRowPosition(ri, topY) end
+            function(topY) self:SetRowPosition(ri, topY) end,
+            function() return not self:IsRowIndependent(ri) end
         )
     end
+end
+
+function CooldownIcons:IsRowIndependent(rowIndex)
+    local rowConfig = addon.db and addon.db.profile and addon.db.profile.rows
+        and addon.db.profile.rows[rowIndex]
+    return rowConfig and rowConfig.independentPosition == true or false
 end
 
 -- Get the pixel height of an icon row (accounting for flow-wrap).
@@ -757,8 +772,272 @@ function CooldownIcons:SetRowPosition(rowIndex, topY)
     local rowFrame = self.rows and self.rows[rowIndex]
     if not rowFrame then return end
 
+    if self:IsRowIndependent(rowIndex) then
+        self:ApplyIndependentRowPosition(rowIndex)
+        return
+    end
+
+    if topY == nil then return end
     rowFrame:ClearAllPoints()
     rowFrame:SetPoint("TOP", addon.hudFrame, "CENTER", 0, topY)
+end
+
+-------------------------------------------------------------------------------
+-- Independent Row Positioning
+-------------------------------------------------------------------------------
+
+-- Return the visible row bounds rather than the row frame's provisioned width
+-- (which is sized for maxIcons and can be much wider than the visible icons).
+function CooldownIcons:GetRowVisualSize(rowIndex)
+    local rowFrame = self.rows and self.rows[rowIndex]
+    if not rowFrame then return 140, 30 end
+
+    local count = self.iconsByRow[rowIndex] and #self.iconsByRow[rowIndex] or 0
+    local iconWidth = rowFrame.iconWidth or rowFrame.iconSize or 36
+    local iconHeight = rowFrame.iconHeight or rowFrame.iconSize or 36
+    local spacing = rowFrame.iconSpacing
+    if spacing == nil then
+        spacing = addon.db.profile.icons.iconSpacing or 0
+    end
+
+    local columns = math.max(count, 1)
+    if rowFrame.flowLayout then
+        columns = math.min(columns, rowFrame.iconsPerRow or columns)
+    end
+
+    local width = columns * iconWidth + math.max(columns - 1, 0) * spacing
+    local height = count > 0 and self:GetRowHeight(rowIndex) or iconHeight
+    return math.max(width, 140), math.max(height, 30)
+end
+
+function CooldownIcons:CreatePositionHandle(rowIndex, rowFrame)
+    local handle = CreateFrame("Button", nil, rowFrame)
+    handle:SetFrameLevel(rowFrame:GetFrameLevel() + 50)
+    handle:RegisterForDrag("LeftButton")
+    handle:EnableMouse(true)
+
+    local background = handle:CreateTexture(nil, "BACKGROUND")
+    background:SetAllPoints()
+    background:SetColorTexture(0.05, 0.55, 0.75, 0.48)
+    handle.background = background
+
+    local label = handle:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    label:SetPoint("CENTER")
+    label:SetTextColor(1, 1, 1)
+    handle.label = label
+
+    handle:SetScript("OnDragStart", function()
+        if InCombatLockdown and InCombatLockdown() then
+            self:SetPositionEditMode(false)
+            return
+        end
+        rowFrame:StartMoving()
+        background:SetColorTexture(1.0, 0.65, 0.05, 0.58)
+    end)
+    handle:SetScript("OnDragStop", function()
+        rowFrame:StopMovingOrSizing()
+        background:SetColorTexture(0.05, 0.55, 0.75, 0.48)
+        self:SaveCurrentRowPosition(rowIndex)
+    end)
+    handle:Hide()
+    rowFrame.positionHandle = handle
+end
+
+-- Convert a row's current top-center position into UIParent-centered logical
+-- coordinates. Accounting for effective scale keeps saved positions stable
+-- across global HUD scale and UI scale changes.
+function CooldownIcons:CaptureCurrentRowPosition(rowIndex)
+    local rowFrame = self.rows and self.rows[rowIndex]
+    if not rowFrame then return 0, 0 end
+
+    local centerX = rowFrame:GetCenter()
+    local topY = rowFrame:GetTop()
+    local uiCenterX, uiCenterY = UIParent:GetCenter()
+    if not centerX or not topY or not uiCenterX or not uiCenterY then
+        return 0, 0
+    end
+
+    local frameScale = rowFrame:GetEffectiveScale()
+    local uiScale = UIParent:GetEffectiveScale()
+    if not frameScale or frameScale == 0 or not uiScale or uiScale == 0 then
+        return 0, 0
+    end
+
+    local x = (centerX * frameScale - uiCenterX * uiScale) / uiScale
+    local y = (topY * frameScale - uiCenterY * uiScale) / uiScale
+    return x, y
+end
+
+function CooldownIcons:ClampRowPosition(rowIndex, x, y)
+    local rowFrame = self.rows and self.rows[rowIndex]
+    if not rowFrame then return x, y end
+
+    local uiScale = UIParent:GetEffectiveScale()
+    local frameScale = rowFrame:GetEffectiveScale()
+    if not uiScale or uiScale == 0 or not frameScale or frameScale == 0 then
+        return x, y
+    end
+
+    local width, height = self:GetRowVisualSize(rowIndex)
+    local scaleRatio = frameScale / uiScale
+    local halfScreenWidth = UIParent:GetWidth() / 2
+    local halfScreenHeight = UIParent:GetHeight() / 2
+    local halfWidth = width * scaleRatio / 2
+    local visualHeight = height * scaleRatio
+
+    local minX = -halfScreenWidth + halfWidth
+    local maxX = halfScreenWidth - halfWidth
+    local minY = -halfScreenHeight + visualHeight
+    local maxY = halfScreenHeight
+
+    if minX > maxX then
+        x = 0
+    else
+        x = math.max(minX, math.min(maxX, x or 0))
+    end
+    if minY > maxY then
+        y = 0
+    else
+        y = math.max(minY, math.min(maxY, y or 0))
+    end
+    return x, y
+end
+
+function CooldownIcons:GetIndependentRowAnchor(rowIndex)
+    local rowConfig = addon.db and addon.db.profile and addon.db.profile.rows
+        and addon.db.profile.rows[rowIndex]
+    local anchor = rowConfig and rowConfig.independentAnchor
+    if type(anchor) == "table" then
+        return anchor.x or 0, anchor.y or 0
+    end
+    return 0, 0
+end
+
+function CooldownIcons:SetIndependentRowAnchor(rowIndex, x, y)
+    x, y = self:ClampRowPosition(rowIndex, x or 0, y or 0)
+    addon.Database:SetOverride(("rows.%d.independentAnchor"):format(rowIndex), { x = x, y = y })
+    self:ApplyIndependentRowPosition(rowIndex)
+end
+
+function CooldownIcons:ApplyIndependentRowPosition(rowIndex)
+    if not self:IsRowIndependent(rowIndex) then return end
+
+    local rowFrame = self.rows and self.rows[rowIndex]
+    if not rowFrame then return end
+
+    local x, y = self:GetIndependentRowAnchor(rowIndex)
+    x, y = self:ClampRowPosition(rowIndex, x, y)
+
+    local frameScale = rowFrame:GetEffectiveScale()
+    local uiScale = UIParent:GetEffectiveScale()
+    if not frameScale or frameScale == 0 or not uiScale or uiScale == 0 then return end
+
+    rowFrame:ClearAllPoints()
+    rowFrame:SetPoint("TOP", UIParent, "CENTER", x * uiScale / frameScale, y * uiScale / frameScale)
+end
+
+function CooldownIcons:SaveCurrentRowPosition(rowIndex)
+    local x, y = self:CaptureCurrentRowPosition(rowIndex)
+    self:SetIndependentRowAnchor(rowIndex, x, y)
+
+    local registry = LibStub("AceConfigRegistry-3.0", true)
+    if registry then registry:NotifyChange(ADDON_NAME) end
+end
+
+function CooldownIcons:SetRowIndependent(rowIndex, enabled)
+    local rowConfig = addon.db and addon.db.profile and addon.db.profile.rows
+        and addon.db.profile.rows[rowIndex]
+    if not rowConfig or rowConfig.independentPosition == enabled then return end
+
+    -- On first detach, capture the exact stacked screen position so enabling
+    -- the feature never makes the row jump. Retain the anchor when reattaching
+    -- so a later detach restores the user's last independent placement.
+    if enabled and type(rowConfig.independentAnchor) ~= "table" then
+        local x, y = self:CaptureCurrentRowPosition(rowIndex)
+        addon.Database:SetOverride(("rows.%d.independentAnchor"):format(rowIndex), { x = x, y = y })
+    end
+
+    addon.Database:SetOverride(("rows.%d.independentPosition"):format(rowIndex), enabled == true)
+    addon.Layout:ForceRefresh()
+
+    self:UpdatePositionHandles()
+
+    local registry = LibStub("AceConfigRegistry-3.0", true)
+    if registry then registry:NotifyChange(ADDON_NAME) end
+end
+
+function CooldownIcons:ResetIndependentRowPosition(rowIndex)
+    if not self:IsRowIndependent(rowIndex) then return end
+
+    -- Briefly return the row to the stack to calculate its current canonical
+    -- position, then detach it again at exactly that location.
+    addon.Database:SetOverride(("rows.%d.independentPosition"):format(rowIndex), false)
+    addon.Layout:ForceRefresh()
+    local x, y = self:CaptureCurrentRowPosition(rowIndex)
+    addon.Database:SetOverride(("rows.%d.independentAnchor"):format(rowIndex), { x = x, y = y })
+    addon.Database:SetOverride(("rows.%d.independentPosition"):format(rowIndex), true)
+    addon.Layout:ForceRefresh()
+    self:UpdatePositionHandles()
+
+    local registry = LibStub("AceConfigRegistry-3.0", true)
+    if registry then registry:NotifyChange(ADDON_NAME) end
+end
+
+function CooldownIcons:IsPositionEditMode()
+    return self.positionEditMode == true
+end
+
+function CooldownIcons:SetPositionEditMode(enabled)
+    enabled = enabled == true
+    if enabled and InCombatLockdown and InCombatLockdown() then
+        if self.Utils then
+            self.Utils:Print(L["Independent row positioning cannot be edited during combat."])
+        end
+        return
+    end
+
+    self.positionEditMode = enabled
+    self:UpdatePositionHandles()
+
+    local registry = LibStub("AceConfigRegistry-3.0", true)
+    if registry then registry:NotifyChange(ADDON_NAME) end
+end
+
+function CooldownIcons:UpdatePositionHandles()
+    for rowIndex, rowFrame in pairs(self.rows or {}) do
+        local handle = rowFrame.positionHandle
+        local independent = self:IsRowIndependent(rowIndex)
+        local rowConfig = addon.db.profile.rows[rowIndex]
+        local editable = independent and rowConfig and rowConfig.enabled
+        local iconCount = self.iconsByRow[rowIndex] and #self.iconsByRow[rowIndex] or 0
+
+        if independent then
+            self:ApplyIndependentRowPosition(rowIndex)
+        end
+
+        if handle and self.positionEditMode and editable then
+            local width, height = self:GetRowVisualSize(rowIndex)
+            handle:ClearAllPoints()
+            handle:SetPoint("TOP", rowFrame, "TOP", 0, 0)
+            handle:SetSize(width, height)
+
+            handle.label:SetText(L["Drag to move %s"]:format(rowConfig.name or ("Row " .. rowIndex)))
+            rowFrame:Show()
+            handle:Show()
+        elseif handle then
+            handle:Hide()
+            if iconCount == 0 then rowFrame:Hide() end
+        end
+    end
+end
+
+function CooldownIcons:RefreshIndependentRowPositions()
+    for rowIndex in pairs(self.rows or {}) do
+        if self:IsRowIndependent(rowIndex) then
+            self:ApplyIndependentRowPosition(rowIndex)
+        end
+    end
+    self:UpdatePositionHandles()
 end
 
 
@@ -907,6 +1186,7 @@ function CooldownIcons:RepositionRows()
 
     -- Let the unified layout system handle all vertical positioning
     addon.Layout:Refresh()
+    self:UpdatePositionHandles()
 end
 
 function CooldownIcons:UpdateRowIcons()
@@ -946,7 +1226,11 @@ end
 
 function CooldownIcons:PositionRowIcons(rowFrame, count, db)
     if count == 0 then
-        rowFrame:Hide()
+        if self.positionEditMode and self:IsRowIndependent(rowFrame.rowIndex) then
+            rowFrame:Show()
+        else
+            rowFrame:Hide()
+        end
         return
     end
 
