@@ -692,6 +692,7 @@ C.DEFAULTS = {
             showWhileResting = false,
             showWhileMounted = false,
             slideAnimation = true,  -- Smooth sliding when reminder icons appear/disappear
+            clickToCast = false,    -- Opt-in: out-of-combat click-to-cast overlay (see BuffRemindersClickOverlay.lua)
             respectResourceCost = true,
             weaponEnchantMH = true,   -- Check mainhand for missing weapon enchant (poison/imbue)
             soundOnMissing = "None",  -- Default LSM sound name when buff reminder appears

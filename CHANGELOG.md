@@ -1,5 +1,13 @@
 # VeevHUD Changelog
 
+## [1.0.226] - 2026-08-01
+
+### Added
+- **Buff Reminders: Click to Cast (opt-in)** — Reminder icons can now be clicked to cast what's missing. Left-click casts self-buffs on you, casts ally buffs (Mark of the Wild, Earth Shield) on your friendly target — or on you with none targeted — applies weapon enchants to the flagged hand (poisons use the best rank in your bags), and for Soulstone-style reminders creates the item when missing or applies it from your bags. Blizzard's secure-frame rules only allow addon-driven clicking out of combat: in combat, reminders stay visual-only and fully click-through, exactly as before. Off by default — enable in Settings > Buff Reminders > Click to Cast. *(Zeeyaz)*
+
+### Changed
+- If another addon anchors protected frames to the HUD, VeevHUD now defers visibility updates during combat instead of triggering `ADDON_ACTION_BLOCKED` errors.
+
 ## [1.0.225] - 2026-07-12
 
 ### LibSpellDB Updates

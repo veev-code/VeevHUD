@@ -329,6 +329,10 @@ function Options:ApplySettingChange(path)
 	if path:match("^buffReminders%.") then
 		local m = addon:GetModule("BuffReminders")
 		SafeCall(m and m.Refresh, m)
+		-- Click overlay reconciles its secure layer from the same settings
+		-- (combat-deferred internally; see BuffRemindersClickOverlay.lua)
+		local overlay = addon:GetModule("BuffRemindersClickOverlay")
+		SafeCall(overlay and overlay.Refresh, overlay)
 		return
 	end
 
@@ -4643,6 +4647,16 @@ function Options:BuildBuffRemindersOptions()
 								desc = L["When buff reminders appear or disappear, the remaining icons smoothly slide to re-center instead of snapping instantly. Disable for instant repositioning."],
 								arg = "buffReminders.slideAnimation",
 								order = 5,
+							},
+							-- Opt-in secure click layer. The full constraint model and
+							-- design rationale live in Modules/BuffRemindersClickOverlay.lua.
+							clickToCast = {
+								type = "toggle",
+								name = L["Click to Cast (Out of Combat)"],
+								desc = L["Makes reminder icons clickable — left-click casts the missing buff. Blizzard restricts addon casting to secure buttons that cannot be moved, shown, or hidden during combat, so clicking only works out of combat — in combat, reminders are visual-only and clicks pass through as normal."],
+								arg = "buffReminders.clickToCast",
+								order = 6,
+								width = "full",
 							},
 						},
 					},

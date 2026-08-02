@@ -498,6 +498,10 @@ function BuffReminders:UpdatePosition()
     -- Apply same scale as HUD
     local scale = self.Utils:GetEffectiveHUDScale()
     self.containerFrame:SetScale(scale)
+
+    -- Anchor/scale moves shift icon screen positions without a visible-icon
+    -- rebuild — the click overlay must re-sync its zones
+    self:NotifyLayoutChanged()
 end
 
 function BuffReminders:UpdateAlpha()
@@ -798,6 +802,9 @@ function BuffReminders:UpdateIconSize()
 
     -- Apply icon zoom texcoords (must run after ReSkin for Masque compositing)
     self:ApplyIconTexCoords()
+
+    -- Zone sizes track icon size
+    self:NotifyLayoutChanged()
 end
 
 function BuffReminders:LayoutIcons()
@@ -1599,6 +1606,176 @@ function BuffReminders:GetBestSpellForGroup(groupName, defaultSpellID)
     return defaultSpellID
 end
 
+-- Notify listeners (BuffRemindersClickOverlay) that visible icons, layout,
+-- position, or size changed. The overlay syncs its secure hit zones to the
+-- visual state out of combat — it never polls this module.
+function BuffReminders:NotifyLayoutChanged()
+    addon.Events:FireAddonEvent("BUFF_REMINDERS_LAYOUT_CHANGED")
+end
+
+-------------------------------------------------------------------------------
+-- Click-to-cast actions (consumed by BuffRemindersClickOverlay)
+--
+-- GetClickAction resolves each alert to a secure-button action descriptor:
+--   { kind = "spell", spell = spellID }   -> type="spell" self-cast
+--   { kind = "macro", macrotext = "..." } -> type="macro" (conditional
+--     targeting, item use, weapon-hand application)
+--   nil -> no click zone for this alert
+--
+-- Macro conditionals ([@target,help,nodead][@player]) are the sanctioned way
+-- to make per-click decisions: they are evaluated by the SECURE system at
+-- click time, so they stay legal even though our code can't run then. All
+-- OTHER decision-making below (which item is in bags, which rank is known,
+-- which hand is flagged) runs out of combat at zone-sync time — the button
+-- carries a fully resolved, static action. Names in macrotext come from
+-- GetSpellInfo/GetItemInfo at runtime, so they are locale-correct.
+-------------------------------------------------------------------------------
+
+-- "Cast on friendly target, else on yourself" — matches how players expect
+-- ally buffs (Mark of the Wild, Earth Shield) to behave.
+local function ConditionalCastMacro(spellName)
+    return "/cast [@target,help,nodead][@player] " .. spellName
+end
+
+-- C_Container shims (Anniversary uses the namespaced API; fall back for older builds)
+local GetContainerNumSlots = C_Container and C_Container.GetContainerNumSlots or GetContainerNumSlots
+local GetContainerItemID = C_Container and C_Container.GetContainerItemID or GetContainerItemID
+
+-- Find the best bag item that applies an enchant from this reminder's buff
+-- group (rogue poisons). Matches items by their use-spell via
+-- LibSpellDB:GetSpellInfo (rank IDs resolve to the canonical entry), prefers
+-- the highest rank. Cached per reminder; invalidated by bag updates
+-- (self._bagDirty, same convention as _cachedItemCount).
+function BuffReminders:FindBestEnchantItemName(reminder)
+    if not self._bagDirty and reminder._enchantItemScanned then
+        return reminder._enchantItemName
+    end
+    reminder._enchantItemScanned = true
+    reminder._enchantItemName = nil
+
+    local bestItemID, bestRankIdx
+    for bag = 0, 4 do
+        for slot = 1, GetContainerNumSlots(bag) or 0 do
+            local itemID = GetContainerItemID(bag, slot)
+            if itemID then
+                local _, useSpellID = GetItemSpell(itemID)
+                local sd = useSpellID and self.LibSpellDB:GetSpellInfo(useSpellID)
+                if sd and sd.buffGroup == reminder.buffGroup then
+                    local idx = 1
+                    if sd.ranks then
+                        for i, rankID in ipairs(sd.ranks) do
+                            if rankID == useSpellID then idx = i break end
+                        end
+                    end
+                    if not bestItemID or idx > bestRankIdx then
+                        bestItemID, bestRankIdx = itemID, idx
+                    end
+                end
+            end
+        end
+    end
+
+    if bestItemID then
+        reminder._enchantItemName = GetItemInfo(bestItemID)
+    end
+    return reminder._enchantItemName
+end
+
+-- Weapon-enchant alerts: pick which enchant to apply for this reminder.
+-- Honors the user's per-spell priority config (same mechanism
+-- GetBestSpellForGroup uses), else the first known spell in group order.
+function BuffReminders:GetEnchantSpellForGroup(groupInfo)
+    local db = addon.db.profile.buffReminders
+    local specKey = addon.Database:GetSpecKey()
+    local specConfig = specKey and db.spellConfig[specKey]
+    if specConfig then
+        for _, gSpellID in ipairs(groupInfo.spells) do
+            local cfg = specConfig[gSpellID]
+            if cfg and cfg.priority then
+                local hr = self.LibSpellDB:GetHighestKnownRank(cfg.priority)
+                if hr and IsSpellKnown(hr) then return cfg.priority end
+            end
+        end
+    end
+    for _, gSpellID in ipairs(groupInfo.spells) do
+        local hr = self.LibSpellDB:GetHighestKnownRank(gSpellID)
+        if hr and IsSpellKnown(hr) then return gSpellID end
+    end
+    return nil
+end
+
+function BuffReminders:GetClickAction(alert)
+    local reminder = alert.reminder
+
+    -- Weapon-enchant alerts (keyed weaponMH/weaponOH, no displaySpellID).
+    -- The hand is known per alert, so "/use 16|17" targets the right weapon:
+    -- item poisons use the pending-item-target flow (/use item, /use slot),
+    -- spell imbues cast into the item-targeting cursor (/cast, /use slot).
+    if alert.key == "weaponMH" or alert.key == "weaponOH" then
+        local slot = (alert.key == "weaponMH") and 16 or 17
+        local groupInfo = reminder and reminder.buffGroup
+            and self.LibSpellDB.BuffGroups[reminder.buffGroup]
+        if not groupInfo then return nil end
+
+        if groupInfo.itemBased then
+            local itemName = self:FindBestEnchantItemName(reminder)
+            if not itemName then return nil end  -- nothing applicable in bags
+            return { kind = "macro", macrotext = "/use " .. itemName .. "\n/use " .. slot }
+        end
+
+        local enchantSpellID = self:GetEnchantSpellForGroup(groupInfo)
+        local name = enchantSpellID and GetSpellInfo(enchantSpellID)
+        if not name then return nil end
+        return { kind = "macro", macrotext = "/cast " .. name .. "\n/use " .. slot }
+    end
+
+    local id = alert.displaySpellID
+    if not id then return nil end
+
+    -- Restock reminders (Conjure Mana Gem, Create Healthstone): plain cast.
+    -- Checked before the item-applied path — create spells take no target.
+    if reminder and reminder.isConsumable then
+        if not IsSpellKnown(id) then return nil end
+        return { kind = "spell", spell = id }
+    end
+
+    -- Item-applied ally buffs (Soulstone): dual mode resolved from bag state
+    -- at sync time — apply the existing item to friendly target/self when we
+    -- have one, otherwise cast the create spell.
+    local sd = reminder and reminder.spellData
+    if sd and sd.cooldownItemIDs and sd.itemCooldown and sd.appliesBuff
+        and self.LibSpellDB:GetAuraTarget(alert.spellID) == "ally" then
+        -- cooldownItemIDs are rank-ordered low->high; prefer the highest held
+        for i = #sd.cooldownItemIDs, 1, -1 do
+            local itemID = sd.cooldownItemIDs[i]
+            if GetItemCount(itemID) > 0 then
+                local itemName = GetItemInfo(itemID)
+                if itemName then
+                    return { kind = "macro",
+                        macrotext = "/use [@target,help,nodead][@player] " .. itemName }
+                end
+            end
+        end
+        if not IsSpellKnown(id) then return nil end
+        return { kind = "spell", spell = id }  -- none in bags: create one
+    end
+
+    if not IsSpellKnown(id) then return nil end
+
+    -- Target semantics from LibSpellDB aura data: self-only buffs must NOT
+    -- take a target (casting them @target errors); ally/raid buffs cast on
+    -- the friendly target with self fallback. nil auraTarget (duration-less
+    -- toggles like aspects/auras) behaves like self.
+    local auraTarget = self.LibSpellDB:GetAuraTarget(id)
+    if auraTarget == "ally" or auraTarget == "none" then
+        local name = GetSpellInfo(id)
+        if name then
+            return { kind = "macro", macrotext = ConditionalCastMacro(name) }
+        end
+    end
+    return { kind = "spell", spell = id }
+end
+
 function BuffReminders:UpdateVisibleIcons(alertList)
     -- Build a set of currently active keys for diffing
     -- Uses alert.key (for weapon enchant MH/OH) or alert.spellID as fallback
@@ -1625,6 +1802,7 @@ function BuffReminders:UpdateVisibleIcons(alertList)
         if not hasDisappearing and self.containerFrame then
             self.containerFrame:Hide()
         end
+        self:NotifyLayoutChanged()
         return
     end
 
@@ -1638,6 +1816,9 @@ function BuffReminders:UpdateVisibleIcons(alertList)
 
         -- Tag the frame with its current key
         frame._brSpellID = alertKey
+
+        -- Stamp the resolved click action for the click overlay (nil = no zone)
+        frame._clickAction = self:GetClickAction(alert)
 
         -- Set icon texture: weapon enchant alerts use the weapon's inventory icon,
         -- normal alerts use the spell icon
@@ -1678,6 +1859,9 @@ function BuffReminders:UpdateVisibleIcons(alertList)
 
     -- Layout all visible icons
     self:LayoutIcons()
+
+    -- After LayoutIcons so slide targets (_slideTargetX) are fresh
+    self:NotifyLayoutChanged()
 end
 
 function BuffReminders:HideAll()
@@ -1698,6 +1882,7 @@ function BuffReminders:HideAll()
     if self.containerFrame then
         self.containerFrame:Hide()
     end
+    self:NotifyLayoutChanged()
 end
 
 -------------------------------------------------------------------------------

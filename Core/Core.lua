@@ -26,7 +26,7 @@ local MODULE_ORDER = {
     "IconFrameFactory", "IconRenderer", "GlowManager",
     "TrinketTracker", "ConsumableTracker", "TotemTracker", "StanceTracker",
     "CooldownIcons",
-    "AuraTracker", "BuffReminders",
+    "AuraTracker", "BuffReminders", "BuffRemindersClickOverlay",
     "ResourceBar", "HealthBar", "PetHealthBar", "ComboPoints", "SwingBar",
 }
 
@@ -560,6 +560,16 @@ end
 
 function addon:UpdateVisibility()
     if not self.hudFrame then return end
+
+    -- Defensive: Show()/Hide() on a PROTECTED frame is blocked during combat
+    -- (fires ADDON_ACTION_BLOCKED). VeevHUD itself never lets the HUD become
+    -- protected — secure frames must never be parented or anchored to the HUD
+    -- tree (protection propagates through both; see the v1.0.202 incident and
+    -- the constraint model in Modules/BuffRemindersClickOverlay.lua) — but a
+    -- third-party addon anchoring a secure frame to VeevHUDFrame would
+    -- protect it from the outside. Skip this tick instead of erroring; the
+    -- 0.1s ticker applies the correct state once combat ends.
+    if InCombatLockdown() and self.hudFrame:IsProtected() then return end
 
     local shouldShow, targetAlpha = self.Utils:ShouldShowHUD()
 
