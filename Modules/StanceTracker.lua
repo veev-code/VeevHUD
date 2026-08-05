@@ -25,6 +25,7 @@
 ]]
 
 local _, addon = ...
+local L = LibStub("AceLocale-3.0"):GetLocale("VeevHUD")
 
 local StanceTracker = {}
 addon:RegisterModule("StanceTracker", StanceTracker)
@@ -164,13 +165,13 @@ end
 --- Get display label for the sentinel
 function StanceTracker:GetSentinelLabel()
     if self.playerClass == "WARRIOR" then
-        return "Stance"
+        return L["Stance"]
     elseif self.playerClass == "DRUID" then
-        return "Form"
+        return L["Form"]
     elseif self.playerClass == "PALADIN" then
-        return "Aura"
+        return L["Aura"]
     end
-    return "Stance"
+    return L["Stance"]
 end
 
 --- Get current icon for the sentinel

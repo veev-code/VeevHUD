@@ -451,13 +451,11 @@ L["Add Consumables"] = true
 L["Add by Item ID"] = true
 L["Enter an item ID to track any consumable not listed above. You can find item IDs on Wowhead (the number in the URL) or with the idTip addon."] = true
 L["Invalid input — enter a numeric item ID."] = true
-L["Item "] = true
 L["Added:"] = true
 L["Tracked Consumables"] = true
 L["Sounds"] = true
 L["Play a sound when an ability becomes ready — when it comes off cooldown, becomes usable, or meets resource requirements. Set a default sound for all abilities, or override individual spells below.\n\nSound plays for all rows regardless of the Ready Glow row filter. Other settings still apply: combat-only, pre-trigger time, and once vs. re-trigger mode."] = true
 L["Support"] = true
-L["Join the "] = true
 L["Veev Addons Discord"] = true
 L["Discord URL"] = true
 L["Press Ctrl+C to copy the URL."] = true
@@ -598,6 +596,13 @@ L["Primary"] = true
 L["Secondary"] = true
 L["Utility"] = true
 L["Auxiliary"] = true
+
+-- Built-in HUD element / ability row display names. Stored in English in
+-- Constants.lua (they double as SavedVariables values and Masque group IDs) and
+-- translated at render time by Utils:LocalizeUIName / Utils:GetRowDisplayName.
+L["Secondary Row"] = true
+L["Auxiliary Row"] = true
+L["Row %d"] = true
 L["VeevHUD |TInterface\\Icons\\Spell_Nature_Reincarnation:16:16|t"] = true
 L["/vh"] = true
 L["Options unavailable (AceConfigDialog missing)."] = true
@@ -621,3 +626,139 @@ L["Toggle debug mode"] = true
 L["Thanks for trying VeevHUD!\n\nType |cff00ff00/vh|r to open settings.\n\nJoin the |cffffffffVeev Addons Discord|r for suggestions,\nbug reports, and updates:"] = true
 L["Click the link above, then Ctrl+C to copy"] = true
 L["Got it!"] = true
+
+-------------------------------------------------------------------------------
+-- Strings localized in the 2026-08 coverage pass
+-------------------------------------------------------------------------------
+
+-- Core/Core.lua
+L["|cffff0000Warning:|r LibSpellDB not found. Some features may not work."] = true
+L["Spec Detection Failed"] = true
+L["LibSpellDB Missing"] = true
+L["LibSpellDB is required but not loaded."] = true
+L["|cffff0000FATAL ERROR:|r %s"] = true
+L["|cffff0000VeevHUD Error|r\n\n%s\n\n%s\n\nThe addon has been disabled."] = true
+L["|cffff0000Error initializing module %s:|r %s"] = true
+
+-- Core/Migrations.lua
+L["New: Auxiliary Row"] = true
+L["A new 4th icon row — the Auxiliary Row — is now available. Use it to separate spells you want visually distinct from your main rows, like tracking totems, trinkets, or niche abilities in their own group.\n\nDrag spells into it via Spell Configuration (/vh spells). By default it sits above the Health Bar, but you can reposition it in the Layout tab. It has its own icon size and aspect ratio settings under Ability Rows.\n\nFor Shamans, totem element slots now live here instead of the old standalone Totem Bar. Warriors, Druids, and Paladins get a stance/form/aura indicator showing your current active state.\n\nThe row collapses automatically when empty."] = true
+L["Got It"] = true
+L["New: Cooldown Pulse"] = true
+L["Cooldown Pulse is a new feature — inspired by addons like Doom_CooldownPulse — that flashes a large ability icon in the center of your screen when it comes off cooldown.\n\nYou can choose which rows trigger pulses (default: all rows), adjust the icon size, opacity, and animation style — or disable it entirely.\n\nConfigure it in the new Cooldown Pulse tab."] = true
+L["Open Settings"] = true
+L["New: Sound Notifications"] = true
+L["VeevHUD can now play sounds for combat events. All sounds default to silent — configure the ones you want.\n\nSupported on: proc activation (Aura Tracker), ability ready (Spell Config > Ready Glow Sound), and missing buff alerts (Buff Reminders). Each supports per-spell overrides.\n\nSounds come from LibSharedMedia (WeakAuras, SharedMedia packs, etc.). You can also register WoW Sound Kit IDs in General > Sound."] = true
+L["New: Consumable Tracking"] = true
+L["You can now track combat consumables on your HUD — potions, runes, sappers, and more.\n\nOpen Settings > Spell Config > Consumables tab, then select items from the Potions or Other Consumables dropdowns. Each icon shows the item cooldown, buff duration (if applicable), and your current bag count.\n\nOnce added, consumables appear in the Spell Configuration window where you can drag them between rows or reorder them alongside your abilities."] = true
+L["Cleaner Default Icons"] = true
+L["Default icon setups have been streamlined across all classes to reduce clutter out of the box.\n\nSituational and niche abilities (melee attacks for hunters, creature-type-specific spells, threat drops, etc.) are now hidden by default. Spammable filler abilities with no meaningful cooldown are also excluded.\n\nAll hidden spells can be re-enabled at any time via Spell Configuration — just drag them into the row you want."] = true
+L["Spell Configuration"] = true
+L["New: Aura Tracker Bars"] = true
+L["Aura Tracker auras can now be shown as status bars instead of icons — each with the aura name, a smooth depleting timer, and the remaining time, stacked together just beneath the Aura Tracker's icons.\n\nFlip any aura between Icon and Bar using the new Display dropdown in the Class Procs, External Buffs, and Custom Auras tabs. Bars are colored automatically from the spell's icon, with a per-aura color override if you want something different.\n\nFine-tune bar width, height, spacing, and text under Aura Tracker > Settings > Bars."] = true
+L["|cff00ccffVeevHUD|r - %s"] = true
+L["Update"] = true
+L["OK"] = true
+
+-- Core/SlashCommands.lua
+L["Debug keybind detection"] = true
+
+-- Modules/ConsumableTracker.lua
+L["Item %s"] = true
+
+-- Modules/StanceTracker.lua
+L["Stance"] = true
+L["Form"] = true
+L["Aura"] = true
+
+-- Modules/TotemTracker.lua
+L["Fire Totem"] = true
+L["Earth Totem"] = true
+L["Water Totem"] = true
+L["Air Totem"] = true
+
+-- Modules/TrinketTracker.lua
+L["Trinket %s"] = true
+
+-- UI/Options.lua
+L["Disabled"] = true
+L["Master"] = true
+L["Sound Effects"] = true
+L["Music"] = true
+L["Ambience"] = true
+L["Outside 5-second rule"] = true
+L["Next full tick"] = true
+L["When dual-wielding, two bars track your main-hand and off-hand swing timers. When Heroic Strike is queued, your off-hand's dual-wield miss penalty is removed — but MH fire consumes the queued HS. Bars turn red when your off-hand fires right after your main-hand (no time to re-queue HS), and green when there's a comfortable gap. Use a desync macro if they drift together."] = true
+L["Color both bars by your HS re-queue window. |cffffffffGreen|r when there's time to re-queue HS before off-hand fires, |cffffffffRed|r when off-hand fires too soon after main-hand (no time to re-queue)."] = true
+L["Color both bars by how well your main-hand and off-hand swings are synced. |cffffffffGreen|r when synced, |cffffffffRed|r when drifted apart."] = true
+L["If your off-hand fires within this many seconds after your main-hand, bars turn red. Increase if you need more reaction time to re-queue HS."] = true
+L["How close (in seconds) your main-hand and off-hand swings need to be to count as synced (green). If the bars flicker between green and red too often, increase this value."] = true
+L["Safe Color"] = true
+L["Synced Color"] = true
+L["Bar color when you have time to re-queue HS before off-hand fires."] = true
+L["Bar color when both weapons are swinging in sync."] = true
+L["Danger Color"] = true
+L["Desynced Color"] = true
+L["Bar color when off-hand fires too soon after main-hand to re-queue HS."] = true
+L["Bar color when your weapons have drifted apart."] = true
+L["Add Potion"] = true
+L["Select a potion to add to your HUD. Potions in your bags are listed first, sorted by count."] = true
+L["Add Other Consumable"] = true
+L["Select a consumable to add to your HUD. Includes runes, engineering items, and other raid consumables."] = true
+L["Item %s not cached yet. Try again in a moment."] = true
+L["Join the %s for feedback, suggestions, and bug reports:"] = true
+L["Spell %s"] = true
+L["PvP Powerups"] = true
+L["Drums"] = true
+L["Raid Cooldowns"] = true
+L["Defensive Externals"] = true
+L["Other Externals"] = true
+L["Minor Externals"] = true
+L["%s is already being tracked."] = true
+L["ID %s"] = true
+L["Added: ID %s"] = true
+L["Unknown Spell %s"] = true
+L[" (unavailable for name-only auras that don't resolve to a spell ID)"] = true
+L["Unavailable for name-only auras that don't resolve to a spell ID."] = true
+L["%s (Lv. %d)"] = true
+L["Hide Preview"] = true
+L["Show Preview"] = true
+L["Type %s to open settings."] = true
+L["Open VeevHUD Settings"] = true
+
+-- UI/SpellsOptions.lua
+L["VeevHUD - Spell Configuration"] = true
+L["Customize which spells appear on your HUD and their order. |cff888888[?]|r"] = true
+L["Loading..."] = true
+L["Per-Spec Configuration"] = true
+L["Settings on this screen are saved per-spec. Switching specs loads that spec's configuration."] = true
+L["Check/uncheck to show or hide spells"] = true
+L["Drag :: to reorder spells within a row"] = true
+L["Drag spells between rows to move them"] = true
+L["Drag from Available to enable additional spells"] = true
+L["Drag |cffffffff::|r to reorder"] = true
+L["Reset Spell Config"] = true
+L["Reset Spell Configuration"] = true
+L["Resets all spell visibility, ordering, and proc tracker settings to defaults."] = true
+L["Current spec: %s"] = true
+L["Reset all spell configuration for %s to defaults?"] = true
+L["|cff888888Druid: Cat Form and Bear Form abilities are filtered by your current form — Cat abilities hide in Bear Form and vice versa. In caster or travel form, your last Cat/Bear form is remembered. Click the form label (Cat/Bear/Any) next to any spell to override this.|r"] = true
+L["|cff888888No spells found for this spec.|r\n\nMake sure you're logged in and have abilities learned."] = true
+L["Available"] = true
+L["|cff888888Spells you know but aren't tracked. Drag to a row above to enable.|r"] = true
+L["Trinket 1"] = true
+L["Trinket 2"] = true
+L["%s (%s)"] = true
+L["Totem"] = true
+L["Cat"] = true
+L["Bear"] = true
+L["Form Visibility"] = true
+L["Click to cycle: Cat / Bear / Any"] = true
+L["Currently overridden (gold = custom)"] = true
+L["Using default (based on spell tags)"] = true
+L["Shared Tracker"] = true
+L["Only one active at a time — icon swaps on cast"] = true
+L["Element slot — shows your active totem for this element"] = true
+L["Shows your current active stance, form, or aura"] = true
+L["Group"] = true
+L["Unknown"] = true

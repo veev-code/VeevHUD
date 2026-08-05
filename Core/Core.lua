@@ -82,7 +82,7 @@ function addon:OnAddonLoaded()
     if LibStub then
         self.LibSpellDB = LibStub:GetLibrary("LibSpellDB-1.0", true)
         if not self.LibSpellDB then
-            self.Utils:Print("|cffff0000Warning:|r LibSpellDB not found. Some features may not work.")
+            self.Utils:Print(L["|cffff0000Warning:|r LibSpellDB not found. Some features may not work."])
         end
         
     end
@@ -196,11 +196,11 @@ function addon:OnPlayerLogin()
             self.Utils:LogInfo("Player spec:", spec or "Unknown", "(" .. (points[1] or 0) .. "/" .. (points[2] or 0) .. "/" .. (points[3] or 0) .. ")")
         end)
         if not success then
-            self:ShowFatalError("Spec Detection Failed", err)
+            self:ShowFatalError(L["Spec Detection Failed"], err)
             return
         end
     else
-        self:ShowFatalError("LibSpellDB Missing", "LibSpellDB is required but not loaded.")
+        self:ShowFatalError(L["LibSpellDB Missing"], L["LibSpellDB is required but not loaded."])
         return
     end
 
@@ -242,13 +242,13 @@ function addon:ShowFatalError(title, message)
     self.Utils:LogError("FATAL:", title, "-", message)
     
     -- Print to chat
-    self.Utils:Print("|cffff0000FATAL ERROR:|r " .. title)
+    self.Utils:Print(L["|cffff0000FATAL ERROR:|r %s"]:format(title))
     print("|cffff0000VeevHUD:|r " .. tostring(message))
-    
+
     -- Show popup dialog
     StaticPopupDialogs["VEEVHUD_FATAL_ERROR"] = {
-        text = "|cffff0000VeevHUD Error|r\n\n" .. title .. "\n\n" .. tostring(message) .. "\n\nThe addon has been disabled.",
-        button1 = "OK",
+        text = L["|cffff0000VeevHUD Error|r\n\n%s\n\n%s\n\nThe addon has been disabled."]:format(title, tostring(message)),
+        button1 = OKAY,
         timeout = 0,
         whileDead = true,
         hideOnEscape = true,
@@ -454,7 +454,7 @@ function addon:InitializeModules()
         if module and module.Initialize then
             local success, err = pcall(module.Initialize, module)
             if not success then
-                self.Utils:Print("|cffff0000Error initializing module " .. name .. ":|r " .. tostring(err))
+                self.Utils:Print(L["|cffff0000Error initializing module %s:|r %s"]:format(name, tostring(err)))
             end
         end
     end

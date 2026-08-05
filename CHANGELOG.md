@@ -1,5 +1,17 @@
 # VeevHUD Changelog
 
+## [1.0.228] - 2026-08-05
+
+### Added
+- **Localized addon description** — The AddOn List tooltip now describes VeevHUD in your language instead of always in English.
+
+### Fixed
+- **Untranslated interface** — Large parts of the UI still appeared in English in every language. The entire Spell Configuration window, all version-upgrade popups, the Swing Bar class options, the Add Potion and Add Consumable pickers, the External Buffs categories, the Buff Reminders preview button, and the Blizzard AddOns panel are now translated. Every supported language is at full coverage.
+- **Row and HUD element names** — Names like Primary Row, Utility Row, Aura Tracker, and Swing Bar stayed English on the Layout and Ability Rows tabs no matter the client language. They now follow your language everywhere they appear.
+- **Rogue energy prediction on non-English clients** — Adrenaline Rush was matched by its English name, so on a translated client the doubled energy regeneration was never detected and tick predictions ran at the normal rate.
+- **Italian translation** — The Italian locale was missing accents throughout, which changed the meaning of some strings ("e" and "è" are different words). Restored across the whole file.
+- **`/vh help`** — The `/vh keybind` entry was the only line in the command list still printed in English.
+
 ## [1.0.227] - 2026-08-05
 
 ### Fixed

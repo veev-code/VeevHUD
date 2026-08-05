@@ -1021,7 +1021,7 @@ function CooldownIcons:UpdatePositionHandles()
             handle:SetPoint("TOP", rowFrame, "TOP", 0, 0)
             handle:SetSize(width, height)
 
-            handle.label:SetText(L["Drag to move %s"]:format(rowConfig.name or ("Row " .. rowIndex)))
+            handle.label:SetText(L["Drag to move %s"]:format(addon.Utils:GetRowDisplayName(rowConfig.name, rowIndex)))
             rowFrame:Show()
             handle:Show()
         elseif handle then

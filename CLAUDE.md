@@ -325,10 +325,29 @@ All user-facing UI strings are localized via **AceLocale-3.0**, using the Englis
 - `Locales/<locale>.lua` — deDE, frFR, esES, esMX, ptBR, itIT, koKR, zhCN, zhTW, ruRU. They override enUS; any key a translation omits falls back to English automatically (so partial translations are safe).
 - Each consuming file declares `local L = LibStub("AceLocale-3.0"):GetLocale("VeevHUD")` and wraps strings as `L["..."]`. Dynamic strings use format keys: `L["Track %s (ID: %s)"]:format(a, b)`.
 - TOC loads `Locales/*.lua` **before** any file that calls `GetLocale` (right after `Libs\embeds.xml`). `Constants.lua` is deliberately NOT localized so the first-loaded file stays dependency-free.
-- **Adding a string:** wrap it `L["..."]` in code, then add `L["..."] = true` to `enUS.lua`. Translations are optional.
-- **NOT localized by design:** raw `print()` debug/diagnostic output in `SlashCommands.lua` (English aids bug reports), the `!Kit` LSM registration prefix, and row-name defaults in `Constants.lua`.
+- **Adding a string:** wrap it `L["..."]` in code, then add `L["..."] = true` to `enUS.lua`, **and** add the translation to all 10 locale files — CI enforces 100% coverage (see below).
+- **AceLocale is strict here.** `enUS.lua` calls `NewLocale("VeevHUD", "enUS", true)` with no `silent` flag, so `L[x]` for an unknown key raises a Lua error. Never index `L` with a variable or a concatenation — only `L["literal"]`. `check_locales.py` hard-fails on dynamic indexing; a genuinely guarded lookup opts out with a trailing `-- locale-ok` comment.
+- **Built-in element/row display names** (`C.LAYOUT_ELEMENTS` values and `rows[i].name`) stay English in `Constants.lua` because they are persisted to SavedVariables and used as Masque group IDs. They are translated at *render* time by two helpers in `Core/Utils.lua`:
+  - `Utils:LocalizeUIName(name)` — for `C.LAYOUT_ELEMENTS` values
+  - `Utils:GetRowDisplayName(name, rowIndex)` — for row names; expands `"Utility"` → `"Utility Row"` and falls back to `L["Row %d"]`
+  Both look up only names in a whitelist built from Constants, so a hand-edited row name in an old profile passes through untranslated instead of erroring. Use these instead of `L[...]` anywhere a row or element name reaches the UI.
+- **NOT localized by design:** raw `print()` debug/diagnostic output in `SlashCommands.lua`, `Logger.lua` and `Keybinds.lua` — the `/vh spec`, `/vh log`, `/vh debug`, `/vh invalid`, `/vh check`, `/vh keybind` and `/vh layout` dumps and their `Usage: ...` hints (English aids bug reports) — plus the `!Kit` LSM registration prefix, Masque group-name arguments, and secure macro bodies (`/cast`, `/use`, macro conditionals must stay English for WoW's parser). The `/vh help` *listing itself* IS localized; every line follows `print("  /vh <cmd> - " .. L["description"])`.
+- **Never hardcode an English spell name**, including as a name fallback to `Utils:GetCachedBuff` — `UnitBuff` returns the client-localized name, so an English literal can never match on a non-English client. Resolve it from the spell ID with `GetSpellInfo(id)` (see `Services/TickTracker.lua` for the pattern).
+- `VeevHUD.toc` ships localized `## Notes-<locale>` metadata for all 10 locales (the AddOn List tooltip). `## Title` stays unsuffixed — it is the bare product name.
 - The non-English locales are **AI-generated (Claude)** and flagged for native-speaker review in each file header; ruRU also includes 9 human-translated strings from a community contribution by ZamestoTV (Hubbotu).
-- **Consistency is enforced by `Tools/check_locales.py`** (runs in CI on every push/PR via the `validate` job). It hard-fails on: a key used in code but missing from enUS; a **stale** translation key (English wording changed but the translation file still has the old key — the main risk of the English-as-key pattern); `%s`/`%d` format-specifier mismatches; and broken `|cff..|r` color-code counts. Coverage gaps are warnings (English fallback is fine). Run it locally with `python3 Tools/check_locales.py`. There is no enUS *generator* — add new keys to `enUS.lua` by hand when you wrap a new `L["..."]`.
+- **Consistency is enforced by `Tools/check_locales.py`** (runs in CI on every push/PR via the `validate` job). Run it locally with `python3 Tools/check_locales.py`. It **hard-fails** on:
+  - a key used in code but missing from enUS
+  - a **stale** translation key (English wording changed but the translation file still has the old key — the main risk of the English-as-key pattern)
+  - duplicate keys within one locale file (the earlier one silently loses)
+  - `%s`/`%d` format-specifier mismatches between key and value
+  - unbalanced `|cff..|r`, `|T..|t` or `|H..|h` escape counts between key and value
+  - dynamic `L[...]` indexing without a `-- locale-ok` annotation
+  - a locale whose `NewLocale("VeevHUD", "<code>")` disagrees with its filename, an `isDefault=true` on anything but enUS, or a `Locales/*.lua` missing from the TOC
+  - **translation coverage below 100%** — untranslated keys fall back to English *silently*, which is exactly how all 10 locales quietly drifted to 97%. Override the floor for a work-in-progress branch with `VEEVHUD_LOCALE_COVERAGE_FLOOR=95`.
+
+  It **warns** on dead enUS keys and on heuristically-detected hardcoded English (bare `name=`/`desc=`/`usage=` and `:SetText`/`:AddLine` prose). The hardcoded-English check is a heuristic, so it warns rather than blocking; silence a deliberate exception with `-- locale-ok`.
+
+  There is no enUS *generator* — add new keys to `enUS.lua` by hand when you wrap a new `L["..."]`.
 
 ### Optional
 - `Masque` — Icon skinning (optional)

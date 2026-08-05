@@ -132,14 +132,22 @@ TickTracker.predictionAnchorTime = 0           -- The lastManaSpendTime this pre
 -- Energy Tick Tracking
 -------------------------------------------------------------------------------
 
+-- Localized name for the Adrenaline Rush buff, resolved lazily from its spell ID.
+-- The ID is hardcoded (C.SPELL_ID_ADRENALINE_RUSH) because LibSpellDB has no generic
+-- query for "doubles energy regen". The name MUST come from GetSpellInfo, never a
+-- literal: GetCachedBuff's name fallback compares against UnitBuff's localized name,
+-- so an English literal would never match on a non-English client.
+local adrenalineRushName
+
 -- Get expected energy per tick (20 normally, 40 with Adrenaline Rush)
 function TickTracker:GetExpectedEnergyPerTick()
     local baseEnergyPerTick = C.ENERGY_PER_TICK
-    
+
     -- Check for Adrenaline Rush
     local Utils = addon.Utils
     if Utils and Utils.GetCachedBuff then
-        local adrenalineRush = Utils:GetCachedBuff("player", C.SPELL_ID_ADRENALINE_RUSH, "Adrenaline Rush")
+        adrenalineRushName = adrenalineRushName or GetSpellInfo(C.SPELL_ID_ADRENALINE_RUSH)
+        local adrenalineRush = Utils:GetCachedBuff("player", C.SPELL_ID_ADRENALINE_RUSH, adrenalineRushName)
         if adrenalineRush then
             return baseEnergyPerTick * 2
         end

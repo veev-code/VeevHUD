@@ -43,6 +43,7 @@
 ]]
 
 local ADDON_NAME, addon = ...
+local L = LibStub("AceLocale-3.0"):GetLocale("VeevHUD")
 
 addon.Migrations = {}
 local Migrations = addon.Migrations
@@ -127,10 +128,10 @@ local migrations = {
             end
         end,
         popup = {
-            title = "New: Auxiliary Row",
-            message = "A new 4th icon row — the Auxiliary Row — is now available. Use it to separate spells you want visually distinct from your main rows, like tracking totems, trinkets, or niche abilities in their own group.\n\nDrag spells into it via Spell Configuration (/vh spells). By default it sits above the Health Bar, but you can reposition it in the Layout tab. It has its own icon size and aspect ratio settings under Ability Rows.\n\nFor Shamans, totem element slots now live here instead of the old standalone Totem Bar. Warriors, Druids, and Paladins get a stance/form/aura indicator showing your current active state.\n\nThe row collapses automatically when empty.",
+            title = L["New: Auxiliary Row"],
+            message = L["A new 4th icon row — the Auxiliary Row — is now available. Use it to separate spells you want visually distinct from your main rows, like tracking totems, trinkets, or niche abilities in their own group.\n\nDrag spells into it via Spell Configuration (/vh spells). By default it sits above the Health Bar, but you can reposition it in the Layout tab. It has its own icon size and aspect ratio settings under Ability Rows.\n\nFor Shamans, totem element slots now live here instead of the old standalone Totem Bar. Warriors, Druids, and Paladins get a stance/form/aura indicator showing your current active state.\n\nThe row collapses automatically when empty."],
             buttons = {
-                { text = "Got It" },
+                { text = L["Got It"] },
             },
         },
     },
@@ -138,10 +139,10 @@ local migrations = {
     -- v6: Cooldown Pulse feature announcement
     [6] = {
         popup = {
-            title = "New: Cooldown Pulse",
-            message = "Cooldown Pulse is a new feature — inspired by addons like Doom_CooldownPulse — that flashes a large ability icon in the center of your screen when it comes off cooldown.\n\nYou can choose which rows trigger pulses (default: all rows), adjust the icon size, opacity, and animation style — or disable it entirely.\n\nConfigure it in the new Cooldown Pulse tab.",
+            title = L["New: Cooldown Pulse"],
+            message = L["Cooldown Pulse is a new feature — inspired by addons like Doom_CooldownPulse — that flashes a large ability icon in the center of your screen when it comes off cooldown.\n\nYou can choose which rows trigger pulses (default: all rows), adjust the icon size, opacity, and animation style — or disable it entirely.\n\nConfigure it in the new Cooldown Pulse tab."],
             buttons = {
-                { text = "Open Settings", action = function()
+                { text = L["Open Settings"], action = function()
                     C_Timer.After(0.1, function()
                         if addon.Options then
                             addon.Options:Open()
@@ -152,7 +153,7 @@ local migrations = {
                         end
                     end)
                 end },
-                { text = "Got It" },
+                { text = L["Got It"] },
             },
         },
     },
@@ -160,19 +161,17 @@ local migrations = {
     -- v8: Sound Notifications feature announcement
     [8] = {
         popup = {
-            title = "New: Sound Notifications",
-            message = "VeevHUD can now play sounds for combat events. All sounds default to silent — configure the ones you want.\n\n"
-                .. "Supported on: proc activation (Aura Tracker), ability ready (Spell Config > Ready Glow Sound), and missing buff alerts (Buff Reminders). Each supports per-spell overrides.\n\n"
-                .. "Sounds come from LibSharedMedia (WeakAuras, SharedMedia packs, etc.). You can also register WoW Sound Kit IDs in General > Sound.",
+            title = L["New: Sound Notifications"],
+            message = L["VeevHUD can now play sounds for combat events. All sounds default to silent — configure the ones you want.\n\nSupported on: proc activation (Aura Tracker), ability ready (Spell Config > Ready Glow Sound), and missing buff alerts (Buff Reminders). Each supports per-spell overrides.\n\nSounds come from LibSharedMedia (WeakAuras, SharedMedia packs, etc.). You can also register WoW Sound Kit IDs in General > Sound."],
             buttons = {
-                { text = "Open Settings", action = function()
+                { text = L["Open Settings"], action = function()
                     C_Timer.After(0.1, function()
                         if addon.Options then
                             addon.Options:Open()
                         end
                     end)
                 end },
-                { text = "Got It" },
+                { text = L["Got It"] },
             },
         },
     },
@@ -180,10 +179,10 @@ local migrations = {
     -- v9: Consumable Tracking feature announcement
     [9] = {
         popup = {
-            title = "New: Consumable Tracking",
-            message = "You can now track combat consumables on your HUD — potions, runes, sappers, and more.\n\nOpen Settings > Spell Config > Consumables tab, then select items from the Potions or Other Consumables dropdowns. Each icon shows the item cooldown, buff duration (if applicable), and your current bag count.\n\nOnce added, consumables appear in the Spell Configuration window where you can drag them between rows or reorder them alongside your abilities.",
+            title = L["New: Consumable Tracking"],
+            message = L["You can now track combat consumables on your HUD — potions, runes, sappers, and more.\n\nOpen Settings > Spell Config > Consumables tab, then select items from the Potions or Other Consumables dropdowns. Each icon shows the item cooldown, buff duration (if applicable), and your current bag count.\n\nOnce added, consumables appear in the Spell Configuration window where you can drag them between rows or reorder them alongside your abilities."],
             buttons = {
-                { text = "Open Settings", action = function()
+                { text = L["Open Settings"], action = function()
                     C_Timer.After(0.1, function()
                         if addon.Options then
                             addon.Options:Open()
@@ -194,7 +193,7 @@ local migrations = {
                         end
                     end)
                 end },
-                { text = "Got It" },
+                { text = L["Got It"] },
             },
         },
     },
@@ -202,17 +201,17 @@ local migrations = {
     -- v7: Default icon clutter reduction across all classes
     [7] = {
         popup = {
-            title = "Cleaner Default Icons",
-            message = "Default icon setups have been streamlined across all classes to reduce clutter out of the box.\n\nSituational and niche abilities (melee attacks for hunters, creature-type-specific spells, threat drops, etc.) are now hidden by default. Spammable filler abilities with no meaningful cooldown are also excluded.\n\nAll hidden spells can be re-enabled at any time via Spell Configuration — just drag them into the row you want.",
+            title = L["Cleaner Default Icons"],
+            message = L["Default icon setups have been streamlined across all classes to reduce clutter out of the box.\n\nSituational and niche abilities (melee attacks for hunters, creature-type-specific spells, threat drops, etc.) are now hidden by default. Spammable filler abilities with no meaningful cooldown are also excluded.\n\nAll hidden spells can be re-enabled at any time via Spell Configuration — just drag them into the row you want."],
             buttons = {
-                { text = "Spell Configuration", action = function()
+                { text = L["Spell Configuration"], action = function()
                     C_Timer.After(0.1, function()
                         if addon.SpellsOptions then
                             addon.SpellsOptions:Open()
                         end
                     end)
                 end },
-                { text = "Got It" },
+                { text = L["Got It"] },
             },
         },
     },
@@ -220,10 +219,10 @@ local migrations = {
     -- v10: Aura Tracker bar display mode
     [10] = {
         popup = {
-            title = "New: Aura Tracker Bars",
-            message = "Aura Tracker auras can now be shown as status bars instead of icons — each with the aura name, a smooth depleting timer, and the remaining time, stacked together just beneath the Aura Tracker's icons.\n\nFlip any aura between Icon and Bar using the new Display dropdown in the Class Procs, External Buffs, and Custom Auras tabs. Bars are colored automatically from the spell's icon, with a per-aura color override if you want something different.\n\nFine-tune bar width, height, spacing, and text under Aura Tracker > Settings > Bars.",
+            title = L["New: Aura Tracker Bars"],
+            message = L["Aura Tracker auras can now be shown as status bars instead of icons — each with the aura name, a smooth depleting timer, and the remaining time, stacked together just beneath the Aura Tracker's icons.\n\nFlip any aura between Icon and Bar using the new Display dropdown in the Class Procs, External Buffs, and Custom Auras tabs. Bars are colored automatically from the spell's icon, with a per-aura color override if you want something different.\n\nFine-tune bar width, height, spacing, and text under Aura Tracker > Settings > Bars."],
             buttons = {
-                { text = "Open Settings", action = function()
+                { text = L["Open Settings"], action = function()
                     C_Timer.After(0.1, function()
                         if addon.Options then
                             addon.Options:Open()
@@ -234,7 +233,7 @@ local migrations = {
                         end
                     end)
                 end },
-                { text = "Got It" },
+                { text = L["Got It"] },
             },
         },
     },
@@ -402,7 +401,7 @@ function Migrations:ShowDialog(popup, extraData)
     local dialog = self:CreateDialog()
 
     -- Title
-    dialog.titleText:SetText("|cff00ccffVeevHUD|r - " .. (popup.title or "Update"))
+    dialog.titleText:SetText(L["|cff00ccffVeevHUD|r - %s"]:format(popup.title or L["Update"]))
 
     -- Message (static or dynamic)
     local message = popup.message or ""
@@ -426,7 +425,7 @@ function Migrations:ShowDialog(popup, extraData)
     wipe(dialog.buttons)
 
     -- Create buttons
-    local buttonConfigs = popup.buttons or {{ text = "OK" }}
+    local buttonConfigs = popup.buttons or {{ text = L["OK"] }}
     local numButtons = #buttonConfigs
     local buttonWidth = 160
     local buttonSpacing = 20
@@ -437,7 +436,7 @@ function Migrations:ShowDialog(popup, extraData)
         local btn = CreateFrame("Button", nil, dialog, "UIPanelButtonTemplate")
         btn:SetSize(buttonWidth, 26)
         btn:SetPoint("BOTTOM", startX + (i - 1) * (buttonWidth + buttonSpacing), 16)
-        btn:SetText(btnConfig.text or "OK")
+        btn:SetText(btnConfig.text or L["OK"])
 
         btn:SetScript("OnClick", function()
             if btnConfig.action then

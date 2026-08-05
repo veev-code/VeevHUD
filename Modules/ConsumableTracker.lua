@@ -15,6 +15,7 @@
 ]]
 
 local _, addon = ...
+local L = LibStub("AceLocale-3.0"):GetLocale("VeevHUD")
 
 local ConsumableTracker = {}
 addon:RegisterModule("ConsumableTracker", ConsumableTracker)
@@ -133,7 +134,7 @@ function ConsumableTracker:LoadConsumable(itemID)
     self.consumables[itemID] = {
         itemID = itemID,
         sentinelID = sentinelID,
-        name = itemName or ("Item " .. itemID),
+        name = itemName or L["Item %s"]:format(itemID),
         icon = itemIcon,
         buffSpellID = buffSpellID,
     }

@@ -38,6 +38,7 @@
 ]]
 
 local _, addon = ...
+local L = LibStub("AceLocale-3.0"):GetLocale("VeevHUD")
 
 local SpellsOptions = {}
 addon.SpellsOptions = SpellsOptions
@@ -105,7 +106,7 @@ function SpellsOptions:CreateDialog()
     tinsert(UISpecialFrames, "VeevHUDSpellConfigDialog")
 
     if dialog.TitleText then
-        dialog.TitleText:SetText("VeevHUD - Spell Configuration")
+        dialog.TitleText:SetText(L["VeevHUD - Spell Configuration"])
     end
 
     local panel = dialog
@@ -117,7 +118,7 @@ function SpellsOptions:CreateDialog()
 
     local description = descFrame:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
     description:SetPoint("LEFT", 0, 0)
-    description:SetText("Customize which spells appear on your HUD and their order. |cff888888[?]|r")
+    description:SetText(L["Customize which spells appear on your HUD and their order. |cff888888[?]|r"])
 
     -- Spec label below description (wrapped in a frame for mouse interaction)
     local specFrame = CreateFrame("Frame", nil, panel)
@@ -125,13 +126,13 @@ function SpellsOptions:CreateDialog()
     specFrame:SetSize(300, 16)
     local subtitle = specFrame:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
     subtitle:SetPoint("LEFT", 0, 0)
-    subtitle:SetText("Loading...")
+    subtitle:SetText(L["Loading..."])
     self.subtitleText = subtitle
 
     specFrame:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
-        GameTooltip:AddLine("Per-Spec Configuration", 1, 1, 1)
-        GameTooltip:AddLine("Settings on this screen are saved per-spec. Switching specs loads that spec's configuration.", 1, 0.82, 0, true)
+        GameTooltip:AddLine(L["Per-Spec Configuration"], 1, 1, 1)
+        GameTooltip:AddLine(L["Settings on this screen are saved per-spec. Switching specs loads that spec's configuration."], 1, 0.82, 0, true)
         GameTooltip:Show()
     end)
     specFrame:SetScript("OnLeave", function()
@@ -140,12 +141,12 @@ function SpellsOptions:CreateDialog()
     
     descFrame:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
-        GameTooltip:AddLine("Spell Configuration", 1, 1, 1)
+        GameTooltip:AddLine(L["Spell Configuration"], 1, 1, 1)
         GameTooltip:AddLine(" ")
-        GameTooltip:AddLine("Check/uncheck to show or hide spells", 1, 0.82, 0)
-        GameTooltip:AddLine("Drag :: to reorder spells within a row", 1, 0.82, 0)
-        GameTooltip:AddLine("Drag spells between rows to move them", 1, 0.82, 0)
-        GameTooltip:AddLine("Drag from Available to enable additional spells", 1, 0.82, 0)
+        GameTooltip:AddLine(L["Check/uncheck to show or hide spells"], 1, 0.82, 0)
+        GameTooltip:AddLine(L["Drag :: to reorder spells within a row"], 1, 0.82, 0)
+        GameTooltip:AddLine(L["Drag spells between rows to move them"], 1, 0.82, 0)
+        GameTooltip:AddLine(L["Drag from Available to enable additional spells"], 1, 0.82, 0)
         GameTooltip:Show()
     end)
     descFrame:SetScript("OnLeave", function()
@@ -158,21 +159,20 @@ function SpellsOptions:CreateDialog()
     -- Instructions
     local instructions = panel:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
     instructions:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -16, -34)
-    instructions:SetText("Drag |cffffffff::|r to reorder")
+    instructions:SetText(L["Drag |cffffffff::|r to reorder"])
     instructions:SetTextColor(0.5, 0.5, 0.5)
     
     -- Reset Spells Button
     local resetSpellsButton = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
     resetSpellsButton:SetPoint("TOPRIGHT", instructions, "BOTTOMRIGHT", 0, -4)
     resetSpellsButton:SetSize(160, 22)
-    resetSpellsButton:SetText("Reset Spell Config")
+    resetSpellsButton:SetText(L["Reset Spell Config"])
     resetSpellsButton:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_LEFT")
-        GameTooltip:AddLine("Reset Spell Configuration", 1, 1, 1)
-        GameTooltip:AddLine("Resets all spell visibility, ordering, and", 1, 0.82, 0, true)
-        GameTooltip:AddLine("proc tracker settings to defaults.", 1, 0.82, 0, true)
+        GameTooltip:AddLine(L["Reset Spell Configuration"], 1, 1, 1)
+        GameTooltip:AddLine(L["Resets all spell visibility, ordering, and proc tracker settings to defaults."], 1, 0.82, 0, true)
         GameTooltip:AddLine(" ", 1, 1, 1)
-        GameTooltip:AddLine("Current spec: " .. addon:FormatSpecKey(SpellsOptions:GetSpecKey()), 0.7, 0.7, 0.7)
+        GameTooltip:AddLine(L["Current spec: %s"]:format(addon:FormatSpecKey(SpellsOptions:GetSpecKey())), 0.7, 0.7, 0.7)
         GameTooltip:Show()
     end)
     resetSpellsButton:SetScript("OnLeave", function()
@@ -181,9 +181,9 @@ function SpellsOptions:CreateDialog()
     resetSpellsButton:SetScript("OnClick", function()
         local specKey = SpellsOptions:GetSpecKey()
         StaticPopupDialogs["VEEVHUD_RESET_SPELLS_CONFIRM"] = {
-            text = "Reset all spell configuration for " .. addon:FormatSpecKey(specKey) .. " to defaults?",
-            button1 = "Yes",
-            button2 = "No",
+            text = L["Reset all spell configuration for %s to defaults?"]:format(addon:FormatSpecKey(specKey)),
+            button1 = YES,
+            button2 = NO,
             OnAccept = function()
                 -- Clear all spellConfig for current spec (profile-scoped)
                 if addon.db and addon.db.profile and addon.db.profile.spellConfig then
@@ -497,7 +497,7 @@ function SpellsOptions:RefreshSpellList()
     -- Update subtitle with spec info
     local specKey = self:GetSpecKey()
     if self.subtitleText then
-        self.subtitleText:SetText(addon:FormatSpecLabel(specKey) or ("Current spec: " .. addon:FormatSpecKey(specKey)))
+        self.subtitleText:SetText(addon:FormatSpecLabel(specKey) or L["Current spec: %s"]:format(addon:FormatSpecKey(specKey)))
     end
 
     -- Return active entry/header frames to their pools for reuse
@@ -537,7 +537,7 @@ function SpellsOptions:RefreshSpellList()
             druidInfo = self.scrollChild:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
             druidInfo:SetWidth(460)
             druidInfo:SetJustifyH("LEFT")
-            druidInfo:SetText("|cff888888Druid: Cat Form and Bear Form abilities are filtered by your current form — Cat abilities hide in Bear Form and vice versa. In caster or travel form, your last Cat/Bear form is remembered. Click the form label (Cat/Bear/Any) next to any spell to override this.|r")
+            druidInfo:SetText(L["|cff888888Druid: Cat Form and Bear Form abilities are filtered by your current form — Cat abilities hide in Bear Form and vice versa. In caster or travel form, your last Cat/Bear form is remembered. Click the form label (Cat/Bear/Any) next to any spell to override this.|r"])
             self._druidInfoText = druidInfo
         end
         druidInfo:ClearAllPoints()
@@ -552,7 +552,7 @@ function SpellsOptions:RefreshSpellList()
         local noSpellsMsg = self._noSpellsText
         if not noSpellsMsg then
             noSpellsMsg = self.scrollChild:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-            noSpellsMsg:SetText("|cff888888No spells found for this spec.|r\n\nMake sure you're logged in and have abilities learned.")
+            noSpellsMsg:SetText(L["|cff888888No spells found for this spec.|r\n\nMake sure you're logged in and have abilities learned."])
             noSpellsMsg:SetJustifyH("LEFT")
             self._noSpellsText = noSpellsMsg
         end
@@ -569,7 +569,7 @@ function SpellsOptions:RefreshSpellList()
             local spells = rowSpells[rowIndex]
 
             -- Always show row header (even when empty) so it remains a drop target
-            yOffset = self:CreateRowHeader(rowIndex, rowConfig.name, yOffset)
+            yOffset = self:CreateRowHeader(rowIndex, addon.Utils:GetRowDisplayName(rowConfig.name, rowIndex), yOffset)
 
             -- Spell entries
             if spells then
@@ -585,13 +585,13 @@ function SpellsOptions:RefreshSpellList()
         local availableSpells = rowSpells[AVAILABLE_ROW_INDEX]
         if availableSpells and #availableSpells > 0 then
             yOffset = yOffset - 12  -- Extra gap before available section
-            yOffset = self:CreateRowHeader(AVAILABLE_ROW_INDEX, "Available", yOffset)
+            yOffset = self:CreateRowHeader(AVAILABLE_ROW_INDEX, L["Available"], yOffset)
             
             -- Add description (persistent fontstring, reused across refreshes)
             local availDesc = self._availDescText
             if not availDesc then
                 availDesc = self.scrollChild:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-                availDesc:SetText("|cff888888Spells you know but aren't tracked. Drag to a row above to enable.|r")
+                availDesc:SetText(L["|cff888888Spells you know but aren't tracked. Drag to a row above to enable.|r"])
                 availDesc:SetWidth(450)
                 availDesc:SetJustifyH("LEFT")
                 self._availDescText = availDesc
@@ -700,10 +700,10 @@ function SpellsOptions:GetEffectiveSpellList()
             if slotData then
                 local sentinelID = slotData.sentinelID
                 local cfg = spellCfg[sentinelID] or {}
-                local slotLabel = (slotID == 13) and "Trinket 1" or "Trinket 2"
+                local slotLabel = (slotID == 13) and L["Trinket 1"] or L["Trinket 2"]
                 local label = slotLabel
                 if slotData.name then
-                    label = slotLabel .. " (" .. slotData.name .. ")"
+                    label = L["%s (%s)"]:format(slotLabel, slotData.name)
                 end
                 local effectiveRow = cfg.rowIndex or 2  -- Default: Secondary
                 rows[effectiveRow] = rows[effectiveRow] or {}
@@ -728,7 +728,7 @@ function SpellsOptions:GetEffectiveSpellList()
         if sentinelIDs then
             for _, sentinelID in ipairs(sentinelIDs) do
                 local cfg = spellCfg[sentinelID] or {}
-                local label = totemTracker:GetSentinelLabel(sentinelID) or "Totem"
+                local label = totemTracker:GetSentinelLabel(sentinelID) or L["Totem"]
                 local icon = totemTracker:GetSentinelIcon(sentinelID)
                 local effectiveRow = cfg.rowIndex or 4  -- Default: Auxiliary
                 rows[effectiveRow] = rows[effectiveRow] or {}
@@ -782,7 +782,7 @@ function SpellsOptions:GetEffectiveSpellList()
         local sentinelID = stanceTracker:GetSentinelID()
         if sentinelID then
             local cfg = spellCfg[sentinelID] or {}
-            local label = stanceTracker:GetSentinelLabel() or "Stance"
+            local label = stanceTracker:GetSentinelLabel() or L["Stance"]
             local icon = stanceTracker:GetSentinelIcon()
             local effectiveRow = cfg.rowIndex or 4  -- Default: Auxiliary
             rows[effectiveRow] = rows[effectiveRow] or {}
@@ -1148,7 +1148,7 @@ function SpellsOptions:CreateRowHeader(rowIndex, name, yOffset)
     frame:ClearAllPoints()
     frame:SetPoint("TOPLEFT", self.scrollChild, "TOPLEFT", 0, yOffset)
     frame.rowIndex = rowIndex
-    frame.headerText:SetText(name or "Row " .. rowIndex)
+    frame.headerText:SetText(name or L["Row %d"]:format(rowIndex))
     frame.highlight:Hide()
     frame:Show()  -- Explicitly show
 
@@ -1296,7 +1296,7 @@ function SpellsOptions:CreateSpellEntry(spellInfo, rowIndex, index, yOffset)
         local shortDesc = desc:match("^%w+%s+(.+)$") or desc
         nameText = shortDesc:sub(1, 1):upper() .. shortDesc:sub(2)
     else
-        nameText = spellName or ("Spell " .. spellInfo.spellID)
+        nameText = spellName or L["Spell %s"]:format(spellInfo.spellID)
     end
 
     local name = frame.nameText
@@ -1390,7 +1390,7 @@ function SpellsOptions:CreateSpellEntry(spellInfo, rowIndex, index, yOffset)
         end
 
         -- Display labels
-        local formLabels = { CAT = "Cat", BEAR = "Bear", ANY = "Any" }
+        local formLabels = { CAT = L["Cat"], BEAR = L["Bear"], ANY = L["Any"] }
         -- Cycle order
         local cycleOrder = { "CAT", "BEAR", "ANY" }
 
@@ -1404,7 +1404,7 @@ function SpellsOptions:CreateSpellEntry(spellInfo, rowIndex, index, yOffset)
 
         -- Update display
         local function UpdateFormDisplay()
-            formText:SetText(formLabels[effectiveForm] or "Any")
+            formText:SetText(formLabels[effectiveForm] or L["Any"])
             if not spellInfo.enabled then
                 -- Spell disabled: extra dim
                 formText:SetTextColor(0.3, 0.3, 0.3)
@@ -1447,12 +1447,12 @@ function SpellsOptions:CreateSpellEntry(spellInfo, rowIndex, index, yOffset)
 
         formBtn:SetScript("OnEnter", function(self)
             GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-            GameTooltip:AddLine("Form Visibility")
-            GameTooltip:AddLine("Click to cycle: Cat / Bear / Any", 1, 1, 1, true)
+            GameTooltip:AddLine(L["Form Visibility"])
+            GameTooltip:AddLine(L["Click to cycle: Cat / Bear / Any"], 1, 1, 1, true)
             if currentOverride then
-                GameTooltip:AddLine("Currently overridden (gold = custom)", 1, 0.82, 0)
+                GameTooltip:AddLine(L["Currently overridden (gold = custom)"], 1, 0.82, 0)
             else
-                GameTooltip:AddLine("Using default (based on spell tags)", 0.5, 0.5, 0.5)
+                GameTooltip:AddLine(L["Using default (based on spell tags)"], 0.5, 0.5, 0.5)
             end
             GameTooltip:Show()
         end)
@@ -1467,8 +1467,8 @@ function SpellsOptions:CreateSpellEntry(spellInfo, rowIndex, index, yOffset)
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
         if spellInfo.isExclusiveGroup or spellInfo.isSharedCDGroup then
             local members = spellInfo.exclusiveGroupMembers or spellInfo.sharedCDGroupMembers
-            GameTooltip:AddLine("Shared Tracker", 1, 1, 1)
-            GameTooltip:AddLine("Only one active at a time — icon swaps on cast", 0.7, 0.7, 0.7, true)
+            GameTooltip:AddLine(L["Shared Tracker"], 1, 1, 1)
+            GameTooltip:AddLine(L["Only one active at a time — icon swaps on cast"], 0.7, 0.7, 0.7, true)
             GameTooltip:AddLine(" ")
             for _, memberID in ipairs(members) do
                 local mName = GetSpellInfo(memberID)
@@ -1478,10 +1478,10 @@ function SpellsOptions:CreateSpellEntry(spellInfo, rowIndex, index, yOffset)
             end
         elseif spellInfo.isTotemSlot then
             GameTooltip:AddLine(spellInfo.spellData.name, 1, 1, 1)
-            GameTooltip:AddLine("Element slot — shows your active totem for this element", 0.7, 0.7, 0.7, true)
+            GameTooltip:AddLine(L["Element slot — shows your active totem for this element"], 0.7, 0.7, 0.7, true)
         elseif spellInfo.isStanceIndicator then
             GameTooltip:AddLine(spellInfo.spellData.name, 1, 1, 1)
-            GameTooltip:AddLine("Shows your current active stance, form, or aura", 0.7, 0.7, 0.7, true)
+            GameTooltip:AddLine(L["Shows your current active stance, form, or aura"], 0.7, 0.7, 0.7, true)
         elseif spellInfo.isTrinket then
             local slotID = (spellInfo.spellID == addon.Constants.TRINKET_SLOT_13) and 13 or 14
             GameTooltip:SetInventoryItem("player", slotID)
@@ -1559,9 +1559,9 @@ function SpellsOptions:StartDrag(frame)
     end
     self.ghostFrame.icon:SetTexture(spellIcon)
     if info.isExclusiveGroup or info.isSharedCDGroup then
-        self.ghostFrame.name:SetText(frame.nameText:GetText() or "Group")
+        self.ghostFrame.name:SetText(frame.nameText:GetText() or L["Group"])
     else
-        self.ghostFrame.name:SetText(spellName or "Unknown")
+        self.ghostFrame.name:SetText(spellName or L["Unknown"])
     end
     self.ghostFrame:Show()
     
@@ -1855,7 +1855,7 @@ function SpellsOptions:IsBlockedBySharedCooldown(spellID)
             end
             
             if isEnabled then
-                local otherName = GetSpellInfo(otherSpellID) or ("Spell " .. otherSpellID)
+                local otherName = GetSpellInfo(otherSpellID) or L["Spell %s"]:format(otherSpellID)
                 return true, otherName
             end
         end

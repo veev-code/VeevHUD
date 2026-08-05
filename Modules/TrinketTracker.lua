@@ -13,6 +13,7 @@
 ]]
 
 local _, addon = ...
+local L = LibStub("AceLocale-3.0"):GetLocale("VeevHUD")
 
 local TrinketTracker = {}
 addon:RegisterModule("TrinketTracker", TrinketTracker)
@@ -142,7 +143,7 @@ function TrinketTracker:ScanSlot(slotID)
     self.slots[slotID] = {
         itemID = itemID,
         sentinelID = sentinelID,
-        name = itemName or ("Trinket " .. (slotID == TRINKET_SLOT_1 and "1" or "2")),
+        name = itemName or L["Trinket %s"]:format(slotID == TRINKET_SLOT_1 and "1" or "2"),
         icon = icon,
         -- Classification
         hasOnUse = hasOnUse,

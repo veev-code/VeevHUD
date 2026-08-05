@@ -277,6 +277,10 @@ C.SPELL_ID_ADRENALINE_RUSH = 13750
 
 -- All HUD elements that participate in vertical layout ordering.
 -- Keys are used in layout.elementOrder and layout.gaps.
+--
+-- The display names stay English here: Constants.lua is deliberately the one
+-- dependency-free file (it loads before anything calls GetLocale). Every value
+-- below is an enUS key, and Utils:LocalizeUIName translates it at render time.
 C.LAYOUT_ELEMENTS = {
     auraTracker  = "Aura Tracker",
     auxiliaryRow  = "Auxiliary Row",
@@ -776,9 +780,14 @@ C.DEFAULTS = {
         -- Row definitions (order matters - top to bottom)
         -- Each row shows spells matching these LibSpellDB tags
         -- Spells are assigned to the FIRST matching row (no duplicates)
+        --
+        -- Row names stay English here on purpose: they are persisted to
+        -- SavedVariables and used as Masque group IDs, so translating them at
+        -- rest would orphan saved settings. Utils:GetRowDisplayName localizes
+        -- them at render time instead.
         rows = {
             {
-                name = "Primary Row",
+                name = "Primary Row",  -- locale-ok: localized by Utils:GetRowDisplayName
                 -- Primary: ROTATIONAL abilities for DPS/Healing/Tanking
                 tags = {"ROTATIONAL", "CORE_ROTATION"},
                 maxIcons = 24,       -- No practical limit, grows horizontally
@@ -790,7 +799,7 @@ C.DEFAULTS = {
                 iconsPerRow = 6,     -- Icons per row when flow layout is on
             },
             {
-                name = "Secondary Row",
+                name = "Secondary Row",  -- locale-ok: localized by Utils:GetRowDisplayName
                 -- Secondary: Throughput abilities (DPS/healing CDs, maintenance debuffs, AoE-exclusive)
                 -- Matches DPS or HEAL role tags, plus MAINTENANCE for tank upkeep
                 -- EXTERNAL_DEFENSIVE included: healer external CDs are their "throughput" equivalent

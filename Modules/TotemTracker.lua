@@ -24,6 +24,7 @@
 ]]
 
 local _, addon = ...
+local L = LibStub("AceLocale-3.0"):GetLocale("VeevHUD")
 
 local TotemTracker = {}
 addon:RegisterModule("TotemTracker", TotemTracker)
@@ -123,10 +124,10 @@ function TotemTracker:Initialize()
     }
 
     SENTINEL_LABELS = {
-        [C.TOTEM_SLOT_FIRE]  = "Fire Totem",
-        [C.TOTEM_SLOT_EARTH] = "Earth Totem",
-        [C.TOTEM_SLOT_WATER] = "Water Totem",
-        [C.TOTEM_SLOT_AIR]   = "Air Totem",
+        [C.TOTEM_SLOT_FIRE]  = L["Fire Totem"],
+        [C.TOTEM_SLOT_EARTH] = L["Earth Totem"],
+        [C.TOTEM_SLOT_WATER] = L["Water Totem"],
+        [C.TOTEM_SLOT_AIR]   = L["Air Totem"],
     }
 
     -- Initialize element state

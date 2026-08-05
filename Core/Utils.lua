@@ -9,11 +9,55 @@
 ]]
 
 local _, addon = ...
+local L = LibStub("AceLocale-3.0"):GetLocale("VeevHUD")
 
 -- Utils table may already exist from Logger.lua (which loads first)
 addon.Utils = addon.Utils or {}
 local Utils = addon.Utils
 local C = addon.Constants
+
+-------------------------------------------------------------------------------
+-- Display Name Localization
+-------------------------------------------------------------------------------
+
+-- Built-in element and row names live in Constants.lua in English because they
+-- double as SavedVariables values and Masque group IDs -- translating them at
+-- rest would orphan saved settings. Translate at render time instead.
+--
+-- AceLocale is strict (enUS declares no `silent` flag), so indexing L with an
+-- arbitrary string errors. Only names we know are enUS keys may be looked up;
+-- anything else (a hand-edited row name in an old profile) passes through.
+local BUILTIN_NAMES = {}
+for _, displayName in pairs(C.LAYOUT_ELEMENTS) do
+    BUILTIN_NAMES[displayName] = true
+end
+for _, row in ipairs(C.DEFAULTS.profile.rows) do
+    BUILTIN_NAMES[row.name] = true
+end
+
+-- Rows 3 and 4 are stored as "Utility"/"Auxiliary" but display as full row names.
+local ROW_CANONICAL_NAME = {
+    ["Utility"] = "Utility Row",
+    ["Auxiliary"] = "Auxiliary Row",
+}
+
+--- Localize a built-in HUD element display name (C.LAYOUT_ELEMENTS value).
+function Utils:LocalizeUIName(name)
+    if type(name) ~= "string" then return name end
+    if BUILTIN_NAMES[name] then return L[name] end  -- locale-ok: guarded by BUILTIN_NAMES
+    return name
+end
+
+--- Localize an ability row's display name, expanding it to the full "<X> Row"
+--- form. Falls back to a numbered label when the row has no name at all.
+function Utils:GetRowDisplayName(name, rowIndex)
+    if type(name) ~= "string" or name == "" then
+        return L["Row %d"]:format(rowIndex or 0)
+    end
+    local canonical = ROW_CANONICAL_NAME[name] or name
+    if BUILTIN_NAMES[canonical] then return L[canonical] end  -- locale-ok: guarded by BUILTIN_NAMES
+    return name
+end
 
 -------------------------------------------------------------------------------
 -- General Utilities

@@ -493,7 +493,7 @@ function Options:BuildOptionsTable()
 						if type(default) == "table" then return text end
 						local formatted
 						if type(default) == "boolean" then
-							formatted = default and "Enabled" or "Disabled"
+							formatted = default and L["Enabled"] or L["Disabled"]
 						elseif type(default) == "number" and isPercent then
 							formatted = math.floor(default * 100 + 0.5) .. "%"
 						elseif type(default) == "number" then
@@ -555,7 +555,7 @@ function Options:BuildOptionsTable()
 			local rowKey = "row" .. i
 			rowArgs[rowKey] = {
 				type = "group",
-				name = row.name or ("Row " .. i),
+				name = addon.Utils:GetRowDisplayName(row.name, i),
 				order = i,
 				args = {
 					rowDesc = {
@@ -755,7 +755,7 @@ function Options:BuildOptionsTable()
 		local function addStackEntry(stackIndex, entry, nextEntry)
 			local key = entry.key
 			local sourceIndex = entry.index
-			local displayName = C.LAYOUT_ELEMENTS[key] or key
+			local displayName = addon.Utils:LocalizeUIName(C.LAYOUT_ELEMENTS[key] or key)
 			local base = 100 + stackIndex * 10
 
 			stackLayoutArgs["stackName" .. stackIndex] = {
@@ -790,7 +790,7 @@ function Options:BuildOptionsTable()
 
 			if nextEntry then
 				local nextKey = nextEntry.key
-				local nextDisplayName = C.LAYOUT_ELEMENTS[nextKey] or nextKey
+				local nextDisplayName = addon.Utils:LocalizeUIName(C.LAYOUT_ELEMENTS[nextKey] or nextKey)
 				stackLayoutArgs["stackGap" .. stackIndex] = {
 					type = "range",
 					name = L["Gap below"],
@@ -823,7 +823,7 @@ function Options:BuildOptionsTable()
 
 		local function addIndependentRowOptions(rowOrder, key)
 			local rowIndex = rowLayoutIndices[key]
-			local displayName = C.LAYOUT_ELEMENTS[key] or key
+			local displayName = addon.Utils:LocalizeUIName(C.LAYOUT_ELEMENTS[key] or key)
 			local independent = icons and icons:IsRowIndependent(rowIndex) or false
 			local rowArgs = {
 				moveSeparately = {
@@ -1038,7 +1038,7 @@ function Options:BuildOptionsTable()
 								type = "select",
 								name = L["Sound Channel"],
 								desc = L["Audio channel for all VeevHUD sound alerts.\n\n|cffffffffMaster|r — Always plays regardless of volume sliders.\n|cffffffffSound Effects|r — Respects the Sound Effects volume slider.\n|cffffffffMusic|r — Respects the Music volume slider.\n|cffffffffAmbience|r — Respects the Ambience volume slider."],
-								values = { Master = "Master", SFX = "Sound Effects", Music = "Music", Ambience = "Ambience" },
+								values = { Master = L["Master"], SFX = L["Sound Effects"], Music = L["Music"], Ambience = L["Ambience"] },
 								arg = "sound.channel",
 								order = 1,
 							},
@@ -2046,8 +2046,8 @@ function Options:BuildOptionsTable()
 								name = L["Style"],
 								desc = L["|cffffffffOutside 5 Second Rule|r — Only shows the tick timer when you haven't cast a spell in the last 5 seconds (when you're getting full spirit-based mana regeneration).\n\n|cffffffffNext Full Tick|r (Recommended) — Always active. After you cast a spell, it predicts exactly when your first full-rate mana tick will arrive and counts down to it. Cast right after the tick completes to get the most mana before your next spell."],
 								values = {
-									outside5sr = "Outside 5-second rule",
-									nextfulltick = "Next full tick",
+									outside5sr = L["Outside 5-second rule"],
+									nextfulltick = L["Next full tick"],
 								},
 								arg = "resourceBar.manaTicker.style",
 								order = 2,
@@ -2385,7 +2385,7 @@ function Options:BuildOptionsTable()
 											return Dim(L["Tracks your melee swing timer — a bar that fills up as your next auto-attack approaches. Auto-hides between pulls."]) .. "\n"
 										end
 									elseif class == C.CLASS.WARRIOR then
-										local dwText = "When dual-wielding, two bars track your main-hand and off-hand swing timers. When Heroic Strike is queued, your off-hand's dual-wield miss penalty is removed — but MH fire consumes the queued HS. Bars turn red when your off-hand fires right after your main-hand (no time to re-queue HS), and green when there's a comfortable gap. Use a desync macro if they drift together."
+										local dwText = L["When dual-wielding, two bars track your main-hand and off-hand swing timers. When Heroic Strike is queued, your off-hand's dual-wield miss penalty is removed — but MH fire consumes the queued HS. Bars turn red when your off-hand fires right after your main-hand (no time to re-queue HS), and green when there's a comfortable gap. Use a desync macro if they drift together."]
 										if spec == C.SPEC.ARMS then
 											return Dim(L["Tracks your melee swing timer. Slam resets this timer, so for maximum DPS you want to Slam right after a swing lands (when the bar reaches the end and resets). This avoids losing auto-attack time to the Slam cast.\n\n"] .. dwText) .. "\n"
 										else
@@ -2518,9 +2518,9 @@ function Options:BuildOptionsTable()
 										type = "toggle", name = L["Enable Sync Colors"],
 										desc = function()
 											if addon.playerClass == C.CLASS.WARRIOR then
-												return "Color both bars by your HS re-queue window. |cffffffffGreen|r when there's time to re-queue HS before off-hand fires, |cffffffffRed|r when off-hand fires too soon after main-hand (no time to re-queue)."
+												return L["Color both bars by your HS re-queue window. |cffffffffGreen|r when there's time to re-queue HS before off-hand fires, |cffffffffRed|r when off-hand fires too soon after main-hand (no time to re-queue)."]
 											end
-											return "Color both bars by how well your main-hand and off-hand swings are synced. |cffffffffGreen|r when synced, |cffffffffRed|r when drifted apart."
+											return L["Color both bars by how well your main-hand and off-hand swings are synced. |cffffffffGreen|r when synced, |cffffffffRed|r when drifted apart."]
 										end,
 										arg = "swingBar.enableSyncColors", order = 20, width = "full",
 										hidden = function() return not isDualWieldSyncSpec() end,
@@ -2529,9 +2529,9 @@ function Options:BuildOptionsTable()
 										type = "range", name = L["Sync Threshold"],
 										desc = function()
 											if addon.playerClass == C.CLASS.WARRIOR then
-												return "If your off-hand fires within this many seconds after your main-hand, bars turn red. Increase if you need more reaction time to re-queue HS."
+												return L["If your off-hand fires within this many seconds after your main-hand, bars turn red. Increase if you need more reaction time to re-queue HS."]
 											end
-											return "How close (in seconds) your main-hand and off-hand swings need to be to count as synced (green). If the bars flicker between green and red too often, increase this value."
+											return L["How close (in seconds) your main-hand and off-hand swings need to be to count as synced (green). If the bars flicker between green and red too often, increase this value."]
 										end,
 										min = 0.1, max = 2.0, step = 0.05, arg = "swingBar.syncThreshold", order = 21,
 										hidden = function() return not isDualWieldSyncSpec() or not addon.db.profile.swingBar.enableSyncColors end,
@@ -2539,12 +2539,12 @@ function Options:BuildOptionsTable()
 									syncSafeColor = {
 										type = "color",
 										name = function()
-											if addon.playerClass == C.CLASS.WARRIOR then return "Safe Color" end
-											return "Synced Color"
+											if addon.playerClass == C.CLASS.WARRIOR then return L["Safe Color"] end
+											return L["Synced Color"]
 										end,
 										desc = function()
-											if addon.playerClass == C.CLASS.WARRIOR then return "Bar color when you have time to re-queue HS before off-hand fires." end
-											return "Bar color when both weapons are swinging in sync."
+											if addon.playerClass == C.CLASS.WARRIOR then return L["Bar color when you have time to re-queue HS before off-hand fires."] end
+											return L["Bar color when both weapons are swinging in sync."]
 										end,
 										hasAlpha = false, get = colorGet, set = colorSet, arg = "swingBar.safeColor", order = 22,
 										hidden = function() return not isDualWieldSyncSpec() or not addon.db.profile.swingBar.enableSyncColors end,
@@ -2552,12 +2552,12 @@ function Options:BuildOptionsTable()
 									syncDangerColor = {
 										type = "color",
 										name = function()
-											if addon.playerClass == C.CLASS.WARRIOR then return "Danger Color" end
-											return "Desynced Color"
+											if addon.playerClass == C.CLASS.WARRIOR then return L["Danger Color"] end
+											return L["Desynced Color"]
 										end,
 										desc = function()
-											if addon.playerClass == C.CLASS.WARRIOR then return "Bar color when off-hand fires too soon after main-hand to re-queue HS." end
-											return "Bar color when your weapons have drifted apart."
+											if addon.playerClass == C.CLASS.WARRIOR then return L["Bar color when off-hand fires too soon after main-hand to re-queue HS."] end
+											return L["Bar color when your weapons have drifted apart."]
 										end,
 										hasAlpha = false, get = colorGet, set = colorSet, arg = "swingBar.dangerColor", order = 23,
 										hidden = function() return not isDualWieldSyncSpec() or not addon.db.profile.swingBar.enableSyncColors end,
@@ -2635,13 +2635,13 @@ function Options:BuildOptionsTable()
 								order = 2,
 							},
 							potionSelect = self:BuildConsumableDropdown(
-								"Add Potion",
-								"Select a potion to add to your HUD. Potions in your bags are listed first, sorted by count.",
+								L["Add Potion"],
+								L["Select a potion to add to your HUD. Potions in your bags are listed first, sorted by count."],
 								3, "GetAllPotionChoices", "_cachedPotionChoices"
 							),
 							otherSelect = self:BuildConsumableDropdown(
-								"Add Other Consumable",
-								"Select a consumable to add to your HUD. Includes runes, engineering items, and other raid consumables.",
+								L["Add Other Consumable"],
+								L["Select a consumable to add to your HUD. Includes runes, engineering items, and other raid consumables."],
 								4, "GetAllOtherConsumableChoices", "_cachedOtherChoices"
 							),
 							customInput = {
@@ -2670,7 +2670,7 @@ function Options:BuildOptionsTable()
 										-- Item not cached — request load and tell user to retry
 										C_Item.RequestLoadItemData(itemID)
 										self._customConsumableInput = ""
-										self._customConsumableStatus = Orange(L["Item "] .. itemID .. " not cached yet. Try again in a moment.")
+										self._customConsumableStatus = Orange(L["Item %s not cached yet. Try again in a moment."]:format(itemID))
 										return
 									end
 
@@ -2730,7 +2730,7 @@ function Options:BuildOptionsTable()
 				args = {
 					discordInfo = {
 						type = "description",
-						name = Dim(L["Join the "] .. White(L["Veev Addons Discord"]) .. " for feedback, suggestions, and bug reports:"),
+						name = Dim(L["Join the %s for feedback, suggestions, and bug reports:"]:format(White(L["Veev Addons Discord"]))),
 						fontSize = "medium",
 						order = 1,
 					},
@@ -2776,9 +2776,8 @@ function Options:BuildOptionsTable()
 	for key, rowDef in pairs(rowArgs) do
 		local rowIndex = tonumber(key:match("(%d+)$"))
 		rowDef.order = rowTabOrder[rowIndex] or (rowIndex + 6)
-		if rowDef.name and not rowDef.name:match("Row$") then
-			rowDef.name = rowDef.name .. " Row"
-		end
+		-- rowDef.name was already resolved to a full localized row name by
+		-- Utils:GetRowDisplayName when rowArgs was built.
 		optionsTable.args.icons.args[key] = rowDef
 	end
 
@@ -3116,7 +3115,7 @@ function Options:RebuildConsumableEntries()
 		local itemID = entry.itemID
 		local itemName, _, _, _, _, _, _, _, _, itemIcon = GetItemInfo(itemID)
 		local count = C_Item.GetItemCount(itemID)
-		itemName = itemName or ("Item " .. itemID)
+		itemName = itemName or L["Item %s"]:format(itemID)
 		local iconString = itemIcon and ("|T" .. itemIcon .. ":16|t ") or ""
 		local countStr = count > 0 and (" |cFFFFFF00(x" .. count .. ")|r") or " |cFFFF0000(0)|r"
 
@@ -3284,7 +3283,7 @@ function Options:BuildAuraTrackerOptions(settingsGroup)
 		for _, procData in ipairs(sorted) do
 			local spellID = procData.spellID
 			local spellName = GetSpellInfo(spellID)
-			spellName = spellName or procData.name or ("Spell " .. spellID)
+			spellName = spellName or procData.name or L["Spell %s"]:format(spellID)
 			-- Use LibSpellDB icon (handles overrides like Mace Spec talent icon)
 			local displayIcon = LibSpellDB and LibSpellDB:GetSpellIcon(spellID)
 			-- For equipment-gated procs, use the equipped item's icon
@@ -3435,14 +3434,14 @@ end
 -- Classify an external spell into a UI category based on its LibSpellDB tags.
 -- Returns categoryName, categoryOrder. First matching rule wins.
 local function ClassifyExternal(lib, spellID, isMinor)
-	if lib:HasTag(spellID, "PVP_POWERUP") then return "PvP Powerups", 5 end
-	if lib:HasTag(spellID, "DRUMS") then return "Drums", 4 end
+	if lib:HasTag(spellID, "PVP_POWERUP") then return L["PvP Powerups"], 5 end
+	if lib:HasTag(spellID, "DRUMS") then return L["Drums"], 4 end
 	if not isMinor then
-		if lib:HasTag(spellID, "RAID_DEFENSIVE") then return "Raid Cooldowns", 1 end
-		if lib:HasTag(spellID, "EXTERNAL_DEFENSIVE") or lib:HasTag(spellID, "DEFENSIVE") then return "Defensive Externals", 2 end
-		return "Other Externals", 3
+		if lib:HasTag(spellID, "RAID_DEFENSIVE") then return L["Raid Cooldowns"], 1 end
+		if lib:HasTag(spellID, "EXTERNAL_DEFENSIVE") or lib:HasTag(spellID, "DEFENSIVE") then return L["Defensive Externals"], 2 end
+		return L["Other Externals"], 3
 	end
-	return "Minor Externals", 6
+	return L["Minor Externals"], 6
 end
 
 function Options:BuildExternalBuffsArgs()
@@ -3493,7 +3492,7 @@ function Options:BuildExternalBuffsArgs()
 		for _, entry in ipairs(category.spells) do
 			local spellID = entry.spellID
 			local spellName, _, spellIcon = GetSpellInfo(spellID)
-			spellName = spellName or ("Spell " .. spellID)
+			spellName = spellName or L["Spell %s"]:format(spellID)
 			local iconString = spellIcon and ("|T" .. spellIcon .. ":16|t ") or ""
 			local spellKey = "ext_" .. spellID
 
@@ -3652,7 +3651,7 @@ function Options:BuildCustomAurasArgs()
 				if (entry.id and existing.id == entry.id)
 					or (entry.name and existing.name == entry.name) then
 					self._customAuraInput = ""
-					self._customAuraStatus = Orange((resolvedName or ("ID " .. (entry.id or entry.name))) .. " is already being tracked.")
+					self._customAuraStatus = Orange(L["%s is already being tracked."]:format(resolvedName or L["ID %s"]:format(entry.id or entry.name)))
 					return
 				end
 			end
@@ -3662,7 +3661,7 @@ function Options:BuildCustomAurasArgs()
 			self._customAuraInput = ""
 			local iconString = resolvedIcon and ("|T" .. resolvedIcon .. ":16|t ") or ""
 			if not resolvedName then
-				self._customAuraStatus = Green(L["Added:"]) .. " ID " .. entry.id .. " " .. Dim(L["(icon shows when buff is active)"])
+				self._customAuraStatus = Green(L["Added: ID %s"]:format(entry.id)) .. " " .. Dim(L["(icon shows when buff is active)"])
 			elseif entry.name and not entry.id then
 				self._customAuraStatus = Green(L["Added:"]) .. " " .. resolvedName .. " " .. Dim(L["(by name — icon shows when buff is active)"])
 			else
@@ -3753,7 +3752,7 @@ function Options:RebuildCustomAuraEntries()
 		elseif spellName then
 			resolvedName, _, resolvedIcon = GetSpellInfo(spellName)
 		end
-		resolvedName = resolvedName or spellName or ("Unknown Spell " .. (spellID or ""))
+		resolvedName = resolvedName or spellName or L["Unknown Spell %s"]:format(spellID or "")
 		local iconString = resolvedIcon and ("|T" .. resolvedIcon .. ":16|t ") or ""
 		local idStr = spellID and (" " .. Dim(L["(ID: "] .. spellID .. ")")) or ""
 
@@ -3767,7 +3766,7 @@ function Options:RebuildCustomAuraEntries()
 		-- Name-only auras that never resolve to a spell ID would all write config
 		-- under key 0 (which the runtime never reads) — disable their per-aura controls
 		local unresolved = not filterSpellID or filterSpellID == 0
-		local unresolvedNote = unresolved and " (unavailable for name-only auras that don't resolve to a spell ID)" or ""
+		local unresolvedNote = unresolved and L[" (unavailable for name-only auras that don't resolve to a spell ID)"] or ""
 
 		local entryKey = "custom_" .. i
 		entriesArgs[entryKey] = {
@@ -3797,7 +3796,7 @@ function Options:RebuildCustomAuraEntries()
 				source = {
 					type = "select",
 					name = "",
-					desc = unresolved and "Unavailable for name-only auras that don't resolve to a spell ID." or nil,
+					desc = unresolved and L["Unavailable for name-only auras that don't resolve to a spell ID."] or nil,
 					disabled = unresolved,
 					values = auraSourceFilterValues,
 					get = function() return addon:GetAuraSourceFilter(filterSpellID, "custom") end,
@@ -3975,7 +3974,7 @@ function Options:RebuildRecentBuffEntries(force)
 
 		recentArgs[entryKey .. "_label"] = {
 			type = "description",
-			name = iconString .. (entry.name or ("Spell " .. entry.spellID)) .. " " .. Dim(L["(ID: "] .. entry.spellID .. ")"),
+			name = iconString .. (entry.name or L["Spell %s"]:format(entry.spellID)) .. " " .. Dim(L["(ID: "] .. entry.spellID .. ")"),
 			fontSize = "medium",
 			order = i * 2 - 1,
 			width = 1.4,
@@ -4238,9 +4237,9 @@ function Options:BuildBuffRemindersOptions()
 			local groupName = entry.groupName
 
 			do
-				local spellName = spellData.name or ("Spell " .. spellID)
+				local spellName = spellData.name or L["Spell %s"]:format(spellID)
 				if spellData.requiredLevel then
-					spellName = spellName .. " (Lv. " .. spellData.requiredLevel .. ")"
+					spellName = L["%s (Lv. %d)"]:format(spellName, spellData.requiredLevel)
 				end
 				local spellIcon = spellData.icon
 				local iconString = spellIcon and ("|T" .. spellIcon .. ":16|t ") or ""
@@ -4430,7 +4429,7 @@ function Options:BuildBuffRemindersOptions()
 						for _, gSpellID in ipairs(groupInfo.spells) do
 							local gData = LibSpellDB:GetSpellInfo(gSpellID)
 							if gData then
-								priorityValues[gSpellID] = gData.name or ("Spell " .. gSpellID)
+								priorityValues[gSpellID] = gData.name or L["Spell %s"]:format(gSpellID)
 							end
 						end
 						-- Line break before priority to keep layout consistent
@@ -4731,9 +4730,9 @@ function Options:BuildBuffRemindersOptions()
 						name = function()
 							local m = addon:GetModule("BuffReminders")
 							if m and m:IsPreviewActive() then
-								return "Hide Preview"
+								return L["Hide Preview"]
 							end
-							return "Show Preview"
+							return L["Show Preview"]
 						end,
 						desc = L["Toggle a sample buff reminder icon so you can see your settings in action."],
 						func = function()
@@ -4834,7 +4833,7 @@ function Options:BuildReadyGlowSoundOverrideArgs()
 				end
 				overrideArgs["row_" .. rowIndex] = {
 					type = "group",
-					name = ROW_NAMES[rowIndex] or ("Row " .. rowIndex),
+					name = ROW_NAMES[rowIndex] or L["Row %d"]:format(rowIndex),
 					inline = true,
 					order = 10 + rowIndex,
 					args = rowArgs,
@@ -5038,10 +5037,10 @@ function Options:RegisterSettingsPanel()
 
 	local desc = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 	desc:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -8)
-	desc:SetText("Type " .. Cyan(L["/vh"]) .. " to open settings.")
+	desc:SetText(L["Type %s to open settings."]:format(Cyan(L["/vh"])))
 
 	local openBtn = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
-	openBtn:SetText("Open VeevHUD Settings")
+	openBtn:SetText(L["Open VeevHUD Settings"])
 	openBtn:SetWidth(180)
 	openBtn:SetHeight(24)
 	openBtn:SetPoint("TOPLEFT", desc, "BOTTOMLEFT", 0, -16)

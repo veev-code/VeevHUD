@@ -1,8 +1,18 @@
 ## Interface: 11508, 20505, 20506
 ## Title: VeevHUD
 ## Notes: WeakAuras-inspired cooldown, buff/debuff, and resource HUD. Works out-of-the-box for all classes with zero config required.
+## Notes-deDE: Von WeakAuras inspiriertes HUD für Abklingzeiten, Buffs/Debuffs und Ressourcen. Funktioniert sofort für alle Klassen, ganz ohne Konfiguration.
+## Notes-esES: Interfaz inspirada en WeakAuras para tiempos de reutilización, beneficios/perjuicios y recursos. Funciona al instante en todas las clases, sin configuración.
+## Notes-esMX: Interfaz inspirada en WeakAuras para tiempos de reutilización, beneficios/perjuicios y recursos. Funciona de inmediato en todas las clases, sin configuración.
+## Notes-frFR: ATH inspiré de WeakAuras pour les temps de recharge, améliorations/affaiblissements et ressources. Fonctionne immédiatement pour toutes les classes, sans configuration.
+## Notes-itIT: HUD ispirato a WeakAuras per cooldown, buff/debuff e risorse. Funziona subito con tutte le classi, senza alcuna configurazione.
+## Notes-koKR: WeakAuras에서 영감을 받은 재사용 대기시간, 버프/디버프, 자원 HUD. 모든 직업에서 설정 없이 바로 작동합니다.
+## Notes-ptBR: HUD inspirado no WeakAuras para recargas, benefícios/penalidades e recursos. Funciona de imediato em todas as classes, sem configuração.
+## Notes-ruRU: Вдохновлённый WeakAuras интерфейс: восстановление, эффекты усиления/ослабления и ресурсы. Работает сразу для всех классов, без настройки.
+## Notes-zhCN: 受 WeakAuras 启发的冷却时间、增益/减益与资源 HUD。所有职业开箱即用，无需任何配置。
+## Notes-zhTW: 受 WeakAuras 啟發的冷卻時間、增益/減益與資源 HUD。所有職業開箱即用，無需任何設定。
 ## Author: Veev
-## Version: 1.0.227
+## Version: 1.0.228
 ## IconTexture: Interface\Icons\Spell_Nature_Reincarnation
 ## SavedVariables: VeevHUDDB, VeevHUDLog
 ## OptionalDeps: Ace3, LibSharedMedia-3.0, AceGUI-3.0-SharedMediaWidgets, LibDualSpec-1.0, Masque, LibSpellDB
