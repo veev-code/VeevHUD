@@ -216,7 +216,9 @@ function IconRenderer:ApplyIconVisuals(frame, state, db)
             frame._wasRealCooldown = false
         elseif renderCooldown then
             -- Cooldown spiral (normal: dark drains as time passes)
-            frame.cooldown:SetAlpha(db.cooldownSpiralAlpha)
+            -- showGCDSpinner is only ever set for pure-GCD state (never alongside
+            -- a real cooldown), so the GCD swipe keeps its own opacity setting.
+            frame.cooldown:SetAlpha(showGCDSpinner and db.gcdSpiralAlpha or db.cooldownSpiralAlpha)
             frame.cooldown:SetReverse(false)
             if frame.lastCdStart ~= cdStartTime or frame.lastCdDuration ~= cdDuration then
                 frame.cooldown:SetCooldown(cdStartTime, cdDuration)

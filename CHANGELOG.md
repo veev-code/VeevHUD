@@ -1,5 +1,13 @@
 # VeevHUD Changelog
 
+## [1.0.227] - 2026-08-05
+
+### Fixed
+- **GCD swipe with hidden Cooldown Spiral** — The global-cooldown swipe now has its own **GCD Spiral Opacity** setting (default 100%) instead of sharing the Cooldown Spiral Opacity value, so turning the cooldown spiral's opacity to 0% no longer makes the GCD swipe invisible. *(Thanks zearp for reporting)*
+
+### Changed
+- **Reorganized icon options** — The Ability Rows > Cooldowns tab is now grouped by feature (Text, Cooldown Spiral, Global Cooldown), and Dim On Cooldown now sits beside Ready Opacity and Cooldown Opacity under Appearance > Opacity, so the ready-vs-cooldown brightness style is configured in one place.
+
 ## [1.0.226] - 2026-08-01
 
 ### Added

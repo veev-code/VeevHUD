@@ -597,9 +597,10 @@ C.DEFAULTS = {
             cooldownBlingRows = "all",     -- Which rows show sparkle effect when cooldown finishes
             
             -- GCD display: which rows show the global cooldown spinner
-            -- "none" = disabled, "primary" = Primary Row only, 
+            -- "none" = disabled, "primary" = Primary Row only,
             -- "primary_secondary" = Primary + Secondary, "all" = everywhere
             showGCDOn = "primary_secondary",
+            gcdSpiralAlpha = 1.0,         -- Darkness of GCD swipe overlay (independent of cooldownSpiralAlpha)
             
             -- Dim on cooldown: which rows fade to cooldownAlpha when on cooldown
             -- "none" = all rows stay full alpha, "utility" = Utility only,
